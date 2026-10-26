@@ -1,0 +1,132 @@
+[
+  {
+    "name": "安神定志针方",
+    "aliases": ["安眠针方"],
+    "source": "倪海厦·针灸",
+    "efficacy": "安神定志，交通心肾",
+    "indications": "失眠多梦、心悸怔忡、健忘、焦虑易醒",
+    "usage": "留针20-30分钟，睡前施针为佳；可配合艾灸神阙。",
+    "technique": "平补平泻",
+    "treatment_frequency": "每日",
+    "treatment_days": 10,
+    "composition": {
+      "acupoints": [
+        { "acupoint_name": "百会", "technique": "平补平泻", "retention": "20分钟", "sequence": 1, "note": "醒脑安神" },
+        { "acupoint_name": "神门", "technique": "平补平泻", "retention": "20分钟", "sequence": 2, "note": "宁心安神" },
+        { "acupoint_name": "三阴交", "technique": "补法", "retention": "25分钟", "sequence": 3, "note": "健脾益肾" },
+        { "acupoint_name": "安眠", "technique": "平补平泻", "retention": "20分钟", "sequence": 4, "note": "经外奇穴，专治失眠" },
+        { "acupoint_name": "四神聪", "technique": "平补平泻", "retention": "20分钟", "sequence": 5, "note": "益智安神" },
+        { "acupoint_name": "内关", "technique": "平补平泻", "retention": "20分钟", "sequence": 6, "note": "宽胸宁心" }
+      ]
+    },
+    "notes": "心脾两虚者可加足三里、心俞。"
+  },
+  {
+    "name": "健脾和胃针方",
+    "aliases": [],
+    "source": "通用",
+    "efficacy": "健脾和胃，化湿和中",
+    "indications": "食欲不振、脘腹胀满、大便溏薄、神疲乏力",
+    "usage": "中脘、足三里用补法，留针25分钟；可温针灸。",
+    "technique": "毫针补法",
+    "treatment_frequency": "隔日",
+    "treatment_days": 10,
+    "composition": {
+      "acupoints": [
+        { "acupoint_name": "中脘", "technique": "补法", "retention": "25分钟", "sequence": 1, "note": "胃之募穴" },
+        { "acupoint_name": "足三里", "technique": "补法", "retention": "25分钟", "sequence": 2, "note": "强壮要穴" },
+        { "acupoint_name": "脾俞", "technique": "补法", "retention": "20分钟", "sequence": 3, "note": "背俞穴" },
+        { "acupoint_name": "胃俞", "technique": "补法", "retention": "20分钟", "sequence": 4, "note": "背俞穴" },
+        { "acupoint_name": "内关", "technique": "平补平泻", "retention": "20分钟", "sequence": 5, "note": "和胃降逆" },
+        { "acupoint_name": "天枢", "technique": "平补平泻", "retention": "20分钟", "sequence": 6, "note": "大肠募穴" }
+      ]
+    },
+    "notes": ""
+  },
+  {
+    "name": "腰痛针方",
+    "aliases": ["通督活络针方"],
+    "source": "通用",
+    "efficacy": "通经活络，壮腰止痛",
+    "indications": "腰肌劳损、腰椎间盘突出所致腰部酸痛、活动受限",
+    "usage": "肾俞、腰阳关可加温针灸；阿是穴围刺。",
+    "technique": "平补平泻",
+    "treatment_frequency": "每日",
+    "treatment_days": 7,
+    "composition": {
+      "acupoints": [
+        { "acupoint_name": "肾俞", "technique": "平补平泻", "retention": "25分钟", "sequence": 1, "note": "补肾壮腰" },
+        { "acupoint_name": "腰阳关", "technique": "温针灸", "retention": "25分钟", "sequence": 2, "note": "通督脉" },
+        { "acupoint_name": "大肠俞", "technique": "平补平泻", "retention": "20分钟", "sequence": 3, "note": "局部取穴" },
+        { "acupoint_name": "委中", "technique": "泻法", "retention": "15分钟", "sequence": 4, "note": "腰背委中求" },
+        { "acupoint_name": "阿是穴", "technique": "平补平泻", "retention": "20分钟", "sequence": 5, "note": "压痛点围刺" }
+      ]
+    },
+    "notes": "急性腰扭伤着重泻委中、人中。"
+  },
+  {
+    "name": "疏风解表针方",
+    "aliases": [],
+    "source": "倪海厦·针灸",
+    "efficacy": "疏风解表，宣肺清热",
+    "indications": "外感风寒或风热：恶寒发热、头痛、鼻塞、咽痛",
+    "usage": "大椎可点刺出血或艾灸；合谷、曲池用泻法。",
+    "technique": "毫针泻法",
+    "treatment_frequency": "每日",
+    "treatment_days": 3,
+    "composition": {
+      "acupoints": [
+        { "acupoint_name": "大椎", "technique": "泻法", "retention": "15分钟", "sequence": 1, "note": "解表退热要穴" },
+        { "acupoint_name": "风池", "technique": "泻法", "retention": "15分钟", "sequence": 2, "note": "疏风解表" },
+        { "acupoint_name": "合谷", "technique": "泻法", "retention": "15分钟", "sequence": 3, "note": "原穴，宣散邪气" },
+        { "acupoint_name": "曲池", "technique": "泻法", "retention": "15分钟", "sequence": 4, "note": "清热" },
+        { "acupoint_name": "列缺", "technique": "平补平泻", "retention": "15分钟", "sequence": 5, "note": "宣肺利窍" }
+      ]
+    },
+    "notes": "风寒重可加灸大椎、风门。"
+  },
+  {
+    "name": "调经针方",
+    "aliases": [],
+    "source": "通用",
+    "efficacy": "理气活血，调经止痛",
+    "indications": "月经不调、经行腹痛、经期紊乱、痛经",
+    "usage": "经前5-7天开始施针，平补平泻。",
+    "technique": "平补平泻",
+    "treatment_frequency": "隔日",
+    "treatment_days": 10,
+    "composition": {
+      "acupoints": [
+        { "acupoint_name": "关元", "technique": "补法", "retention": "25分钟", "sequence": 1, "note": "培元固本" },
+        { "acupoint_name": "气海", "technique": "补法", "retention": "25分钟", "sequence": 2, "note": "益气助运" },
+        { "acupoint_name": "三阴交", "technique": "平补平泻", "retention": "20分钟", "sequence": 3, "note": "三阴交会，调经要穴" },
+        { "acupoint_name": "血海", "technique": "平补平泻", "retention": "20分钟", "sequence": 4, "note": "活血" },
+        { "acupoint_name": "太冲", "technique": "泻法", "retention": "15分钟", "sequence": 5, "note": "疏肝理气" },
+        { "acupoint_name": "子宫", "technique": "平补平泻", "retention": "20分钟", "sequence": 6, "note": "经外奇穴，专治妇科" }
+      ]
+    },
+    "notes": "痛经甚者加地机。"
+  },
+  {
+    "name": "醒脑开窍针方",
+    "aliases": [],
+    "source": "倪海厦·针灸",
+    "efficacy": "醒脑开窍，疏通经络",
+    "indications": "中风偏瘫、眩晕、语言謇涩、半身不遂",
+    "usage": "内关、水沟用泻法强刺激；三阴交提插补法。",
+    "technique": "毫针泻法",
+    "treatment_frequency": "每日",
+    "treatment_days": 14,
+    "composition": {
+      "acupoints": [
+        { "acupoint_name": "水沟", "technique": "泻法", "retention": "10分钟", "sequence": 1, "note": "醒神开窍" },
+        { "acupoint_name": "内关", "technique": "泻法", "retention": "15分钟", "sequence": 2, "note": "宁心安神" },
+        { "acupoint_name": "三阴交", "technique": "补法", "retention": "20分钟", "sequence": 3, "note": "滋补肝肾" },
+        { "acupoint_name": "极泉", "technique": "泻法", "retention": "10分钟", "sequence": 4, "note": "疏通上肢" },
+        { "acupoint_name": "尺泽", "technique": "泻法", "retention": "10分钟", "sequence": 5, "note": "疏通上肢" },
+        { "acupoint_name": "委中", "technique": "泻法", "retention": "10分钟", "sequence": 6, "note": "疏通下肢" }
+      ]
+    },
+    "notes": "偏瘫恢复期配合肢体康复训练。"
+  }
+]

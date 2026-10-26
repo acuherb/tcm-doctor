@@ -1,0 +1,366 @@
+<template>
+  <div class="patient-detail" v-loading="loading">
+    <el-page-header @back="$router.push('/patients')" :content="patient?.name || '加载中...'">
+      <template #extra>
+        <el-button v-if="editable" @click="openEdit"><el-icon><Edit /></el-icon> 编辑</el-button>
+        <el-button v-if="editable" @click="$router.push(`/patients/${patientId}/visit`)">
+          <el-icon><EditPen /></el-icon> 新增就诊
+        </el-button>
+      </template>
+    </el-page-header>
+
+    <el-row :gutter="20" style="margin-top: 20px;">
+      <!-- 基本信息 -->
+      <el-col :span="8">
+        <el-card shadow="hover">
+          <template #header><span>📋 基本信息</span></template>
+          <el-descriptions :column="1" border size="small" v-if="patient">
+            <el-descriptions-item label="姓名">{{ patient.name }}</el-descriptions-item>
+            <el-descriptions-item label="性别">{{ patient.gender }}</el-descriptions-item>
+            <el-descriptions-item label="出生日期">{{ patient.birth_date || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="电话">{{ patient.phone || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="身份证号">{{ patient.id_card || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="地址">{{ patient.address || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="过敏史">
+              <el-tag v-if="patient.allergy_history" type="danger" size="small">{{ patient.allergy_history }}</el-tag>
+              <span v-else>无</span>
+            </el-descriptions-item>
+            <el-descriptions-item label="既往史">{{ patient.medical_history || '无' }}</el-descriptions-item>
+            <el-descriptions-item label="体质">
+              <el-tag v-if="patient.constitution_type" type="warning">{{ patient.constitution_type }}</el-tag>
+              <span v-else class="text-muted">未评估</span>
+            </el-descriptions-item>
+            <el-descriptions-item label="备注">{{ patient.notes || '-' }}</el-descriptions-item>
+          </el-descriptions>
+        </el-card>
+      </el-col>
+
+      <!-- 就诊历史 -->
+      <el-col :span="16">
+        <el-card shadow="hover">
+          <template #header><span>🏥 就诊记录</span></template>
+          <el-timeline v-if="visits.length > 0">
+            <el-timeline-item
+              v-for="visit in visits"
+              :key="visit.id"
+              :timestamp="visit.visit_date"
+              placement="top"
+            >
+              <el-card shadow="never" class="visit-card">
+                <div class="visit-header">
+                  <strong>主诉：</strong>{{ visit.chief_complaint }}
+                </div>
+                <div v-if="visit.tcm_disease || visit.tcm_syndrome" class="visit-diagnosis">
+                  <el-tag type="primary" size="small">{{ visit.tcm_disease }}</el-tag>
+                  <el-tag type="warning" size="small">{{ visit.tcm_syndrome }}</el-tag>
+                  <el-tag type="info" size="small">{{ visit.treatment_method }}</el-tag>
+                </div>
+                <div v-if="visit.tongue_body || visit.pulse" class="visit-sizhen">
+                  <span v-if="visit.tongue_body">舌质: {{ visit.tongue_body }}</span>
+                  <span v-if="visit.tongue_coat">舌苔: {{ visit.tongue_coat }}</span>
+                  <span v-if="visit.pulse">脉象: {{ visit.pulse }}</span>
+                </div>
+                <div class="visit-actions">
+                  <el-button link type="primary" size="small" @click="openVisitDialog(visit)">查看详情</el-button>
+                </div>
+              </el-card>
+            </el-timeline-item>
+          </el-timeline>
+          <el-empty v-else description="暂无就诊记录" />
+        </el-card>
+
+        <el-card v-if="inquiries.length > 0" shadow="hover" style="margin-top: 16px;">
+          <template #header><span>🩺 问诊十问记录</span></template>
+          <el-timeline>
+            <el-timeline-item
+              v-for="iq in inquiries"
+              :key="iq.id"
+              :timestamp="fmtTime(iq.created_at)"
+              placement="top"
+              type="warning"
+            >
+              <el-card shadow="never" class="visit-card">
+                <div class="iq-type">
+                  <el-tag type="warning" size="small">{{ iq.primary_type || '未定型' }}</el-tag>
+                  <span style="margin-left:6px;font-size:12px;color:#999;">偏性画像</span>
+                </div>
+                <ul v-if="iq.result && iq.result.findings && iq.result.findings.length" class="iq-findings">
+                  <li v-for="(f, fi) in iq.result.findings" :key="fi">{{ f }}</li>
+                </ul>
+                <div v-if="iq.result && iq.result.suggestion" class="iq-suggestion">{{ iq.result.suggestion }}</div>
+                <div class="visit-actions">
+                  <el-button link type="warning" size="small" @click="openIqDialog(iq)">查看完整评估</el-button>
+                </div>
+              </el-card>
+            </el-timeline-item>
+          </el-timeline>
+        </el-card>
+
+        <el-card v-if="prescriptions.length > 0" shadow="hover" class="rx-card">
+          <template #header><span>💊 处方记录</span></template>
+          <el-timeline>
+            <el-timeline-item
+              v-for="rx in prescriptions"
+              :key="rx.id"
+              :timestamp="fmtTime(rx.created_at)"
+              placement="top"
+              type="primary"
+            >
+              <el-card shadow="never" class="visit-card">
+                <div class="rx-row">
+                  <el-tag type="danger" size="small">{{ rx.formula_name || '自拟方' }}</el-tag>
+                  <el-tag :type="statusTag(rx.status)" size="small" effect="plain">{{ rx.status }}</el-tag>
+                  <span class="rx-doses">{{ rx.doses }} 剂 · {{ rx.preparation_method }}</span>
+                </div>
+                <div class="rx-herbs">
+                  <span v-for="(it, ix) in rx.items.slice(0, 6)" :key="ix" class="rx-herb">
+                    {{ it.herb_name }}<em v-if="it.is_king_herb" class="king">君</em>
+                    <b>{{ it.dose }}g</b>
+                  </span>
+                  <span v-if="rx.items.length > 6" class="rx-more">+{{ rx.items.length - 6 }}味</span>
+                </div>
+                <div class="visit-actions">
+                  <el-button link type="danger" size="small" @click="openRxDialog(rx)">查看处方</el-button>
+                </div>
+              </el-card>
+            </el-timeline-item>
+          </el-timeline>
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <el-dialog v-model="editVisible" title="编辑患者信息" width="560px">
+      <el-form :model="editForm" label-width="80px" label-position="top">
+        <el-form-item label="姓名" required>
+          <el-input v-model="editForm.name" />
+        </el-form-item>
+        <el-row :gutter="12">
+          <el-col :span="12">
+            <el-form-item label="性别">
+              <el-select v-model="editForm.gender" style="width:100%">
+                <el-option label="男" value="男" /><el-option label="女" value="女" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="出生日期">
+              <el-date-picker v-model="editForm.birth_date" type="date" value-format="YYYY-MM-DD" style="width:100%" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="12">
+          <el-col :span="12"><el-form-item label="电话"><el-input v-model="editForm.phone" /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="身份证号"><el-input v-model="editForm.id_card" /></el-form-item></el-col>
+        </el-row>
+        <el-form-item label="地址"><el-input v-model="editForm.address" /></el-form-item>
+        <el-form-item label="过敏史"><el-input v-model="editForm.allergy_history" /></el-form-item>
+        <el-form-item label="既往史"><el-input v-model="editForm.medical_history" type="textarea" :rows="2" /></el-form-item>
+        <el-form-item label="备注"><el-input v-model="editForm.notes" type="textarea" :rows="2" /></el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="editVisible = false">取消</el-button>
+        <el-button type="primary" @click="saveEdit" :loading="savingEdit">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog :title="'就诊记录详情 · ' + (viewVisit?.visit_date || '')" :model-value="showVisitDialog" @update:model-value="showVisitDialog = $event" width="680px" destroy-on-close>
+      <el-descriptions v-if="viewVisit" :column="1" border size="small">
+        <el-descriptions-item label="就诊日期">{{ viewVisit.visit_date }}</el-descriptions-item>
+        <el-descriptions-item label="主诉">{{ viewVisit.chief_complaint }}</el-descriptions-item>
+        <el-descriptions-item v-if="viewVisit.present_illness" label="现病史">{{ viewVisit.present_illness }}</el-descriptions-item>
+        <el-descriptions-item v-if="viewVisit.observation" label="望诊">{{ viewVisit.observation }}</el-descriptions-item>
+        <el-descriptions-item v-if="viewVisit.auscultation" label="闻诊">{{ viewVisit.auscultation }}</el-descriptions-item>
+        <el-descriptions-item v-if="viewVisit.inquiry" label="问诊">{{ viewVisit.inquiry }}</el-descriptions-item>
+        <el-descriptions-item v-if="viewVisit.palpation" label="切诊">{{ viewVisit.palpation }}</el-descriptions-item>
+        <el-descriptions-item v-if="viewVisit.tongue_body || viewVisit.tongue_coat" label="舌象">{{ viewVisit.tongue_body }}{{ viewVisit.tongue_coat ? ' / ' + viewVisit.tongue_coat : '' }}</el-descriptions-item>
+        <el-descriptions-item v-if="viewVisit.pulse" label="脉象">{{ viewVisit.pulse }}</el-descriptions-item>
+        <el-descriptions-item v-if="viewVisit.tcm_disease" label="中医病名">{{ viewVisit.tcm_disease }}</el-descriptions-item>
+        <el-descriptions-item v-if="viewVisit.tcm_syndrome" label="证型">{{ viewVisit.tcm_syndrome }}</el-descriptions-item>
+        <el-descriptions-item v-if="viewVisit.treatment_method" label="治法">{{ viewVisit.treatment_method }}</el-descriptions-item>
+      </el-descriptions>
+    </el-dialog>
+
+    <el-dialog :title="'问诊十问详情 · ' + fmtTime(viewIq?.created_at)" :model-value="showIqDialog" @update:model-value="showIqDialog = $event" width="680px" destroy-on-close>
+      <template v-if="viewIq">
+        <div class="view-iq-primary">主偏性&nbsp;:&nbsp;<el-tag type="warning">{{ viewIq.primary_type || '未定型' }}</el-tag></div>
+        <div v-if="viewIq.result?.findings?.length" class="view-iq-sec">
+          <h4>判据解析</h4>
+          <ul class="iq-findings"><li v-for="(f, fi) in viewIq.result.findings" :key="fi">{{ f }}</li></ul>
+        </div>
+        <div v-if="viewIq.result?.suggestion" class="view-iq-sec">
+          <h4>方域提示</h4>
+          <p class="iq-suggestion">{{ viewIq.result.suggestion }}</p>
+        </div>
+        <div v-if="viewIq.result?.detail" class="view-iq-sec">
+          <h4>维度分布</h4>
+          <div class="view-iq-dims">
+            <span v-for="(v, k) in viewIq.result.detail.dims" :key="k" class="dim-chip">
+              {{ k }}: {{ v }}
+            </span>
+          </div>
+        </div>
+        <div v-if="viewIq.notes && Object.values(viewIq.notes).some(x => x && String(x).trim())" class="view-iq-sec">
+          <h4>自填描述</h4>
+          <div v-for="(val, key) in viewIq.notes" :key="key" v-if="val && String(val).trim()" class="note-line">
+            <b>{{ key }}</b>：{{ val }}
+          </div>
+        </div>
+      </template>
+    </el-dialog>
+
+    <el-dialog :title="'处方详情 · ' + (viewRx?.formula_name || '自拟方')" :model-value="showRxDialog" @update:model-value="showRxDialog = $event" width="680px" destroy-on-close>
+      <template v-if="viewRx">
+        <div class="view-iq-primary">
+          <el-tag type="danger">{{ viewRx.formula_name || '自拟方' }}</el-tag>
+          <el-tag :type="statusTag(viewRx.status)" size="small" effect="plain" style="margin-left:6px;">{{ viewRx.status }}</el-tag>
+          <span style="margin-left:8px;color:#999;font-size:12px;">{{ fmtTime(viewRx.created_at) }}</span>
+        </div>
+        <el-table :data="viewRx.items" size="small" border>
+          <el-table-column prop="herb_name" label="药味" min-width="100" />
+          <el-table-column prop="dose" label="剂量(g)" width="90" />
+          <el-table-column prop="special_method" label="特殊煎法" min-width="110">
+            <template #default="{ row }">{{ row.special_method || '—' }}</template>
+          </el-table-column>
+          <el-table-column prop="is_king_herb" label="地位" width="70">
+            <template #default="{ row }">
+              <el-tag v-if="row.is_king_herb" type="danger" size="small">君药</el-tag>
+              <span v-else class="text-muted">臣佐</span>
+            </template>
+          </el-table-column>
+        </el-table>
+        <el-descriptions :column="2" size="small" class="rx-meta">
+          <el-descriptions-item label="剂数">{{ viewRx.doses }} 剂</el-descriptions-item>
+          <el-descriptions-item label="煎法">{{ viewRx.preparation_method }}</el-descriptions-item>
+          <el-descriptions-item label="服法">{{ viewRx.administration || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="总价">{{ viewRx.total_price ? '￥' + viewRx.total_price : '—' }}</el-descriptions-item>
+        </el-descriptions>
+        <div v-if="viewRx.doctor_notes" class="view-iq-sec">
+          <h4>医嘱</h4>
+          <p class="iq-suggestion">{{ viewRx.doctor_notes }}</p>
+        </div>
+      </template>
+    </el-dialog>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
+import { Edit, EditPen, TrendCharts } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import api from '@/utils/api'
+import { useAuthStore } from '@/store/auth'
+
+// 游客只读：隐藏所有写操作
+const auth = useAuthStore()
+const editable = computed(() => !!auth.user?.is_admin)
+
+const route = useRoute()
+const patientId = Number(route.params.id)
+const patient = ref<any>(null)
+const visits = ref<any[]>([])
+const inquiries = ref<any[]>([])
+const prescriptions = ref<any[]>([])
+const loading = ref(false)
+
+const editVisible = ref(false)
+const savingEdit = ref(false)
+const editForm = ref<any>({})
+
+const showVisitDialog = ref(false)
+const viewVisit = ref<any>(null)
+const showIqDialog = ref(false)
+const viewIq = ref<any>(null)
+const showRxDialog = ref(false)
+const viewRx = ref<any>(null)
+
+function openVisitDialog(v: any) { viewVisit.value = v; showVisitDialog.value = true }
+function openIqDialog(i: any) { viewIq.value = i; showIqDialog.value = true }
+function openRxDialog(p: any) { viewRx.value = p; showRxDialog.value = true }
+
+function statusTag(s?: string) {
+  if (!s) return 'info'
+  if (s.includes('审核')) return 'warning'
+  if (s.includes('发药')) return 'success'
+  return 'info'
+}
+
+function openEdit() {
+  const p = patient.value || {}
+  editForm.value = {
+    name: p.name || '',
+    gender: p.gender || '',
+    birth_date: p.birth_date || '',
+    phone: p.phone || '',
+    id_card: p.id_card || '',
+    address: p.address || '',
+    allergy_history: p.allergy_history || '',
+    medical_history: p.medical_history || '',
+    notes: p.notes || '',
+  }
+  editVisible.value = true
+}
+
+async function saveEdit() {
+  if (!editForm.value.name.trim()) { ElMessage.warning('请填写姓名'); return }
+  savingEdit.value = true
+  try {
+    patient.value = await api.put(`/patients/${patientId}`, editForm.value)
+    ElMessage.success('已保存')
+    editVisible.value = false
+  } catch {
+    ElMessage.error('保存失败')
+  }
+  savingEdit.value = false
+}
+
+onMounted(async () => {
+  loading.value = true
+  try {
+    const [p, v, iq, rx] = await Promise.all([
+      api.get(`/patients/${patientId}`),
+      api.get(`/patients/${patientId}/visits`),
+      api.get(`/patients/${patientId}/inquiries`),
+      api.get(`/prescriptions?patient_id=${patientId}`),
+    ])
+    patient.value = p
+    visits.value = v as any
+    inquiries.value = iq as any
+    prescriptions.value = rx as any
+  } catch {}
+  loading.value = false
+})
+
+function fmtTime(iso?: string): string {
+  if (!iso) return ''
+  return String(iso).replace('T', ' ').slice(0, 16)
+}
+</script>
+
+<style scoped>
+.text-muted { color: #c0c4cc; }
+.visit-card { margin-bottom: 4px; }
+.visit-header { font-size: 14px; }
+.visit-diagnosis { margin-top: 8px; display: flex; gap: 6px; }
+.visit-sizhen { margin-top: 8px; font-size: 13px; color: #666; display: flex; gap: 12px; }
+.iq-type { margin-bottom: 6px; }
+.iq-findings { margin: 4px 0; padding-left: 16px; font-size: 12.5px; color: #666; line-height: 1.8; }
+.iq-suggestion { margin-top: 6px; font-size: 12.5px; color: #8B4513; }
+.visit-actions { margin-top: 8px; text-align: right; }
+.view-iq-primary { font-size: 14px; margin-bottom: 10px; }
+.view-iq-sec { margin-top: 12px; }
+.view-iq-sec h4 { margin: 0 0 6px; font-size: 13px; color: #555; }
+.view-iq-dims { display: flex; flex-wrap: wrap; gap: 6px; }
+.dim-chip { font-size: 12px; background: #f4f4f5; border-radius: 4px; padding: 2px 8px; color: #606266; }
+.note-line { font-size: 13px; color: #333; margin: 4px 0; }
+.note-line b { color: #8B4513; margin-right: 4px; }
+.rx-card { margin-top: 16px; }
+.rx-row { display: flex; align-items: center; gap: 6px; }
+.rx-doses { font-size: 12px; color: #999; margin-left: 4px; }
+.rx-herbs { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+.rx-herb { font-size: 12px; background: #f5f7fa; border-radius: 4px; padding: 2px 8px; color: #333; }
+.rx-herb b { color: #606266; margin-left: 2px; font-weight: normal; }
+.rx-herb .king { color: #F56C6C; font-style: normal; margin-left: 2px; }
+.rx-more { font-size: 12px; color: #909399; }
+.rx-meta { margin-top: 12px; }
+</style>
