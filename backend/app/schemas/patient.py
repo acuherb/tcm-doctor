@@ -128,12 +128,14 @@ class ConstitutionSubmit(BaseModel):
     """提交经方家问诊十问"""
     answers: dict[str, str] = Field(..., description="问诊答案: {问诊key: 选项key}")
     notes: dict[str, str] = Field(default_factory=dict, description="自填描述: {问诊key: 补充文字}")
+    visit_id: int | None = Field(None, description="关联就诊ID(可为空，向后兼容旧记录)")
 
 
 class InquiryRecordOut(BaseModel):
     """问诊十问记录"""
     id: int
     patient_id: int
+    visit_id: int | None = None
     primary_type: str | None
     answers: dict | None
     notes: dict | None

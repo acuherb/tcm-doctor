@@ -78,7 +78,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import api from '@/utils/api'
 
-const props = defineProps<{ patientId: number }>()
+const props = defineProps<{ patientId: number; visitId?: number | null }>()
 const router = useRouter()
 
 interface QOption { key: string; label: string }
@@ -217,6 +217,7 @@ async function evaluate() {
     result.value = await api.post(`/patients/${props.patientId}/constitution`, {
       answers: payloadAnswers,
       notes: notes.value,
+      visit_id: props.visitId ?? null,
     }) as any
     ElMessage.success('十问辨证完成，已归档到病历')
     await loadRecommend(result.value)
@@ -247,7 +248,8 @@ async function loadRecommend(r: any) {
 }
 
 function useFormula(fid: number) {
-  router.push(`/prescriptions/new?patient_id=${props.patientId}&formula_id=${fid}`)
+  const visitPart = props.visitId ? `&visit_id=${props.visitId}` : ''
+  router.push(`/prescriptions/new?patient_id=${props.patientId}&formula_id=${fid}${visitPart}`)
 }
 </script>
 

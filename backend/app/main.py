@@ -84,6 +84,13 @@ def _run_light_migrations() -> None:
         if "must_change_password" not in ucols:
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE users ADD COLUMN must_change_password BOOLEAN NOT NULL DEFAULT 1"))
+    # inquiry_records.visit_id（关联就诊，可为空，向后兼容旧记录）
+    if "inquiry_records" in inspector.get_table_names():
+        icols = {c["name"] for c in inspector.get_columns("inquiry_records")}
+        if "visit_id" not in icols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE inquiry_records ADD COLUMN visit_id INTEGER"))
+
     # 其它表的新增列可在下方照此扩展
 
 

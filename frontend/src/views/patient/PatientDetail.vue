@@ -55,13 +55,52 @@
                   <el-tag type="warning" size="small">{{ visit.tcm_syndrome }}</el-tag>
                   <el-tag type="info" size="small">{{ visit.treatment_method }}</el-tag>
                 </div>
-                <div v-if="visit.tongue_body || visit.pulse" class="visit-sizhen">
+                <div v-if="visit.tongue_body || visit.tongue_coat || visit.pulse" class="visit-sizhen">
                   <span v-if="visit.tongue_body">舌质: {{ visit.tongue_body }}</span>
                   <span v-if="visit.tongue_coat">舌苔: {{ visit.tongue_coat }}</span>
                   <span v-if="visit.pulse">脉象: {{ visit.pulse }}</span>
                 </div>
+
+                <!-- 本次问诊十问 -->
+                <div v-if="inquiriesByVisit[visit.id] && inquiriesByVisit[visit.id].length" class="sub-block">
+                  <div class="sub-title">🩺 本次问诊十问</div>
+                  <div v-for="iq in inquiriesByVisit[visit.id]" :key="iq.id" class="sub-item">
+                    <el-tag type="warning" size="small">{{ iq.primary_type || '未定型' }}</el-tag>
+                    <span class="sub-note">偏性画像</span>
+                    <ul v-if="iq.result && iq.result.findings && iq.result.findings.length" class="iq-findings">
+                      <li v-for="(f, fi) in iq.result.findings" :key="fi">{{ f }}</li>
+                    </ul>
+                    <div v-if="iq.result && iq.result.suggestion" class="iq-suggestion">{{ iq.result.suggestion }}</div>
+                    <div class="visit-actions">
+                      <el-button link type="warning" size="small" @click="openIqDialog(iq)">查看完整评估</el-button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 本次处方 -->
+                <div v-if="rxByVisit[visit.id] && rxByVisit[visit.id].length" class="sub-block">
+                  <div class="sub-title">💊 本次处方</div>
+                  <div v-for="rx in rxByVisit[visit.id]" :key="rx.id" class="sub-item">
+                    <div class="rx-row">
+                      <el-tag type="danger" size="small">{{ rx.formula_name || '自拟方' }}</el-tag>
+                      <el-tag :type="statusTag(rx.status)" size="small" effect="plain">{{ rx.status }}</el-tag>
+                      <span class="rx-doses">{{ rx.doses }} 剂 · {{ rx.preparation_method }}</span>
+                    </div>
+                    <div class="rx-herbs">
+                      <span v-for="(it, ix) in rx.items.slice(0, 6)" :key="ix" class="rx-herb">
+                        {{ it.herb_name }}<em v-if="it.is_king_herb" class="king">君</em>
+                        <b>{{ it.dose }}g</b>
+                      </span>
+                      <span v-if="rx.items.length > 6" class="rx-more">+{{ rx.items.length - 6 }}味</span>
+                    </div>
+                    <div class="visit-actions">
+                      <el-button link type="danger" size="small" @click="openRxDialog(rx)">查看处方</el-button>
+                    </div>
+                  </div>
+                </div>
+
                 <div class="visit-actions">
-                  <el-button link type="primary" size="small" @click="openVisitDialog(visit)">查看详情</el-button>
+                  <el-button link type="primary" size="small" @click="openVisitDialog(visit)">查看就诊详情</el-button>
                 </div>
               </el-card>
             </el-timeline-item>
@@ -69,11 +108,11 @@
           <el-empty v-else description="暂无就诊记录" />
         </el-card>
 
-        <el-card v-if="inquiries.length > 0" shadow="hover" style="margin-top: 16px;">
-          <template #header><span>🩺 问诊十问记录</span></template>
+        <el-card v-if="orphanInquiries.length > 0" shadow="hover" style="margin-top: 16px;">
+          <template #header><span>🩺 问诊十问（未关联就诊）</span></template>
           <el-timeline>
             <el-timeline-item
-              v-for="iq in inquiries"
+              v-for="iq in orphanInquiries"
               :key="iq.id"
               :timestamp="fmtTime(iq.created_at)"
               placement="top"
@@ -96,36 +135,6 @@
           </el-timeline>
         </el-card>
 
-        <el-card v-if="prescriptions.length > 0" shadow="hover" class="rx-card">
-          <template #header><span>💊 处方记录</span></template>
-          <el-timeline>
-            <el-timeline-item
-              v-for="rx in prescriptions"
-              :key="rx.id"
-              :timestamp="fmtTime(rx.created_at)"
-              placement="top"
-              type="primary"
-            >
-              <el-card shadow="never" class="visit-card">
-                <div class="rx-row">
-                  <el-tag type="danger" size="small">{{ rx.formula_name || '自拟方' }}</el-tag>
-                  <el-tag :type="statusTag(rx.status)" size="small" effect="plain">{{ rx.status }}</el-tag>
-                  <span class="rx-doses">{{ rx.doses }} 剂 · {{ rx.preparation_method }}</span>
-                </div>
-                <div class="rx-herbs">
-                  <span v-for="(it, ix) in rx.items.slice(0, 6)" :key="ix" class="rx-herb">
-                    {{ it.herb_name }}<em v-if="it.is_king_herb" class="king">君</em>
-                    <b>{{ it.dose }}g</b>
-                  </span>
-                  <span v-if="rx.items.length > 6" class="rx-more">+{{ rx.items.length - 6 }}味</span>
-                </div>
-                <div class="visit-actions">
-                  <el-button link type="danger" size="small" @click="openRxDialog(rx)">查看处方</el-button>
-                </div>
-              </el-card>
-            </el-timeline-item>
-          </el-timeline>
-        </el-card>
       </el-col>
     </el-row>
 
@@ -263,6 +272,24 @@ const inquiries = ref<any[]>([])
 const prescriptions = ref<any[]>([])
 const loading = ref(false)
 
+// 按就诊聚合：处方与十问分别归到对应的 visit_id 下
+const rxByVisit = computed<Record<number, any[]>>(() => {
+  const m: Record<number, any[]> = {}
+  for (const rx of prescriptions.value) {
+    if (rx.visit_id != null) (m[rx.visit_id] ||= []).push(rx)
+  }
+  return m
+})
+const inquiriesByVisit = computed<Record<number, any[]>>(() => {
+  const m: Record<number, any[]> = {}
+  for (const iq of inquiries.value) {
+    if (iq.visit_id != null) (m[iq.visit_id] ||= []).push(iq)
+  }
+  return m
+})
+// 未关联就诊的十问（向后兼容旧数据）
+const orphanInquiries = computed(() => inquiries.value.filter(iq => iq.visit_id == null))
+
 const editVisible = ref(false)
 const savingEdit = ref(false)
 const editForm = ref<any>({})
@@ -363,4 +390,9 @@ function fmtTime(iso?: string): string {
 .rx-herb .king { color: #F56C6C; font-style: normal; margin-left: 2px; }
 .rx-more { font-size: 12px; color: #909399; }
 .rx-meta { margin-top: 12px; }
+.sub-block { margin-top: 10px; border-top: 1px dashed #eee; padding-top: 8px; }
+.sub-block + .sub-block { margin-top: 10px; }
+.sub-title { font-size: 13px; font-weight: 600; color: #555; margin-bottom: 6px; }
+.sub-item { margin-bottom: 8px; }
+.sub-note { margin-left: 6px; font-size: 12px; color: #999; }
 </style>

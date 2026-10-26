@@ -120,6 +120,7 @@ def submit_constitution(patient_id: int, data: ConstitutionSubmit, db: Session =
     # 存档问诊十问，形成病例信息链
     record = InquiryRecord(
         patient_id=patient_id,
+        visit_id=data.visit_id,
         primary_type=result_dict["primary_type"],
         answers=data.answers,
         notes=data.notes,

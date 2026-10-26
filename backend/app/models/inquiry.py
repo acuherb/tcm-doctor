@@ -12,6 +12,7 @@ class InquiryRecord(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     patient_id: Mapped[int] = mapped_column(Integer, ForeignKey("patients.id"), nullable=False, comment="患者ID")
+    visit_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("visits.id"), comment="关联就诊ID(可为空，向后兼容旧记录)")
     primary_type: Mapped[str | None] = mapped_column(String(50), comment="主偏性画像，如 少阴·里寒")
     answers: Mapped[dict | None] = mapped_column(JSON, comment="原始答案: {问诊key: 选项key}")
     notes: Mapped[dict | None] = mapped_column(JSON, comment="自填备注: {问诊key: 补充描述}")

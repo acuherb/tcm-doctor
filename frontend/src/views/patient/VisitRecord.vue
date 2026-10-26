@@ -136,12 +136,20 @@
       <el-col :span="12">
         <el-card shadow="hover">
           <template #header><span>🪷 问诊十问（经方家辨证）</span></template>
-          <TenAspectsPanel :patient-id="patientId" />
+          <TenAspectsPanel :patient-id="patientId" :visit-id="currentVisitId" />
         </el-card>
 
         <div style="margin-top: 16px; text-align: right;">
           <el-button @click="$router.back()">取消</el-button>
           <el-button type="primary" @click="submitVisit" :loading="submitting">保存就诊记录</el-button>
+        </div>
+
+        <div v-if="currentVisitId" class="visit-saved-hint">
+          <div class="hint-title">✓ 本次就诊已保存（ID: {{ currentVisitId }}），可继续在上方完成本次问诊十问，或：</div>
+          <div style="text-align: right; margin-top: 8px;">
+            <el-button @click="$router.push(`/patients/${patientId}`)">返回详情</el-button>
+            <el-button type="primary" @click="$router.push(`/prescriptions/new?patient_id=${patientId}&visit_id=${currentVisitId}`)">去开药</el-button>
+          </div>
         </div>
       </el-col>
     </el-row>
@@ -154,7 +162,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { ChatDotRound, Close } from '@element-plus/icons-vue'
 import api from '@/utils/api'
 import TenAspectsPanel from '@/components/TenAspectsPanel.vue'
@@ -165,6 +173,7 @@ const patientId = Number(route.params.id)
 const patientName = (route.query.name as string) || ''
 const submitting = ref(false)
 const aiLoading = ref(false)
+const currentVisitId = ref<number | null>(null)
 
 // 受控词条选项：从字典 API 动态加载
 interface DictTerm {
@@ -292,17 +301,8 @@ async function submitVisit() {
   try {
     const payload = { ...form.value, pulse: form.value.pulse.join('、') }
     const res = await api.post(`/patients/${patientId}/visits`, payload) as any
-    ElMessage.success('就诊记录已保存')
-    try {
-      const doRx = await ElMessageBox.confirm('就诊记录已保存。是否现在为这位患者开具处方？', '保存成功', {
-        confirmButtonText: '去开药',
-        cancelButtonText: '稍后再说',
-        type: 'success',
-      })
-      router.push(`/prescriptions/new?patient_id=${patientId}&visit_id=${res.id}`)
-    } catch {
-      router.push(`/patients/${patientId}`)
-    }
+    currentVisitId.value = res.id
+    ElMessage.success('就诊记录已保存，可在右侧完成本次问诊十问，或下方去开药')
   } catch (e: any) {
     ElMessage.error('保存失败：' + (e?.response?.data?.detail || e?.message || ''))
   }
@@ -379,4 +379,13 @@ async function submitVisit() {
   font-size: 12px;
   color: var(--el-text-color-secondary);
 }
+
+.visit-saved-hint {
+  margin-top: 16px;
+  padding: 12px 14px;
+  background: #f0f9eb;
+  border: 1px solid #e1f3d8;
+  border-radius: 8px;
+}
+.visit-saved-hint .hint-title { font-size: 13px; color: #67c23a; }
 </style>
