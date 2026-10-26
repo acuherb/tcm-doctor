@@ -269,6 +269,23 @@ tcm-doctor/
 | 备份 | `/api/v1/backup/export` | 导出备份 |
 | 备份 | `/api/v1/backup/import` | 导入恢复 |
 
+## 快速启动
+
+```bash
+# 方式一：一键脚本（自动检查/安装依赖、生成 .env、启动前后端）
+./start.sh            # 前后端开发模式（后端 :8765 + 前端 vite）
+./start.sh electron   # Electron 桌面壳开发模式
+
+# 方式二：手动（项目根目录）
+npm install           # 根依赖（concurrently / electron / typescript）
+cd frontend && npm install && cd ..
+cd backend && python3 -m pip install -e ".[ai]"   # 含 chromadb / openai
+npm run dev           # 同时启动后端 uvicorn 与前端 vite
+```
+
+> 首次运行若缺少 `backend/.env`，脚本会生成默认开发配置；将 `DEEPSEEK_API_KEY` 填入即可启用 AI 辨证。
+> 后端 API 文档：http://127.0.0.1:8765/docs
+
 ## 致谢
 
 本项目基于 [OMDOCTOR](https://github.com/sunshengzhuo/OMDOCTOR) 进行二次开发，感谢原作者 [@sunshengzhuo](https://github.com/sunshengzhuo) 提供的优秀开源基础。
