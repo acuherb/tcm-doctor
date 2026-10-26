@@ -271,4 +271,4 @@ tcm-doctor/
 
 ## 致谢
 
-本项目基于 [OMDOCTOR](https://github.com/sunshengzhuo/OMDOCTOR) 进行二次开发，感谢原作者 [@sunshengzhuo](https://github.com/sunshengzhuo) 提供的优秀开源基础。本项目的修改与新增内容沿用原项目的开源许可协议，请遵守相关许可条款。
+本项目基于 [OMDOCTOR](https://github.com/sunshengzhuo/OMDOCTOR) 进行二次开发，感谢原作者 [@sunshengzhuo](https://github.com/sunshengzhuo) 提供的优秀开源基础。
