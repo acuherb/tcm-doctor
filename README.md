@@ -234,7 +234,7 @@ tcm-doctor/
 │   │   └── data/           # 种子数据 + 29 部典籍 JSON
 │   ├── run.py              # PyInstaller 入口
 │   ├── build.spec          # PyInstaller 配置
-│   ├── tcm_doctor.db       # SQLite 数据库（含完整数据）
+│   ├── tcm_doctor.db       # SQLite 数据库（运行时由种子脚本生成，已被 .gitignore 忽略，不入库）
 │   └── pyproject.toml
 ├── resources/               # 应用图标
 ├── electron-builder.yml     # electron-builder 打包配置
@@ -268,3 +268,7 @@ tcm-doctor/
 | 统计 | `/api/v1/stats/visits` | 就诊统计 |
 | 备份 | `/api/v1/backup/export` | 导出备份 |
 | 备份 | `/api/v1/backup/import` | 导入恢复 |
+
+## 致谢
+
+本项目基于 [OMDOCTOR](https://github.com/sunshengzhuo/OMDOCTOR) 进行二次开发，感谢原作者 [@sunshengzhuo](https://github.com/sunshengzhuo) 提供的优秀开源基础。本项目的修改与新增内容沿用原项目的开源许可协议，请遵守相关许可条款。
