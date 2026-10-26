@@ -128,7 +128,7 @@ npx electron-builder --win --x64
 - 患者信息 CRUD + 分页搜索
 - 就诊记录（四诊信息 + 辨证论治 + AI 辅助辨证 + 问诊十问 同一页面一体化完成）
 - 问诊十问（倪海厦经方家十问，预定义选项 + 自填，按原文判据推出六经/寒热/虚实偏性，随病例持久化）
-- 患者档案链（时间线统一呈现：问诊十问记录 + 就诊四诊/辨证 + 处方记录）
+- 患者档案链（以**就诊时间线为主轴**聚合呈现：每条就诊卡片内联该次的问诊十问 + 四诊辨证 + 处方；历史未关联就诊的十问单独置于底部区块）
 
 ### 药品管理
 - 药材字典（229 味，覆盖 18 个分类，支持异名搜索 + 批量导入/导出 JSON）
@@ -170,7 +170,8 @@ npx electron-builder --win --x64
 
 ### 系统管理
 - 系统设置（API 配置 + 连接测试 + 持久化到 .env）
-- 数据备份/恢复（SQLite 导出/导入/重置）
+- 登录与权限：支持**游客免密登录**（`ALLOW_GUEST_LOGIN`，默认开启）仅浏览；所有**导出 / 写操作仅限管理员（admin）**——前端对游客隐藏全部导出入口，后端 `/backup/export` 等接口对游客返回 403，防止患者隐私（PII）泄露
+- 数据备份/恢复（SQLite 导出/导入/重置，仅 admin）
 
 ## 数据概况
 
@@ -249,7 +250,7 @@ tcm-doctor/
 | 系统 | `GET/PUT /api/v1/config` | 系统配置（API Key 持久化） |
 | 患者 | `/api/v1/patients` | 患者 CRUD |
 | 患者 | `/api/v1/patients/{id}/visits` | 就诊记录 |
-| 患者 | `/api/v1/patients/{id}/constitution` | 体质辨识 |
+| 患者 | `/api/v1/patients/{id}/constitution` | 问诊十问 / 体质辨识（支持 `visit_id` 绑定到具体就诊） |
 | 药品 | `/api/v1/herbs` | 药材字典 + 详情 |
 | 药品 | `/api/v1/herbs/inventory/*` | 库存管理（入库/出库/预警/汇总） |
 | 药品 | `/api/v1/herbs/incompatibility-check` | 配伍禁忌检查 |
