@@ -19,6 +19,7 @@ class UserOut(BaseModel):
 class TokenOut(BaseModel):
     token: str
     user: UserOut
+    must_change_password: bool = False
 
 
 class ChangePasswordRequest(BaseModel):

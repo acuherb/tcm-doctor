@@ -4,19 +4,25 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db, engine
 from app.config import settings
+from app.routers.auth import get_current_user
 
 router = APIRouter(prefix="/backup", tags=["数据管理"])
 
 
-@router.get("/export", summary="导出数据备份")
-def export_backup():
-    """导出 SQLite 数据库文件"""
+@router.get("/export", summary="导出数据备份（仅管理员）")
+def export_backup(
+    background: BackgroundTasks,
+    current_user: "User" = Depends(get_current_user),
+):
+    """导出 SQLite 数据库文件（含患者隐私，仅管理员可操作）"""
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="仅管理员可导出数据备份")
     db_path = settings.database_url.replace("sqlite:///", "")
     if not os.path.exists(db_path):
         # 尝试相对路径
@@ -30,11 +36,12 @@ def export_backup():
     temp_path = os.path.join(os.getcwd(), f"tcm_backup_{timestamp}.db")
     shutil.copy2(db_path, temp_path)
 
+    background.add_task(os.remove, temp_path)
     return FileResponse(
         path=temp_path,
         filename=f"tcm_backup_{datetime.now().strftime('%Y-%m-%d')}.db",
         media_type="application/octet-stream",
-        background=None,  # 可选：后台清理临时文件
+        background=background,
     )
 
 

@@ -17,8 +17,8 @@ except ImportError:
     logger.info("ChromaDB 未安装，语义检索不可用，降级到关键词检索。安装: pip install chromadb")
 
 
-def init_chromadb(persist_dir: str = "./chroma_data"):
-    """初始化 ChromaDB"""
+def init_chromadb(persist_dir: str = "./chroma_data", embedding_function=None):
+    """初始化 ChromaDB；可传入中文 embedding_function 以获得正确的中文语义向量"""
     global _chroma_client, _collection
 
     if not _chromadb_available:
@@ -29,12 +29,40 @@ def init_chromadb(persist_dir: str = "./chroma_data"):
         _collection = _chroma_client.get_or_create_collection(
             name="tcm_knowledge",
             metadata={"description": "中医知识库向量索引"},
+            embedding_function=embedding_function,
         )
         logger.info(f"ChromaDB 初始化成功，当前 { _collection.count()} 条向量")
         return True
     except Exception as e:
         logger.warning(f"ChromaDB 初始化失败: {e}")
         return False
+
+
+def _try_chinese_embedding(embedding_model: str):
+    """尝试构建中文句向量函数（需 sentence-transformers）；失败返回 None"""
+    try:
+        from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
+        return SentenceTransformerEmbeddingFunction(model_name=embedding_model)
+    except Exception as e:
+        logger.warning(f"中文向量模型不可用，将使用 Chroma 默认英文模型（中文检索效果差）：{e}")
+        return None
+
+
+def bootstrap(persist_dir: str, embedding_model: str, enabled: bool) -> bool:
+    """应用启动时调用：按需初始化 Chroma 并返回是否成功（失败时由上层降级到关键词检索）"""
+    if not enabled:
+        logger.info("语义检索未开启（enable_semantic_search=false），使用关键词检索。")
+        return False
+    if not _chromadb_available:
+        logger.warning(
+            "chromadb 未安装，语义检索不可用，降级为关键词检索。"
+            "安装: pip install chromadb sentence-transformers"
+        )
+        return False
+    ef = _try_chinese_embedding(embedding_model)
+    if ef is None:
+        logger.warning("中文向量模型加载失败，语义检索降级（仍可用但中文效果差）。")
+    return init_chromadb(persist_dir, ef)
 
 
 def add_documents(documents: list[dict]):
@@ -142,11 +170,8 @@ def rebuild_from_knowledge_db(db_session):
     return add_documents(documents)
 
 
-# 自动初始化
-try:
-    init_chromadb()
-except Exception:
-    pass
+# 注意：不再在此处自动初始化，避免产生空集合误导状态。
+# Chroma 的初始化与索引重建统一由 FastAPI lifespan（main.py）按配置调用 bootstrap() 完成。
 
 
 class VectorStore:

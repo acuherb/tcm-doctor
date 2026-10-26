@@ -235,6 +235,7 @@ def seed_default_user(db: Session) -> int:
         password_hash=f"{salt}${digest}",
         display_name="管理员",
         is_admin=True,
+        must_change_password=True,
     ))
     db.commit()
     print("[Seed] 已创建默认用户: admin / admin123")
@@ -254,6 +255,7 @@ def seed_guest_user(db: Session) -> int:
         password_hash=f"{salt}${digest}",
         display_name="游客",
         is_admin=False,
+        must_change_password=False,
     ))
     db.commit()
     print("[Seed] 已创建游客用户: guest / guest123")

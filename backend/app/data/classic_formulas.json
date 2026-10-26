@@ -217,7 +217,7 @@
   },
   {
     "name": "理中丸",
-    "aliases": ["人参汤"],
+    "aliases": ["人参汤", "理中汤"],
     "source": "伤寒论",
     "composition": [
       {"herb": "人参", "dose": 9, "unit": "g"},
@@ -387,5 +387,307 @@
       {"condition": "湿热", "add": "黄连6g", "remove": "", "formula_name": "香连平胃散"},
       {"condition": "兼表证", "add": "藿香9g、半夏9g", "remove": "", "formula_name": "不换金正气散"}
     ]
+  },
+  {
+    "name": "葛根汤",
+    "aliases": [],
+    "source": "伤寒论",
+    "composition": [
+      {"herb": "葛根", "dose": 12, "unit": "g"},
+      {"herb": "麻黄", "dose": 9, "unit": "g"},
+      {"herb": "桂枝", "dose": 6, "unit": "g"},
+      {"herb": "白芍", "dose": 6, "unit": "g"},
+      {"herb": "甘草", "dose": 6, "unit": "g"},
+      {"herb": "生姜", "dose": 9, "unit": "g"},
+      {"herb": "大枣", "dose": 12, "unit": "g"}
+    ],
+    "efficacy": "发汗解表，升津舒筋",
+    "indications": "太阳病，项背强几几，无汗恶风；或下利、呕吐等表实兼经输不利",
+    "usage": "水煎服，温覆取微汗",
+    "modifications": []
+  },
+  {
+    "name": "桂枝加葛根汤",
+    "aliases": [],
+    "source": "伤寒论",
+    "composition": [
+      {"herb": "桂枝", "dose": 9, "unit": "g"},
+      {"herb": "白芍", "dose": 9, "unit": "g"},
+      {"herb": "甘草", "dose": 6, "unit": "g"},
+      {"herb": "生姜", "dose": 9, "unit": "g"},
+      {"herb": "大枣", "dose": 12, "unit": "g"},
+      {"herb": "葛根", "dose": 12, "unit": "g"}
+    ],
+    "efficacy": "解肌发表，升津舒筋",
+    "indications": "太阳病，项背强几几，反汗出恶风",
+    "usage": "水煎服，温覆取微汗",
+    "modifications": []
+  },
+  {
+    "name": "小青龙汤",
+    "aliases": [],
+    "source": "伤寒论",
+    "composition": [
+      {"herb": "麻黄", "dose": 9, "unit": "g"},
+      {"herb": "白芍", "dose": 9, "unit": "g"},
+      {"herb": "细辛", "dose": 3, "unit": "g"},
+      {"herb": "干姜", "dose": 9, "unit": "g"},
+      {"herb": "甘草", "dose": 6, "unit": "g"},
+      {"herb": "桂枝", "dose": 9, "unit": "g"},
+      {"herb": "半夏", "dose": 9, "unit": "g"},
+      {"herb": "五味子", "dose": 6, "unit": "g"}
+    ],
+    "efficacy": "解表散寒，温肺化饮",
+    "indications": "外寒内饮。恶寒发热，无汗，喘咳，痰多清稀，苔白滑，脉弦紧",
+    "usage": "水煎服",
+    "modifications": []
+  },
+  {
+    "name": "小承气汤",
+    "aliases": [],
+    "source": "伤寒论",
+    "composition": [
+      {"herb": "大黄", "dose": 12, "unit": "g"},
+      {"herb": "厚朴", "dose": 9, "unit": "g"},
+      {"herb": "枳实", "dose": 9, "unit": "g"}
+    ],
+    "efficacy": "轻下热结",
+    "indications": "阳明腑实轻证。潮热谵语，大便秘结，胸腹痞满，舌苔老黄，脉滑而疾",
+    "usage": "水煎服，大黄后下",
+    "modifications": []
+  },
+  {
+    "name": "调胃承气汤",
+    "aliases": [],
+    "source": "伤寒论",
+    "composition": [
+      {"herb": "大黄", "dose": 12, "unit": "g"},
+      {"herb": "甘草", "dose": 6, "unit": "g"},
+      {"herb": "芒硝", "dose": 9, "unit": "g"}
+    ],
+    "efficacy": "缓下热结",
+    "indications": "阳明胃肠燥热。蒸蒸发热，心烦，腹胀满，大便不通，苔黄脉滑数",
+    "usage": "水煎服，大黄先煮，芒硝冲服",
+    "modifications": []
+  },
+  {
+    "name": "竹叶石膏汤",
+    "aliases": [],
+    "source": "伤寒论",
+    "composition": [
+      {"herb": "竹叶", "dose": 9, "unit": "g"},
+      {"herb": "石膏", "dose": 30, "unit": "g"},
+      {"herb": "半夏", "dose": 9, "unit": "g"},
+      {"herb": "麦冬", "dose": 15, "unit": "g"},
+      {"herb": "人参", "dose": 6, "unit": "g"},
+      {"herb": "甘草", "dose": 6, "unit": "g"},
+      {"herb": "粳米", "dose": 9, "unit": "g"}
+    ],
+    "efficacy": "清热生津，益气和胃",
+    "indications": "伤寒温病后期，余热未清，气津两伤。身热多汗，心胸烦闷，气逆欲呕，口干喜饮，舌红少苔，脉虚数",
+    "usage": "水煎服，米熟汤成",
+    "modifications": []
+  },
+  {
+    "name": "大柴胡汤",
+    "aliases": [],
+    "source": "伤寒论",
+    "composition": [
+      {"herb": "柴胡", "dose": 24, "unit": "g"},
+      {"herb": "黄芩", "dose": 9, "unit": "g"},
+      {"herb": "白芍", "dose": 9, "unit": "g"},
+      {"herb": "半夏", "dose": 9, "unit": "g"},
+      {"herb": "生姜", "dose": 9, "unit": "g"},
+      {"herb": "枳实", "dose": 9, "unit": "g"},
+      {"herb": "大黄", "dose": 6, "unit": "g"},
+      {"herb": "大枣", "dose": 12, "unit": "g"}
+    ],
+    "efficacy": "和解少阳，内泻热结",
+    "indications": "少阳阳明合病。往来寒热，胸胁苦满，呕不止，郁郁微烦，心下痞硬或满痛，大便秘结，苔黄脉弦数有力",
+    "usage": "水煎服，去滓再煎",
+    "modifications": []
+  },
+  {
+    "name": "柴胡桂枝汤",
+    "aliases": [],
+    "source": "伤寒论",
+    "composition": [
+      {"herb": "柴胡", "dose": 12, "unit": "g"},
+      {"herb": "黄芩", "dose": 9, "unit": "g"},
+      {"herb": "人参", "dose": 9, "unit": "g"},
+      {"herb": "甘草", "dose": 6, "unit": "g"},
+      {"herb": "半夏", "dose": 9, "unit": "g"},
+      {"herb": "桂枝", "dose": 9, "unit": "g"},
+      {"herb": "白芍", "dose": 9, "unit": "g"},
+      {"herb": "生姜", "dose": 9, "unit": "g"},
+      {"herb": "大枣", "dose": 12, "unit": "g"}
+    ],
+    "efficacy": "和解少阳，调和营卫",
+    "indications": "少阳病兼太阳表证。发热微恶寒，肢节烦痛，微呕，心下支结",
+    "usage": "水煎服",
+    "modifications": []
+  },
+  {
+    "name": "附子理中汤",
+    "aliases": ["理中汤加附子"],
+    "source": "伤寒论",
+    "composition": [
+      {"herb": "人参", "dose": 9, "unit": "g"},
+      {"herb": "干姜", "dose": 9, "unit": "g"},
+      {"herb": "白术", "dose": 9, "unit": "g"},
+      {"herb": "甘草", "dose": 9, "unit": "g"},
+      {"herb": "附子", "dose": 9, "unit": "g"}
+    ],
+    "efficacy": "温阳祛寒，健脾益气",
+    "indications": "脾胃虚寒重证，手足厥冷，脘腹冷痛，呕吐泄泻，脉沉微",
+    "usage": "水煎服",
+    "modifications": []
+  },
+  {
+    "name": "四逆汤",
+    "aliases": [],
+    "source": "伤寒论",
+    "composition": [
+      {"herb": "附子", "dose": 15, "unit": "g"},
+      {"herb": "干姜", "dose": 9, "unit": "g"},
+      {"herb": "甘草", "dose": 6, "unit": "g"}
+    ],
+    "efficacy": "回阳救逆",
+    "indications": "少阴病心肾阳衰寒厥证。四肢厥逆，恶寒蜷卧，呕吐不渴，腹痛下利，神衰欲寐，脉微细",
+    "usage": "水煎服，附子先煎",
+    "modifications": []
+  },
+  {
+    "name": "真武汤",
+    "aliases": ["玄武汤"],
+    "source": "伤寒论",
+    "composition": [
+      {"herb": "茯苓", "dose": 9, "unit": "g"},
+      {"herb": "白芍", "dose": 9, "unit": "g"},
+      {"herb": "白术", "dose": 6, "unit": "g"},
+      {"herb": "生姜", "dose": 9, "unit": "g"},
+      {"herb": "附子", "dose": 9, "unit": "g"}
+    ],
+    "efficacy": "温阳利水",
+    "indications": "少阴病阳虚水泛。小便不利，腹痛下利，四肢沉重疼痛，浮肿，或咳呕眩悸，苔白脉沉",
+    "usage": "水煎服，附子先煎",
+    "modifications": []
+  },
+  {
+    "name": "白通汤",
+    "aliases": [],
+    "source": "伤寒论",
+    "composition": [
+      {"herb": "附子", "dose": 15, "unit": "g"},
+      {"herb": "干姜", "dose": 9, "unit": "g"},
+      {"herb": "葱白", "dose": 12, "unit": "g"}
+    ],
+    "efficacy": "通阳破阴",
+    "indications": "少阴病下利脉微；阴盛戴阳，面赤，下利，脉微",
+    "usage": "水煎服，附子先煎",
+    "modifications": []
+  },
+  {
+    "name": "附子汤",
+    "aliases": [],
+    "source": "伤寒论",
+    "composition": [
+      {"herb": "附子", "dose": 15, "unit": "g"},
+      {"herb": "茯苓", "dose": 9, "unit": "g"},
+      {"herb": "人参", "dose": 9, "unit": "g"},
+      {"herb": "白术", "dose": 12, "unit": "g"},
+      {"herb": "白芍", "dose": 9, "unit": "g"}
+    ],
+    "efficacy": "温经助阳，祛寒除湿",
+    "indications": "少阴病，身体痛，手足寒，骨节痛，脉沉者；阳虚寒湿身痛",
+    "usage": "水煎服，附子先煎",
+    "modifications": []
+  },
+  {
+    "name": "四逆加人参汤",
+    "aliases": [],
+    "source": "伤寒论",
+    "composition": [
+      {"herb": "附子", "dose": 15, "unit": "g"},
+      {"herb": "干姜", "dose": 9, "unit": "g"},
+      {"herb": "甘草", "dose": 6, "unit": "g"},
+      {"herb": "人参", "dose": 9, "unit": "g"}
+    ],
+    "efficacy": "回阳益气固脱",
+    "indications": "少阴病下利止而恶寒脉微者；亡血亡津",
+    "usage": "水煎服，附子先煎",
+    "modifications": []
+  },
+  {
+    "name": "乌梅丸",
+    "aliases": [],
+    "source": "伤寒论",
+    "composition": [
+      {"herb": "乌梅", "dose": 12, "unit": "g"},
+      {"herb": "细辛", "dose": 3, "unit": "g"},
+      {"herb": "干姜", "dose": 9, "unit": "g"},
+      {"herb": "黄连", "dose": 9, "unit": "g"},
+      {"herb": "当归", "dose": 6, "unit": "g"},
+      {"herb": "附子", "dose": 6, "unit": "g"},
+      {"herb": "花椒", "dose": 6, "unit": "g"},
+      {"herb": "桂枝", "dose": 6, "unit": "g"},
+      {"herb": "人参", "dose": 6, "unit": "g"},
+      {"herb": "黄柏", "dose": 6, "unit": "g"}
+    ],
+    "efficacy": "温脏安蛔，寒热并调",
+    "indications": "蛔厥证。腹痛时作，心烦呕吐，得食而呕，常自吐蛔，手足厥冷；亦治久痢、厥阴寒热错杂",
+    "usage": "乌梅酒浸蒸烂和蜜为丸，每服9g；亦可水煎服",
+    "modifications": []
+  },
+  {
+    "name": "当归四逆汤",
+    "aliases": [],
+    "source": "伤寒论",
+    "composition": [
+      {"herb": "当归", "dose": 9, "unit": "g"},
+      {"herb": "桂枝", "dose": 9, "unit": "g"},
+      {"herb": "白芍", "dose": 9, "unit": "g"},
+      {"herb": "细辛", "dose": 3, "unit": "g"},
+      {"herb": "甘草", "dose": 6, "unit": "g"},
+      {"herb": "大枣", "dose": 12, "unit": "g"},
+      {"herb": "通草", "dose": 6, "unit": "g"}
+    ],
+    "efficacy": "温经散寒，养血通脉",
+    "indications": "血虚寒厥证。手足厥寒，舌淡苔白，脉沉细欲绝；或腰股腿足疼痛",
+    "usage": "水煎服",
+    "modifications": []
+  },
+  {
+    "name": "吴茱萸汤",
+    "aliases": [],
+    "source": "伤寒论",
+    "composition": [
+      {"herb": "吴茱萸", "dose": 9, "unit": "g"},
+      {"herb": "人参", "dose": 9, "unit": "g"},
+      {"herb": "生姜", "dose": 18, "unit": "g"},
+      {"herb": "大枣", "dose": 12, "unit": "g"}
+    ],
+    "efficacy": "温中补虚，降逆止呕",
+    "indications": "肝胃虚寒，浊阴上逆。食谷欲呕，胃脘疼痛，吞酸嘈杂，或干呕吐涎沫、头痛，舌淡苔白滑，脉沉弦",
+    "usage": "水煎服",
+    "modifications": []
+  },
+  {
+    "name": "半夏泻心汤",
+    "aliases": [],
+    "source": "伤寒论",
+    "composition": [
+      {"herb": "半夏", "dose": 9, "unit": "g"},
+      {"herb": "黄芩", "dose": 9, "unit": "g"},
+      {"herb": "干姜", "dose": 9, "unit": "g"},
+      {"herb": "人参", "dose": 9, "unit": "g"},
+      {"herb": "甘草", "dose": 9, "unit": "g"},
+      {"herb": "黄连", "dose": 3, "unit": "g"},
+      {"herb": "大枣", "dose": 12, "unit": "g"}
+    ],
+    "efficacy": "寒热平调，消痞散结",
+    "indications": "寒热错杂之痞证。心下痞，但满而不痛，或呕吐，肠鸣下利，苔腻微黄",
+    "usage": "水煎服，去滓再煎",
+    "modifications": []
   }
 ]

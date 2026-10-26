@@ -38,10 +38,17 @@ class Settings(BaseSettings):
     # 向量数据库
     chroma_persist_dir: str = "./chroma_data"
     embedding_model: str = "BAAI/bge-large-zh-v1.5"
+    # 语义检索需安装 chromadb + sentence-transformers 并下载中文向量模型；
+    # 关闭时系统使用关键词检索（默认，轻量、无需大模型依赖）
+    enable_semantic_search: bool = False
 
     # 服务配置
     host: str = "127.0.0.1"
     port: int = 8765
+
+    # 安全
+    # 游客免密登录（仅浏览，写操作仍受限）；生产环境建议设为 False
+    allow_guest_login: bool = False
 
     model_config = {
         "env_file": _get_env_file(),

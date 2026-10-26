@@ -1,6 +1,9 @@
 """FastAPI 主入口"""
+import logging
 from contextlib import asynccontextmanager
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -28,6 +31,20 @@ async def lifespan(app: FastAPI):
     # 首次启动时导入药材、配伍禁忌、经典方剂数据
     from app.seed import seed_all
     seed_all()
+
+    # 语义检索索引（开启 enable_semantic_search 时自动重建；否则降级为关键词检索）
+    if settings.enable_semantic_search:
+        try:
+            from app.services import vector_store
+            if vector_store.bootstrap(settings.chroma_persist_dir, settings.embedding_model, True):
+                db = SessionLocal()
+                try:
+                    n = vector_store.rebuild_from_knowledge_db(db)
+                    logger.info(f"语义索引重建完成，共 {n} 条")
+                finally:
+                    db.close()
+        except Exception as e:
+            logger.warning(f"语义检索初始化失败，降级为关键词检索: {e}")
 
     yield
 
@@ -60,6 +77,13 @@ def _run_light_migrations() -> None:
         if "acupoint_formula_id" not in cols:
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE prescriptions ADD COLUMN acupoint_formula_id INTEGER"))
+
+    # users.must_change_password（升级已有库时默认为 1，即要求改密）
+    if "users" in inspector.get_table_names():
+        ucols = {c["name"] for c in inspector.get_columns("users")}
+        if "must_change_password" not in ucols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE users ADD COLUMN must_change_password BOOLEAN NOT NULL DEFAULT 1"))
     # 其它表的新增列可在下方照此扩展
 
 

@@ -5,13 +5,19 @@ import hashlib
 import secrets
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
 from app.models.user import User, AuthToken
 from app.schemas.auth import LoginRequest, TokenOut, UserOut, ChangePasswordRequest
+
+# 简单内存登录限流：同一 IP+用户名 在窗口内失败次数过多则拒绝
+_LOGIN_MAX_FAILS = 5
+_LOGIN_WINDOW_MIN = 5
+_login_fails: dict[str, list] = {}
 
 router = APIRouter(prefix="/auth", tags=["认证"])
 
@@ -69,17 +75,46 @@ def get_current_user(
     return user
 
 
+def _cleanup_login_fails() -> None:
+    now = datetime.now()
+    for key in list(_login_fails.keys()):
+        _login_fails[key] = [
+            t for t in _login_fails[key]
+            if (now - t).total_seconds() < _LOGIN_WINDOW_MIN * 60
+        ]
+        if not _login_fails[key]:
+            del _login_fails[key]
+
+
 @router.post("/login", response_model=TokenOut, summary="用户登录")
-def login(payload: LoginRequest, db: Session = Depends(get_db)):
+def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)):
+    client_ip = request.client.host if request.client else "unknown"
+    _cleanup_login_fails()
+    fail_key = f"{client_ip}:{payload.username}"
+    if len(_login_fails.get(fail_key, [])) >= _LOGIN_MAX_FAILS:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="登录尝试过于频繁，请稍后再试",
+        )
+
     user = db.query(User).filter(User.username == payload.username).first()
     if not user or not _verify_password(payload.password, user.password_hash):
+        _login_fails.setdefault(fail_key, []).append(datetime.now())
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="用户名或密码错误")
+
+    _login_fails.pop(fail_key, None)
     token = _issue_token(db, user)
-    return TokenOut(token=token.token, user=UserOut.model_validate(user))
+    return TokenOut(
+        token=token.token,
+        user=UserOut.model_validate(user),
+        must_change_password=user.must_change_password,
+    )
 
 
 @router.post("/guest", response_model=TokenOut, summary="游客一键登录（免密码）")
 def guest_login(db: Session = Depends(get_db)):
+    if not settings.allow_guest_login:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="游客登录已禁用")
     user = db.query(User).filter(User.username == "guest").first()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="游客账号不存在")
@@ -114,6 +149,7 @@ def change_password(
     if len(payload.new_password) < 6:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="新密码至少 6 位")
     current_user.password_hash = _hash_password(payload.new_password)
+    current_user.must_change_password = False
     # 改密后使该用户所有其它令牌失效
     db.query(AuthToken).filter(AuthToken.user_id == current_user.id).delete()
     db.commit()
