@@ -1,0 +1,23 @@
+services:
+  tcm-doctor:
+    build: .
+    image: tcm-doctor:latest
+    container_name: tcm-doctor
+    ports:
+      - "8765:8765"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8765
+      # 数据库落在挂载卷 /data 中，容器重建不丢数据
+      - DATABASE_URL=sqlite:////data/tcm_doctor.db
+      - SECRET_KEY=please-change-this-secret
+      - ALLOW_GUEST_LOGIN=true
+      - ENABLE_SEMANTIC_SEARCH=false
+      # 如需 AI 智能辨证，取消下行注释并填入 DeepSeek API Key
+      # - DEEPSEEK_API_KEY=sk-xxxxxxxx
+    volumes:
+      - tcm_data:/data
+    restart: unless-stopped
+
+volumes:
+  tcm_data:

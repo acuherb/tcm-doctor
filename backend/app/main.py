@@ -244,3 +244,12 @@ def update_config(
     tmp_path.replace(env_path)
 
     return {"message": "配置已保存", "deepseek_configured": bool(settings.deepseek_api_key)}
+
+
+# ---- 生产模式：直接托管已构建的前端静态文件 ----
+# 仅当 backend/static 目录存在时挂载（由 Docker 镜像从 frontend/dist 复制而来）；
+# 开发模式不挂载，前端由 vite dev server 提供。前端使用 hash 路由，静态服务只需兜底返回 index.html。
+_STATIC_DIR = Path(__file__).parent.parent / "static"
+if _STATIC_DIR.exists():
+    from fastapi.staticfiles import StaticFiles
+    app.mount("/", StaticFiles(directory=str(_STATIC_DIR), html=True), name="static")
