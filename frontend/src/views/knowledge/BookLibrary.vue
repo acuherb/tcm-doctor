@@ -34,7 +34,7 @@
             <el-icon><Upload /></el-icon> 导入 JSON
           </el-button>
         </el-upload>
-        <el-button type="warning" plain @click="onExport">
+        <el-button v-if="editable" type="warning" plain @click="onExport">
           <el-icon><Download /></el-icon> 导出
         </el-button>
         <el-button v-if="editable" type="primary" plain @click="openEdit()">

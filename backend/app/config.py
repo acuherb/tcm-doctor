@@ -47,8 +47,8 @@ class Settings(BaseSettings):
     port: int = 8765
 
     # 安全
-    # 游客免密登录（仅浏览，写操作仍受限）；生产环境建议设为 False
-    allow_guest_login: bool = False
+    # 游客免密登录（仅浏览，写操作仍受限）；默认开启以方便演示/试用
+    allow_guest_login: bool = True
 
     model_config = {
         "env_file": _get_env_file(),

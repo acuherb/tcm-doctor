@@ -77,7 +77,7 @@
           <template #header><span>💾 数据管理</span></template>
           <el-form label-width="100px">
             <el-form-item label="数据备份">
-              <el-button type="primary" @click="exportData" :loading="exporting">
+              <el-button v-if="editable" type="primary" @click="exportData" :loading="exporting">
                 <el-icon><Download /></el-icon> 导出备份
               </el-button>
               <span style="font-size:12px;color:#999;margin-left:8px;">导出为 SQLite 数据库文件</span>

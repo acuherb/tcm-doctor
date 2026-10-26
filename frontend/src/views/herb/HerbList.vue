@@ -8,7 +8,7 @@
             <el-button v-if="editable" size="small" @click="triggerImport">
               <el-icon><Upload /></el-icon> 导入JSON
             </el-button>
-            <el-button size="small" @click="exportHerbs">
+            <el-button v-if="editable" size="small" @click="exportHerbs">
               <el-icon><Download /></el-icon> 导出JSON
             </el-button>
             <el-button v-if="editable" type="primary" size="small" @click="openAdd">

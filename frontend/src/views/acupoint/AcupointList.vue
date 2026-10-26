@@ -17,7 +17,7 @@
         <el-tag type="info" effect="plain">{{ total }} 穴</el-tag>
       </div>
       <div class="toolbar-right">
-        <el-button size="small" @click="exportAcupoints">导出</el-button>
+        <el-button v-if="editable" size="small" @click="exportAcupoints">导出</el-button>
         <el-button v-if="editable" size="small" @click="triggerImport">导入</el-button>
         <el-button v-if="editable" type="primary" size="small" @click="openAdd">新增穴位</el-button>
         <input ref="fileInput" type="file" accept=".json,application/json" style="display: none" @change="onImportFile" />

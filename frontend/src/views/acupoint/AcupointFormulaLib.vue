@@ -7,7 +7,7 @@
           <div>
             <el-button v-if="editable" type="primary" size="small" @click="openCreate">＋ 新增针方</el-button>
             <el-button v-if="editable" size="small" @click="importFileRef?.click()">📥 导入JSON</el-button>
-            <el-button size="small" @click="exportFormulas">📤 导出JSON</el-button>
+            <el-button v-if="editable" size="small" @click="exportFormulas">📤 导出JSON</el-button>
             <input ref="importFileRef" type="file" accept=".json,application/json"
               style="display:none" @change="onImportFile" />
           </div>
