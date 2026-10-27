@@ -13,19 +13,33 @@ RUN npx vite build
 FROM python:3.12-slim AS runtime
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONPATH=/app/backend \
+    DATA_DIR=/data
 WORKDIR /app/backend
+
+# 容器内所有持久化数据（SQLite 数据库、.env 配置）统一落到 /data，
+# 运行时挂载宿主机目录至此即可在删容器重建后保留数据。
+RUN mkdir -p /data
 
 # 复制后端代码与种子数据（app/data 内含药材/方剂/知识库初始数据，需保留）
 COPY backend/ ./
 
-# 安装 Python 依赖：基础依赖 + openai（确保 AI 辨证对话可用）。
-# 基础依赖均为纯 Python wheel，无需 gcc 编译，故不装 build-essential。
-# 如需语义检索（ENABLE_SEMANTIC_SEARCH=true），请改用 pip install -e ".[ai]"
-# （会引入 chromadb，需要编译工具链与系统库）。
+# 显式安装固定版本依赖（纯 Python wheel，无需 gcc/apt）：
+# 不在容器内用 `pip install -e .` 解析 pyproject，避免旧构建缓存元数据引发依赖冲突。
+# 如需语义检索（ENABLE_SEMANTIC_SEARCH=true），请改为在 pyproject 的 [ai] 中安装
+# chromadb + sentence-transformers，并相应调整此处。
 RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -e . \
-    && pip install --no-cache-dir openai
+    && pip install --no-cache-dir \
+        fastapi==0.110.3 \
+        uvicorn==0.30.6 \
+        sqlalchemy==2.0.36 \
+        alembic==1.13.2 \
+        pydantic==2.9.2 \
+        pydantic-settings==2.5.2 \
+        httpx==0.27.2 \
+        python-multipart==0.0.12 \
+        openai
 
 # 前端静态产物（由前端构建阶段生成），由 FastAPI 在生产模式直接托管
 COPY --from=frontend-builder /app/frontend/dist ./static

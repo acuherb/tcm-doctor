@@ -69,7 +69,36 @@ def delete_patient(patient_id: int, db: Session = Depends(get_db)):
     patient = db.query(Patient).filter(Patient.id == patient_id).first()
     if not patient:
         raise HTTPException(status_code=404, detail="患者不存在")
-    db.delete(patient)
+
+    # 显式级联清理所有子表，避免遗留孤儿记录。
+    # 原因：Patient 仅对 visits 配置了 ORM 级联，问诊十问 / 会话等并无级联；
+    # 而 SQLite 删除行后会复用 id，若不清理，重建同名患者时旧记录会回流到新患者。
+    from app.models.prescription import (
+        Prescription, PrescriptionItem, AcupointPrescription, PrescriptionInjection,
+    )
+    from app.models.conversation import Conversation, Message
+
+    # 1) 处方明细 → 处方（需在就诊记录之前，因处方外键指向就诊）
+    pres_ids = db.query(Prescription.id).filter(Prescription.patient_id == patient_id)
+    db.query(PrescriptionItem).filter(PrescriptionItem.prescription_id.in_(pres_ids)).delete(synchronize_session=False)
+    db.query(AcupointPrescription).filter(AcupointPrescription.prescription_id.in_(pres_ids)).delete(synchronize_session=False)
+    db.query(PrescriptionInjection).filter(PrescriptionInjection.prescription_id.in_(pres_ids)).delete(synchronize_session=False)
+    db.query(Prescription).filter(Prescription.patient_id == patient_id).delete(synchronize_session=False)
+
+    # 2) 问诊十问（外键指向就诊，需在就诊之前清理）
+    db.query(InquiryRecord).filter(InquiryRecord.patient_id == patient_id).delete(synchronize_session=False)
+
+    # 3) 智能问诊：消息 → 会话
+    conv_ids = db.query(Conversation.id).filter(Conversation.patient_id == patient_id)
+    db.query(Message).filter(Message.conversation_id.in_(conv_ids)).delete(synchronize_session=False)
+    db.query(Conversation).filter(Conversation.patient_id == patient_id).delete(synchronize_session=False)
+
+    # 4) 就诊记录
+    db.query(Visit).filter(Visit.patient_id == patient_id).delete(synchronize_session=False)
+
+    # 5) 患者本身
+    db.query(Patient).filter(Patient.id == patient_id).delete(synchronize_session=False)
+
     db.commit()
     return {"message": "删除成功"}
 

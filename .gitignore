@@ -27,3 +27,6 @@ release/
 .vscode/
 .idea/
 .DS_Store
+
+# 构建导出的镜像 tar（部署用，不入库）
+tcm-doctor-image.tar

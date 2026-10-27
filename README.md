@@ -287,6 +287,47 @@ npm run dev           # 同时启动后端 uvicorn 与前端 vite
 > 首次运行若缺少 `backend/.env`，脚本会生成默认开发配置；将 `DEEPSEEK_API_KEY` 填入即可启用 AI 辨证。
 > 后端 API 文档：http://127.0.0.1:8765/docs
 
+## Docker 容器部署（群晖 Container Manager / 服务器）
+
+生产部署使用**单镜像**（内置前端静态产物 + FastAPI 后端，由 FastAPI 直接托管页面），所有持久化数据统一落在容器内的 `/data` 目录，挂载宿主机目录即可在删容器重建后保留数据。
+
+### 1. 构建并导出镜像（在有 Docker 的构建机上）
+
+```bash
+cd tcm-doctor
+docker build -t tcm-doctor:latest .
+docker save tcm-doctor:latest -o tcm-doctor-image.tar
+```
+
+> 多阶段构建：前端用 `node:20-alpine` 构建 `dist`，后端用 `python:3.12-slim` 运行；镜像约 60–70MB，无需在宿主机装 Node/Python。
+
+### 2. 群晖 Container Manager 导入并运行
+
+- `映像 → 操作 → 导入 → 从文件`，选择 `tcm-doctor-image.tar`。
+- 选中镜像 → **运行**，在向导里配置：
+  - **端口**：本地 `8765` → 容器 `8765`（TCP）。务必手动指定，勿用随机端口，否则外网/反代会连错。
+  - **卷（关键）**：本地目录（如 `docker/tcm-data`）→ 容器 `/data`。数据库与 `.env` 配置都在此，挂载后**删容器重建也不丢数据**。
+  - 环境变量（可选）：`PORT`（默认 8765）、`DATA_DIR`（默认 `/data`）、`ALLOW_GUEST_LOGIN`（默认 `true` 开启游客浏览）。
+
+### 3. 首次启动
+
+- 容器启动后自动建表并灌入种子数据（药材 229 味、经典方 146 首、穴位 170、知识库 1313 条），首次约需 10–20 秒。
+- 浏览器访问 `http://<主机IP>:8765`，默认账号 `admin / admin123`（首次登录建议改密）；也可「游客登录（仅浏览）」。
+- 「系统设置」填入 DeepSeek API Key 即启用 AI 辨证。
+
+### 4. 更新镜像（保留数据）
+
+> 重要：更新前先在**「系统管理 → 数据备份 → 导出」**下载备份文件，以防万一。
+
+1. 群晖删除旧 `tcm-doctor` 容器与旧映像；
+2. 重新导入新 `tcm-doctor-image.tar` 并运行（**保持同样的 `/data` 卷映射**）；
+3. 如需恢复历史数据，「系统管理 → 数据备份 → 导入」选备份文件即可。
+
+### 5. 外网访问（群晖反代 / Cloudflare）
+
+- 先内网直连 `http://<群晖IP>:8765` 确认应用本身正常；
+- 若经反向代理或 Cloudflare（如 `tcm.xxx.xyz`）出现 **502 Bad Gateway**，通常是反代「目标端口」没指向群晖主机的 `8765`——把反代目标主机设为 `127.0.0.1`、目标端口设为 `8765` 即可。
+
 ## 致谢
 
 本项目基于 [OMDOCTOR](https://github.com/sunshengzhuo/OMDOCTOR) 进行二次开发，感谢原作者 [@sunshengzhuo](https://github.com/sunshengzhuo) 提供的优秀开源基础。

@@ -4,10 +4,16 @@ import os
 from pydantic_settings import BaseSettings
 
 
+# 容器内统一数据目录：数据库与 .env 配置都落在此处，挂载该目录即可持久化。
+# 开发 / 桌面模式不设置 DATA_DIR，数据落在项目目录内。
+_DATA_DIR = os.environ.get("DATA_DIR", "")
+
 def _get_env_file() -> str:
-    """PyInstaller 打包后 .env 在 exe 同目录，开发时在项目根目录"""
+    """PyInstaller 打包后 .env 在 exe 同目录；容器内部优先放 DATA_DIR；开发时项目根目录"""
     if getattr(sys, 'frozen', False):
         return os.path.join(os.path.dirname(sys.executable), '.env')
+    if _DATA_DIR:
+        return os.path.join(_DATA_DIR, '.env')
     return ".env"
 
 
@@ -22,8 +28,10 @@ class Settings(BaseSettings):
     clinic_name: str = ""
     doctor_name: str = ""
 
-    # 数据库
-    database_url: str = "sqlite:///./tcm_doctor.db"
+    # 数据库（容器内默认落到 DATA_DIR=/data，挂载后持久化；开发/桌面默认项目内）
+    database_url: str = (
+        f"sqlite:///{_DATA_DIR}/tcm_doctor.db" if _DATA_DIR else "sqlite:///./tcm_doctor.db"
+    )
 
     # DeepSeek API
     deepseek_api_key: str = ""
@@ -36,7 +44,7 @@ class Settings(BaseSettings):
     deepseek_vision_api_key: str = ""  # 留空则复用 deepseek_api_key
 
     # 向量数据库
-    chroma_persist_dir: str = "./chroma_data"
+    chroma_persist_dir: str = f"{_DATA_DIR}/chroma_data" if _DATA_DIR else "./chroma_data"
     embedding_model: str = "BAAI/bge-large-zh-v1.5"
     # 语义检索需安装 chromadb + sentence-transformers 并下载中文向量模型；
     # 关闭时系统使用关键词检索（默认，轻量、无需大模型依赖）

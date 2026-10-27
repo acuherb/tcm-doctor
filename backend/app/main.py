@@ -1,5 +1,6 @@
 """FastAPI 主入口"""
 import logging
+import os
 from contextlib import asynccontextmanager
 from datetime import datetime
 
@@ -196,8 +197,13 @@ def update_config(
     deepseek_vision_api_key: str | None = None,
 ):
     """更新系统配置 — 同时写入 .env 文件持久化"""
-    # .env 路径与 pydantic_settings 一致（项目根目录）
-    env_path = Path(__file__).parent.parent / ".env"
+    # .env 路径：容器内优先放 DATA_DIR（与 pydantic_settings 一致），否则项目根目录
+    data_dir = os.environ.get("DATA_DIR", "")
+    if data_dir:
+        Path(data_dir).mkdir(parents=True, exist_ok=True)
+        env_path = Path(data_dir) / ".env"
+    else:
+        env_path = Path(__file__).parent.parent / ".env"
     env_lines: dict[str, str] = {}
 
     # 读取已有 .env

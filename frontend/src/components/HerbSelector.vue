@@ -31,8 +31,11 @@
         </div>
       </el-option>
     </el-select>
-  </div>
-</template>
+    <el-tag v-if="!selectedHerbId && displayName" type="warning" size="small" style="margin-left:8px;">
+      {{ displayName }}（未匹配药材库）
+    </el-tag>
+    </div>
+    </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
@@ -43,12 +46,14 @@ const props = withDefaults(defineProps<{
   disabled?: boolean
   fullWidth?: boolean
   width?: string
+  displayName?: string  // 当 modelValue 为 null（未匹配到药材库）时，仍展示此药名
   excludeIds?: number[]  // 已选药材ID，排除已选项
 }>(), {
   modelValue: null,
   disabled: false,
   fullWidth: false,
   width: '220px',
+  displayName: '',
   excludeIds: () => [],
 })
 

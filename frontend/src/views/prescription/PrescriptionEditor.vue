@@ -72,6 +72,7 @@
             <div class="herb-item-fields">
               <HerbSelector
                 v-model="item.herb_id"
+                :display-name="item.herb_name"
                 :exclude-ids="getExcludeIds(idx)"
                 @select="(h: any) => onHerbSelect(idx, h)"
                 width="180px"
@@ -506,25 +507,37 @@ function loadFromFormula() {
   formulaDialogVisible.value = true
 }
 
-function selectFormula(formula: any) {
+async function selectFormula(formula: any) {
   form.value.formula_name = formula.name
   form.value.is_classic = true
   form.value.classic_formula_id = formula.id
   form.value.items = []
 
+  // 确保药材库已加载，便于按药名（含异名）匹配 herb_id
+  if (!herbCacheList.value.length) {
+    await loadHerbList()
+  }
+
   const herbs = Array.isArray(formula.composition) ? formula.composition : formula.composition?.herbs || []
   for (const h of herbs) {
-      // 需要通过药名查找 herb_id
-      const matchedHerb = herbCacheList.value.find((herb: any) => herb.name === h.herb)
-      form.value.items.push({
-        herb_id: matchedHerb?.id || null,
-        herb_name: h.herb,
-        dose: h.dose || 10,
-        special_method: h.special_method || null,
-        is_king_herb: h.is_king_herb || false,
-        note: h.note || '',
-        _warnings: [],
-      })
+    const name = (h.herb || '').trim()
+    // 先按正名精确匹配，再按异名匹配，最后按包含关系匹配（兼容炮制名，如「炙甘草」→「甘草」）
+    let matchedHerb = herbCacheList.value.find((herb: any) => herb.name === name)
+    if (!matchedHerb) {
+      matchedHerb = herbCacheList.value.find((herb: any) =>
+        (herb.aliases || []).some((a: string) => a === name) ||
+        (herb.name && (herb.name.includes(name) || name.includes(herb.name)))
+      )
+    }
+    form.value.items.push({
+      herb_id: matchedHerb?.id || null,
+      herb_name: h.herb,
+      dose: h.dose || 10,
+      special_method: h.special_method || null,
+      is_king_herb: h.is_king_herb || false,
+      note: h.note || '',
+      _warnings: [],
+    })
   }
 
   if (formula.usage) {
