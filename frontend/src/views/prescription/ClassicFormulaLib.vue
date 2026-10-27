@@ -3,7 +3,7 @@
     <el-card shadow="hover">
       <template #header>
         <div style="display:flex;justify-content:space-between;align-items:center;">
-          <span>📖 经典方库</span>
+          <span>📖 中药方库</span>
           <div>
             <el-button v-if="editable" type="primary" size="small" @click="openCreate">＋ 新增方剂</el-button>
             <el-button v-if="editable" size="small" @click="importFileRef?.click()">📥 导入JSON</el-button>
@@ -293,7 +293,7 @@ async function exportFormulas() {
     const blob = new Blob([JSON.stringify(list, null, 2)], { type: 'application/json' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
-    a.download = `经典方库_${new Date().toISOString().slice(0, 10)}.json`
+    a.download = `中药方库_${new Date().toISOString().slice(0, 10)}.json`
     a.click()
     URL.revokeObjectURL(a.href)
     ElMessage.success(`已导出 ${list.length} 首方剂`)

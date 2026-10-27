@@ -83,7 +83,7 @@ const routes: RouteRecordRaw[] = [
         path: 'classic-formulas',
         name: 'ClassicFormulaLib',
         component: () => import('@/views/prescription/ClassicFormulaLib.vue'),
-        meta: { title: '经典方库', icon: 'Notebook' },
+        meta: { title: '中药方库', icon: 'Notebook' },
       },
       {
         path: 'acupoint-formulas',

@@ -51,7 +51,7 @@
       <div v-if="recommend" class="ta-recommend">
         <el-divider content-position="left">🪷 可参考经方 <el-tag v-if="recommend.meridian" size="small" type="success" style="margin-left:6px;">{{ recommend.meridian }}类</el-tag></el-divider>
 
-        <el-empty v-if="!recLoading && recommend.matched && recommend.matched.length === 0" description="经方库暂无录入该六经候选方（可在经典方库补充），下方为候选方名参考">
+        <el-empty v-if="!recLoading && recommend.matched && recommend.matched.length === 0" description="中药方库暂无录入该六经候选方（可在中药方库补充），下方为候选方名参考">
           <template #description>
             <div class="ta-suggestion" v-if="recommend.missing && recommend.missing.length">
               候选：<el-tag v-for="n in recommend.missing" :key="n" size="small" style="margin-left:4px;">{{ n }}</el-tag>

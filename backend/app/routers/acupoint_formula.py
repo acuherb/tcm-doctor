@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.acupuncture import AcupointFormula
+from app.models.prescription import Prescription
 from app.schemas.acupuncture import (
     AcupointFormulaCreate, AcupointFormulaUpdate, AcupointFormulaResponse,
 )
@@ -130,6 +131,10 @@ def delete_acupoint_formula(formula_id: int, db: Session = Depends(get_db)):
     formula = db.query(AcupointFormula).filter(AcupointFormula.id == formula_id).first()
     if not formula:
         raise HTTPException(status_code=404, detail="针灸方不存在")
+    # 解除处方对该针灸方的引用，避免孤儿外键（处方仍保留冗余的方案名信息）
+    db.query(Prescription).filter(Prescription.acupoint_formula_id == formula_id).update(
+        {Prescription.acupoint_formula_id: None}
+    )
     db.delete(formula)
     db.commit()
     return {"deleted": formula_id}

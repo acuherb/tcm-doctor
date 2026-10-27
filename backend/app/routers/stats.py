@@ -21,9 +21,9 @@ def dashboard_stats(db: Session = Depends(get_db)):
     today_start = datetime.combine(today, datetime.min.time())
     today_end = datetime.combine(today, datetime.max.time())
 
-    # 今日就诊数
+    # 今日就诊数（visit_date 存为 YYYY-MM-DD 字符串，用 date() 归一化后按日期比较）
     today_visits = db.query(Visit).filter(
-        Visit.visit_date.between(today_start, today_end)
+        func.date(Visit.visit_date) == today.isoformat()
     ).count()
 
     # 患者总数
@@ -50,14 +50,13 @@ def dashboard_stats(db: Session = Depends(get_db)):
             low_stock_count += 1
 
     # 最近7天就诊趋势
-    seven_days_ago = today_start - timedelta(days=7)
+    seven_days_ago = today - timedelta(days=7)
     visit_trend = []
     for i in range(7):
-        day_start = seven_days_ago + timedelta(days=i)
-        day_end = day_start + timedelta(days=1)
-        count = db.query(Visit).filter(Visit.visit_date.between(day_start, day_end)).count()
+        day = seven_days_ago + timedelta(days=i)
+        count = db.query(Visit).filter(func.date(Visit.visit_date) == day.isoformat()).count()
         visit_trend.append({
-            "date": day_start.strftime("%m-%d"),
+            "date": day.strftime("%m-%d"),
             "count": count,
         })
 
@@ -84,9 +83,7 @@ def visit_stats(
     daily_stats = []
     for i in range(min(days, 60)):  # 最多返回60天
         day = (datetime.now() - timedelta(days=days - i)).date()
-        day_start = datetime.combine(day, datetime.min.time())
-        day_end = datetime.combine(day, datetime.max.time())
-        count = db.query(Visit).filter(Visit.visit_date.between(day_start, day_end)).count()
+        count = db.query(Visit).filter(func.date(Visit.visit_date) == day.isoformat()).count()
         daily_stats.append({"date": day.strftime("%Y-%m-%d"), "count": count})
 
     # 常见证型统计
@@ -94,7 +91,7 @@ def visit_stats(
         Visit.tcm_syndrome,
         func.count(Visit.id),
     ).filter(
-        Visit.visit_date >= start_date,
+        func.date(Visit.visit_date) >= start_date.date().isoformat(),
         Visit.tcm_syndrome.isnot(None),
     ).group_by(Visit.tcm_syndrome).order_by(func.count(Visit.id).desc()).limit(10).all()
 

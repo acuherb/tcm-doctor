@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
 from app.models.herb import Herb, IncompatibilityRule, HerbInventory, InventoryTransaction
+from app.models.prescription import PrescriptionItem
 from app.schemas.herb import (
     HerbCreate, HerbUpdate, HerbResponse,
     IncompatibilityCheckRequest, IncompatibilityCheckResponse, IncompatibilityWarning,
@@ -296,10 +297,11 @@ def delete_herb(herb_id: int, db: Session = Depends(get_db)):
     ref_rule = db.query(IncompatibilityRule).filter(
         (IncompatibilityRule.herb_a_id == herb_id) | (IncompatibilityRule.herb_b_id == herb_id)
     ).first()
-    if ref_inv or ref_rule:
+    ref_item = db.query(PrescriptionItem).filter(PrescriptionItem.herb_id == herb_id).first()
+    if ref_inv or ref_rule or ref_item:
         herb.is_active = False
         db.commit()
-        return {"deleted": False, "soft": True, "message": "存在库存或配伍禁忌引用，已改为停用"}
+        return {"deleted": False, "soft": True, "message": "存在库存/配伍禁忌/处方引用，已改为停用"}
     db.delete(herb)
     db.commit()
     return {"deleted": True, "soft": False, "message": "已删除"}

@@ -151,6 +151,10 @@ def delete_classic_formula(formula_id: int, db: Session = Depends(get_db)):
     formula = db.query(ClassicFormula).filter(ClassicFormula.id == formula_id).first()
     if not formula:
         raise HTTPException(status_code=404, detail="方剂不存在")
+    # 解除处方对该方的引用，避免孤儿外键（处方仍保留冗余的 formula_name，可正常显示）
+    db.query(Prescription).filter(Prescription.classic_formula_id == formula_id).update(
+        {Prescription.classic_formula_id: None, Prescription.is_classic: False}
+    )
     db.delete(formula)
     db.commit()
     return {"deleted": formula_id}

@@ -6,7 +6,7 @@
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span>📝 {{ prescriptionId ? '编辑处方' : '开具处方' }}</span>
           <div style="display:flex;gap:8px;">
-            <el-button v-if="editable" size="small" @click="loadFromFormula">从经典方导入</el-button>
+            <el-button v-if="editable" size="small" @click="loadFromFormula">从中药方导入</el-button>
             <el-button v-if="editable" size="small" @click="loadFromAcupointFormula">从针灸方导入</el-button>
             <el-button v-if="editable" type="primary" size="small" @click="submitPrescription" :loading="submitting">
               {{ prescriptionId ? '保存修改' : '提交处方' }}
@@ -249,8 +249,8 @@
         :description="'请在左侧添加药味或配穴'" :image-size="60" />
     </el-card>
 
-    <!-- 经典方导入对话框 -->
-    <el-dialog v-model="formulaDialogVisible" title="📖 从经典方导入" width="650px" destroy-on-close>
+    <!-- 中药方导入对话框 -->
+    <el-dialog v-model="formulaDialogVisible" title="📖 从中药方导入" width="650px" destroy-on-close>
       <el-input v-model="formulaSearch" placeholder="搜索方名" clearable style="margin-bottom:12px;" />
       <el-table :data="filteredFormulas" stripe size="small" @row-click="selectFormula"
         highlight-current-row style="cursor:pointer;">
@@ -533,7 +533,7 @@ async function getHerbCache(id: number) {
   } catch { return null }
 }
 
-// ── 经典方导入 ──
+// ── 中药方导入 ──
 function loadFromFormula() {
   formulaDialogVisible.value = true
 }
