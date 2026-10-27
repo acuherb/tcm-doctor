@@ -22,24 +22,18 @@ WORKDIR /app/backend
 # 运行时挂载宿主机目录至此即可在删容器重建后保留数据。
 RUN mkdir -p /data
 
+# 先安装依赖再 COPY 业务代码，使依赖层在业务代码改动时保持缓存有效，
+# 避免每次打包都重新下载/安装依赖（只有 requirements.txt 变化才重装）。
+COPY backend/requirements.txt ./
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -r requirements.txt
+
 # 复制后端代码与种子数据（app/data 内含药材/方剂/知识库初始数据，需保留）
 COPY backend/ ./
 
-# 显式安装固定版本依赖（纯 Python wheel，无需 gcc/apt）：
-# 不在容器内用 `pip install -e .` 解析 pyproject，避免旧构建缓存元数据引发依赖冲突。
+# 显式安装固定版本依赖见 requirements.txt（纯 Python wheel，无需 gcc/apt）：
 # 如需语义检索（ENABLE_SEMANTIC_SEARCH=true），请改为在 pyproject 的 [ai] 中安装
-# chromadb + sentence-transformers，并相应调整此处。
-RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir \
-        fastapi==0.110.3 \
-        uvicorn==0.30.6 \
-        sqlalchemy==2.0.36 \
-        alembic==1.13.2 \
-        pydantic==2.9.2 \
-        pydantic-settings==2.5.2 \
-        httpx==0.27.2 \
-        python-multipart==0.0.12 \
-        openai
+# chromadb + sentence-transformers，并相应调整 requirements.txt。
 
 # 前端静态产物（由前端构建阶段生成），由 FastAPI 在生产模式直接托管
 COPY --from=frontend-builder /app/frontend/dist ./static

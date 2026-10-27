@@ -30,3 +30,15 @@ release/
 
 # 构建导出的镜像 tar（部署用，不入库）
 tcm-doctor-image.tar
+
+# 误写入根目录的 docker 构建输出碎片（调试残留，勿入库）
+=
+CACHED
+exporting
+naming
+resolve
+transferring
+unpacking
+\[frontend-builder
+\[internal\]
+\[runtime

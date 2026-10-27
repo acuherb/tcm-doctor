@@ -22,11 +22,7 @@ from seed_acupoints import seed_acupoints
 
 
 def seed_herbs(db: Session) -> int:
-    """导入中药材字典"""
-    count = db.query(Herb).count()
-    if count > 0:
-        return count  # 已有数据，跳过
-
+    """导入中药材字典（按名称幂等：仅新增缺失药材，并为已有药材同步异名）"""
     # 优先使用扩展版数据
     data_file = DATA_DIR / "herbs_extended.json"
     if not data_file.exists():
@@ -38,25 +34,35 @@ def seed_herbs(db: Session) -> int:
     with open(data_file, "r", encoding="utf-8") as f:
         herbs = json.load(f)
 
+    existing = {h.name: h for h in db.query(Herb).all()}
+    added_count = 0
     for h in herbs:
-        herb = Herb(
-            name=h["name"],
-            aliases=h.get("aliases"),
-            category=h.get("category"),
-            nature=h.get("nature"),
-            flavor=h.get("flavor"),
-            meridian_tropism=h.get("meridian_tropism"),
-            efficacy=h.get("efficacy"),
-            dosage_min=h.get("dosage_min"),
-            dosage_max=h.get("dosage_max"),
-            toxicity=h.get("toxicity", "无毒"),
-            pregnancy_contraindicated=h.get("pregnancy_contraindicated", False),
-            storage_condition=h.get("storage_condition"),
-        )
-        db.add(herb)
+        name = h["name"]
+        herb = existing.get(name)
+        if herb is None:
+            herb = Herb(
+                name=name,
+                aliases=h.get("aliases"),
+                category=h.get("category"),
+                nature=h.get("nature"),
+                flavor=h.get("flavor"),
+                meridian_tropism=h.get("meridian_tropism"),
+                efficacy=h.get("efficacy"),
+                dosage_min=h.get("dosage_min"),
+                dosage_max=h.get("dosage_max"),
+                toxicity=h.get("toxicity", "无毒"),
+                pregnancy_contraindicated=h.get("pregnancy_contraindicated", False),
+                storage_condition=h.get("storage_condition"),
+            )
+            db.add(herb)
+            existing[name] = herb
+            added_count += 1
+        else:
+            # 同步异名，保证后续补的异名（如炙甘草→甘草）能进入既有记录
+            herb.aliases = h.get("aliases")
 
     db.commit()
-    return len(herbs)
+    return added_count
 
 
 def seed_incompatibility_rules(db: Session) -> int:

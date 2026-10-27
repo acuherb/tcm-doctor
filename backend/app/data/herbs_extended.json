@@ -35,7 +35,8 @@
     "name": "紫苏",
     "aliases": [
       "苏叶",
-      "赤苏"
+      "赤苏",
+      "紫苏叶"
     ],
     "category": "解表药",
     "nature": "温",
@@ -498,7 +499,8 @@
     "name": "连翘",
     "aliases": [
       "旱连子",
-      "大翘"
+      "大翘",
+      "连轺"
     ],
     "category": "清热药",
     "nature": "微寒",
@@ -1387,7 +1389,9 @@
     "name": "附子",
     "aliases": [
       "附片",
-      "黑顺片"
+      "黑顺片",
+      "制附子",
+      "炮附子"
     ],
     "category": "温里药",
     "nature": "大热",
@@ -1896,7 +1900,8 @@
     "name": "茜草",
     "aliases": [
       "血见愁",
-      "地苏木"
+      "地苏木",
+      "新绛"
     ],
     "category": "止血药",
     "nature": "寒",
@@ -2951,7 +2956,10 @@
     "aliases": [
       "国老",
       "蜜草",
-      "粉草"
+      "粉草",
+      "炙甘草",
+      "生甘草",
+      "甘草梢"
     ],
     "category": "补虚药",
     "nature": "平",
@@ -3015,7 +3023,9 @@
     "name": "白芍",
     "aliases": [
       "金芍药",
-      "白芍药"
+      "白芍药",
+      "芍药",
+      "赤芍药"
     ],
     "category": "补虚药",
     "nature": "微寒",
@@ -3646,5 +3656,483 @@
     "dosage_max": 0.9,
     "toxicity": "有毒",
     "pregnancy_contraindicated": true
+  },
+  {
+    "name": "生姜",
+    "aliases": [
+      "鲜姜"
+    ],
+    "category": "解表药",
+    "nature": "微温",
+    "flavor": "辛",
+    "meridian_tropism": "归肺、脾、胃经",
+    "efficacy": "发汗解表，温中止呕，温肺止咳，解药毒",
+    "dosage_min": 3,
+    "dosage_max": 10,
+    "toxicity": "无毒",
+    "pregnancy_contraindicated": false
+  },
+  {
+    "name": "猪苓",
+    "aliases": [],
+    "category": "利水渗湿药",
+    "nature": "平",
+    "flavor": "甘、淡",
+    "meridian_tropism": "归肾、膀胱经",
+    "efficacy": "利水渗湿",
+    "dosage_min": 6,
+    "dosage_max": 12,
+    "toxicity": "无毒",
+    "pregnancy_contraindicated": false
+  },
+  {
+    "name": "防己",
+    "aliases": [
+      "木防己",
+      "汉防己",
+      "粉防己"
+    ],
+    "category": "祛风湿药",
+    "nature": "寒",
+    "flavor": "苦、辛",
+    "meridian_tropism": "归膀胱、肺经",
+    "efficacy": "祛风除湿，利水消肿，止痛",
+    "dosage_min": 5,
+    "dosage_max": 10,
+    "toxicity": "无毒",
+    "pregnancy_contraindicated": false
+  },
+  {
+    "name": "粳米",
+    "aliases": [
+      "白米"
+    ],
+    "category": "补虚药",
+    "nature": "平",
+    "flavor": "甘",
+    "meridian_tropism": "归脾、胃经",
+    "efficacy": "补中益气，健脾和胃",
+    "dosage_min": 15,
+    "dosage_max": 30,
+    "toxicity": "无毒",
+    "pregnancy_contraindicated": false
+  },
+  {
+    "name": "竹叶",
+    "aliases": [],
+    "category": "清热药",
+    "nature": "寒",
+    "flavor": "甘、淡、辛",
+    "meridian_tropism": "归心、肺、胃经",
+    "efficacy": "清心除烦，生津利尿",
+    "dosage_min": 6,
+    "dosage_max": 12,
+    "toxicity": "无毒",
+    "pregnancy_contraindicated": false
+  },
+  {
+    "name": "败酱草",
+    "aliases": [
+      "苦菜"
+    ],
+    "category": "清热药",
+    "nature": "微寒",
+    "flavor": "辛、苦",
+    "meridian_tropism": "归胃、大肠、肝经",
+    "efficacy": "清热解毒，消痈排脓，祛瘀止痛",
+    "dosage_min": 6,
+    "dosage_max": 15,
+    "toxicity": "无毒",
+    "pregnancy_contraindicated": false
+  },
+  {
+    "name": "赤小豆",
+    "aliases": [
+      "赤豆",
+      "红小豆"
+    ],
+    "category": "利水渗湿药",
+    "nature": "平",
+    "flavor": "甘、酸",
+    "meridian_tropism": "归心、小肠经",
+    "efficacy": "利水消肿，解毒排脓",
+    "dosage_min": 9,
+    "dosage_max": 30,
+    "toxicity": "无毒",
+    "pregnancy_contraindicated": false
+  },
+  {
+    "name": "赤石脂",
+    "aliases": [],
+    "category": "收涩药",
+    "nature": "温",
+    "flavor": "甘、涩",
+    "meridian_tropism": "归大肠、胃经",
+    "efficacy": "涩肠止泻，收敛止血，敛疮生肌",
+    "dosage_min": 9,
+    "dosage_max": 15,
+    "toxicity": "无毒",
+    "pregnancy_contraindicated": false
+  },
+  {
+    "name": "葱白",
+    "aliases": [
+      "葱茎",
+      "小葱"
+    ],
+    "category": "解表药",
+    "nature": "温",
+    "flavor": "辛",
+    "meridian_tropism": "归肺、胃经",
+    "efficacy": "发汗解表，散寒通阳",
+    "dosage_min": 6,
+    "dosage_max": 15,
+    "toxicity": "无毒",
+    "pregnancy_contraindicated": false
+  },
+  {
+    "name": "玉竹",
+    "aliases": [
+      "葳蕤",
+      "肥玉竹"
+    ],
+    "category": "补虚药",
+    "nature": "微寒",
+    "flavor": "甘",
+    "meridian_tropism": "归肺、胃经",
+    "efficacy": "养阴润燥，生津止渴",
+    "dosage_min": 6,
+    "dosage_max": 12,
+    "toxicity": "无毒",
+    "pregnancy_contraindicated": false
+  },
+  {
+    "name": "巴豆",
+    "aliases": [
+      "江巴豆",
+      "巴豆霜"
+    ],
+    "category": "泻下药",
+    "nature": "热",
+    "flavor": "辛",
+    "meridian_tropism": "归胃、大肠经",
+    "efficacy": "峻下冷积，逐水退肿，豁痰利咽",
+    "dosage_min": 1,
+    "dosage_max": 3,
+    "toxicity": "有大毒",
+    "pregnancy_contraindicated": true
+  },
+  {
+    "name": "海藻",
+    "aliases": [
+      "海带片"
+    ],
+    "category": "化痰止咳平喘药",
+    "nature": "寒",
+    "flavor": "苦、咸",
+    "meridian_tropism": "归肝、胃、肾经",
+    "efficacy": "软坚散结，消痰，利水",
+    "dosage_min": 6,
+    "dosage_max": 12,
+    "toxicity": "无毒",
+    "pregnancy_contraindicated": false
+  },
+  {
+    "name": "商陆",
+    "aliases": [
+      "山萝卜"
+    ],
+    "category": "泻下药",
+    "nature": "寒",
+    "flavor": "苦",
+    "meridian_tropism": "归肺、肾、大肠经",
+    "efficacy": "逐水消肿，通利二便，解毒散结",
+    "dosage_min": 3,
+    "dosage_max": 9,
+    "toxicity": "有毒",
+    "pregnancy_contraindicated": true
+  },
+  {
+    "name": "蜀漆",
+    "aliases": [
+      "常山苗"
+    ],
+    "category": "涌吐药",
+    "nature": "温",
+    "flavor": "苦、辛",
+    "meridian_tropism": "归肺、心经",
+    "efficacy": "祛痰截疟，涌吐痰涎",
+    "dosage_min": 3,
+    "dosage_max": 6,
+    "toxicity": "有毒",
+    "pregnancy_contraindicated": true
+  },
+  {
+    "name": "秦皮",
+    "aliases": [
+      "蜡皮"
+    ],
+    "category": "清热药",
+    "nature": "寒",
+    "flavor": "苦、涩",
+    "meridian_tropism": "归肝、胆、大肠经",
+    "efficacy": "清热燥湿，收涩止痢，明目",
+    "dosage_min": 6,
+    "dosage_max": 12,
+    "toxicity": "无毒",
+    "pregnancy_contraindicated": false
+  },
+  {
+    "name": "虻虫",
+    "aliases": [
+      "牛虻"
+    ],
+    "category": "活血化瘀药",
+    "nature": "微寒",
+    "flavor": "苦",
+    "meridian_tropism": "归肝经",
+    "efficacy": "破血逐瘀，通经消癥",
+    "dosage_min": 1,
+    "dosage_max": 3,
+    "toxicity": "有小毒",
+    "pregnancy_contraindicated": true
+  },
+  {
+    "name": "禹余粮",
+    "aliases": [
+      "禹粮石"
+    ],
+    "category": "收涩药",
+    "nature": "平",
+    "flavor": "甘、涩",
+    "meridian_tropism": "归脾、胃、大肠经",
+    "efficacy": "涩肠止泻，收敛止血",
+    "dosage_min": 9,
+    "dosage_max": 15,
+    "toxicity": "无毒",
+    "pregnancy_contraindicated": true
+  },
+  {
+    "name": "羊肉",
+    "aliases": [],
+    "category": "补虚药",
+    "nature": "温",
+    "flavor": "甘",
+    "meridian_tropism": "归脾、肾经",
+    "efficacy": "温补脾胃，温中暖下",
+    "dosage_min": 30,
+    "dosage_max": 60,
+    "toxicity": "无毒",
+    "pregnancy_contraindicated": false
+  },
+  {
+    "name": "小麦",
+    "aliases": [
+      "淮小麦"
+    ],
+    "category": "补虚药",
+    "nature": "平",
+    "flavor": "甘",
+    "meridian_tropism": "归心、脾、肾经",
+    "efficacy": "养心安神，除热止汗",
+    "dosage_min": 15,
+    "dosage_max": 30,
+    "toxicity": "无毒",
+    "pregnancy_contraindicated": false
+  },
+  {
+    "name": "饴糖",
+    "aliases": [
+      "胶饴"
+    ],
+    "category": "补虚药",
+    "nature": "温",
+    "flavor": "甘",
+    "meridian_tropism": "归脾、胃、肺经",
+    "efficacy": "补脾益气，缓急止痛，润肺止咳",
+    "dosage_min": 15,
+    "dosage_max": 30,
+    "toxicity": "无毒",
+    "pregnancy_contraindicated": false
+  },
+  {
+    "name": "蜂蜜",
+    "aliases": [
+      "白蜜",
+      "食蜜",
+      "蜜煎",
+      "生蜜"
+    ],
+    "category": "补虚药",
+    "nature": "平",
+    "flavor": "甘",
+    "meridian_tropism": "归肺、脾、大肠经",
+    "efficacy": "补中，润燥，止痛，解毒",
+    "dosage_min": 15,
+    "dosage_max": 30,
+    "toxicity": "无毒",
+    "pregnancy_contraindicated": false
+  },
+  {
+    "name": "醋",
+    "aliases": [
+      "食醋",
+      "苦酒",
+      "米醋"
+    ],
+    "category": "消食药",
+    "nature": "温",
+    "flavor": "酸、苦",
+    "meridian_tropism": "归肝、胃经",
+    "efficacy": "消食开胃，散瘀解毒",
+    "dosage_min": 5,
+    "dosage_max": 15,
+    "toxicity": "无毒",
+    "pregnancy_contraindicated": false
+  },
+  {
+    "name": "鸡子黄",
+    "aliases": [
+      "蛋黄"
+    ],
+    "category": "补虚药",
+    "nature": "平",
+    "flavor": "甘",
+    "meridian_tropism": "归心、肾经",
+    "efficacy": "滋阴润燥，养血安神",
+    "dosage_min": 5,
+    "dosage_max": 15,
+    "toxicity": "无毒",
+    "pregnancy_contraindicated": false
+  },
+  {
+    "name": "鸡子清",
+    "aliases": [
+      "蛋清"
+    ],
+    "category": "清热药",
+    "nature": "微寒",
+    "flavor": "甘",
+    "meridian_tropism": "归肺、胃经",
+    "efficacy": "润肺利咽，清热解毒",
+    "dosage_min": 5,
+    "dosage_max": 15,
+    "toxicity": "无毒",
+    "pregnancy_contraindicated": false
+  },
+  {
+    "name": "人尿",
+    "aliases": [
+      "童便"
+    ],
+    "category": "清热药",
+    "nature": "寒",
+    "flavor": "咸",
+    "meridian_tropism": "归心、肺、肝、肾经",
+    "efficacy": "滋阴降火，活血散瘀",
+    "dosage_min": 30,
+    "dosage_max": 100,
+    "toxicity": "无毒",
+    "pregnancy_contraindicated": false
+  },
+  {
+    "name": "猪肤",
+    "aliases": [],
+    "category": "补虚药",
+    "nature": "微寒",
+    "flavor": "甘、咸",
+    "meridian_tropism": "归肺、肾经",
+    "efficacy": "滋阴润燥，清热利咽",
+    "dosage_min": 15,
+    "dosage_max": 30,
+    "toxicity": "无毒",
+    "pregnancy_contraindicated": false
+  },
+  {
+    "name": "猪胆汁",
+    "aliases": [],
+    "category": "清热药",
+    "nature": "寒",
+    "flavor": "苦",
+    "meridian_tropism": "归肝、胆、肺、大肠经",
+    "efficacy": "清热润燥，解毒通便",
+    "dosage_min": 3,
+    "dosage_max": 6,
+    "toxicity": "无毒",
+    "pregnancy_contraindicated": false
+  },
+  {
+    "name": "米粉",
+    "aliases": [
+      "白粉"
+    ],
+    "category": "补虚药",
+    "nature": "平",
+    "flavor": "甘",
+    "meridian_tropism": "归脾、胃经",
+    "efficacy": "健脾益气，和中止泻",
+    "dosage_min": 15,
+    "dosage_max": 30,
+    "toxicity": "无毒",
+    "pregnancy_contraindicated": false
+  },
+  {
+    "name": "文蛤",
+    "aliases": [
+      "海蛤"
+    ],
+    "category": "化痰止咳平喘药",
+    "nature": "寒",
+    "flavor": "咸",
+    "meridian_tropism": "归肺、胃、膀胱经",
+    "efficacy": "清热化痰，软坚散结，利水",
+    "dosage_min": 6,
+    "dosage_max": 15,
+    "toxicity": "无毒",
+    "pregnancy_contraindicated": false
+  },
+  {
+    "name": "生梓白皮",
+    "aliases": [],
+    "category": "清热药",
+    "nature": "寒",
+    "flavor": "苦",
+    "meridian_tropism": "归肝、胆经",
+    "efficacy": "清热解毒，利湿退黄",
+    "dosage_min": 6,
+    "dosage_max": 12,
+    "toxicity": "无毒",
+    "pregnancy_contraindicated": false
+  },
+  {
+    "name": "冬瓜仁",
+    "aliases": [
+      "冬瓜子"
+    ],
+    "category": "利水渗湿药",
+    "nature": "微寒",
+    "flavor": "甘",
+    "meridian_tropism": "归肺、大肠经",
+    "efficacy": "清肺化痰，利湿排脓",
+    "dosage_min": 9,
+    "dosage_max": 30,
+    "toxicity": "无毒",
+    "pregnancy_contraindicated": false
+  },
+  {
+    "name": "苇茎",
+    "aliases": [
+      "芦茎",
+      "芦苇茎"
+    ],
+    "category": "清热药",
+    "nature": "寒",
+    "flavor": "甘",
+    "meridian_tropism": "归肺、胃经",
+    "efficacy": "清肺泻热，生津止渴，利尿",
+    "dosage_min": 15,
+    "dosage_max": 30,
+    "toxicity": "无毒",
+    "pregnancy_contraindicated": false
   }
 ]
