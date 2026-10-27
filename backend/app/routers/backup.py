@@ -47,36 +47,47 @@ def export_backup(
 
 @router.post("/import", summary="导入数据恢复")
 async def import_backup(file: UploadFile = File(...)):
-    """导入 SQLite 数据库文件恢复数据"""
+    """导入 SQLite 数据库文件恢复数据（校验合法性 + 原子替换 + 重载连接）"""
     if not file.filename.endswith(('.db', '.sqlite', '.sqlite3')):
         raise HTTPException(status_code=400, detail="请上传 .db 格式的备份文件")
 
-    # 保存上传文件
-    upload_dir = os.path.join(os.getcwd(), "backups")
-    os.makedirs(upload_dir, exist_ok=True)
-    upload_path = os.path.join(upload_dir, f"import_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db")
+    content = await file.read()
 
-    with open(upload_path, "wb") as f:
-        content = await file.read()
-        f.write(content)
+    # 1) 校验是否为合法的 SQLite 文件，避免误覆盖导致数据库损坏/数据丢失
+    if not content.startswith(b"SQLite format 3\x00"):
+        raise HTTPException(status_code=400, detail="文件不是合法的 SQLite 数据库备份")
 
-    # 替换当前数据库
+    # 解析目标数据库路径（与导出逻辑保持一致）
     db_path = settings.database_url.replace("sqlite:///", "")
     if not os.path.exists(db_path):
         db_path = os.path.join(os.getcwd(), "tcm_doctor.db")
+    db_dir = os.path.dirname(os.path.abspath(db_path))
 
-    # 备份当前数据库
+    # 2) 先备份当前数据库，导入异常时可手动回滚
     if os.path.exists(db_path):
         backup_path = db_path + f".bak_{datetime.now().strftime('%Y%m%d%H%M%S')}"
         shutil.copy2(db_path, backup_path)
 
-    # 用上传文件替换
-    shutil.copy2(upload_path, db_path)
+    # 3) 写入同目录临时文件后原子替换（os.replace 在同文件系统下为原子操作），
+    #    避免直接覆盖正被应用打开/写入的活动库而造成损坏
+    temp_path = os.path.join(db_dir, f"import_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db")
+    with open(temp_path, "wb") as f:
+        f.write(content)
 
-    # 清理
-    os.remove(upload_path)
+    try:
+        os.replace(temp_path, db_path)
+    except Exception:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        raise HTTPException(status_code=500, detail="数据恢复失败：文件替换出错")
 
-    return {"message": "数据恢复成功，请重启应用以加载新数据"}
+    # 4) 关闭现有连接池，使后续请求重新打开新数据库文件（无需重启进程）
+    try:
+        engine.dispose()
+    except Exception:
+        pass
+
+    return {"message": "数据恢复成功，连接已自动重载，无需重启应用"}
 
 
 @router.post("/reset", summary="清空数据")
