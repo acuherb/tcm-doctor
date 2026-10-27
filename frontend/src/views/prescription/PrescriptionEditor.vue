@@ -7,6 +7,7 @@
           <span>📝 {{ prescriptionId ? '编辑处方' : '开具处方' }}</span>
           <div style="display:flex;gap:8px;">
             <el-button v-if="editable" size="small" @click="loadFromFormula">从经典方导入</el-button>
+            <el-button v-if="editable" size="small" @click="loadFromAcupointFormula">从针灸方导入</el-button>
             <el-button v-if="editable" type="primary" size="small" @click="submitPrescription" :loading="submitting">
               {{ prescriptionId ? '保存修改' : '提交处方' }}
             </el-button>
@@ -266,6 +267,25 @@
       </el-table>
     </el-dialog>
 
+    <!-- 针灸方导入对话框 -->
+    <el-dialog v-model="acupointFormulaDialogVisible" title="🪡 从针灸方导入" width="650px" destroy-on-close>
+      <el-input v-model="acupointFormulaSearch" placeholder="搜索针方名 / 功效" clearable style="margin-bottom:12px;" />
+      <el-table :data="filteredAcupointFormulas" stripe size="small" @row-click="selectAcupointFormula"
+        highlight-current-row style="cursor:pointer;">
+        <el-table-column prop="name" label="针方名" width="140" />
+        <el-table-column prop="source" label="出处" width="100" />
+        <el-table-column prop="efficacy" label="功效" show-overflow-tooltip />
+        <el-table-column label="配穴" show-overflow-tooltip>
+          <template #default="{ row }">
+            <span v-if="row.composition?.acupoints?.length">
+              {{ row.composition.acupoints.map((a: any) => a.acupoint_name).join('、') }}
+            </span>
+            <span v-else style="color:#bbb;">—</span>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
+
     <!-- 配伍禁忌弹窗 -->
     <IncompatibilityAlert
       v-model="showIncompatibilityDialog"
@@ -307,6 +327,9 @@ const patientsLoading = ref(false)
 const classicFormulas = ref<any[]>([])
 const formulaDialogVisible = ref(false)
 const formulaSearch = ref('')
+const acupointFormulas = ref<any[]>([])
+const acupointFormulaDialogVisible = ref(false)
+const acupointFormulaSearch = ref('')
 const showIncompatibilityDialog = ref(false)
 
 const incompatibilityWarnings = ref<any[]>([])
@@ -368,6 +391,14 @@ const filteredFormulas = computed(() => {
   if (!formulaSearch.value) return classicFormulas.value
   const q = formulaSearch.value.toLowerCase()
   return classicFormulas.value.filter((f: any) =>
+    f.name.toLowerCase().includes(q) || (f.efficacy || '').toLowerCase().includes(q)
+  )
+})
+
+const filteredAcupointFormulas = computed(() => {
+  if (!acupointFormulaSearch.value) return acupointFormulas.value
+  const q = acupointFormulaSearch.value.toLowerCase()
+  return acupointFormulas.value.filter((f: any) =>
     f.name.toLowerCase().includes(q) || (f.efficacy || '').toLowerCase().includes(q)
   )
 })
@@ -505,6 +536,17 @@ async function getHerbCache(id: number) {
 // ── 经典方导入 ──
 function loadFromFormula() {
   formulaDialogVisible.value = true
+}
+
+// ── 针灸方导入 ──
+function loadFromAcupointFormula() {
+  if (!acupointFormulas.value.length) loadAcupointFormulas()
+  acupointFormulaDialogVisible.value = true
+}
+
+function selectAcupointFormula(f: any) {
+  acupointFormulaDialogVisible.value = false
+  applyAcupointFormulaById(f.id)
 }
 
 async function selectFormula(formula: any) {
@@ -672,6 +714,12 @@ async function loadFormulas() {
   } catch {}
 }
 
+async function loadAcupointFormulas() {
+  try {
+    acupointFormulas.value = (await api.get('/acupoint-formulas') as any) || []
+  } catch {}
+}
+
 async function loadHerbList() {
   try {
     herbCacheList.value = (await api.get('/herbs') as any) || []
@@ -711,6 +759,7 @@ onMounted(async () => {
   loadFormulas()
   loadHerbList()
   loadAcupoints()
+  loadAcupointFormulas()
 
   // 编辑态：从详情接口回显整张处方（含 4 个针灸方字段）
   const q = route.query

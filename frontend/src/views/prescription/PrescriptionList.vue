@@ -36,21 +36,25 @@
         <el-table-column label="患者" width="90">
           <template #default="{ row }">{{ row.patient_name || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="formula_name" label="方名" width="160">
-          <template #default="{ row }">{{ row.formula_name || '自拟方' }}</template>
-        </el-table-column>
-        <el-table-column label="药味" min-width="250">
+        <el-table-column label="中药方" min-width="230">
           <template #default="{ row }">
-            <div class="herb-tags">
-              <el-tag v-for="item in (row.items || [])" :key="item.id" size="small" style="margin:2px;">
-                {{ item.herb_name }} {{ item.dose }}g
-                <span v-if="item.special_method" style="color:#8B4513;">({{ item.special_method }})</span>
-              </el-tag>
-            </div>
+            <template v-if="(row.items && row.items.length) || row.formula_name">
+              <div v-if="row.formula_name" class="acu-title">🌿 {{ row.formula_name }}</div>
+              <div class="herb-tags">
+                <el-tag v-for="item in (row.items || [])" :key="item.id" size="small" style="margin:2px;">
+                  {{ item.herb_name }} {{ item.dose }}g
+                  <span v-if="item.special_method" style="color:#8B4513;">({{ item.special_method }})</span>
+                </el-tag>
+              </div>
+              <div v-if="row.preparation_method || row.doses || row.administration" class="acu-meta">
+                <span v-if="row.preparation_method">{{ row.preparation_method }}</span>
+                <span v-if="row.doses"> · {{ row.doses }}剂</span>
+                <span v-if="row.administration"> · {{ row.administration }}</span>
+              </div>
+            </template>
+            <span v-else style="color:#bbb;">—</span>
           </template>
         </el-table-column>
-        <el-table-column prop="doses" label="剂数" width="70" />
-        <el-table-column prop="preparation_method" label="煎法" width="80" />
         <el-table-column label="针灸方" min-width="230">
           <template #default="{ row }">
             <template v-if="(row.acupoints && row.acupoints.length) || row.acupoint_formula_name">
@@ -89,37 +93,45 @@
     </el-card>
 
     <!-- 处方详情对话框 -->
-    <el-dialog v-model="detailVisible" title="处方详情" width="600px" destroy-on-close>
+    <el-dialog v-model="detailVisible" title="处方详情" width="640px" destroy-on-close>
       <template v-if="currentPrescription">
+        <!-- 顶部：患者 + 状态 -->
         <el-descriptions :column="2" border>
-          <el-descriptions-item label="方名">{{ currentPrescription.formula_name || '自拟方' }}</el-descriptions-item>
           <el-descriptions-item label="患者">{{ currentPrescription.patient_name || '-' }}</el-descriptions-item>
           <el-descriptions-item label="状态">
             <el-tag :type="statusType(currentPrescription.status)">{{ currentPrescription.status }}</el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="煎法">{{ currentPrescription.preparation_method }}</el-descriptions-item>
-          <el-descriptions-item label="剂数">{{ currentPrescription.doses }}剂</el-descriptions-item>
-          <el-descriptions-item label="服法" :span="2">{{ currentPrescription.administration || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="医嘱" :span="2">{{ currentPrescription.doctor_notes || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="开具时间" :span="2">{{ formatTime(currentPrescription.created_at) }}</el-descriptions-item>
         </el-descriptions>
 
-        <el-table :data="currentPrescription.items || []" stripe style="margin-top:12px;" size="small">
-          <el-table-column prop="herb_name" label="药味" width="100" />
-          <el-table-column prop="dose" label="剂量(g)" width="90" />
-          <el-table-column prop="special_method" label="煎法" width="80">
-            <template #default="{ row }">{{ row.special_method || '-' }}</template>
-          </el-table-column>
-          <el-table-column prop="is_king_herb" label="君药" width="60">
-            <template #default="{ row }">
-              <el-icon v-if="row.is_king_herb" color="#D4A574"><Star /></el-icon>
-            </template>
-          </el-table-column>
-          <el-table-column prop="note" label="备注" show-overflow-tooltip>
-            <template #default="{ row }">{{ row.note || '-' }}</template>
-          </el-table-column>
-        </el-table>
+        <!-- 中药方 -->
+        <template v-if="(currentPrescription.items || []).length">
+          <el-divider content-position="left">🌿 中药方</el-divider>
+          <el-descriptions :column="2" border>
+            <el-descriptions-item label="方名">{{ currentPrescription.formula_name || '自拟方' }}</el-descriptions-item>
+            <el-descriptions-item label="剂数">{{ currentPrescription.doses }}剂</el-descriptions-item>
+            <el-descriptions-item label="煎法">{{ currentPrescription.preparation_method }}</el-descriptions-item>
+            <el-descriptions-item label="服法">{{ currentPrescription.administration || '-' }}</el-descriptions-item>
+          </el-descriptions>
+          <el-table :data="currentPrescription.items || []" stripe style="margin-top:12px;" size="small">
+            <el-table-column prop="herb_name" label="药味" width="100" />
+            <el-table-column prop="dose" label="剂量(g)" width="90" />
+            <el-table-column prop="special_method" label="煎法" width="80">
+              <template #default="{ row }">{{ row.special_method || '-' }}</template>
+            </el-table-column>
+            <el-table-column prop="is_king_herb" label="君药" width="60">
+              <template #default="{ row }">
+                <el-icon v-if="row.is_king_herb" color="#D4A574"><Star /></el-icon>
+              </template>
+            </el-table-column>
+            <el-table-column prop="note" label="备注" show-overflow-tooltip>
+              <template #default="{ row }">{{ row.note || '-' }}</template>
+            </el-table-column>
+          </el-table>
+        </template>
 
-        <template v-if="currentPrescription.acupoint_formula_name || currentPrescription.acupoint_technique || currentPrescription.treatment_frequency || currentPrescription.treatment_days">
+        <!-- 针灸方 -->
+        <template v-if="currentPrescription.acupoint_formula_name || currentPrescription.acupoint_technique || currentPrescription.treatment_frequency || currentPrescription.treatment_days || (currentPrescription.acupoints || []).length">
           <el-divider content-position="left">🪡 针灸方</el-divider>
           <el-descriptions :column="2" border>
             <el-descriptions-item v-if="currentPrescription.acupoint_formula_name" label="方案名">{{ currentPrescription.acupoint_formula_name }}</el-descriptions-item>
@@ -127,29 +139,29 @@
             <el-descriptions-item v-if="currentPrescription.treatment_frequency" label="操作频次">{{ currentPrescription.treatment_frequency }}</el-descriptions-item>
             <el-descriptions-item v-if="currentPrescription.treatment_days" label="疗程天数">{{ currentPrescription.treatment_days }} 天</el-descriptions-item>
           </el-descriptions>
-        </template>
-
-        <template v-if="(currentPrescription.acupoints || []).length">
-          <el-divider content-position="left">针灸配穴</el-divider>
-          <el-table :data="currentPrescription.acupoints || []" stripe size="small">
+          <el-table v-if="(currentPrescription.acupoints || []).length" :data="currentPrescription.acupoints || []" stripe size="small" style="margin-top:12px;">
             <el-table-column type="index" label="#" width="50" />
             <el-table-column prop="acupoint_name" label="穴位" width="120" />
             <el-table-column prop="technique" label="针法" width="120">
               <template #default="{ row }">{{ row.technique || '-' }}</template>
             </el-table-column>
             <el-table-column prop="retention" label="留针" width="80">
-              <template #default="{ row }">{{ row.retention ? row.retention + ' 分钟' : '-' }}</template>
+              <template #default="{ row }">{{ formatRetention(row.retention) || '-' }}</template>
             </el-table-column>
             <el-table-column prop="note" label="备注" show-overflow-tooltip>
               <template #default="{ row }">{{ row.note || '-' }}</template>
             </el-table-column>
           </el-table>
         </template>
+
+        <!-- 医嘱 -->
+        <el-divider content-position="left">医嘱</el-divider>
+        <div style="padding:2px 4px;line-height:1.8;">{{ currentPrescription.doctor_notes || '无' }}</div>
       </template>
     </el-dialog>
 
     <!-- 打印预览 -->
-    <el-dialog v-model="printVisible" title="处方打印" width="600px" destroy-on-close>
+    <el-dialog v-model="printVisible" title="处方打印" width="860px" destroy-on-close>
       <div ref="printRef" class="prescription-print">
         <div class="print-header">
           <div class="print-clinic">{{ clinicName || '中医诊所' }}</div>
@@ -161,32 +173,39 @@
             <span>处方编号: #{{ currentPrescription.id }}</span>
             <span>日期: {{ formatTime(currentPrescription.created_at) }}</span>
           </div>
-          <div class="print-formula-name">{{ currentPrescription.formula_name || '自拟方' }}</div>
-          <table class="print-herb-table">
-            <thead>
-              <tr><th>药味</th><th>剂量(g)</th><th>煎法</th><th>备注</th></tr>
-            </thead>
-            <tbody>
-              <tr v-for="item in (currentPrescription.items || [])" :key="item.id">
-                <td>{{ item.herb_name }}{{ item.is_king_herb ? ' ★' : '' }}</td>
-                <td>{{ item.dose }}</td>
-                <td>{{ item.special_method || '' }}</td>
-                <td>{{ item.note || '' }}</td>
-              </tr>
-            </tbody>
-          </table>
-          <div class="print-footer" v-if="(currentPrescription.items || []).length">
-            <p>剂数: {{ currentPrescription.doses }}剂</p>
-            <p>煎法: {{ currentPrescription.preparation_method }}</p>
-            <p v-if="currentPrescription.administration">服法: {{ currentPrescription.administration }}</p>
-          </div>
+
+          <!-- 中药方 -->
+          <template v-if="(currentPrescription.items || []).length">
+            <div class="print-section-title">🌿 中药方</div>
+            <div class="print-meta">
+              <span>方名: {{ currentPrescription.formula_name || '自拟方' }}</span>
+              <span>剂数: {{ currentPrescription.doses }}剂</span>
+              <span>煎法: {{ currentPrescription.preparation_method }}</span>
+              <span v-if="currentPrescription.administration">服法: {{ currentPrescription.administration }}</span>
+            </div>
+            <table class="print-herb-table">
+              <thead>
+                <tr><th>药味</th><th>剂量(g)</th><th>煎法</th><th>备注</th></tr>
+              </thead>
+              <tbody>
+                <tr v-for="item in (currentPrescription.items || [])" :key="item.id">
+                  <td>{{ item.herb_name }}{{ item.is_king_herb ? ' ★' : '' }}</td>
+                  <td>{{ item.dose }}</td>
+                  <td>{{ item.special_method || '' }}</td>
+                  <td>{{ item.note || '' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </template>
+
+          <!-- 针灸方 -->
           <template v-if="(currentPrescription.acupoints || []).length || currentPrescription.acupoint_formula_name || currentPrescription.acupoint_technique || currentPrescription.treatment_frequency || currentPrescription.treatment_days">
-            <div class="print-formula-name">🪡 针灸方</div>
-            <div v-if="currentPrescription.acupoint_formula_name || currentPrescription.acupoint_technique || currentPrescription.treatment_frequency || currentPrescription.treatment_days" class="print-acu-meta">
+            <div class="print-section-title">🪡 针灸方</div>
+            <div v-if="currentPrescription.acupoint_formula_name || currentPrescription.acupoint_technique || currentPrescription.treatment_frequency || currentPrescription.treatment_days" class="print-meta">
               <span v-if="currentPrescription.acupoint_formula_name">方案: {{ currentPrescription.acupoint_formula_name }}</span>
-              <span v-if="currentPrescription.acupoint_technique"> · 针法: {{ currentPrescription.acupoint_technique }}</span>
-              <span v-if="currentPrescription.treatment_frequency"> · 频次: {{ currentPrescription.treatment_frequency }}</span>
-              <span v-if="currentPrescription.treatment_days"> · 疗程: {{ currentPrescription.treatment_days }}天</span>
+              <span v-if="currentPrescription.acupoint_technique">针法: {{ currentPrescription.acupoint_technique }}</span>
+              <span v-if="currentPrescription.treatment_frequency">频次: {{ currentPrescription.treatment_frequency }}</span>
+              <span v-if="currentPrescription.treatment_days">疗程: {{ currentPrescription.treatment_days }}天</span>
             </div>
             <table v-if="(currentPrescription.acupoints || []).length" class="print-herb-table">
               <thead>
@@ -196,12 +215,13 @@
                 <tr v-for="a in (currentPrescription.acupoints || [])" :key="a.id">
                   <td>{{ a.acupoint_name }}</td>
                   <td>{{ a.technique || '' }}</td>
-                  <td>{{ a.retention ? a.retention + ' 分钟' : '' }}</td>
+                  <td>{{ formatRetention(a.retention) }}</td>
                   <td>{{ a.note || '' }}</td>
                 </tr>
               </tbody>
             </table>
           </template>
+
           <div class="print-footer">
             <p v-if="currentPrescription.doctor_notes">医嘱: {{ currentPrescription.doctor_notes }}</p>
             <p v-if="doctorName" class="print-doctor">医师: {{ doctorName }}</p>
@@ -252,6 +272,15 @@ function statusType(status: string) {
 function formatTime(t: string) {
   if (!t) return '-'
   return new Date(t).toLocaleString('zh-CN')
+}
+
+// 留针时间：数据里可能已带「分钟/分」，避免重复拼出「20分钟 分钟」
+function formatRetention(v: any) {
+  if (v === null || v === undefined) return ''
+  const s = String(v).trim()
+  if (!s) return ''
+  if (/分/.test(s)) return s
+  return s + ' 分钟'
 }
 
 async function loadPrescriptions() {
@@ -324,19 +353,23 @@ function doPrint() {
   const win = window.open('', '_blank')
   if (!win) { ElMessage.error('无法打开打印窗口'); return }
   win.document.write(`
-    <html><head><title>中医处方笺</title>
-    <style>
-      body { font-family: 'SimSun', serif; margin: 40px; }
-      h2 { text-align: center; margin-bottom: 20px; }
-      .print-clinic { text-align: center; font-size: 16px; font-weight: bold; margin-bottom: 4px; }
-      .print-info { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 14px; }
-      .print-formula-name { font-size: 18px; font-weight: bold; margin: 10px 0; text-align: center; }
-      table { width: 100%; border-collapse: collapse; margin: 10px 0; }
-      th, td { border: 1px solid #333; padding: 6px 10px; text-align: center; font-size: 14px; }
-      th { background: #f5f0eb; }
-      .print-footer { margin-top: 16px; font-size: 14px; line-height: 1.8; }
-      .print-doctor { text-align: right; margin-top: 12px; font-weight: bold; }
-    </style></head><body>${content.innerHTML}</body></html>
+  <html><head><title>中医处方笺</title>
+  <style>
+    body { font-family: 'SimSun', serif; margin: 0; background: #eee; }
+    .prescription-print { width: 794px; max-width: 100%; margin: 24px auto; padding: 32px 28px; background: #fff; box-sizing: border-box; }
+    h2 { text-align: center; margin-bottom: 20px; }
+    .print-clinic { text-align: center; font-size: 16px; font-weight: bold; margin-bottom: 4px; }
+    .print-info { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 14px; }
+    .print-section-title { font-size: 17px; font-weight: bold; color: #8B4513; margin: 16px 0 8px; padding-bottom: 4px; border-bottom: 1px solid #8B4513; }
+    .print-meta { display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: 13px; color: #333; margin-bottom: 8px; }
+    table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+    th, td { border: 1px solid #333; padding: 6px 10px; text-align: center; font-size: 14px; }
+    th { background: #f5f0eb; }
+    .print-footer { margin-top: 16px; font-size: 14px; line-height: 1.8; }
+    .print-doctor { text-align: right; margin-top: 12px; font-weight: bold; }
+    @media screen { .prescription-print { box-shadow: 0 2px 16px rgba(0,0,0,0.12); } }
+    @media print { body { background: #fff; } .prescription-print { margin: 0; box-shadow: none; } }
+  </style></head><body>${content.innerHTML}</body></html>
   `)
   win.document.close()
   win.print()
@@ -382,7 +415,17 @@ onMounted(async () => {
 
 .prescription-print {
   font-family: 'SimSun', serif;
-  padding: 20px;
+  width: 794px;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 32px 28px;
+  background: #fff;
+  color: #222;
+  box-sizing: border-box;
+
+  @media screen {
+    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.12);
+  }
 
   .print-header {
     text-align: center;
@@ -400,18 +443,22 @@ onMounted(async () => {
     color: #666;
   }
 
-  .print-formula-name {
-    font-size: 18px;
+  .print-section-title {
+    font-size: 17px;
     font-weight: bold;
-    text-align: center;
-    margin: 12px 0;
+    color: #8B4513;
+    margin: 16px 0 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #8B4513;
   }
 
-  .print-acu-meta {
+  .print-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 18px;
     font-size: 13px;
-    text-align: center;
     color: #333;
-    margin: 4px 0 8px;
+    margin-bottom: 8px;
   }
 
   .print-herb-table {
