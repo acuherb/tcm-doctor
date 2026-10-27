@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db, engine
 from app.config import settings
 from app.routers.auth import get_current_user
+from app.models.user import User
 
 router = APIRouter(prefix="/backup", tags=["数据管理"])
 
@@ -46,8 +47,13 @@ def export_backup(
 
 
 @router.post("/import", summary="导入数据恢复")
-async def import_backup(file: UploadFile = File(...)):
+async def import_backup(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
     """导入 SQLite 数据库文件恢复数据（校验合法性 + 原子替换 + 重载连接）"""
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="仅管理员可导入数据恢复")
     if not file.filename.endswith(('.db', '.sqlite', '.sqlite3')):
         raise HTTPException(status_code=400, detail="请上传 .db 格式的备份文件")
 
@@ -91,22 +97,31 @@ async def import_backup(file: UploadFile = File(...)):
 
 
 @router.post("/reset", summary="清空数据")
-def reset_data(db: Session = Depends(get_db)):
-    """清空所有数据（保留表结构）"""
+def reset_data(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """清空所有数据（保留表结构）— 显式要求管理员权限"""
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="仅管理员可清空数据")
     from app.models.herb import Herb, IncompatibilityRule, HerbInventory, InventoryTransaction
     from app.models.prescription import ClassicFormula, Prescription, PrescriptionItem
     from app.models.patient import Patient
     from app.models.visit import Visit
     from app.models.knowledge import KnowledgeEntry
+    from app.models.conversation import Conversation, Message
+    from app.models.inquiry import InquiryRecord
+    from app.models.user import AuthToken
 
-    # 按依赖顺序删除
-    for model in [PrescriptionItem, Prescription, InventoryTransaction, HerbInventory,
-                  IncompatibilityRule, Visit, Patient, ClassicFormula, KnowledgeEntry, Herb]:
+    # 按依赖顺序删除（含会话/问诊/令牌，避免重置后残留关联数据 M7）
+    for model in [Message, Conversation, PrescriptionItem, Prescription, InventoryTransaction,
+                  HerbInventory, IncompatibilityRule, InquiryRecord, AuthToken, Visit, Patient,
+                  ClassicFormula, KnowledgeEntry, Herb]:
         db.query(model).delete()
 
     db.commit()
 
-    # 重新导入种子数据
+    # 重新导入种子数据（含字典与腧穴，M4）
     from app.seed import seed_all
     seed_all()
 

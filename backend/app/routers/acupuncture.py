@@ -4,6 +4,8 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.acupuncture import Acupoint
+from app.models.user import User
+from app.routers.auth import get_current_user
 from app.schemas.acupuncture import AcupointCreate, AcupointUpdate, AcupointResponse
 
 router = APIRouter(prefix="/acupoints", tags=["针灸"])
@@ -24,7 +26,7 @@ def list_acupoints(
 
 
 @router.post("", response_model=AcupointResponse, summary="新增腧穴")
-def create_acupoint(data: AcupointCreate, db: Session = Depends(get_db)):
+def create_acupoint(data: AcupointCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if db.query(Acupoint).filter(Acupoint.name == data.name).first():
         raise HTTPException(status_code=400, detail=f"腧穴「{data.name}」已存在")
     row = Acupoint(**data.model_dump())
@@ -35,7 +37,7 @@ def create_acupoint(data: AcupointCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/{acupoint_id}", response_model=AcupointResponse, summary="编辑腧穴")
-def update_acupoint(acupoint_id: int, data: AcupointUpdate, db: Session = Depends(get_db)):
+def update_acupoint(acupoint_id: int, data: AcupointUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     row = db.query(Acupoint).filter(Acupoint.id == acupoint_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="腧穴不存在")
@@ -48,7 +50,7 @@ def update_acupoint(acupoint_id: int, data: AcupointUpdate, db: Session = Depend
 
 
 @router.delete("/{acupoint_id}", summary="删除腧穴")
-def delete_acupoint(acupoint_id: int, db: Session = Depends(get_db)):
+def delete_acupoint(acupoint_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     row = db.query(Acupoint).filter(Acupoint.id == acupoint_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="腧穴不存在")
@@ -63,7 +65,7 @@ def export_acupoints(db: Session = Depends(get_db)):
 
 
 @router.post("/import", response_model=dict, summary="批量导入腧穴(按穴名 upsert)")
-def import_acupoints(data: list[AcupointCreate] = Body(...), db: Session = Depends(get_db)):
+def import_acupoints(data: list[AcupointCreate] = Body(...), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     imported, updated = 0, 0
     for item in data:
         existing = db.query(Acupoint).filter(Acupoint.name == item.name).first()

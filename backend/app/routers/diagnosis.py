@@ -13,12 +13,30 @@ from app.schemas.diagnosis import (
     MessageResponse, MessageListResponse,
 )
 from app.config import settings
+from app.models.user import User
+from app.routers.auth import get_current_user
 
 router = APIRouter(prefix="/diagnosis", tags=["智能问诊"])
 
+# 智能问诊图片总量限制：图片以 base64 data URL 直接来自客户端，需限制总量避免 DB/外发膨胀
+_MAX_IMAGES_TOTAL_BYTES = 20 * 1024 * 1024
+
+
+def _image_bytes(data_url: str) -> int:
+    if not isinstance(data_url, str) or "," not in data_url:
+        return 0
+    b64 = data_url.split(",", 1)[1]
+    return (len(b64) * 3) // 4
+
+
+def _check_images_total(images) -> None:
+    total = sum(_image_bytes(i) for i in (images or []))
+    if total > _MAX_IMAGES_TOTAL_BYTES:
+        raise HTTPException(status_code=413, detail="图片总大小不能超过 20MB")
+
 
 @router.post("/chat", response_model=DiagnosisChatResponse, summary="对话式问诊")
-async def diagnosis_chat(data: DiagnosisChatRequest, db: Session = Depends(get_db)):
+async def diagnosis_chat(data: DiagnosisChatRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """对话式智能问诊 — DeepSeek + RAG"""
     if not settings.deepseek_api_key:
         return DiagnosisChatResponse(
@@ -26,6 +44,8 @@ async def diagnosis_chat(data: DiagnosisChatRequest, db: Session = Depends(get_d
             reply="⚠️ DeepSeek API Key 未配置，请在系统设置中配置后使用智能问诊功能。",
             safety_warnings=[],
         )
+
+    _check_images_total(data.images)
 
     from app.services.ai_diagnosis_service import diagnosis_service
     result = await diagnosis_service.chat(
@@ -40,7 +60,7 @@ async def diagnosis_chat(data: DiagnosisChatRequest, db: Session = Depends(get_d
 
 
 @router.post("/chat/stream", summary="流式对话问诊")
-async def diagnosis_chat_stream(data: DiagnosisChatRequest, db: Session = Depends(get_db)):
+async def diagnosis_chat_stream(data: DiagnosisChatRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """流式对话式智能问诊 — SSE 逐块返回"""
     if not settings.deepseek_api_key:
         async def error_stream():
@@ -65,13 +85,15 @@ async def diagnosis_chat_stream(data: DiagnosisChatRequest, db: Session = Depend
 
 
 @router.post("/analyze", response_model=DiagnosisAnalyzeResponse, summary="四诊辨证分析")
-async def diagnosis_analyze(data: DiagnosisAnalyzeRequest, db: Session = Depends(get_db)):
+async def diagnosis_analyze(data: DiagnosisAnalyzeRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """四诊信息 → 辨证分析 — DeepSeek + RAG"""
     if not settings.deepseek_api_key:
         return DiagnosisAnalyzeResponse(
             syndrome_analysis="⚠️ DeepSeek API Key 未配置",
             safety_warnings=["请在系统设置中配置 DeepSeek API Key"],
         )
+
+    _check_images_total([data.tongue_image, data.face_image] + (data.lab_report_images or []))
 
     from app.services.ai_diagnosis_service import diagnosis_service
     result = await diagnosis_service.analyze(
@@ -94,7 +116,7 @@ async def diagnosis_analyze(data: DiagnosisAnalyzeRequest, db: Session = Depends
 
 
 @router.post("/analyze/stream", summary="流式四诊辨证分析")
-async def diagnosis_analyze_stream(data: DiagnosisAnalyzeRequest, db: Session = Depends(get_db)):
+async def diagnosis_analyze_stream(data: DiagnosisAnalyzeRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """流式四诊辨证分析 — SSE 逐块返回"""
     if not settings.deepseek_api_key:
         async def error_stream():
@@ -127,7 +149,7 @@ async def diagnosis_analyze_stream(data: DiagnosisAnalyzeRequest, db: Session = 
 
 
 @router.post("/upload-image", summary="上传诊断图片")
-async def upload_diagnosis_image(file: UploadFile = File(...)):
+async def upload_diagnosis_image(file: UploadFile = File(...), current_user: User = Depends(get_current_user)):
     """上传舌苔/面色/化验单图片，返回 base64 data URL"""
     # 限制文件大小 5MB
     content = await file.read()
@@ -155,7 +177,7 @@ def list_conversations(page: int = 1, page_size: int = 20, search: str | None = 
 
 
 @router.post("/conversations", response_model=ConversationResponse, summary="新建会话")
-def create_conversation(data: ConversationCreate, db: Session = Depends(get_db)):
+def create_conversation(data: ConversationCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """新建对话"""
     import uuid as _uuid
     from app.models.conversation import Conversation
@@ -176,7 +198,7 @@ def get_conversation(conv_uuid: str, db: Session = Depends(get_db)):
 
 
 @router.put("/conversations/{conv_uuid}", response_model=ConversationResponse, summary="更新会话")
-def update_conversation(conv_uuid: str, data: ConversationUpdate, db: Session = Depends(get_db)):
+def update_conversation(conv_uuid: str, data: ConversationUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     from app.models.conversation import Conversation
     conv = db.query(Conversation).filter(Conversation.uuid == conv_uuid).first()
     if not conv:
@@ -189,7 +211,7 @@ def update_conversation(conv_uuid: str, data: ConversationUpdate, db: Session = 
 
 
 @router.delete("/conversations/{conv_uuid}", summary="删除会话")
-def delete_conversation(conv_uuid: str, db: Session = Depends(get_db)):
+def delete_conversation(conv_uuid: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     from app.models.conversation import Conversation
     conv = db.query(Conversation).filter(Conversation.uuid == conv_uuid).first()
     if not conv:

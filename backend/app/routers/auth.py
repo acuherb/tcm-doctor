@@ -19,6 +19,10 @@ _LOGIN_MAX_FAILS = 5
 _LOGIN_WINDOW_MIN = 5
 _login_fails: dict[str, list] = {}
 
+# 游客登录限流：同一 IP 1 分钟内最多 10 次，防止令牌被批量刷取（内存字典，多 worker 下为尽力而为）
+_GUEST_MAX = 10
+_guest_buckets: dict[str, list] = {}
+
 router = APIRouter(prefix="/auth", tags=["认证"])
 
 _ITER = 260_000
@@ -112,7 +116,17 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
 
 
 @router.post("/guest", response_model=TokenOut, summary="游客一键登录（免密码）")
-def guest_login(db: Session = Depends(get_db)):
+def guest_login(request: Request, db: Session = Depends(get_db)):
+    """生成游客令牌，无需密码；用于展示/试用。可随时切换账号登录。"""
+    client_ip = request.client.host if request.client else "unknown"
+    # 基础限流：同一 IP 1 分钟内最多 10 次
+    now = datetime.now()
+    bucket = _guest_buckets.setdefault(client_ip, [])
+    bucket[:] = [t for t in bucket if (now - t).total_seconds() < 60]
+    if len(bucket) >= _GUEST_MAX:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="操作过于频繁，请稍后再试")
+    bucket.append(now)
+
     if not settings.allow_guest_login:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="游客登录已禁用")
     user = db.query(User).filter(User.username == "guest").first()

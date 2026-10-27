@@ -185,8 +185,9 @@ onMounted(async () => {
 async function saveClinic() {
   savingClinic.value = true
   try {
-    await api.put('/config', null, {
-      params: { clinic_name: clinicName.value, doctor_name: doctorName.value },
+    await api.put('/config', {
+      clinic_name: clinicName.value,
+      doctor_name: doctorName.value,
     })
     ElMessage.success('诊所信息已保存')
   } catch {
@@ -198,24 +199,24 @@ async function saveClinic() {
 
 async function saveConfig() {
   try {
-    const params: any = {
+    const body: any = {
       deepseek_model: deepseekModel.value,
       deepseek_base_url: deepseekBaseUrl.value,
     }
     // 只有用户实际输入了新key才发送
     if (deepseekKey.value) {
-      params.deepseek_api_key = deepseekKey.value
+      body.deepseek_api_key = deepseekKey.value
     }
     if (visionModel.value) {
-      params.deepseek_vision_model = visionModel.value
+      body.deepseek_vision_model = visionModel.value
     }
     if (visionBaseUrl.value) {
-      params.deepseek_vision_base_url = visionBaseUrl.value
+      body.deepseek_vision_base_url = visionBaseUrl.value
     }
     if (visionKey.value) {
-      params.deepseek_vision_api_key = visionKey.value
+      body.deepseek_vision_api_key = visionKey.value
     }
-    await api.put('/config', null, { params })
+    await api.put('/config', body)
     visionConfigured.value = !!visionModel.value
     hasVisionKey.value = !!visionKey.value || hasVisionKey.value
     ElMessage.success('配置已保存')
@@ -234,12 +235,10 @@ async function testConnection() {
 
   try {
     // 先保存配置
-    await api.put('/config', null, {
-      params: {
-        deepseek_api_key: deepseekKey.value,
-        deepseek_model: deepseekModel.value,
-        deepseek_base_url: deepseekBaseUrl.value,
-      },
+    await api.put('/config', {
+      deepseek_api_key: deepseekKey.value,
+      deepseek_model: deepseekModel.value,
+      deepseek_base_url: deepseekBaseUrl.value,
     })
 
     // 发送简单消息测试

@@ -105,8 +105,8 @@ def _add(db, term_type, name, **fields):
     return True
 
 
-def main():
-    db = SessionLocal()
+def seed_dictionaries(db):
+    """幂等导入主数据字典：按 (term_type, name) 去重，已存在则跳过（复用传入会话）"""
     added = skipped = 0
 
     for name, desc, attrs in TONGUE_QUALITY:
@@ -133,6 +133,12 @@ def main():
         else:
             skipped += 1
 
+    return added, skipped
+
+
+def main():
+    db = SessionLocal()
+    added, skipped = seed_dictionaries(db)
     db.commit()
     db.close()
     print(f"词典预填完成: 新增 {added} 条, 已存在跳过 {skipped} 条")

@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
 from app.models.herb import Herb, IncompatibilityRule, HerbInventory, InventoryTransaction
 from app.models.prescription import PrescriptionItem
+from app.models.user import User
+from app.routers.auth import get_current_user
 from app.schemas.herb import (
     HerbCreate, HerbUpdate, HerbResponse,
     IncompatibilityCheckRequest, IncompatibilityCheckResponse, IncompatibilityWarning,
@@ -28,15 +30,20 @@ def list_herbs(
         query = query.filter(Herb.category == category)
     if is_active is not None:
         query = query.filter(Herb.is_active == is_active)
+    herbs = query.order_by(Herb.category, Herb.name).all()
+    # 同时搜索正名与异名(JSON)
     if search:
-        # 搜索正名和异名(JSON字段)
-        query = query.filter(Herb.name.contains(search))
-        # TODO: 异名搜索需要 SQLite JSON 查询或应用层过滤
-    return query.order_by(Herb.category, Herb.name).all()
+        q = search.lower()
+        herbs = [
+            h for h in herbs
+            if q in (h.name or "").lower()
+            or any(q in (a or "").lower() for a in (h.aliases or []))
+        ]
+    return herbs
 
 
 @router.post("", response_model=HerbResponse, summary="新增药材")
-def create_herb(data: HerbCreate, db: Session = Depends(get_db)):
+def create_herb(data: HerbCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     existing = db.query(Herb).filter(Herb.name == data.name).first()
     if existing:
         raise HTTPException(status_code=400, detail=f"药材'{data.name}'已存在")
@@ -56,7 +63,7 @@ def export_herbs(db: Session = Depends(get_db)):
 
 
 @router.post("/import", summary="导入药材字典(JSON，按正名 upsert)")
-def import_herbs(data: list[HerbCreate] = Body(...), db: Session = Depends(get_db)):
+def import_herbs(data: list[HerbCreate] = Body(...), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """按正名 upsert：已存在则更新字段，不存在则新增"""
     imported = updated = 0
     for item in data:
@@ -124,7 +131,7 @@ def list_inventory(
 
 
 @router.post("/inventory/in", response_model=InventoryResponse, summary="入库")
-def inventory_in(data: InventoryIn, db: Session = Depends(get_db)):
+def inventory_in(data: InventoryIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     herb = db.query(Herb).filter(Herb.id == data.herb_id).first()
     if not herb:
         raise HTTPException(status_code=404, detail="药材不存在")
@@ -162,39 +169,42 @@ def inventory_in(data: InventoryIn, db: Session = Depends(get_db)):
 
 
 @router.post("/inventory/out", summary="出库")
-def inventory_out(data: InventoryOut, db: Session = Depends(get_db)):
-    """出库：从库存中扣减指定数量"""
-    # 获取该药材总库存
-    total = db.query(HerbInventory).filter(
-        HerbInventory.herb_id == data.herb_id,
-        HerbInventory.status == "正常",
-    ).all()
-    available = sum(float(item.quantity) for item in total)
+def inventory_out(data: InventoryOut, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """出库：从库存中扣减指定数量（进程内锁 + 行锁，避免并发超卖）"""
+    from app.database import inventory_lock
 
-    if available < data.quantity:
-        raise HTTPException(status_code=400, detail=f"库存不足: 可用{available}g，需{data.quantity}g")
+    with inventory_lock:
+        # 获取该药材总库存（加行锁，避免并发读-改-写竞态）
+        total = db.query(HerbInventory).filter(
+            HerbInventory.herb_id == data.herb_id,
+            HerbInventory.status == "正常",
+        ).with_for_update().all()
+        available = sum(float(item.quantity) for item in total)
 
-    # 按批次先进先出扣减
-    remaining = data.quantity
-    for item in total:
-        if remaining <= 0:
-            break
-        deduct = min(float(item.quantity), remaining)
-        item.quantity = float(item.quantity) - deduct
-        remaining -= deduct
+        if available < data.quantity:
+            raise HTTPException(status_code=400, detail=f"库存不足: 可用{available}g，需{data.quantity}g")
 
-    # 记录出入库
-    txn = InventoryTransaction(
-        herb_id=data.herb_id,
-        transaction_type="出库",
-        quantity=data.quantity,
-        before_quantity=available,
-        after_quantity=available - data.quantity,
-        reference_id=data.reference_id,
-        note=data.note,
-    )
-    db.add(txn)
-    db.commit()
+        # 按批次先进先出扣减
+        remaining = data.quantity
+        for item in total:
+            if remaining <= 0:
+                break
+            deduct = min(float(item.quantity), remaining)
+            item.quantity = float(item.quantity) - deduct
+            remaining -= deduct
+
+        # 记录出入库
+        txn = InventoryTransaction(
+            herb_id=data.herb_id,
+            transaction_type="出库",
+            quantity=data.quantity,
+            before_quantity=available,
+            after_quantity=available - data.quantity,
+            reference_id=data.reference_id,
+            note=data.note,
+        )
+        db.add(txn)
+        db.commit()
     return {"message": "出库成功", "quantity": data.quantity, "remaining": available - data.quantity}
 
 
@@ -251,7 +261,7 @@ def inventory_summary(db: Session = Depends(get_db)):
 
 
 @router.put("/inventory/{inventory_id}", response_model=InventoryResponse, summary="更新库存记录")
-def update_inventory(inventory_id: int, data: InventoryUpdate, db: Session = Depends(get_db)):
+def update_inventory(inventory_id: int, data: InventoryUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """更新库存记录的预警值、仓位、状态等"""
     inv = db.query(HerbInventory).filter(HerbInventory.id == inventory_id).first()
     if not inv:
@@ -276,7 +286,7 @@ def get_herb(herb_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/{herb_id}", response_model=HerbResponse, summary="更新药材")
-def update_herb(herb_id: int, data: HerbUpdate, db: Session = Depends(get_db)):
+def update_herb(herb_id: int, data: HerbUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     herb = db.query(Herb).filter(Herb.id == herb_id).first()
     if not herb:
         raise HTTPException(status_code=404, detail="药材不存在")
@@ -288,7 +298,7 @@ def update_herb(herb_id: int, data: HerbUpdate, db: Session = Depends(get_db)):
 
 
 @router.delete("/{herb_id}", summary="删除药材")
-def delete_herb(herb_id: int, db: Session = Depends(get_db)):
+def delete_herb(herb_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """存在库存/禁忌引用时软删除(停用)，否则物理删除"""
     herb = db.query(Herb).filter(Herb.id == herb_id).first()
     if not herb:

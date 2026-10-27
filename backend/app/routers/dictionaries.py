@@ -4,6 +4,9 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.dictionaries import DictionaryTerm
+from app.models.visit import Visit
+from app.models.user import User
+from app.routers.auth import get_current_user
 from app.schemas.dictionaries import DictTermCreate, DictTermUpdate, DictTermResponse
 
 router = APIRouter(prefix="/dictionaries", tags=["主数据字典"])
@@ -33,7 +36,7 @@ def list_terms(
 
 
 @router.post("", response_model=DictTermResponse, summary="新增词条")
-def create_term(data: DictTermCreate, db: Session = Depends(get_db)):
+def create_term(data: DictTermCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     existing = db.query(DictionaryTerm).filter(
         DictionaryTerm.term_type == data.term_type, DictionaryTerm.name == data.name
     ).first()
@@ -55,7 +58,7 @@ def get_term(term_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/{term_id}", response_model=DictTermResponse, summary="更新词条")
-def update_term(term_id: int, data: DictTermUpdate, db: Session = Depends(get_db)):
+def update_term(term_id: int, data: DictTermUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     term = db.get(DictionaryTerm, term_id)
     if not term:
         raise HTTPException(status_code=404, detail="词条不存在")
@@ -67,10 +70,13 @@ def update_term(term_id: int, data: DictTermUpdate, db: Session = Depends(get_db
 
 
 @router.delete("/{term_id}", summary="删除词条")
-def delete_term(term_id: int, db: Session = Depends(get_db)):
+def delete_term(term_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     term = db.get(DictionaryTerm, term_id)
     if not term:
         raise HTTPException(status_code=404, detail="词条不存在")
+    # 解除就诊记录对该词条的引用，避免孤儿外键（就诊仍有冗余的明文选项）
+    for col in (Visit.tongue_body_term_id, Visit.tongue_coat_term_id, Visit.pulse_term_id, Visit.syndrome_term_id):
+        db.query(Visit).filter(col == term_id).update({col: None})
     db.delete(term)
     db.commit()
     return {"detail": "已删除"}

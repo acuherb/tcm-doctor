@@ -2,10 +2,11 @@
 import hashlib
 import secrets
 import json
+import sys
 from pathlib import Path
 from sqlalchemy.orm import Session
 
-from app.database import SessionLocal
+from app.database import SessionLocal, engine, Base
 from app.models.herb import Herb, IncompatibilityRule
 from app.models.prescription import ClassicFormula
 from app.models.acupuncture import AcupointFormula
@@ -13,6 +14,11 @@ from app.models.knowledge import KnowledgeEntry
 from app.models.user import User
 
 DATA_DIR = Path(__file__).parent / "data"
+
+# 顶层 seed 脚本（腧穴/字典）位于 backend 根目录，需加入 path 以便导入
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from seed_dictionaries import seed_dictionaries
+from seed_acupoints import seed_acupoints
 
 
 def seed_herbs(db: Session) -> int:
@@ -264,6 +270,10 @@ def seed_guest_user(db: Session) -> int:
 
 def seed_all():
     """执行所有数据初始化"""
+    # 确保导入所有模型并创建表（使本函数可独立运行，不依赖调用方已建表）
+    import app.models  # noqa: F401
+    Base.metadata.create_all(bind=engine)
+
     db = SessionLocal()
     try:
         h = seed_herbs(db)
@@ -273,7 +283,9 @@ def seed_all():
         k = seed_knowledge(db)
         u = seed_default_user(db)
         g = seed_guest_user(db)
-        print(f"[Seed] 导入完成: 药材={h}, 配伍禁忌={i}, 经典方={f}, 针灸方={af}, 知识条目={k}, 用户={u+1}, 游客={g}")
+        d = seed_dictionaries(db)
+        a = seed_acupoints(db)
+        print(f"[Seed] 导入完成: 药材={h}, 配伍禁忌={i}, 经典方={f}, 针灸方={af}, 知识条目={k}, 用户={u+1}, 游客={g}, 字典词条={d[0]}, 腧穴={a}")
     finally:
         db.close()
 

@@ -17,4 +17,4 @@ class InquiryRecord(Base):
     answers: Mapped[dict | None] = mapped_column(JSON, comment="原始答案: {问诊key: 选项key}")
     notes: Mapped[dict | None] = mapped_column(JSON, comment="自填备注: {问诊key: 补充描述}")
     result: Mapped[dict | None] = mapped_column(JSON, comment="评估结果(六经分布/判据解析/方域提示)")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, comment="评估时间")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, comment="评估时间")

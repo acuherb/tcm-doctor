@@ -23,6 +23,7 @@ class Herb(Base):
     toxicity: Mapped[str] = mapped_column(String(10), default="无毒", comment="毒性")
     pregnancy_contraindicated: Mapped[bool] = mapped_column(Boolean, default=False, comment="孕妇禁忌")
     storage_condition: Mapped[str | None] = mapped_column(String(100), comment="储存条件")
+    price: Mapped[float | None] = mapped_column(Numeric(8, 2), comment="参考单价(元/g)")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, comment="是否启用")
 
     # 关系

@@ -7,6 +7,8 @@ from app.database import get_db
 from app.models.patient import Patient
 from app.models.visit import Visit
 from app.models.inquiry import InquiryRecord
+from app.models.user import User
+from app.routers.auth import get_current_user
 from app.schemas.patient import (
     PatientCreate, PatientUpdate, PatientResponse, PatientListResponse,
     VisitCreate, VisitResponse, ConstitutionSubmit, ConstitutionResult,
@@ -36,7 +38,7 @@ def list_patients(
 
 
 @router.post("", response_model=PatientResponse, summary="新增患者")
-def create_patient(data: PatientCreate, db: Session = Depends(get_db)):
+def create_patient(data: PatientCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     patient = Patient(**data.model_dump())
     db.add(patient)
     db.commit()
@@ -53,7 +55,7 @@ def get_patient(patient_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/{patient_id}", response_model=PatientResponse, summary="更新患者")
-def update_patient(patient_id: int, data: PatientUpdate, db: Session = Depends(get_db)):
+def update_patient(patient_id: int, data: PatientUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     patient = db.query(Patient).filter(Patient.id == patient_id).first()
     if not patient:
         raise HTTPException(status_code=404, detail="患者不存在")
@@ -65,7 +67,7 @@ def update_patient(patient_id: int, data: PatientUpdate, db: Session = Depends(g
 
 
 @router.delete("/{patient_id}", summary="删除患者")
-def delete_patient(patient_id: int, db: Session = Depends(get_db)):
+def delete_patient(patient_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     patient = db.query(Patient).filter(Patient.id == patient_id).first()
     if not patient:
         raise HTTPException(status_code=404, detail="患者不存在")
@@ -112,7 +114,7 @@ def list_visits(patient_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/{patient_id}/visits", response_model=VisitResponse, summary="新增就诊记录")
-def create_visit(patient_id: int, data: VisitCreate, db: Session = Depends(get_db)):
+def create_visit(patient_id: int, data: VisitCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     patient = db.query(Patient).filter(Patient.id == patient_id).first()
     if not patient:
         raise HTTPException(status_code=404, detail="患者不存在")
@@ -134,7 +136,7 @@ def get_visit(patient_id: int, visit_id: int, db: Session = Depends(get_db)):
 # ── 体质辨识 ──
 
 @router.post("/{patient_id}/constitution", response_model=ConstitutionResult, summary="提交体质辨识")
-def submit_constitution(patient_id: int, data: ConstitutionSubmit, db: Session = Depends(get_db)):
+def submit_constitution(patient_id: int, data: ConstitutionSubmit, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     patient = db.query(Patient).filter(Patient.id == patient_id).first()
     if not patient:
         raise HTTPException(status_code=404, detail="患者不存在")

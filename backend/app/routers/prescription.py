@@ -6,6 +6,8 @@ from app.database import get_db
 from app.models.prescription import ClassicFormula, Prescription, PrescriptionItem, AcupointPrescription, PrescriptionInjection
 from app.models.herb import IncompatibilityRule, Herb
 from app.models.patient import Patient
+from app.models.user import User
+from app.routers.auth import get_current_user
 from app.schemas.prescription import (
     PrescriptionCreate, PrescriptionResponse, PrescriptionItemResponse,
     ClassicFormulaResponse, ClassicFormulaCreate,
@@ -62,7 +64,7 @@ def recommend_formulas(
 
 
 @router.post("/classic-formulas", response_model=ClassicFormulaResponse, summary="新增经典方")
-def create_classic_formula(data: ClassicFormulaCreate, db: Session = Depends(get_db)):
+def create_classic_formula(data: ClassicFormulaCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     formula = ClassicFormula(
         name=data.name,
         aliases=data.aliases or [],
@@ -80,7 +82,7 @@ def create_classic_formula(data: ClassicFormulaCreate, db: Session = Depends(get
 
 
 @router.post("/classic-formulas/import", summary="批量导入经典方(按方名 upsert)")
-def import_classic_formulas(data: list[ClassicFormulaCreate] = Body(...), db: Session = Depends(get_db)):
+def import_classic_formulas(data: list[ClassicFormulaCreate] = Body(...), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     created, updated = 0, 0
     for d in data:
         existing = db.query(ClassicFormula).filter(ClassicFormula.name == d.name).first()
@@ -129,7 +131,7 @@ def get_classic_formula(formula_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/classic-formulas/{formula_id}", response_model=ClassicFormulaResponse, summary="编辑经典方")
-def update_classic_formula(formula_id: int, data: ClassicFormulaCreate, db: Session = Depends(get_db)):
+def update_classic_formula(formula_id: int, data: ClassicFormulaCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     formula = db.query(ClassicFormula).filter(ClassicFormula.id == formula_id).first()
     if not formula:
         raise HTTPException(status_code=404, detail="方剂不存在")
@@ -147,7 +149,7 @@ def update_classic_formula(formula_id: int, data: ClassicFormulaCreate, db: Sess
 
 
 @router.delete("/classic-formulas/{formula_id}", summary="删除经典方")
-def delete_classic_formula(formula_id: int, db: Session = Depends(get_db)):
+def delete_classic_formula(formula_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     formula = db.query(ClassicFormula).filter(ClassicFormula.id == formula_id).first()
     if not formula:
         raise HTTPException(status_code=404, detail="方剂不存在")
@@ -183,8 +185,24 @@ def list_prescriptions(
     return rows
 
 
+def _compute_total_price(db: Session, items, doses: int) -> float | None:
+    """按药材参考单价(元/g) × 剂量 × 剂数估算处方总价；无任何单价时返回 None（前端显示—）"""
+    if not items:
+        return None
+    herb_ids = [it.herb_id for it in items]
+    herbs = {h.id: h for h in db.query(Herb).filter(Herb.id.in_(herb_ids)).all()}
+    total = 0.0
+    has_price = False
+    for it in items:
+        h = herbs.get(it.herb_id)
+        if h and h.price is not None:
+            total += float(h.price) * float(it.dose) * (doses or 1)
+            has_price = True
+    return round(total, 2) if has_price else None
+
+
 @router.post("", response_model=PrescriptionResponse, summary="开具处方")
-def create_prescription(data: PrescriptionCreate, db: Session = Depends(get_db)):
+def create_prescription(data: PrescriptionCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """开具处方 — 自动校验配伍禁忌和剂量"""
     herb_ids = [item.herb_id for item in data.items]
 
@@ -274,6 +292,8 @@ def create_prescription(data: PrescriptionCreate, db: Session = Depends(get_db))
             note=inj.note,
         ))
 
+    prescription.total_price = _compute_total_price(db, data.items, data.doses)
+
     db.commit()
     db.refresh(prescription)
     return prescription
@@ -294,7 +314,7 @@ def get_prescription(prescription_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/{prescription_id}", response_model=PrescriptionResponse, summary="编辑处方(发药前可修改)")
-def update_prescription(prescription_id: int, data: PrescriptionCreate, db: Session = Depends(get_db)):
+def update_prescription(prescription_id: int, data: PrescriptionCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     prescription = db.query(Prescription).options(joinedload(Prescription.items), joinedload(Prescription.acupoints), joinedload(Prescription.injections)).filter(
         Prescription.id == prescription_id
     ).first()
@@ -340,6 +360,8 @@ def update_prescription(prescription_id: int, data: PrescriptionCreate, db: Sess
         ) for j in data.injections
     ]
 
+    prescription.total_price = _compute_total_price(db, data.items, data.doses)
+
     db.commit()
     db.refresh(prescription)
     if prescription.patient_id:
@@ -350,7 +372,7 @@ def update_prescription(prescription_id: int, data: PrescriptionCreate, db: Sess
 
 
 @router.delete("/{prescription_id}", summary="删除处方(发药前可删除)")
-def delete_prescription(prescription_id: int, db: Session = Depends(get_db)):
+def delete_prescription(prescription_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     prescription = db.query(Prescription).filter(Prescription.id == prescription_id).first()
     if not prescription:
         raise HTTPException(status_code=404, detail="处方不存在")
@@ -362,7 +384,7 @@ def delete_prescription(prescription_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/{prescription_id}/review", response_model=PrescriptionResponse, summary="审核处方")
-def review_prescription(prescription_id: int, reviewer_id: int = 1, db: Session = Depends(get_db)):
+def review_prescription(prescription_id: int, reviewer_id: int = 1, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     prescription = db.query(Prescription).filter(Prescription.id == prescription_id).first()
     if not prescription:
         raise HTTPException(status_code=404, detail="处方不存在")
@@ -376,9 +398,10 @@ def review_prescription(prescription_id: int, reviewer_id: int = 1, db: Session 
 
 
 @router.put("/{prescription_id}/dispense", response_model=PrescriptionResponse, summary="发药(扣减库存)")
-def dispense_prescription(prescription_id: int, db: Session = Depends(get_db)):
+def dispense_prescription(prescription_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """发药：扣减库存，更新处方状态"""
     from app.models.herb import HerbInventory, InventoryTransaction
+    from app.database import inventory_lock
 
     prescription = db.query(Prescription).options(joinedload(Prescription.items), joinedload(Prescription.acupoints)).filter(
         Prescription.id == prescription_id
@@ -388,42 +411,44 @@ def dispense_prescription(prescription_id: int, db: Session = Depends(get_db)):
     if prescription.status != "已审核":
         raise HTTPException(status_code=400, detail="处方未审核，不可发药")
 
-    # 扣减库存
-    for item in prescription.items:
-        total_qty = float(item.dose) * prescription.doses
-        available = db.query(HerbInventory).filter(
-            HerbInventory.herb_id == item.herb_id,
-            HerbInventory.status == "正常",
-        ).all()
-        avail_total = sum(float(inv.quantity) for inv in available)
+    # 扣减库存（进程内锁 + 行锁，避免并发超卖）
+    with inventory_lock:
+        for item in prescription.items:
+            total_qty = float(item.dose) * prescription.doses
+            available = db.query(HerbInventory).filter(
+                HerbInventory.herb_id == item.herb_id,
+                HerbInventory.status == "正常",
+            ).with_for_update().all()
+            avail_total = sum(float(inv.quantity) for inv in available)
 
-        if avail_total < total_qty:
-            raise HTTPException(
-                status_code=400,
-                detail=f"库存不足: {item.herb_name} 需{total_qty}g，可用{avail_total}g",
+            if avail_total < total_qty:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"库存不足: {item.herb_name} 需{total_qty}g，可用{avail_total}g",
+                )
+
+            remaining = total_qty
+            for inv in available:
+                if remaining <= 0:
+                    break
+                deduct = min(float(inv.quantity), remaining)
+                inv.quantity = float(inv.quantity) - deduct
+                remaining -= deduct
+
+            # 记录出库
+            txn = InventoryTransaction(
+                herb_id=item.herb_id,
+                transaction_type="出库",
+                quantity=total_qty,
+                before_quantity=avail_total,
+                after_quantity=avail_total - total_qty,
+                reference_id=prescription.id,
+                note=f"处方#{prescription.id}发药",
             )
+            db.add(txn)
 
-        remaining = total_qty
-        for inv in available:
-            if remaining <= 0:
-                break
-            deduct = min(float(inv.quantity), remaining)
-            inv.quantity = float(inv.quantity) - deduct
-            remaining -= deduct
-
-        # 记录出库
-        txn = InventoryTransaction(
-            herb_id=item.herb_id,
-            transaction_type="出库",
-            quantity=total_qty,
-            before_quantity=avail_total,
-            after_quantity=avail_total - total_qty,
-            reference_id=prescription.id,
-            note=f"处方#{prescription.id}发药",
-        )
-        db.add(txn)
-
-    prescription.status = "已发药"
-    db.commit()
+        prescription.total_price = _compute_total_price(db, prescription.items, prescription.doses)
+        prescription.status = "已发药"
+        db.commit()
     db.refresh(prescription)
     return prescription

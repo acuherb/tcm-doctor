@@ -328,6 +328,22 @@ docker save tcm-doctor:latest -o tcm-doctor-image.tar
 - 先内网直连 `http://<群晖IP>:8765` 确认应用本身正常；
 - 若经反向代理或 Cloudflare（如 `tcm.xxx.xyz`）出现 **502 Bad Gateway**，通常是反代「目标端口」没指向群晖主机的 `8765`——把反代目标主机设为 `127.0.0.1`、目标端口设为 `8765` 即可。
 
+## 脚本说明（一次性 / 种子）
+
+后端 `backend/` 目录下存在若干**一次性数据处理脚本**，它们不参与应用常规运行，仅用于历史数据导入或校验，**不要**当作常驻入口：
+
+| 脚本 | 用途 | 状态 |
+| --- | --- | --- |
+| `seed_acupoints.py` / `seed_dictionaries.py` | 主数据（腧穴 / 字典）种子，**已接入** `app/seed.py` 的 `seed_all()`，随应用启动自动增量导入 | ✅ 常驻可用 |
+| `seed_nihaixia.py` | 导入倪海厦经方体系数据（一次性） | ⚠️ 一次性，已并入主库后无需再跑 |
+| `_seed_formulas.py` / `_seed_jingfang.py` | 早期经典方 / 经方导入（一次性） | ⚠️ 一次性，已被 `app/data/classic_formulas.json` 取代 |
+| `seed_posts.py` | 导入文章/帖子演示数据（一次性） | ⚠️ 一次性 |
+| `_check_herbs_coverage.py` | 校验药材数据覆盖率（诊断用） | ⚠️ 诊断/校验工具 |
+| `app/data/generate_herbs.py` / `generate_knowledge.py` | 由原始数据生成 `herbs.json` / 知识库 JSON（构建期工具） | ⚠️ 离线生成工具 |
+
+> 应用首次启动由 `app/main.py` 的 lifespan 调用 `app/seed.py → seed_all()` 自动完成建表与种子导入；
+> 如手动运行请使用 `python -m app.seed`（在 `backend/` 目录下），它会自动建表并幂等导入，不会清空既有数据。
+
 ## 致谢
 
 本项目基于 [OMDOCTOR](https://github.com/sunshengzhuo/OMDOCTOR) 进行二次开发，感谢原作者 [@sunshengzhuo](https://github.com/sunshengzhuo) 提供的优秀开源基础。

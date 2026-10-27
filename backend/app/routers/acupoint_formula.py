@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.acupuncture import AcupointFormula
 from app.models.prescription import Prescription
+from app.models.user import User
+from app.routers.auth import get_current_user
 from app.schemas.acupuncture import (
     AcupointFormulaCreate, AcupointFormulaUpdate, AcupointFormulaResponse,
 )
@@ -27,7 +29,7 @@ def list_acupoint_formulas(
 
 
 @router.post("", response_model=AcupointFormulaResponse, summary="新增针灸方")
-def create_acupoint_formula(data: AcupointFormulaCreate, db: Session = Depends(get_db)):
+def create_acupoint_formula(data: AcupointFormulaCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if db.query(AcupointFormula).filter(AcupointFormula.name == data.name).first():
         raise HTTPException(status_code=400, detail=f"针灸方「{data.name}」已存在")
     formula = AcupointFormula(
@@ -50,7 +52,7 @@ def create_acupoint_formula(data: AcupointFormulaCreate, db: Session = Depends(g
 
 
 @router.post("/import", summary="批量导入针灸方(按方名 upsert)")
-def import_acupoint_formulas(data: list[AcupointFormulaCreate] = Body(...), db: Session = Depends(get_db)):
+def import_acupoint_formulas(data: list[AcupointFormulaCreate] = Body(...), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     created, updated = 0, 0
     for d in data:
         existing = db.query(AcupointFormula).filter(AcupointFormula.name == d.name).first()
@@ -106,7 +108,7 @@ def get_acupoint_formula(formula_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/{formula_id}", response_model=AcupointFormulaResponse, summary="编辑针灸方")
-def update_acupoint_formula(formula_id: int, data: AcupointFormulaUpdate, db: Session = Depends(get_db)):
+def update_acupoint_formula(formula_id: int, data: AcupointFormulaUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     formula = db.query(AcupointFormula).filter(AcupointFormula.id == formula_id).first()
     if not formula:
         raise HTTPException(status_code=404, detail="针灸方不存在")
@@ -127,7 +129,7 @@ def update_acupoint_formula(formula_id: int, data: AcupointFormulaUpdate, db: Se
 
 
 @router.delete("/{formula_id}", summary="删除针灸方")
-def delete_acupoint_formula(formula_id: int, db: Session = Depends(get_db)):
+def delete_acupoint_formula(formula_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     formula = db.query(AcupointFormula).filter(AcupointFormula.id == formula_id).first()
     if not formula:
         raise HTTPException(status_code=404, detail="针灸方不存在")

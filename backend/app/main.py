@@ -6,9 +6,10 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 from pathlib import Path
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 from app.config import settings
 from app.database import engine, Base, SessionLocal
@@ -16,6 +17,7 @@ from app.models.user import User, AuthToken
 from app.routers import patient, herb, prescription, knowledge, diagnosis, dictionaries, acupuncture
 from app.routers import acupoint_formula
 from app.routers import stats, backup, auth
+from app.routers.auth import get_current_user
 
 WRITE_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 
@@ -92,6 +94,13 @@ def _run_light_migrations() -> None:
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE inquiry_records ADD COLUMN visit_id INTEGER"))
 
+    # herbs.price（参考单价，用于处方总价估算 M5）
+    if "herbs" in inspector.get_table_names():
+        hcols = {c["name"] for c in inspector.get_columns("herbs")}
+        if "price" not in hcols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE herbs ADD COLUMN price NUMERIC(8,2)"))
+
     # 其它表的新增列可在下方照此扩展
 
 
@@ -105,7 +114,7 @@ app = FastAPI(
 # CORS — 允许前端开发服务器访问
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:5174", "http://localhost:8765", "http://127.0.0.1:8765", "file://"],
+    allow_origins=["http://localhost:5173", "http://localhost:5174", "http://localhost:8765", "http://127.0.0.1:8765"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -185,18 +194,33 @@ def get_config():
     }
 
 
+class ConfigUpdate(BaseModel):
+    """系统配置更新请求体（通过 JSON 传输，避免密钥出现在 URL / 访问日志中）"""
+    clinic_name: str | None = None
+    doctor_name: str | None = None
+    deepseek_api_key: str | None = None
+    deepseek_model: str | None = None
+    deepseek_base_url: str | None = None
+    deepseek_vision_model: str | None = None
+    deepseek_vision_base_url: str | None = None
+    deepseek_vision_api_key: str | None = None
+
+
 @app.put("/api/v1/config", tags=["系统"])
-def update_config(
-    clinic_name: str | None = None,
-    doctor_name: str | None = None,
-    deepseek_api_key: str | None = None,
-    deepseek_model: str | None = None,
-    deepseek_base_url: str | None = None,
-    deepseek_vision_model: str | None = None,
-    deepseek_vision_base_url: str | None = None,
-    deepseek_vision_api_key: str | None = None,
-):
-    """更新系统配置 — 同时写入 .env 文件持久化"""
+def update_config(payload: ConfigUpdate, current_user: User = Depends(get_current_user)):
+    """更新系统配置 — 同时写入 .env 文件持久化（密钥不回显、文件权限 600）"""
+    if not current_user.is_admin:
+        return JSONResponse({"detail": "仅管理员可修改系统配置"}, status_code=403)
+    data = payload.model_dump(exclude_unset=True)
+    clinic_name = data.get("clinic_name")
+    doctor_name = data.get("doctor_name")
+    deepseek_api_key = data.get("deepseek_api_key")
+    deepseek_model = data.get("deepseek_model")
+    deepseek_base_url = data.get("deepseek_base_url")
+    deepseek_vision_model = data.get("deepseek_vision_model")
+    deepseek_vision_base_url = data.get("deepseek_vision_base_url")
+    deepseek_vision_api_key = data.get("deepseek_vision_api_key")
+
     # .env 路径：容器内优先放 DATA_DIR（与 pydantic_settings 一致），否则项目根目录
     data_dir = os.environ.get("DATA_DIR", "")
     if data_dir:
@@ -214,15 +238,13 @@ def update_config(
                 k, _, v = line.partition("=")
                 env_lines[k.strip()] = v.strip()
 
-    # 更新内存 + env（诊所信息允许清空）
+    # 更新内存 + env（诊所信息允许清空；密钥忽略空字符串，防止误清已有配置）
     if clinic_name is not None:
         settings.clinic_name = clinic_name
         env_lines["CLINIC_NAME"] = clinic_name
     if doctor_name is not None:
         settings.doctor_name = doctor_name
         env_lines["DOCTOR_NAME"] = doctor_name
-
-    # 更新内存 + env（忽略空字符串，防止误清已有配置）
     if deepseek_api_key:
         settings.deepseek_api_key = deepseek_api_key
         env_lines["DEEPSEEK_API_KEY"] = deepseek_api_key
@@ -248,6 +270,12 @@ def update_config(
         for k, v in env_lines.items():
             f.write(f"{k}={v}\n")
     tmp_path.replace(env_path)
+
+    # 限制 .env 权限，避免密钥被同机其它进程读取
+    try:
+        os.chmod(env_path, 0o600)
+    except OSError:
+        pass
 
     return {"message": "配置已保存", "deepseek_configured": bool(settings.deepseek_api_key)}
 

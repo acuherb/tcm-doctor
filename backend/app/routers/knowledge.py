@@ -1,10 +1,16 @@
 """知识库路由"""
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Body
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.knowledge import KnowledgeEntry
+from app.routers.auth import get_current_user
+from app.models.user import User
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/knowledge", tags=["知识库"])
 
@@ -63,8 +69,8 @@ def search_knowledge(
             })
     except ImportError:
         pass
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("知识库语义检索失败: %s", e)
 
     return results[:limit]
 
@@ -78,7 +84,11 @@ def create_entry(
     structured_data: dict | None = Body(None),
     tags: list[str] | None = Body(None),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
+    """新增知识条目（需管理员）"""
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="仅管理员可管理知识库")
     entry = KnowledgeEntry(
         title=title,
         category=category,
@@ -101,8 +111,8 @@ def create_entry(
             "category": entry.category,
             "metadata": {"source": entry.source or ""},
         }])
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("知识条目向量同步失败(id=%s): %s", entry.id, e)
 
     return {"id": entry.id, "title": entry.title}
 
@@ -125,7 +135,11 @@ def update_entry(
     structured_data: dict | None = Body(None),
     tags: list[str] | None = Body(None),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
+    """更新知识条目（需管理员）"""
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="仅管理员可管理知识库")
     entry = db.query(KnowledgeEntry).filter(KnowledgeEntry.id == entry_id).first()
     if not entry:
         raise HTTPException(status_code=404, detail="条目不存在")
@@ -141,7 +155,14 @@ def update_entry(
 
 
 @router.delete("/entries/batch", summary="批量删除知识条目")
-def batch_delete_entry(ids: list[int] = Body(...), db: Session = Depends(get_db)):
+def batch_delete_entry(
+    ids: list[int] = Body(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """批量删除知识条目（需管理员）"""
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="仅管理员可管理知识库")
     if not ids:
         return {"deleted": 0}
     rows = db.query(KnowledgeEntry).filter(KnowledgeEntry.id.in_(ids)).all()
@@ -153,7 +174,14 @@ def batch_delete_entry(ids: list[int] = Body(...), db: Session = Depends(get_db)
 
 
 @router.delete("/entries/{entry_id}", summary="删除知识条目")
-def delete_entry(entry_id: int, db: Session = Depends(get_db)):
+def delete_entry(
+    entry_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """删除知识条目（需管理员）"""
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="仅管理员可管理知识库")
     entry = db.query(KnowledgeEntry).filter(KnowledgeEntry.id == entry_id).first()
     if not entry:
         raise HTTPException(status_code=404, detail="条目不存在")
@@ -189,7 +217,14 @@ def export_knowledge(
 
 
 @router.post("/import", summary="批量导入知识条目")
-def import_knowledge(payload: list[dict] = Body(...), db: Session = Depends(get_db)):
+def import_knowledge(
+    payload: list[dict] = Body(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """批量导入知识条目（需管理员）"""
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="仅管理员可管理知识库")
     """按 title 做 upsert：已存在则更新，否则新增。返回统计。"""
     added = 0
     updated = 0
@@ -291,7 +326,13 @@ def list_sources(db: Session = Depends(get_db)):
 
 
 @router.post("/rebuild-index", summary="重建向量索引")
-def rebuild_index(db: Session = Depends(get_db)):
+def rebuild_index(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """重建向量索引（需管理员）"""
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="仅管理员可管理知识库")
     """重建 ChromaDB 向量索引"""
     try:
         from app.services.vector_store import vector_store
