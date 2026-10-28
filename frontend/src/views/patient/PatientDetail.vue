@@ -144,33 +144,6 @@
           <el-empty v-else description="暂无就诊记录" />
         </el-card>
 
-        <el-card v-if="orphanInquiries.length > 0" shadow="hover" style="margin-top: 16px;">
-          <template #header><span>🩺 问诊十问（未关联就诊）</span></template>
-          <el-timeline>
-            <el-timeline-item
-              v-for="iq in orphanInquiries"
-              :key="iq.id"
-              :timestamp="fmtTime(iq.created_at)"
-              placement="top"
-              type="warning"
-            >
-              <el-card shadow="never" class="visit-card">
-                <div class="iq-type">
-                  <el-tag type="warning" size="small">{{ iq.primary_type || '未定型' }}</el-tag>
-                  <span style="margin-left:6px;font-size:12px;color:#999;">偏性画像</span>
-                </div>
-                <ul v-if="iq.result && iq.result.findings && iq.result.findings.length" class="iq-findings">
-                  <li v-for="(f, fi) in iq.result.findings" :key="fi">{{ f }}</li>
-                </ul>
-                <div v-if="iq.result && iq.result.suggestion" class="iq-suggestion">{{ iq.result.suggestion }}</div>
-                <div class="visit-actions">
-                  <el-button link type="warning" size="small" @click="openIqDialog(iq)">查看完整评估</el-button>
-                </div>
-              </el-card>
-            </el-timeline-item>
-          </el-timeline>
-        </el-card>
-
       </el-col>
     </el-row>
 
@@ -373,13 +346,6 @@ const inquiriesByVisit = computed<Record<number, any[]>>(() => {
     }
   }
   return m
-})
-// 仍未关联到任何就诊（按日期也无法匹配）的十问，保留在独立卡片，避免数据丢失
-const orphanInquiries = computed(() => {
-  const byVisit = inquiriesByVisit.value
-  const used = new Set<number>()
-  for (const id in byVisit) for (const iq of byVisit[id]) used.add(iq.id)
-  return inquiries.value.filter(iq => !used.has(iq.id))
 })
 // 就诊卡片内 问诊十问 默认折叠，按就诊 id 记录是否展开
 const iqExpanded = ref<Record<number, boolean>>({})

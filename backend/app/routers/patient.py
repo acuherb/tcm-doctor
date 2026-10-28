@@ -168,15 +168,36 @@ def submit_constitution(patient_id: int, data: ConstitutionSubmit, current_user:
     db.add(patient)
 
     # 存档问诊十问，形成病例信息链
-    record = InquiryRecord(
-        patient_id=patient_id,
-        visit_id=data.visit_id,
-        primary_type=result_dict["primary_type"],
-        answers=data.answers,
-        notes=data.notes,
-        result=result_dict,
-    )
-    db.add(record)
+    # 一次就诊只有一次问诊十问：相同 (patient_id, visit_id) 已存在则更新，避免重复录入
+    if data.visit_id is not None:
+        existing = (
+            db.query(InquiryRecord)
+            .filter(InquiryRecord.patient_id == patient_id, InquiryRecord.visit_id == data.visit_id)
+            .order_by(InquiryRecord.created_at.desc())
+            .first()
+        )
+    else:
+        existing = (
+            db.query(InquiryRecord)
+            .filter(InquiryRecord.patient_id == patient_id, InquiryRecord.visit_id.is_(None))
+            .order_by(InquiryRecord.created_at.desc())
+            .first()
+        )
+    if existing:
+        existing.primary_type = result_dict["primary_type"]
+        existing.answers = data.answers
+        existing.notes = data.notes
+        existing.result = result_dict
+    else:
+        record = InquiryRecord(
+            patient_id=patient_id,
+            visit_id=data.visit_id,
+            primary_type=result_dict["primary_type"],
+            answers=data.answers,
+            notes=data.notes,
+            result=result_dict,
+        )
+        db.add(record)
     db.commit()
 
     return ConstitutionResult(**result_dict)
