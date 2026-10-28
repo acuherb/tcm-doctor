@@ -118,8 +118,13 @@
                 </div>
 
                 <div v-if="visit.ai_analysis" class="sub-block">
-                  <div class="sub-title">🤖 AI 诊断库（辨证论治）</div>
-                  <div class="view-ai-analysis" v-html="renderMarkdown(visit.ai_analysis)"></div>
+                  <div class="sub-title">
+                    <span>🤖 AI 诊断库（辨证论治）</span>
+                    <el-button link type="warning" size="small" style="margin-left:auto;padding:0;height:auto;" @click="aiExpanded[visit.id] = !aiExpanded[visit.id]">
+                      {{ aiExpanded[visit.id] ? '收起' : '查看全部' }}
+                    </el-button>
+                  </div>
+                  <div class="view-ai-analysis" :class="{ collapsed: !aiExpanded[visit.id] }" v-html="renderMarkdown(visit.ai_analysis)"></div>
                 </div>
 
                 <div class="visit-actions">
@@ -353,6 +358,8 @@ const editForm = ref<any>({})
 const showVisitDialog = ref(false)
 const viewVisit = ref<any>(null)
 const showIqDialog = ref(false)
+// 就诊卡片内 AI 诊断库默认折叠，按就诊 id 记录是否展开
+const aiExpanded = ref<Record<number, boolean>>({})
 const viewIq = ref<any>(null)
 const showRxDialog = ref(false)
 const viewRx = ref<any>(null)
@@ -440,6 +447,19 @@ function fmtTime(iso?: string): string {
   border: 1px dashed #d9c9a3;
   border-radius: 6px;
   padding: 8px 10px;
+  &.collapsed {
+    max-height: 132px;
+    overflow: hidden;
+    position: relative;
+  }
+  &.collapsed::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 44px;
+    background: linear-gradient(to bottom, rgba(255, 251, 240, 0), #fffbf0);
+    pointer-events: none;
+  }
   :deep(h1), :deep(h2), :deep(h3), :deep(h4) { margin: 8px 0 4px; color: #8B4513; line-height: 1.4; }
   :deep(h1) { font-size: 14px; }
   :deep(h2) { font-size: 13.5px; }
