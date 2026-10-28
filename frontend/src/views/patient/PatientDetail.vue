@@ -249,29 +249,34 @@
       </template>
     </el-dialog>
 
-    <el-dialog :title="'处方详情 · ' + (viewRx?.formula_name || viewRx?.acupoint_formula_name || '自拟方')" :model-value="showRxDialog" @update:model-value="showRxDialog = $event" class="rx-detail-dialog" width="min(680px, 92vw)" destroy-on-close>
+    <el-dialog :title="'处方详情'" :model-value="showRxDialog" @update:model-value="showRxDialog = $event" class="rx-detail-dialog" width="min(680px, 92vw)" destroy-on-close>
       <template v-if="viewRx">
         <div class="view-iq-primary">
-          <el-tag type="danger">{{ viewRx.formula_name || '自拟方' }}</el-tag>
-          <el-tag v-if="viewRx.acupoint_formula_name" type="warning">{{ viewRx.acupoint_formula_name }}</el-tag>
-          <el-tag :type="statusTag(viewRx.status)" size="small" effect="plain" style="margin-left:6px;">{{ viewRx.status }}</el-tag>
+          💊 处方
+          <el-tag :type="statusTag(viewRx.status)" size="small" effect="plain">{{ viewRx.status }}</el-tag>
           <span style="margin-left:8px;color:#999;font-size:12px;">{{ fmtTime(viewRx.created_at) }}</span>
         </div>
-        <el-table v-if="viewRx.items && viewRx.items.length" :data="viewRx.items" size="small" border>
-          <el-table-column prop="herb_name" label="药味" min-width="100" />
-          <el-table-column prop="dose" label="剂量(g)" width="90" />
-          <el-table-column prop="special_method" label="特殊煎法" min-width="110">
-            <template #default="{ row }">{{ row.special_method || '—' }}</template>
-          </el-table-column>
-          <el-table-column prop="is_king_herb" label="地位" width="70">
-            <template #default="{ row }">
-              <el-tag v-if="row.is_king_herb" type="danger" size="small">君药</el-tag>
-              <span v-else class="text-muted">臣佐</span>
-            </template>
-          </el-table-column>
-        </el-table>
-        <div v-if="viewRx.acupoints && viewRx.acupoints.length" class="view-iq-sec">
-          <h4>针灸配穴{{ viewRx.acupoint_formula_name ? ' · ' + viewRx.acupoint_formula_name : '' }}</h4>
+
+        <template v-if="viewRx.items && viewRx.items.length">
+          <div class="rx-sub-title">🌿 中药方{{ viewRx.formula_name ? ' · ' + viewRx.formula_name : '' }}</div>
+          <el-table :data="viewRx.items" size="small" border>
+            <el-table-column prop="herb_name" label="药味" min-width="100" />
+            <el-table-column prop="dose" label="剂量(g)" width="90" />
+            <el-table-column prop="special_method" label="特殊煎法" min-width="110">
+              <template #default="{ row }">{{ row.special_method || '—' }}</template>
+            </el-table-column>
+            <el-table-column prop="is_king_herb" label="地位" width="70">
+              <template #default="{ row }">
+                <el-tag v-if="row.is_king_herb" type="danger" size="small">君药</el-tag>
+                <span v-else class="text-muted">臣佐</span>
+              </template>
+            </el-table-column>
+          </el-table>
+          <div class="rx-doses">{{ viewRx.doses }} 剂 · {{ viewRx.preparation_method }}<span v-if="viewRx.administration"> · {{ viewRx.administration }}</span></div>
+        </template>
+
+        <template v-if="viewRx.acupoints && viewRx.acupoints.length">
+          <div class="rx-sub-title">🪡 针灸方{{ viewRx.acupoint_formula_name ? ' · ' + viewRx.acupoint_formula_name : '' }}</div>
           <el-table :data="viewRx.acupoints" size="small" border>
             <el-table-column prop="acupoint_name" label="穴位" min-width="100" />
             <el-table-column prop="technique" label="手法" min-width="90">
@@ -284,13 +289,15 @@
               <template #default="{ row }">{{ row.note || '—' }}</template>
             </el-table-column>
           </el-table>
-        </div>
-        <el-descriptions :column="2" size="small" class="rx-meta">
-          <el-descriptions-item label="剂数">{{ viewRx.doses }} 剂</el-descriptions-item>
-          <el-descriptions-item label="煎法">{{ viewRx.preparation_method }}</el-descriptions-item>
-          <el-descriptions-item label="服法">{{ viewRx.administration || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="总价">{{ viewRx.total_price ? '￥' + viewRx.total_price : '—' }}</el-descriptions-item>
-        </el-descriptions>
+          <div v-if="viewRx.acupoint_technique || viewRx.treatment_frequency || viewRx.treatment_days" class="rx-acu-meta">
+            <span v-if="viewRx.acupoint_technique">{{ viewRx.acupoint_technique }}</span>
+            <span v-if="viewRx.treatment_frequency">{{ viewRx.treatment_frequency }}</span>
+            <span v-if="viewRx.treatment_days">{{ viewRx.treatment_days }} 天</span>
+          </div>
+        </template>
+
+        <div v-if="viewRx.total_price" class="rx-doses">总价：￥{{ viewRx.total_price }}</div>
+
         <div v-if="viewRx.doctor_notes" class="view-iq-sec">
           <h4>医嘱</h4>
           <p class="iq-suggestion">{{ viewRx.doctor_notes }}</p>
@@ -481,7 +488,6 @@ function fmtTime(iso?: string): string {
 .rx-herb b { color: #606266; margin-left: 2px; font-weight: normal; }
 .rx-herb .king { color: #F56C6C; font-style: normal; margin-left: 2px; }
 .rx-more { font-size: 12px; color: #909399; }
-.rx-meta { margin-top: 12px; }
 .sub-block { margin-top: 10px; border-top: 1px dashed #eee; padding-top: 8px; }
 .sub-block + .sub-block { margin-top: 10px; }
 .sub-title { font-size: 13px; font-weight: 600; color: #555; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }.sub-item { margin-bottom: 8px; }
