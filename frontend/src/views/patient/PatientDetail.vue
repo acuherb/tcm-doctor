@@ -214,7 +214,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog :title="'就诊记录详情 · ' + (viewVisit?.visit_date || '')" :model-value="showVisitDialog" @update:model-value="showVisitDialog = $event" width="680px" destroy-on-close>
+    <el-dialog :title="'就诊记录详情 · ' + (viewVisit?.visit_date || '')" :model-value="showVisitDialog" @update:model-value="showVisitDialog = $event" class="visit-detail-dialog" width="min(680px, 92vw)" destroy-on-close>
       <el-descriptions v-if="viewVisit" :column="1" border size="small">
         <el-descriptions-item label="就诊日期">{{ viewVisit.visit_date }}</el-descriptions-item>
         <el-descriptions-item label="主诉">{{ viewVisit.chief_complaint }}</el-descriptions-item>
@@ -238,7 +238,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog :title="'问诊十问详情 · ' + fmtTime(viewIq?.created_at)" :model-value="showIqDialog" @update:model-value="showIqDialog = $event" width="680px" destroy-on-close>
+    <el-dialog :title="'问诊十问详情 · ' + fmtTime(viewIq?.created_at)" :model-value="showIqDialog" @update:model-value="showIqDialog = $event" class="iq-detail-dialog" width="min(680px, 92vw)" destroy-on-close>
       <template v-if="viewIq">
         <div class="view-iq-primary">主偏性&nbsp;:&nbsp;<el-tag type="warning">{{ viewIq.primary_type || '未定型' }}</el-tag></div>
         <div v-if="viewIq.result?.findings?.length" class="view-iq-sec">
@@ -429,6 +429,7 @@ function fmtTime(iso?: string): string {
 .view-ai-analysis {
   white-space: normal;
   word-break: break-word;
+  overflow-wrap: anywhere;
   font-size: 12.5px;
   line-height: 1.8;
   color: #333;
@@ -436,17 +437,16 @@ function fmtTime(iso?: string): string {
   border: 1px dashed #d9c9a3;
   border-radius: 6px;
   padding: 8px 10px;
-  max-height: 40vh;
-  overflow-y: auto;
   :deep(h1), :deep(h2), :deep(h3), :deep(h4) { margin: 10px 0 5px; color: #8B4513; }
   :deep(h1) { font-size: 16px; }
   :deep(h2) { font-size: 15px; }
   :deep(h3) { font-size: 14px; }
-  :deep(p) { margin: 5px 0; }
+  :deep(p) { margin: 5px 0; overflow-wrap: anywhere; }
   :deep(ul), :deep(ol) { margin: 5px 0; padding-left: 20px; }
-  :deep(li) { margin: 2px 0; }
-  :deep(table) { border-collapse: collapse; width: 100%; margin: 6px 0; font-size: 12px; }
-  :deep(th), :deep(td) { border: 1px solid #e8e0d8; padding: 3px 6px; text-align: left; }
+  :deep(li) { margin: 2px 0; overflow-wrap: anywhere; }
+  /* 表格固定布局 + 强制换行，避免宽表格把弹窗撑飞 */
+  :deep(table) { table-layout: fixed; width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 12px; }
+  :deep(th), :deep(td) { border: 1px solid #e8e0d8; padding: 3px 6px; text-align: left; word-break: break-word; overflow-wrap: anywhere; vertical-align: top; }
   :deep(th) { background: #faf7f4; }
   :deep(strong) { color: #8B4513; }
   :deep(code) { background: #f5f0eb; padding: 0 3px; border-radius: 3px; }
@@ -455,6 +455,17 @@ function fmtTime(iso?: string): string {
   :deep(blockquote) { border-left: 3px solid #d9c9a3; margin: 5px 0; padding-left: 8px; color: #999; }
 }
 .visit-actions { margin-top: 8px; text-align: right; }
+/* 弹窗内容超高时，仅 body 内部滚动，底部按钮始终可见（避免 AI 分析把弹窗顶飞） */
+.visit-detail-dialog :deep(.el-dialog__body),
+.iq-detail-dialog :deep(.el-dialog__body) {
+  max-height: 72vh;
+  overflow-y: auto;
+}
+@media (max-width: 767px) {
+  .visit-detail-dialog, .iq-detail-dialog { margin-top: 6vh !important; }
+  .visit-detail-dialog :deep(.el-dialog__body),
+  .iq-detail-dialog :deep(.el-dialog__body) { max-height: 82vh; }
+}
 .view-iq-primary { font-size: 14px; margin-bottom: 10px; }
 .view-iq-sec { margin-top: 12px; }
 .view-iq-sec h4 { margin: 0 0 6px; font-size: 13px; color: #555; }
