@@ -51,6 +51,28 @@
       <div v-if="recommend" class="ta-recommend">
         <el-divider content-position="left">🪷 可参考经方 <el-tag v-if="recommend.meridian" size="small" type="success" style="margin-left:6px;">{{ recommend.meridian }}类</el-tag></el-divider>
 
+        <!-- 合病：分经展示，可同时清、温两条思路 -->
+        <div v-if="recommend.groups && recommend.groups.length" v-for="g in recommend.groups" :key="g.label">
+          <div class="ta-group-title" style="font-weight:600;color:#8B4513;margin:6px 0 4px;">〔{{ g.label }}〕</div>
+          <el-empty v-if="!recLoading && g.matched && g.matched.length === 0" description="中药方库暂无录入该六经候选方（可在中药方库补充），下方为候选方名参考" :image-size="40">
+            <template #description>
+              <div class="ta-suggestion" v-if="g.missing && g.missing.length">
+                候选：<el-tag v-for="n in g.missing" :key="n" size="small" style="margin-left:4px;">{{ n }}</el-tag>
+              </div>
+            </template>
+          </el-empty>
+          <div v-for="f in g.matched || []" :key="f.id" class="rec-item">
+            <div class="rec-info">
+              <span class="rec-name">{{ f.name }}</span>
+              <el-tag size="small" type="info" v-if="f.source">{{ f.source }}</el-tag>
+              <div class="rec-eff" v-if="f.efficacy">{{ f.efficacy }}</div>
+            </div>
+            <el-button size="small" type="danger" plain @click="useFormula(f.id)">选此方开方</el-button>
+          </div>
+        </div>
+
+        <!-- 单经 -->
+        <template v-else>
         <el-empty v-if="!recLoading && recommend.matched && recommend.matched.length === 0" description="中药方库暂无录入该六经候选方（可在中药方库补充），下方为候选方名参考">
           <template #description>
             <div class="ta-suggestion" v-if="recommend.missing && recommend.missing.length">
@@ -67,6 +89,7 @@
           </div>
           <el-button size="small" type="danger" plain @click="useFormula(f.id)">选此方开方</el-button>
         </div>
+        </template>
       </div>
     </div>
   </div>
@@ -228,6 +251,8 @@ async function evaluate() {
 }
 
 function topMeridian(r: any): string {
+  // 优先采用后端主证顺序（含合病），与主标签一致；旧报告无该字段时回退到分数最高
+  if (r?.primary_meridians && r.primary_meridians.length) return r.primary_meridians[0]
   const s = r?.scores || {}
   let best = ''
   let bestScore = 0
@@ -238,11 +263,20 @@ function topMeridian(r: any): string {
 }
 
 async function loadRecommend(r: any) {
-  const m = topMeridian(r)
-  if (!m) return
+  // 合病：按主经顺序取前两经分别拉推荐，避免只取 dict 顺序的第一个
+  const meridians = (r?.primary_meridians && r.primary_meridians.length)
+    ? r.primary_meridians.slice(0, 2)
+    : (topMeridian(r) ? [topMeridian(r)] : [])
+  if (meridians.length === 0) return
   recLoading.value = true
   try {
-    recommend.value = await api.get('/prescriptions/classic-formulas/recommend', { params: { meridian: m } }) as any
+    const groups = []
+    for (const m of meridians) {
+      const g = await api.get('/prescriptions/classic-formulas/recommend', { params: { meridian: m } }) as any
+      if (g) groups.push({ label: m, ...g })
+    }
+    recommend.value = groups.length === 1 ? groups[0]
+      : { meridian: meridians.join('+'), groups }
   } catch {}
   recLoading.value = false
 }
@@ -251,6 +285,34 @@ function useFormula(fid: number) {
   const visitPart = props.visitId ? `&visit_id=${props.visitId}` : ''
   router.push(`/prescriptions/new?patient_id=${props.patientId}&formula_id=${fid}${visitPart}`)
 }
+
+// 生成「问诊十问」可读摘要文本，供父组件带入 AI 四诊辨证
+function getAspectSummary(): string {
+  const lines: string[] = []
+  for (const q of questions) {
+    let text = ''
+    const picked = answers.value[q.key]
+    if (picked) {
+      const opt = q.options.find(o => o.key === picked)
+      text = opt ? opt.label : picked
+    }
+    const note = (notes.value[q.key] || '').trim()
+    if (note) text = text ? text + '；' + note : note
+    lines.push(`${q.title}：${text || '未回答'}`)
+  }
+  return lines.join('\n')
+}
+
+// 生成结构化的问诊十问答案，供后端在未配置 API Key 时执行本地规则辨证
+function getAspectAnswers(): { answers: Record<string, string>; notes: Record<string, string> } {
+  const payloadAnswers: Record<string, string> = {}
+  for (const q of questions) {
+    if (answers.value[q.key]) payloadAnswers[q.key] = answers.value[q.key]
+    else if ((notes.value[q.key] || '').trim()) payloadAnswers[q.key] = 'custom'
+  }
+  return { answers: payloadAnswers, notes: notes.value }
+}
+defineExpose({ getAspectSummary, getAspectAnswers })
 </script>
 
 <style scoped>

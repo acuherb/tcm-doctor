@@ -31,6 +31,7 @@ class Visit(Base):
     tcm_disease: Mapped[str | None] = mapped_column(String(100), comment="中医病名: 如'胃脘痛'")
     tcm_syndrome: Mapped[str | None] = mapped_column(String(100), comment="证型: 如'肝气犯胃证'")
     treatment_method: Mapped[str | None] = mapped_column(String(100), comment="治法: 如'疏肝理气'")
+    ai_analysis: Mapped[str | None] = mapped_column(Text, comment="AI 辅助辨证完整分析(含依据，供病历参考)", default=None)
 
     # 受控词条关联 (引用 dictionary_terms, 可选; 为空时仍可用上方原文)
     tongue_body_term_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("dictionary_terms.id"), comment="舌质词条ID")

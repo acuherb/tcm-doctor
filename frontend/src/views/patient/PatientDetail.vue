@@ -101,6 +101,11 @@
                   </div>
                 </div>
 
+                <div v-if="visit.ai_analysis" class="sub-block">
+                  <div class="sub-title">🤖 AI 辨证分析</div>
+                  <div class="view-ai-analysis">{{ visit.ai_analysis }}</div>
+                </div>
+
                 <div class="visit-actions">
                   <el-button link type="primary" size="small" @click="openVisitDialog(visit)">查看就诊详情</el-button>
                 </div>
@@ -188,6 +193,9 @@
         <el-descriptions-item v-if="viewVisit.tcm_disease" label="中医病名">{{ viewVisit.tcm_disease }}</el-descriptions-item>
         <el-descriptions-item v-if="viewVisit.tcm_syndrome" label="证型">{{ viewVisit.tcm_syndrome }}</el-descriptions-item>
         <el-descriptions-item v-if="viewVisit.treatment_method" label="治法">{{ viewVisit.treatment_method }}</el-descriptions-item>
+        <el-descriptions-item v-if="viewVisit.ai_analysis" label="AI辨证分析">
+          <div class="view-ai-analysis">{{ viewVisit.ai_analysis }}</div>
+        </el-descriptions-item>
       </el-descriptions>
     </el-dialog>
 
@@ -375,6 +383,19 @@ function fmtTime(iso?: string): string {
 .iq-type { margin-bottom: 6px; }
 .iq-findings { margin: 4px 0; padding-left: 16px; font-size: 12.5px; color: #666; line-height: 1.8; }
 .iq-suggestion { margin-top: 6px; font-size: 12.5px; color: #8B4513; }
+.view-ai-analysis {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12.5px;
+  line-height: 1.8;
+  color: #333;
+  background: #fffbf0;
+  border: 1px dashed #d9c9a3;
+  border-radius: 6px;
+  padding: 8px 10px;
+  max-height: 40vh;
+  overflow-y: auto;
+}
 .visit-actions { margin-top: 8px; text-align: right; }
 .view-iq-primary { font-size: 14px; margin-bottom: 10px; }
 .view-iq-sec { margin-top: 12px; }

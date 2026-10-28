@@ -80,6 +80,7 @@ class VisitCreate(BaseModel):
     tcm_disease: str | None = Field(None, description="中医病名")
     tcm_syndrome: str | None = Field(None, description="证型")
     treatment_method: str | None = Field(None, description="治法")
+    ai_analysis: str | None = Field(None, description="AI 辅助辨证完整分析(含依据)")
     # 受控词条关联(可选; 指向 /api/v1/dictionaries 的 id)
     tongue_body_term_id: int | None = Field(None, description="舌质词条ID")
     tongue_coat_term_id: int | None = Field(None, description="舌苔词条ID")
@@ -107,6 +108,7 @@ class VisitResponse(BaseModel):
     tcm_disease: str | None
     tcm_syndrome: str | None
     treatment_method: str | None
+    ai_analysis: str | None
     tongue_body_term_id: int | None
     tongue_coat_term_id: int | None
     pulse_term_id: int | None
@@ -147,7 +149,8 @@ class InquiryRecordOut(BaseModel):
 
 class ConstitutionResult(BaseModel):
     """体质辨识(倪师问诊十问)结果"""
-    primary_type: str = Field(..., description="主偏性画像，如 少阴·里寒")
+    primary_type: str = Field(..., description="主偏性画像，如 少阴·肾阳亏虚 / 少阴+太阴 合病")
+    primary_meridians: list[str] = Field(default_factory=list, description="主证六经(按主次排序，合病时多于一项)")
     scores: dict[str, int] = Field(..., description="六经各命中点数")
     secondary_types: list[str] = Field(default_factory=list, description="倾向六经")
     findings: list[str] = Field(default_factory=list, description="命中的症状判据")

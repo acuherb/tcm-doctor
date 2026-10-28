@@ -416,9 +416,13 @@ async function sendMessage() {
 
     const isElectronProd = typeof window !== 'undefined' && window.location.protocol === 'file:'
     const baseUrl = isElectronProd ? 'http://127.0.0.1:8765/api/v1' : '/api/v1'
+    const token = typeof window !== 'undefined' ? localStorage.getItem('tcm_token') : null
     const response = await fetch(`${baseUrl}/diagnosis/chat/stream`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify(payload),
     })
 
@@ -481,8 +485,14 @@ async function submitAnalyze() {
 
     const isElectronProd = typeof window !== 'undefined' && window.location.protocol === 'file:'
     const baseUrl = isElectronProd ? 'http://127.0.0.1:8765/api/v1' : '/api/v1'
+    const token = typeof window !== 'undefined' ? localStorage.getItem('tcm_token') : null
     const response = await fetch(`${baseUrl}/diagnosis/analyze/stream`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(payload),
     })
 
     if (!response.ok || !response.body) {

@@ -136,7 +136,7 @@
       <el-col :xs="24" :lg="12">
         <el-card shadow="hover">
           <template #header><span>🪷 问诊十问（经方家辨证）</span></template>
-          <TenAspectsPanel :patient-id="patientId" :visit-id="currentVisitId" />
+          <TenAspectsPanel ref="tenAspectsRef" :patient-id="patientId" :visit-id="currentVisitId" />
         </el-card>
 
         <div style="margin-top: 16px; text-align: right;">
@@ -156,6 +156,37 @@
 
     <!-- 隐藏的图片上传 input -->
     <input ref="visitFileInputRef" type="file" accept="image/*" style="display:none" @change="onVisitImageSelect" />
+
+    <!-- AI 辨证前核对 -->
+    <el-dialog v-model="showAiConfirm" title="🪧 核对本次辨证信息" width="620px" class="ai-basis-dialog">
+      <div class="ai-basis-block">
+        <div class="ai-basis-title">本次将依据以下信息进行辨证</div>
+        <div class="ai-basis-body" v-html="renderMarkdown(aiBasisText)"></div>
+      </div>
+      <div v-if="aiResultWarnings.length" class="ai-warning-row">
+        <el-alert v-for="w in aiResultWarnings" :key="w" :title="w" type="warning" :closable="false" show-icon />
+      </div>
+      <template #footer>
+        <el-button @click="showAiConfirm = false">返回修改</el-button>
+        <el-button type="primary" :loading="aiLoading" @click="doAiAnalyze">确认无误，开始分析</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- AI 辨证分析结果 -->
+    <el-dialog v-model="showAiResult" title="🤖 AI 辨证分析结果" width="660px" class="ai-result-dialog">
+      <div v-if="aiBasisText" class="ai-basis-block">
+        <div class="ai-basis-title">🪧 本次辨证依据</div>
+        <div class="ai-basis-body" v-html="renderMarkdown(aiBasisText)"></div>
+      </div>
+      <div v-for="w in aiResultWarnings" :key="w" class="ai-warning-row">
+        <el-alert :title="w" type="warning" :closable="false" show-icon />
+      </div>
+      <div class="ai-result-body" v-html="renderMarkdown(aiResultText)"></div>
+      <template #footer>
+        <el-button @click="showAiResult = false">仅查看，不入库</el-button>
+        <el-button type="primary" @click="saveAiIntoRecord">存入本就诊 AI 诊断库</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -165,7 +196,10 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ChatDotRound, Close } from '@element-plus/icons-vue'
 import api from '@/utils/api'
+import { renderMarkdown } from '@/utils/markdown'
 import TenAspectsPanel from '@/components/TenAspectsPanel.vue'
+
+const tenAspectsRef = ref<{ getAspectSummary: () => string; getAspectAnswers?: () => { answers: Record<string, string>; notes: Record<string, string> } } | null>(null)
 
 const route = useRoute()
 const router = useRouter()
@@ -174,6 +208,17 @@ const patientName = (route.query.name as string) || ''
 const submitting = ref(false)
 const aiLoading = ref(false)
 const currentVisitId = ref<number | null>(null)
+const showAiResult = ref(false)
+const showAiConfirm = ref(false)
+const aiResultText = ref('')
+const aiResultWarnings = ref<string[]>([])
+const aiBasisText = ref('')
+// 待分析上下文（点击「开始分析」后再真正请求；避免未核对的误请求）
+let pendingAiPayload: any = null
+let pendingAiFingerprint = ''
+// 缓存：同一组辨证输入不重复请求(避免关闭重开再次消耗 token)
+const lastAiFingerprint = ref('')
+const cachedAiResult = ref<{ analysis: string; warnings: string[]; basis: string } | null>(null)
 
 // 受控词条选项：从字典 API 动态加载
 interface DictTerm {
@@ -219,6 +264,7 @@ const form = ref({
   tcm_disease: '',
   tcm_syndrome: '',
   treatment_method: '',
+  ai_analysis: '',
   doctor_notes: '',
   // 受控词条关联 id (选择字典词条时自动填充)
   tongue_body_term_id: null as number | null,
@@ -266,30 +312,105 @@ async function aiAssist() {
     ElMessage.warning('请先填写主诉')
     return
   }
-  aiLoading.value = true
-  try {
-    const payload: any = {
-      chief_complaint: form.value.chief_complaint,
-      observation: form.value.observation,
-      auscultation: form.value.auscultation,
-      inquiry: form.value.inquiry,
-      palpation: form.value.palpation,
-      tongue_body: form.value.tongue_body,
-      tongue_coat: form.value.tongue_coat,
-      pulse: form.value.pulse.join('、'),
-    }
-    // 附加图片
-    if (visitImages.value.tongue) payload.tongue_image = visitImages.value.tongue
-    if (visitImages.value.face) payload.face_image = visitImages.value.face
-    if (visitImages.value.lab.length) payload.lab_report_images = visitImages.value.lab
+  // 组装当前录入的信息与输入指纹
+  const aspects = tenAspectsRef.value?.getAspectSummary() || ''
+  const tenAns = tenAspectsRef.value?.getAspectAnswers?.()
 
-    const res = await api.post('/diagnosis/analyze', payload) as any
+  const basisLines: string[] = []
+  basisLines.push(`主诉：${form.value.chief_complaint}`)
+  const fourDiag: [string, string][] = [
+    ['望诊', form.value.observation],
+    ['闻诊', form.value.auscultation],
+    ['问诊', form.value.inquiry],
+    ['切诊', form.value.palpation],
+    ['舌质', form.value.tongue_body],
+    ['舌苔', form.value.tongue_coat],
+    ['脉象', form.value.pulse.join('、')],
+  ]
+  for (const [k, v] of fourDiag) if (v) basisLines.push(`${k}：${v}`)
+  if (aspects) basisLines.push('—— 问诊十问 ——\n' + aspects)
+
+  const fingerprint = JSON.stringify({
+    complaint: form.value.chief_complaint,
+    observation: form.value.observation,
+    inquiry: form.value.inquiry,
+    palpation: form.value.palpation,
+    tongue_body: form.value.tongue_body,
+    tongue_coat: form.value.tongue_coat,
+    pulse: form.value.pulse.join('、'),
+    aspects,
+  })
+
+  // 缓存命中：同一输入直接回显结果，不重复请求(零 token)
+  if (cachedAiResult.value && fingerprint === lastAiFingerprint.value) {
+    aiResultText.value = cachedAiResult.value.analysis
+    aiResultWarnings.value = cachedAiResult.value.warnings
+    aiBasisText.value = cachedAiResult.value.basis
+    showAiResult.value = true
+    ElMessage.info('沿用上次辨证结果（未重新请求，节省 token）')
+    return
+  }
+
+  // 未命中缓存：先展示当前收集的信息供核对，确认后再真正请求
+  aiBasisText.value = basisLines.join('\n')
+  pendingAiFingerprint = fingerprint
+  pendingAiPayload = {
+    chief_complaint: form.value.chief_complaint,
+    observation: form.value.observation,
+    auscultation: form.value.auscultation,
+    inquiry: form.value.inquiry,
+    palpation: form.value.palpation,
+    tongue_body: form.value.tongue_body,
+    tongue_coat: form.value.tongue_coat,
+    pulse: form.value.pulse.join('、'),
+    patient_gender: '',
+    is_pregnant: false,
+  }
+  if (aspects) pendingAiPayload.ten_aspects = aspects
+  if (tenAns && Object.keys(tenAns.answers || {}).length) pendingAiPayload.ten_answers = tenAns
+  if (visitImages.value.tongue) pendingAiPayload.tongue_image = visitImages.value.tongue
+  if (visitImages.value.face) pendingAiPayload.face_image = visitImages.value.face
+  if (visitImages.value.lab.length) pendingAiPayload.lab_report_images = visitImages.value.lab
+
+  showAiConfirm.value = true
+}
+
+async function doAiAnalyze() {
+  if (!pendingAiPayload) return
+  aiLoading.value = true
+  showAiConfirm.value = false
+  try {
+    const res = await api.post('/diagnosis/analyze', pendingAiPayload) as any
     if (res.tcm_disease) form.value.tcm_disease = res.tcm_disease
     if (res.tcm_syndrome) form.value.tcm_syndrome = res.tcm_syndrome
     if (res.treatment_method) form.value.treatment_method = res.treatment_method
-    ElMessage.success('AI辨证建议已填入')
+    aiResultText.value = res.syndrome_analysis || ''
+    aiResultWarnings.value = res.safety_warnings || []
+    lastAiFingerprint.value = pendingAiFingerprint
+    cachedAiResult.value = { analysis: aiResultText.value, warnings: [...aiResultWarnings.value], basis: aiBasisText.value }
+    showAiResult.value = true
+    ElMessage.success('AI辨证建议已生成')
   } catch {}
   aiLoading.value = false
+}
+
+function saveAiIntoRecord() {
+  const basis = aiBasisText.value ? `【本次辨证依据】\n${aiBasisText.value}\n\n` : ''
+  const warnings = aiResultWarnings.value.length ? `\n【注意事项】\n${aiResultWarnings.value.join('\n')}\n` : ''
+  form.value.ai_analysis = `${basis}【AI 辨证分析】\n${aiResultText.value}${warnings}`
+  showAiResult.value = false
+  ElMessage.success('已存入本就诊 AI 诊断库，保存就诊记录后将一并落库')
+}
+
+function renderMarkdown(text: string) {
+  return text
+    ? text
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/\n/g, '<br>')
+    : ''
 }
 
 async function submitVisit() {
@@ -388,6 +509,45 @@ async function submitVisit() {
   border-radius: 8px;
 }
 .visit-saved-hint .hint-title { font-size: 13px; color: #67c23a; }
+
+/* AI 辨证分析结果弹窗 */
+.ai-result-dialog :deep(.el-dialog__body),
+.ai-basis-dialog :deep(.el-dialog__body) {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.ai-warning-row { margin-bottom: 8px; }
+.ai-basis-block {
+  border: 1px dashed #d9c9a3;
+  background: #fffbf0;
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+.ai-basis-title {
+  font-weight: 600;
+  color: #8B4513;
+  margin-bottom: 6px;
+}
+.ai-basis-body {
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--el-text-color-regular);
+  white-space: normal;
+}
+.ai-result-body {
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--el-text-color-primary);
+  white-space: normal;
+}
+.ai-result-body strong { color: #8B4513; }
+.ai-result-body code {
+  background: #f5f0eb;
+  padding: 0 4px;
+  border-radius: 4px;
+  font-size: 13px;
+}
 
 /* 移动端适配 */
 @media (max-width: 767px) {

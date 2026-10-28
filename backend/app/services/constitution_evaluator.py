@@ -123,6 +123,23 @@ MERIDIAN_SUGGESTIONS = {
     "厥阴": "厥阴为阴阳交接，寒热错杂，宜调其枢机、燮理阴阳，乌梅丸类方为要。",
 }
 
+# 六经并列时的取舍优先级（慢性虚损更常见的经排前，避免被 dict 顺序主导）
+MERIDIAN_TIE_PRIORITY = ["少阴", "太阴", "厥阴", "阳明", "太阳", "少阳"]
+
+# 各经可承载的偏性后缀（用于主标签，后缀必须与本经相符，避免跨经硬拼）
+MERIDIAN_SUFFIX = {
+    "太阳": ["表阳", "心阳"],
+    "阳明": ["胃热", "热", "阴虚"],
+    "少阳": [],
+    "太阴": ["脾虚", "痰饮", "寒", "阳虚"],
+    "少阴": ["肾阳", "心阳", "阳虚", "寒"],
+    "厥阴": ["阴阳分格", "阳不入阴", "肝", "血虚", "热", "寒"],
+}
+
+# 寒热虚实对立调和：同为显著时提示寒热错杂，不再让两者简单累加成单一热/寒
+COLD_KEYS = {"寒"}
+HOT_KEYS = {"热", "胃热"}
+
 # 寒热/虚实的自然语言标签
 LABELS = {
     "寒": "里寒", "热": "里热", "阳虚": "阳气不足", "阴虚": "阴液不足", "表阳": "表阳不固",
@@ -174,23 +191,37 @@ def evaluate_constitution(answers: dict, notes: dict | None = None) -> dict:
         if extra_note:
             findings.append(f"《{q['title']}》 补充：{extra_note}")
 
-    # 主归经
-    top_meridian = max(meridians, key=meridians.get) if meridians else None
+    # 寒热对立调和：寒/热同为显著时，不累加为单一寒或热，而是提示寒热错杂
+    if cold_points(dims) >= 1 and hot_points(dims) >= 1:
+        findings.append("《寒热》 寒热之象并见，须防寒热错杂之证。")
 
-    # 主寒热标签：取累计点数最高的偏性关键词
-    ranked = sorted(dims.items(), key=lambda x: -x[1])
+    # ── 六经主证（并列择优 + 合病识别）──────────────────
+    # primary_meridians：命中数 == 最高值的所有经，按优先级排序（主经在前）
+    if meridians:
+        max_c = max(meridians.values())
+        primary_meridians = sorted(
+            (m for m, c in meridians.items() if c == max_c),
+            key=lambda m: (MERIDIAN_TIE_PRIORITY.index(m) if m in MERIDIAN_TIE_PRIORITY else 99),
+        )
+    else:
+        primary_meridians = []
 
-    # 生成主标签
-    primary_type = _compose_primary(dims, top_meridian)
+    # 生成主标签（支持合病）
+    primary_type = _compose_primary(dims, primary_meridians)
 
-    # 倾向：其他命中 >0 的六经
-    secondary_types = [m for m, c in meridians.items() if m != top_meridian and c >= 1]
+    # 倾向：主经之外命中 >0 的六经（含并列次选经）
+    secondary_types = [m for m, c in sorted(meridians.items(), key=lambda x: -x[1]) if m not in primary_meridians and c >= 1]
 
     # 六经分(供前端条块展示)
     scores = {m: meridians.get(m, 0) for m in ["太阳", "阳明", "少阳", "太阴", "少阴", "厥阴"]}
 
-    suggestion = MERIDIAN_SUGGESTIONS.get(top_meridian, "") if top_meridian else "四肢五官和缓，阴阳调平，未见明显偏颇。"
+    # 方域提示：合病时拼接各经思路，主经在前
+    if primary_meridians:
+        suggestion = " · ".join(MERIDIAN_SUGGESTIONS[m] for m in primary_meridians)
+    else:
+        suggestion = "四肢五官和缓，阴阳调平，未见明显偏颇。"
 
+    ranked = sorted(dims.items(), key=lambda x: -x[1])
     detail = {
         "dims": dict(dims),
         "labels": [LABELS.get(k, k) for k, _ in ranked if k in LABELS],
@@ -199,6 +230,7 @@ def evaluate_constitution(answers: dict, notes: dict | None = None) -> dict:
 
     return {
         "primary_type": primary_type,
+        "primary_meridians": list(primary_meridians),
         "scores": scores,
         "secondary_types": secondary_types,
         "findings": findings,
@@ -207,18 +239,39 @@ def evaluate_constitution(answers: dict, notes: dict | None = None) -> dict:
     }
 
 
-def _compose_primary(dims: dict[str, int], top_meridian: str | None) -> str:
-    """组合主标签：如“少阴 里寒”、“阳明 胃家热”。"""
-    ranked = sorted(dims.items(), key=lambda x: -x[1])
-    if not ranked:
+def _compose_primary(dims: dict[str, int], primary_meridians: list[str]) -> str:
+    """组合主标签，如“少阴·肾阳亏虚”、“少阴+太阴 合病”。
+
+    后缀必须与本经相符：只在 primary_meridians 对应的可承载后缀中择优，
+    避免把少阴的“肾阳”硬拼到纯太阴主证上。
+    """
+    if not primary_meridians:
         return "平和(无明显偏颇)"
-    # 挑选最显著的一个寒热/阴阳关键词作为后缀
+
+    # 本经可承载的后缀集合
+    allowed = set()
+    for m in primary_meridians:
+        allowed.update(MERIDIAN_SUFFIX.get(m, []))
+
     suffix_names = {"寒": "里寒", "热": "里热", "阳虚": "阳气虚", "阴虚": "阴液亏",
                     "表阳": "表虚不固", "心阳": "心阳不足", "肾阳": "肾阳亏虚", "脾虚": "脾虚",
                     "胃热": "胃家热", "痰饮": "痰饮", "血虚": "血虚", "阴阳分格": "阴阳分格",
                     "阳不入阴": "阳不入阴"}
-    suffix = next((suffix_names[k] for k, _ in ranked if k in suffix_names), "")
-    prefix = top_meridian or "阴阳"
+
+    ranked = sorted(dims.items(), key=lambda x: -x[1])
+    suffix = next((suffix_names[k] for k, _ in ranked if k in allowed and k in suffix_names), "")
+
+    head = "+".join(primary_meridians) if len(primary_meridians) > 1 else primary_meridians[0]
     if suffix:
-        return f"{prefix}·{suffix}"
-    return prefix
+        return f"{head}·{suffix}"
+    return head
+
+
+def cold_points(dims: dict[str, int]) -> int:
+    """寒象总点数（用于寒热对调和判断）"""
+    return sum(v for k, v in dims.items() if k in COLD_KEYS)
+
+
+def hot_points(dims: dict[str, int]) -> int:
+    """热象总点数（用于寒热对调和判断）"""
+    return sum(v for k, v in dims.items() if k in HOT_KEYS)

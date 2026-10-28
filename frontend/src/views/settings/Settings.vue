@@ -25,7 +25,7 @@
           <template #header><span>🤖 AI 配置</span></template>
           <el-form label-width="100px">
             <el-form-item label="API Key">
-              <el-input v-model="deepseekKey" type="password" show-password :placeholder="hasKey ? '已配置，输入新值可替换' : '输入 API Key'" />
+              <el-input v-model="deepseekKey" type="password" show-password autocomplete="new-password" :placeholder="hasKey ? '已配置，输入新值可替换' : '输入 API Key'" />
             </el-form-item>
             <el-form-item label="对话模型">
               <el-select v-model="deepseekModel" style="width:100%">
@@ -50,7 +50,7 @@
               <el-input v-model="visionBaseUrl" placeholder="如 https://api.siliconflow.cn/v1" />
             </el-form-item>
             <el-form-item label="Vision Key">
-              <el-input v-model="visionKey" type="password" show-password :placeholder="hasVisionKey ? '已配置，输入新值可替换' : '留空则复用上方 API Key'" />
+              <el-input v-model="visionKey" type="password" show-password autocomplete="new-password" :placeholder="hasVisionKey ? '已配置，输入新值可替换' : '留空则复用上方 API Key'" />
             </el-form-item>
             <el-form-item>
               <el-tag v-if="visionConfigured" type="success" size="small">✅ 图片识别已启用</el-tag>
@@ -170,6 +170,9 @@ onMounted(async () => {
       hasKey.value = true
       connectionStatus.value = { type: 'success', text: '已配置' }
     }
+    // 输入框不预填 key，仅作「已配置」占位用；杜绝浏览器自动填充的残留旧值被提交覆盖
+    deepseekKey.value = ''
+    visionKey.value = ''
     visionModel.value = res.deepseek_vision_model || ''
     visionBaseUrl.value = res.deepseek_vision_base_url || ''
     hasVisionKey.value = res.vision_key_configured || false
@@ -219,6 +222,9 @@ async function saveConfig() {
     await api.put('/config', body)
     visionConfigured.value = !!visionModel.value
     hasVisionKey.value = !!visionKey.value || hasVisionKey.value
+    // 保存成功后清空 key 输入框，避免残留值下次误提交
+    if (deepseekKey.value) deepseekKey.value = ''
+    if (visionKey.value) visionKey.value = ''
     ElMessage.success('配置已保存')
     connectionStatus.value = { type: 'success', text: '配置已保存' }
   } catch {}
@@ -234,18 +240,23 @@ async function testConnection() {
   connectionStatus.value = { type: 'info', text: '测试中...' }
 
   try {
-    // 先保存配置
-    await api.put('/config', {
-      deepseek_api_key: deepseekKey.value,
+    // 先保存配置：仅当用户确实输入了新 key 才提交（否则易把残留旧值误写覆盖真实 key）
+    const body: any = {
       deepseek_model: deepseekModel.value,
       deepseek_base_url: deepseekBaseUrl.value,
-    })
+    }
+    if (deepseekKey.value) {
+      body.deepseek_api_key = deepseekKey.value
+    }
+    await api.put('/config', body)
 
     // 发送简单消息测试
     const res = await api.post('/diagnosis/chat', { message: '你好' }) as any
     if (res.reply && !res.reply.includes('未配置') && !res.reply.includes('失败')) {
       connectionStatus.value = { type: 'success', text: '✅ 连接成功' }
       ElMessage.success('DeepSeek API 连接成功')
+      // 测试成功即代表 key 有效，清空输入框，避免残留旧值下次被误提交覆盖
+      deepseekKey.value = ''
     } else {
       connectionStatus.value = { type: 'danger', text: '❌ 连接失败' }
     }

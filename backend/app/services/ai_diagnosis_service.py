@@ -164,6 +164,8 @@ class DiagnosisService:
         chief_complaint: str | None = None,
         patient_gender: str | None = None,
         is_pregnant: bool | None = None,
+        ten_aspects: str | None = None,
+        ten_answers: dict | None = None,
         tongue_image: str | None = None,
         face_image: str | None = None,
         lab_report_images: list[str] | None = None,
@@ -171,10 +173,18 @@ class DiagnosisService:
     ) -> dict:
         """四诊信息 → 辨证分析（支持图片）"""
         if not settings.deepseek_api_key:
-            return {
-                "syndrome_analysis": "⚠️ DeepSeek API Key 未配置",
-                "safety_warnings": ["请在系统设置中配置 DeepSeek API Key"],
-            }
+            return self._rule_based_analyze(
+                chief_complaint=chief_complaint,
+                observation=observation,
+                auscultation=auscultation,
+                inquiry=inquiry,
+                palpation=palpation,
+                tongue_body=tongue_body,
+                tongue_coat=tongue_coat,
+                pulse=pulse,
+                ten_aspects=ten_aspects,
+                ten_answers=ten_answers,
+            )
 
         # 构建四诊摘要
         four_diag = []
@@ -192,6 +202,8 @@ class DiagnosisService:
             four_diag.append(f"【舌象】舌质{tongue_body or '未记录'}，舌苔{tongue_coat or '未记录'}")
         if pulse:
             four_diag.append(f"【脉象】{pulse}")
+        if ten_aspects:
+            four_diag.append(f"【问诊十问】\n{ten_aspects}")
 
         patient_info = ""
         if patient_gender:
@@ -238,14 +250,114 @@ class DiagnosisService:
         reply = await self._call_deepseek(messages, use_vision=has_images)
         safety_warnings = self._check_safety_in_reply(reply, db)
 
+        # 从分析文本中解析出病名/证型/治法，供就诊表单自动填入
+        structured = self._parse_structured(reply)
+
         return {
             "syndrome_analysis": reply,
-            "tcm_disease": None,
-            "tcm_syndrome": None,
-            "treatment_method": None,
+            "tcm_disease": structured.get("tcm_disease"),
+            "tcm_syndrome": structured.get("tcm_syndrome"),
+            "treatment_method": structured.get("treatment_method"),
             "recommended_formulas": [],
             "safety_warnings": safety_warnings,
             "references": [],
+        }
+
+    def _rule_based_analyze(
+        self,
+        chief_complaint: str | None = None,
+        observation: str | None = None,
+        auscultation: str | None = None,
+        inquiry: str | None = None,
+        palpation: str | None = None,
+        tongue_body: str | None = None,
+        tongue_coat: str | None = None,
+        pulse: str | None = None,
+        ten_aspects: str | None = None,
+        ten_answers: dict | None = None,
+    ) -> dict:
+        """未配置 API Key 时的降级辨证：基于「问诊十问」规则引擎 + 四诊文本，生成可回填的真实辨证结果（零成本、即时）"""
+        from app.services.constitution_evaluator import evaluate_constitution
+
+        answers = (ten_answers or {}).get("answers") or {}
+        notes = (ten_answers or {}).get("notes") or {}
+        rule = evaluate_constitution(answers, notes)
+
+        lines = []
+        if chief_complaint:
+            lines.append(f"【主诉】{chief_complaint}")
+        if observation:
+            lines.append(f"【望诊】{observation}")
+        if auscultation:
+            lines.append(f"【闻诊】{auscultation}")
+        if inquiry:
+            lines.append(f"【问诊】{inquiry}")
+        if palpation:
+            lines.append(f"【切诊】{palpation}")
+        if tongue_body or tongue_coat:
+            lines.append(f"【舌象】舌质{tongue_body or '未记录'}，舌苔{tongue_coat or '未记录'}")
+        if pulse:
+            lines.append(f"【脉象】{pulse}")
+        had_ten_answers = bool(answers)
+        if ten_aspects:
+            lines.append(f"【问诊十问】\n{ten_aspects}")
+
+        parts = []
+        header = "本辨证基于「经方家问诊十问」规则推理引擎即时得出（未调用云 API）。"
+        if had_ten_answers:
+            parts.append(f"{header}\n")
+            parts.append(f"主归偏性：{rule['primary_type']}")
+            if rule.get("secondary_types"):
+                parts.append("倾向：" + "、".join(rule["secondary_types"]))
+            if rule.get("findings"):
+                parts.append("\n判据解析：\n" + "\n".join(f"- {f}" for f in rule["findings"]))
+            if rule.get("suggestion"):
+                parts.append("\n方域提示：" + rule["suggestion"])
+            parts.append("\n提示：以上为规则推理初判，供参考；若需更深入的自然语言辨证，请在系统设置中配置 DeepSeek API Key（作为增强）。")
+        else:
+            header = "尚未填写「问诊十问」，暂无法进行准确辨证。请先在就诊页右侧完成问诊十问逐项回答，即可获得基于倪海厦判据的即时辨证结果；配置 DeepSeek API Key 后亦可用 AI 综合分析。"
+            parts.append(header)
+
+        analysis = "\n".join(parts)
+
+        # 结构化回填：主证作为证型；治法从方域提示推导；病名缺省由主诉推断
+        tcm_syndrome = rule["primary_type"] if had_ten_answers else None
+        tcm_disease = None
+        treatment_method = None
+        if had_ten_answers:
+            tcm_disease = _infer_disease_from_complaint(chief_complaint)
+            treatment_method = _infer_method_from_meridian(rule.get("primary_meridians") or [])
+
+        return {
+            "syndrome_analysis": analysis,
+            "tcm_disease": tcm_disease,
+            "tcm_syndrome": tcm_syndrome,
+            "treatment_method": treatment_method,
+            "recommended_formulas": [],
+            "safety_warnings": ["当前未配置 API Key，此为本地规则辨证结果；建议核对后使用。"],
+            "references": [],
+        }
+
+    def _parse_structured(self, reply: str) -> dict:
+        """从四诊分析文本中启发式提取中医病名/证型/治法，供表单结构化回填"""
+        import re
+
+        def _pick(disease: bool, syndrome: bool, method: bool):
+            label = "中医病名" if disease else "证型" if syndrome else "治法"
+            m = re.search(re.escape(label) + r"\s*[：:]\s*([^\n]+)", reply)
+            if not m:
+                return None
+            val = m.group(1).strip().strip("，。、；;,:： ")
+            # 去掉开头编号数字
+            val = re.sub(r"^\d+[\.、)]\s*", "", val).strip()
+            if not val or len(val) > 60:
+                return None
+            return val
+
+        return {
+            "tcm_disease": _pick(True, False, False),
+            "tcm_syndrome": _pick(False, True, False),
+            "treatment_method": _pick(False, False, True),
         }
 
     async def analyze_stream(
@@ -260,6 +372,8 @@ class DiagnosisService:
         chief_complaint: str | None = None,
         patient_gender: str | None = None,
         is_pregnant: bool | None = None,
+        ten_aspects: str | None = None,
+        ten_answers: dict | None = None,
         tongue_image: str | None = None,
         face_image: str | None = None,
         lab_report_images: list[str] | None = None,
@@ -267,7 +381,22 @@ class DiagnosisService:
     ) -> AsyncGenerator[str, None]:
         """流式四诊辨证分析"""
         if not settings.deepseek_api_key:
-            yield f"data: {json.dumps({'type': 'error', 'content': '⚠️ DeepSeek API Key 未配置'}, ensure_ascii=False)}\n\n"
+            fallback = self._rule_based_analyze(
+                chief_complaint=chief_complaint,
+                observation=observation,
+                auscultation=auscultation,
+                inquiry=inquiry,
+                palpation=palpation,
+                tongue_body=tongue_body,
+                tongue_coat=tongue_coat,
+                pulse=pulse,
+                ten_aspects=ten_aspects,
+                ten_answers=ten_answers,
+            )
+            text = (fallback.get("syndrome_analysis") or "") + "\n"
+            for line in text.split("\n"):
+                if line:
+                    yield f"data: {json.dumps({'type': 'content', 'content': line + '\n'}, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
             return
 
@@ -286,6 +415,8 @@ class DiagnosisService:
             four_diag.append(f"【舌象】舌质{tongue_body or '未记录'}，舌苔{tongue_coat or '未记录'}")
         if pulse:
             four_diag.append(f"【脉象】{pulse}")
+        if ten_aspects:
+            four_diag.append(f"【问诊十问】\n{ten_aspects}")
 
         patient_info = ""
         if patient_gender:
@@ -397,7 +528,7 @@ class DiagnosisService:
             api_key = settings.deepseek_api_key
 
         try:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=30.0)) as client:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=30.0), trust_env=False) as client:
                 response = await client.post(
                     f"{base_url}/v1/chat/completions",
                     headers={
@@ -445,7 +576,7 @@ class DiagnosisService:
             api_key = settings.deepseek_api_key
 
         try:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=30.0)) as client:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=30.0), trust_env=False) as client:
                 async with client.stream(
                     "POST",
                     f"{base_url}/v1/chat/completions",
@@ -610,3 +741,48 @@ class DiagnosisService:
 
 # 全局服务实例
 diagnosis_service = DiagnosisService()
+
+
+# 主证→治法 推导辅助（本地规则辨证用）
+_MERIDIAN_METHODS = {
+    "太阳": "发汗解表、调和营卫",
+    "阳明": "清泻阳明、通下府实",
+    "少阳": "和解枢机、疏利少阳气机",
+    "太阴": "温中健脾、祛湿化饮",
+    "少阴": "温补心肾、回阳扶正",
+    "厥阴": "燮理寒热、调其枢机",
+}
+
+
+def _infer_method_from_meridian(primary_meridians: list[str]) -> str | None:
+    """由六经主证推导治法（多个经拼接），缺省返回 None"""
+    if not primary_meridians:
+        return None
+    methods = [_MERIDIAN_METHODS[m] for m in primary_meridians if m in _MERIDIAN_METHODS]
+    return "；".join(methods) if methods else None
+
+
+def _infer_disease_from_complaint(chief_complaint: str | None) -> str | None:
+    """由主诉关键词粗判中医病名（仅作本地规则辨证的回填，宁缺毋滥）"""
+    if not chief_complaint:
+        return None
+    text = chief_complaint
+    for kw, disease in [
+        ("不寐", "不寐"),
+        ("失眠", "不寐"),
+        ("睡", "不寐"),
+        ("头痛", "头痛"),
+        ("咳", "咳嗽"),
+        ("喘", "喘证"),
+        ("腹痛", "腹痛"),
+        ("胃痛", "胃脘痛"),
+        ("腰痛", "腰痛"),
+        ("月", "月经不调"),
+        ("遗精", "遗精"),
+        ("乏力", "虚劳"),
+        ("盗汗", "自汗/盗汗"),
+        ("畏寒", "虚劳"),
+    ]:
+        if kw in text:
+            return disease
+    return None

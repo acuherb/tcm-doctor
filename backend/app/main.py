@@ -101,6 +101,13 @@ def _run_light_migrations() -> None:
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE herbs ADD COLUMN price NUMERIC(8,2)"))
 
+    # visits.ai_analysis（AI 辅助辨证完整分析，供病历参考）
+    if "visits" in inspector.get_table_names():
+        vcols = {c["name"] for c in inspector.get_columns("visits")}
+        if "ai_analysis" not in vcols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE visits ADD COLUMN ai_analysis TEXT"))
+
     # 其它表的新增列可在下方照此扩展
 
 

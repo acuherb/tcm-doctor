@@ -24,6 +24,8 @@ class DiagnosisAnalyzeRequest(BaseModel):
     chief_complaint: str | None = Field(None, description="主诉")
     patient_gender: str | None = Field(None, description="患者性别")
     is_pregnant: bool | None = Field(None, description="是否孕妇")
+    ten_aspects: str | None = Field(None, description="问诊十问摘要(逐项回答)")
+    ten_answers: dict | None = Field(None, description="问诊十问结构化答案(选项key→选项key，notes为自填)，未配置API Key时用于本地规则辨证")
     tongue_image: str | None = Field(None, description="舌象图片base64 data URL")
     face_image: str | None = Field(None, description="面色图片base64 data URL")
     lab_report_images: list[str] | None = Field(None, description="化验单/影像报告图片列表")

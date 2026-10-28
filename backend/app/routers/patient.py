@@ -185,6 +185,7 @@ def get_constitution(patient_id: int, db: Session = Depends(get_db)):
         # 新格式：完整推理结果已存于 constitution_score
         return ConstitutionResult(
             primary_type=stored.get("primary_type") or patient.constitution_type,
+            primary_meridians=stored.get("primary_meridians") or [],
             scores=stored.get("scores") or {},
             secondary_types=stored.get("secondary_types") or [],
             findings=stored.get("findings") or [],
