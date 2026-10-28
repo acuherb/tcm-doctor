@@ -214,6 +214,11 @@ class DiagnosisService:
         user_message = f"请根据以下四诊信息进行辨证分析：\n\n{patient_info}\n" + "\n".join(four_diag)
         user_message += "\n\n请给出：1.病机分析 2.中医病名 3.证型 4.治法 5.推荐方剂及加减 6.调护建议"
         user_message += (
+            "\n\n排版要求：对比类内容（如线索/分析/六经指向）请使用 Markdown 表格语法"
+            "（每行以 | 分隔列，并在表头下一行写 |---|---|），不要使用制表符或纯空格分隔，"
+            "也不要使用一级/二级大标题，统一用三级及以下小标题。"
+        )
+        user_message += (
             "\n\n请在回答末尾额外输出一个 ```json 代码块，键名为 recommended_formulas，"
             "内容为方剂数组；每个元素包含：name(方名)、composition(药物与剂量，示例 "
             "'桂枝9g 芍药9g 生姜9g 大枣4枚 炙甘草6g')、modification(随证加减)、indication(方解/适应症)。"
@@ -473,6 +478,11 @@ class DiagnosisService:
 
         user_message = f"请根据以下四诊信息进行辨证分析：\n\n{patient_info}\n" + "\n".join(four_diag)
         user_message += "\n\n请给出：1.病机分析 2.中医病名 3.证型 4.治法 5.推荐方剂及加减 6.调护建议"
+        user_message += (
+            "\n\n排版要求：对比类内容（如线索/分析/六经指向）请使用 Markdown 表格语法"
+            "（每行以 | 分隔列，并在表头下一行写 |---|---|），不要使用制表符或纯空格分隔，"
+            "也不要使用一级/二级大标题，统一用三级及以下小标题。"
+        )
 
         context = ""
         search_query = chief_complaint or " ".join(filter(None, [observation, inquiry, pulse]))

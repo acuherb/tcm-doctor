@@ -440,10 +440,11 @@ function fmtTime(iso?: string): string {
   border: 1px dashed #d9c9a3;
   border-radius: 6px;
   padding: 8px 10px;
-  :deep(h1), :deep(h2), :deep(h3), :deep(h4) { margin: 10px 0 5px; color: #8B4513; }
-  :deep(h1) { font-size: 16px; }
-  :deep(h2) { font-size: 15px; }
-  :deep(h3) { font-size: 14px; }
+  :deep(h1), :deep(h2), :deep(h3), :deep(h4) { margin: 8px 0 4px; color: #8B4513; line-height: 1.4; }
+  :deep(h1) { font-size: 14px; }
+  :deep(h2) { font-size: 13.5px; }
+  :deep(h3) { font-size: 13px; }
+  :deep(h4) { font-size: 12.5px; }
   :deep(p) { margin: 5px 0; overflow-wrap: anywhere; }
   :deep(ul), :deep(ol) { margin: 5px 0; padding-left: 20px; }
   :deep(li) { margin: 2px 0; overflow-wrap: anywhere; }
