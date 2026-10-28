@@ -2,7 +2,7 @@
   <div class="statistics-page">
     <el-card shadow="hover">
       <template #header>
-        <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
           <span>📊 统计报表</span>
           <el-radio-group v-model="period" size="small" @change="loadAll">
             <el-radio-button :value="7">近7天</el-radio-button>
@@ -41,10 +41,10 @@
         <!-- 处方统计 -->
         <el-tab-pane label="处方统计" name="prescriptions">
           <el-row :gutter="20">
-            <el-col :span="12">
+            <el-col :xs="24" :span="12">
               <div ref="prescriptionStatusRef" style="height:300px;"></div>
             </el-col>
-            <el-col :span="12">
+            <el-col :xs="24" :span="12">
               <div ref="formulaChartRef" style="height:300px;"></div>
             </el-col>
           </el-row>

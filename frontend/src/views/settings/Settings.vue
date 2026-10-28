@@ -1,7 +1,7 @@
 <template>
   <div class="settings-page">
     <el-row :gutter="20">
-      <el-col :span="12">
+      <el-col :xs="24" :span="12">
         <el-card shadow="hover">
           <template #header><span>🏥 诊所信息</span></template>
           <el-form label-width="100px">
@@ -20,7 +20,7 @@
         </el-card>
       </el-col>
 
-      <el-col :span="12">
+      <el-col :xs="24" :span="12">
         <el-card shadow="hover">
           <template #header><span>🤖 AI 配置</span></template>
           <el-form label-width="100px">
@@ -72,7 +72,7 @@
     </el-row>
 
     <el-row :gutter="20" style="margin-top: 20px;">
-      <el-col :span="12">
+      <el-col :xs="24" :span="12">
         <el-card shadow="hover">
           <template #header><span>💾 数据管理</span></template>
           <el-form label-width="100px">
@@ -106,7 +106,7 @@
         </el-card>
       </el-col>
 
-      <el-col :span="12">
+      <el-col :xs="24" :span="12">
         <el-card shadow="hover">
           <template #header><span>ℹ️ 系统信息</span></template>
           <el-descriptions :column="1" border>

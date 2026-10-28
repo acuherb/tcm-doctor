@@ -1,4 +1,4 @@
-"""主数据字典 ORM 模型 —— 受控词表"""
+"""数据字典 ORM 模型 —— 受控词表"""
 from datetime import datetime
 from sqlalchemy import String, Text, Boolean, Integer, JSON, DateTime
 from sqlalchemy.orm import Mapped, mapped_column

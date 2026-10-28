@@ -113,7 +113,7 @@ const routes: RouteRecordRaw[] = [
         path: 'dictionaries',
         name: 'DictionaryManage',
         component: () => import('@/views/dictionary/DictionaryManage.vue'),
-        meta: { title: '主数据字典', icon: 'Coin' },
+        meta: { title: '数据字典', icon: 'Coin' },
       },
       {
         path: 'settings',

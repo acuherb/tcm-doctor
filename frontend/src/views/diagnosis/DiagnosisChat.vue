@@ -3,7 +3,7 @@
     <div class="chat-layout">
       <!-- 侧边栏 -->
       <!-- 智能问诊对游客为只读：保留浏览对话与结果展示，隐藏发送/新建/删除/分析等写操作 -->
-      <div class="chat-sidebar">
+      <div class="chat-sidebar" :class="{ 'mobile-open': sidebarOpen }" @click="sidebarOpen = isMobile ? false : sidebarOpen">
         <div class="sidebar-header">
           <el-button v-if="editable" type="primary" size="small" @click="newConversation" style="width:100%">+ 新建对话</el-button>
         </div>
@@ -21,11 +21,15 @@
           <div v-if="!conversations.length" class="sidebar-empty">暂无对话</div>
         </div>
       </div>
+      <div v-if="isMobile && sidebarOpen" class="chat-overlay" @click="sidebarOpen = false"></div>
 
       <!-- 聊天主区域 -->
       <div class="chat-main">
         <div class="chat-header">
-          <span>🤖 智能问诊助手</span>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <el-button v-if="isMobile" class="sidebar-toggle" type="primary" text @click="sidebarOpen = true">☰</el-button>
+            <span>🤖 智能问诊助手</span>
+          </div>
           <div style="display:flex;align-items:center;gap:8px;">
             <el-tag :type="apiConfigured ? 'success' : 'danger'" size="small">
               {{ apiConfigured ? 'DeepSeek 已连接' : 'API Key 未配置' }}
@@ -96,12 +100,12 @@
           <el-input v-model="analyzeForm.chief_complaint" placeholder="如：胃脘胀痛一周" />
         </el-form-item>
         <el-row :gutter="16">
-          <el-col :span="12">
+          <el-col :xs="24" :span="12">
             <el-form-item label="望诊">
               <el-input v-model="analyzeForm.observation" type="textarea" :rows="2" placeholder="面色、神态、形体" />
             </el-form-item>
           </el-col>
-          <el-col :span="12">
+          <el-col :xs="24" :span="12">
             <el-form-item label="闻诊">
               <el-input v-model="analyzeForm.auscultation" type="textarea" :rows="2" placeholder="语声、呼吸、气味" />
             </el-form-item>
@@ -111,21 +115,21 @@
           <el-input v-model="analyzeForm.inquiry" type="textarea" :rows="3" placeholder="寒热、汗出、饮食、睡眠、二便等" />
         </el-form-item>
         <el-row :gutter="16">
-          <el-col :span="8">
+          <el-col :xs="24" :span="8">
             <el-form-item label="舌质">
               <el-select v-model="analyzeForm.tongue_body" placeholder="选择" clearable filterable>
                 <el-option v-for="t in tongueOptionsFinal" :key="t" :label="t" :value="t" />
               </el-select>
             </el-form-item>
           </el-col>
-          <el-col :span="8">
+          <el-col :xs="24" :span="8">
             <el-form-item label="舌苔">
               <el-select v-model="analyzeForm.tongue_coat" placeholder="选择" clearable filterable>
                 <el-option v-for="t in coatOptionsFinal" :key="t" :label="t" :value="t" />
               </el-select>
             </el-form-item>
           </el-col>
-          <el-col :span="8">
+          <el-col :xs="24" :span="8">
             <el-form-item label="脉象">
               <el-select v-model="analyzeForm.pulse" placeholder="选择" clearable filterable>
                 <el-option v-for="p in pulseOptionsFinal" :key="p" :label="p" :value="p" />
@@ -134,7 +138,7 @@
           </el-col>
         </el-row>
         <el-row :gutter="16">
-          <el-col :span="8">
+          <el-col :xs="24" :span="8">
             <el-form-item label="舌象照片">
               <div class="analyze-upload">
                 <el-button size="small" @click="triggerAnalyzeImage('tongue')">📷 上传</el-button>
@@ -144,7 +148,7 @@
               </div>
             </el-form-item>
           </el-col>
-          <el-col :span="8">
+          <el-col :xs="24" :span="8">
             <el-form-item label="面色照片">
               <div class="analyze-upload">
                 <el-button size="small" @click="triggerAnalyzeImage('face')">📷 上传</el-button>
@@ -154,7 +158,7 @@
               </div>
             </el-form-item>
           </el-col>
-          <el-col :span="8">
+          <el-col :xs="24" :span="8">
             <el-form-item label="化验单">
               <div class="analyze-upload">
                 <el-button size="small" @click="triggerAnalyzeImage('lab')">📷 上传</el-button>
@@ -164,7 +168,7 @@
           </el-col>
         </el-row>
         <el-row :gutter="16">
-          <el-col :span="8">
+          <el-col :xs="24" :span="8">
             <el-form-item label="性别">
               <el-select v-model="analyzeForm.patient_gender" clearable>
                 <el-option label="男" value="男" />
@@ -172,7 +176,7 @@
               </el-select>
             </el-form-item>
           </el-col>
-          <el-col :span="8">
+          <el-col :xs="24" :span="8">
             <el-form-item label="孕妇">
               <el-switch v-model="analyzeForm.is_pregnant" />
             </el-form-item>
@@ -189,7 +193,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Close } from '@element-plus/icons-vue'
 import api from '@/utils/api'
@@ -198,6 +202,18 @@ import { useAuthStore } from '@/store/auth'
 // 游客只读：隐藏所有写操作
 const auth = useAuthStore()
 const editable = computed(() => !!auth.user?.is_admin)
+
+// ---- 移动端适配：侧边栏抽屉化 ----
+const isMobile = ref(false)
+const sidebarOpen = ref(false)
+function updateViewport() {
+  isMobile.value = window.innerWidth < 768
+}
+onMounted(() => {
+  updateViewport()
+  window.addEventListener('resize', updateViewport)
+})
+onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
 
 interface ChatMessage {
   role: 'user' | 'assistant'
@@ -525,6 +541,36 @@ function renderMarkdown(text: string) {
   border-radius: 8px;
   overflow: hidden;
   background: #fff;
+}
+
+/* ---- 移动端：侧边栏抽屉化 + 主区全宽 ---- */
+@media (max-width: 767px) {
+  .chat-layout {
+    height: calc(100vh - 140px);
+    min-height: 420px;
+  }
+  .chat-sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 240px;
+    z-index: 2100;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    border-right: 1px solid #e8e0d8;
+    box-shadow: 2px 0 12px rgba(0,0,0,0.15);
+  }
+  .chat-sidebar.mobile-open { transform: translateX(0); }
+  .chat-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 2099;
+  }
+  .chat-header { flex-wrap: wrap; }
+  .chat-header .el-tag { margin-top: 2px; }
+  .chat-input .el-button:last-child { padding: 0 14px; }
 }
 
 .chat-sidebar {

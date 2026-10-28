@@ -31,7 +31,7 @@
         </el-form-item>
       </el-form>
 
-      <el-table :data="prescriptions" stripe style="width:100%" empty-text="暂无处方记录">
+      <el-table v-if="!isMobile" :data="prescriptions" stripe style="width:100%" empty-text="暂无处方记录">
         <el-table-column prop="id" label="编号" width="70" />
         <el-table-column label="患者" width="90">
           <template #default="{ row }">{{ row.patient_name || '-' }}</template>
@@ -90,6 +90,55 @@
           </template>
         </el-table-column>
       </el-table>
+
+      <!-- 移动端卡片视图 -->
+      <div v-if="isMobile" class="rx-cards">
+        <div v-for="row in prescriptions" :key="row.id" class="rx-card">
+          <div class="card-head">
+            <span class="card-no">#{{ row.id }}</span>
+            <el-tag :type="statusType(row.status)" size="small">{{ row.status }}</el-tag>
+          </div>
+          <div class="card-patient">{{ row.patient_name || '-' }}</div>
+          <div class="card-time">{{ formatTime(row.created_at) }}</div>
+
+          <div v-if="row.formula_name || (row.items && row.items.length)" class="card-section">
+            <div class="acu-title">🌿 {{ row.formula_name || '自拟方' }}</div>
+            <div class="herb-tags">
+              <el-tag v-for="item in (row.items || [])" :key="item.id" size="small" style="margin:2px;">
+                {{ item.herb_name }} {{ item.dose }}g
+                <span v-if="item.special_method" style="color:#8B4513;">({{ item.special_method }})</span>
+              </el-tag>
+            </div>
+            <div v-if="row.preparation_method || row.doses || row.administration" class="acu-meta">
+              <span v-if="row.preparation_method">{{ row.preparation_method }}</span>
+              <span v-if="row.doses"> · {{ row.doses }}剂</span>
+              <span v-if="row.administration"> · {{ row.administration }}</span>
+            </div>
+          </div>
+
+          <div v-if="row.acupoint_formula_name || (row.acupoints && row.acupoints.length)" class="card-section">
+            <div class="acu-title">🪡 {{ row.acupoint_formula_name || '针灸方' }}</div>
+            <div class="acu-tags">
+              <el-tag v-for="a in (row.acupoints || [])" :key="a.id" size="small" type="success" style="margin:2px;">
+                {{ a.acupoint_name }}
+              </el-tag>
+            </div>
+            <div v-if="row.treatment_frequency || row.treatment_days || row.acupoint_technique" class="acu-meta">
+              <span v-if="row.acupoint_technique">{{ row.acupoint_technique }}</span>
+              <span v-if="row.treatment_frequency"> · {{ row.treatment_frequency }}</span>
+              <span v-if="row.treatment_days"> · {{ row.treatment_days }}天</span>
+            </div>
+          </div>
+
+          <div class="card-actions">
+            <el-button link type="primary" size="small" @click="viewDetail(row)">详情</el-button>
+            <el-button v-if="editable && row.status === '已开'" link type="success" size="small" @click="reviewPrescription(row)">审核</el-button>
+            <el-button v-if="editable && row.status === '已审核'" link type="warning" size="small" @click="dispensePrescription(row)">发药</el-button>
+            <el-button link type="info" size="small" @click="printPrescription(row)">打印</el-button>
+          </div>
+        </div>
+        <el-empty v-if="!prescriptions.length" description="暂无处方记录" />
+      </div>
     </el-card>
 
     <!-- 处方详情对话框 -->
@@ -237,7 +286,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Star } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
@@ -247,6 +296,15 @@ import { useAuthStore } from '@/store/auth'
 // 游客只读：隐藏所有写操作
 const auth = useAuthStore()
 const editable = computed(() => !!auth.user?.is_admin)
+
+// ---- 移动端适配 ----
+const isMobile = ref(false)
+function updateViewport() {
+  isMobile.value = window.innerWidth < 768
+}
+onMounted(updateViewport)
+onMounted(() => window.addEventListener('resize', updateViewport))
+onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
 
 const router = useRouter()
 const prescriptions = ref<any[]>([])
@@ -481,6 +539,72 @@ onMounted(async () => {
     font-size: 13px;
     line-height: 1.8;
     .print-doctor { text-align: right; margin-top: 12px; font-weight: bold; }
+  }
+}
+
+/* ---- 移动端卡片视图 ---- */
+.rx-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.rx-card {
+  background: #fff;
+  border: 1px solid #e8e0d8;
+  border-radius: 10px;
+  padding: 12px 14px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+.rx-card .card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.rx-card .card-no {
+  font-size: 15px;
+  font-weight: 600;
+  color: #8a7563;
+}
+.rx-card .card-patient {
+  font-size: 17px;
+  font-weight: 600;
+  color: #2C1810;
+}
+.rx-card .card-time {
+  font-size: 13px;
+  color: #a89a8a;
+  margin-bottom: 8px;
+}
+.rx-card .card-section {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #eee;
+}
+.rx-card .card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 2px 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #eee;
+}
+
+/* ---- 移动端：搜索/筛选改为全宽纵向堆叠 ---- */
+@media (max-width: 767px) {
+  :deep(.el-form--inline .el-form-item) {
+    display: block;
+    margin-right: 0;
+    margin-bottom: 8px;
+  }
+  :deep(.el-form--inline .el-form-item__content) {
+    display: block;
+    max-width: 100%;
+  }
+  :deep(.el-form--inline .el-input),
+  :deep(.el-form--inline .el-select) {
+    width: 100% !important;
   }
 }
 </style>

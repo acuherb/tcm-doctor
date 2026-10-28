@@ -23,7 +23,7 @@
       </el-form>
 
       <!-- 患者表格 -->
-      <el-table :data="patients" stripe style="width: 100%" @row-click="goDetail">
+      <el-table v-if="!isMobile" :data="patients" stripe style="width: 100%" @row-click="goDetail">
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="name" label="姓名" width="100" />
         <el-table-column prop="gender" label="性别" width="60" />
@@ -44,6 +44,39 @@
           </template>
         </el-table-column>
       </el-table>
+
+      <!-- 移动端卡片视图 -->
+      <div v-if="isMobile" class="pt-cards">
+        <div v-for="row in patients" :key="row.id" class="pt-card" @click="goDetail(row)">
+          <div class="card-head">
+            <span class="card-name">{{ row.name }}</span>
+            <div class="card-tags">
+              <el-tag size="small">{{ row.gender || '-' }}</el-tag>
+              <el-tag v-if="row.constitution_type" size="small" type="warning">{{ row.constitution_type }}</el-tag>
+            </div>
+          </div>
+          <div class="card-row" v-if="row.phone">
+            <span class="label">电话</span><span class="value">{{ row.phone }}</span>
+          </div>
+          <div class="card-row" v-if="row.birth_date">
+            <span class="label">出生</span><span class="value">{{ row.birth_date }}</span>
+          </div>
+          <div class="card-row">
+            <span class="label">体质</span>
+            <span class="value" v-if="row.constitution_type">{{ row.constitution_type }}</span>
+            <span class="value text-muted" v-else>未评估</span>
+          </div>
+          <div class="card-row" v-if="row.notes">
+            <span class="label">备注</span><span class="value">{{ row.notes }}</span>
+          </div>
+          <div class="card-actions">
+            <el-button link type="primary" size="small" @click.stop="goDetail(row)">详情</el-button>
+            <el-button v-if="editable" link type="primary" size="small" @click.stop="startVisit(row)">就诊</el-button>
+            <el-button v-if="editable" link type="danger" size="small" @click.stop="deletePatient(row)">删除</el-button>
+          </div>
+        </div>
+        <el-empty v-if="!patients.length" description="暂无患者" />
+      </div>
 
       <!-- 分页 -->
       <div class="pagination-wrapper">
@@ -100,7 +133,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
@@ -110,6 +143,15 @@ import { useAuthStore } from '@/store/auth'
 // 游客只读：隐藏所有写操作
 const auth = useAuthStore()
 const editable = computed(() => !!auth.user?.is_admin)
+
+// ---- 移动端适配 ----
+const isMobile = ref(false)
+function updateViewport() {
+  isMobile.value = window.innerWidth < 768
+}
+onMounted(updateViewport)
+onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
+onMounted(() => window.addEventListener('resize', updateViewport))
 
 const router = useRouter()
 const patients = ref<any[]>([])
@@ -195,5 +237,79 @@ onMounted(loadPatients)
 .text-muted {
   color: #c0c4cc;
   font-size: 13px;
+}
+
+/* ---- 移动端卡片视图 ---- */
+.pt-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.pt-card {
+  background: #fff;
+  border: 1px solid #e8e0d8;
+  border-radius: 10px;
+  padding: 12px 14px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  cursor: pointer;
+}
+.pt-card .card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.pt-card .card-name {
+  font-size: 17px;
+  font-weight: 600;
+  color: #2C1810;
+}
+.pt-card .card-tags {
+  display: flex;
+  gap: 4px;
+}
+.pt-card .card-row {
+  display: flex;
+  align-items: flex-start;
+  font-size: 14px;
+  line-height: 1.5;
+  margin-top: 4px;
+}
+.pt-card .card-row .label {
+  flex-shrink: 0;
+  width: 48px;
+  color: #8a7563;
+}
+.pt-card .card-row .value {
+  flex: 1;
+  color: #333;
+  word-break: break-all;
+}
+.pt-card .card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #eee;
+}
+
+/* ---- 移动端：搜索改为全宽 ---- */
+@media (max-width: 767px) {
+  :deep(.el-form--inline .el-form-item) {
+    display: block;
+    margin-right: 0;
+    margin-bottom: 8px;
+  }
+  :deep(.el-form--inline .el-form-item__content) {
+    display: block;
+    max-width: 100%;
+  }
+  :deep(.el-form--inline .el-input) {
+    width: 100% !important;
+  }
+  .pagination-wrapper {
+    justify-content: center;
+  }
 }
 </style>

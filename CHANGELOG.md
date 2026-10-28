@@ -1,5 +1,33 @@
 # 开发日志 CHANGELOG
 
+## 2026-10-28 — 全员移动端适配 + 药材字典补全 + 写接口权限加固
+
+### 1. 移动端适配（手机浏览友好化）
+沿用「桌面表格 / 窄屏卡片」双态切换模式（`isMobile` + `resize` 监听，<768px 判窄屏，桌面端原样保留）：
+
+- **列表类页面**（窄屏自动切卡片视图，含编辑/删除等行内操作）：
+  - 药材字典 [HerbList.vue](file:///home/debian/tcm-doctor/frontend/src/views/herb/HerbList.vue)：正名 / 异名 / 分类 / 性味 / 归经 / 剂量 / 毒性 / 功效
+  - 库存管理 [InventoryManage.vue](file:///home/debian/tcm-doctor/frontend/src/views/herb/InventoryManage.vue)：突出库存量 / 最低阈值 / 有效期（低库存标红、临期标黄）
+  - 患者列表 [PatientList.vue](file:///home/debian/tcm-doctor/frontend/src/views/patient/PatientList.vue)、就诊记录、处方列表 [PrescriptionList.vue](file:///home/debian/tcm-doctor/frontend/src/views/prescription/PrescriptionList.vue)（含药味标签 + 核价/审核/发药/打印）
+  - 针灸穴位 [AcupointList.vue](file:///home/debian/tcm-doctor/frontend/src/views/acupoint/AcupointList.vue)、医籍文库 [BookLibrary.vue](file:///home/debian/tcm-doctor/frontend/src/views/knowledge/BookLibrary.vue)（含内容预览 3 行截断）、数据字典 [DictionaryManage.vue](file:///home/debian/tcm-doctor/frontend/src/views/dictionary/DictionaryManage.vue)（按证型/舌象/脉象动态显示对应字段）
+  - 经典方库 / 针灸方库卡片网格手机单列、编辑表单控件纵向堆叠不再溢出
+- **布局类页面**（`el-col` 加响应式栅格 / 抽屉化）：
+  - 工作台 [Dashboard.vue](file:///home/debian/tcm-doctor/frontend/src/views/dashboard/Dashboard.vue)：统计卡两列、图表/卡片纵向堆叠
+  - 统计报表 [Statistics.vue](file:///home/debian/tcm-doctor/frontend/src/views/dashboard/Statistics.vue)：时间筛选可换行、处方饼图窄屏纵向堆叠
+  - 系统设置 [Settings.vue](file:///home/debian/tcm-doctor/frontend/src/views/settings/Settings.vue)：四卡纵向堆叠
+  - 智能问诊 [DiagnosisChat.vue](file:///home/debian/tcm-doctor/frontend/src/views/diagnosis/DiagnosisChat.vue)：窄屏会话列表抽屉化（汉堡按钮 + 遮罩），聊天主区全宽，四诊分析表单窄屏纵向排列
+- **全局兜底**：`styles/tcm-theme.scss` 追加窄屏媒体查询，所有 `el-dialog` / `el-message-box` / `el-drawer` 手机端自动接近全宽；导航侧边栏窄屏抽屉化（[MainLayout.vue](file:///home/debian/tcm-doctor/frontend/src/layouts/MainLayout.vue)）
+
+### 2. 药材字典补全（经方引用全收录）
+- `herbs_extended.json` 由 261 味正名 + 487 异名，经方覆盖率校验 0 风险（A 类同名异写 / B 类写法归一 / C 类完全未收录均清零）
+- `seed.py` 改为按名称幂等插入，已有药材同步异名，后端重启自动补齐
+
+### 3. 关键写接口显式权限校验（安全加固）
+- 为 prescription / herb / diagnosis / dictionary 等 7 个路由、36 个关键写接口统一显式添加 `Depends(get_current_user)`，不再仅依赖全局中间件兜底
+
+### 4. Docker 构建提速
+- Dockerfile 调整层顺序：先 `COPY requirements.txt` 再 `pip install` 后 `COPY backend/ ./`，依赖层可命中缓存，打包从 ~12 分钟降至 ~1.5 秒（依赖未变时）
+
 ## 2026-10-26 — 就诊信息聚合 + 导出权限收紧
 
 ### 1. 患者详情「就诊信息聚合」（彻底聚合方案）

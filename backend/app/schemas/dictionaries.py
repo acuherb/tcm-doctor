@@ -1,4 +1,4 @@
-"""主数据字典层 —— 中医受控词表(证型/舌象/脉象)"""
+"""数据字典层 —— 中医受控词表(证型/舌象/脉象)"""
 from datetime import datetime
 from pydantic import BaseModel, Field
 

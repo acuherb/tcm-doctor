@@ -1,4 +1,4 @@
-"""主数据字典路由 —— 受控词表 CRUD"""
+"""数据字典路由 —— 受控词表 CRUD"""
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
@@ -9,7 +9,7 @@ from app.models.user import User
 from app.routers.auth import get_current_user
 from app.schemas.dictionaries import DictTermCreate, DictTermUpdate, DictTermResponse
 
-router = APIRouter(prefix="/dictionaries", tags=["主数据字典"])
+router = APIRouter(prefix="/dictionaries", tags=["数据字典"])
 
 
 @router.get("", response_model=list[DictTermResponse], summary="词条列表")

@@ -98,3 +98,19 @@ body {
   color: #F5222D;
   font-size: 20px;
 }
+
+/* ---------- 移动端通用适配 ---------- */
+@media (max-width: 767px) {
+  /* 对话框：窄屏下贴近全宽，避免内容溢出屏幕 */
+  .el-dialog {
+    width: calc(100vw - 24px) !important;
+    margin: 8vh auto 0;
+    --el-dialog-margin-top: 8vh;
+  }
+  .el-message-box {
+    max-width: calc(100vw - 24px);
+  }
+  .el-drawer {
+    width: 80% !important;
+  }
+}

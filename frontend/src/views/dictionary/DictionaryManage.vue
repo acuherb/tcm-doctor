@@ -3,7 +3,7 @@
     <el-card shadow="hover">
       <template #header>
         <div style="display:flex;justify-content:space-between;align-items:center;">
-          <span>🗂️ 主数据字典</span>
+          <span>🗂️ 数据字典</span>
           <el-button v-if="editable" type="primary" size="small" @click="openCreate">＋ 新增词条</el-button>
         </div>
       </template>
@@ -14,7 +14,7 @@
         <el-radio-button value="pulse">脉象</el-radio-button>
       </el-radio-group>
 
-      <el-table :data="terms" border stripe>
+      <el-table v-if="!isMobile" :data="terms" border stripe>
         <el-table-column prop="name" label="词项" min-width="140" />
         <el-table-column v-if="activeType === 'syndrome'" label="六经" width="150">
           <template #default="{ row }">
@@ -40,6 +40,45 @@
           </template>
         </el-table-column>
       </el-table>
+
+      <!-- 移动端卡片视图 -->
+      <div v-if="isMobile" class="dict-cards">
+        <div v-for="row in terms" :key="row.id" class="dict-card">
+          <div class="card-head">
+            <span class="card-name">{{ row.name }}</span>
+            <el-tag :type="row.is_active ? 'success' : 'info'" size="small">{{ row.is_active ? '启用' : '停用' }}</el-tag>
+          </div>
+
+          <template v-if="activeType === 'syndrome'">
+            <div class="card-row" v-if="(row.meridian || '').split(',').filter(Boolean).length">
+              <span class="label">六经</span>
+              <div class="value">
+                <el-tag v-for="m in (row.meridian || '').split(',').filter(Boolean)" :key="m" size="small" type="info" effect="plain" style="margin-right:4px">{{ m }}</el-tag>
+              </div>
+            </div>
+            <div class="card-row" v-if="row.category">
+              <span class="label">分类</span><span class="value">{{ row.category }}</span>
+            </div>
+          </template>
+
+          <div class="card-row" v-if="activeType === 'tongue' && row.aspect">
+            <span class="label">维度</span><span class="value">{{ row.aspect }}</span>
+          </div>
+          <div class="card-row" v-if="activeType === 'pulse' && row.pulse_type">
+            <span class="label">脉类</span><span class="value">{{ row.pulse_type }}</span>
+          </div>
+
+          <div class="card-row" v-if="row.description">
+            <span class="label">释义</span><span class="value">{{ row.description }}</span>
+          </div>
+
+          <div class="card-actions" v-if="editable">
+            <el-button size="small" @click="openEdit(row)">编辑</el-button>
+            <el-button size="small" type="danger" @click="remove(row)">删除</el-button>
+          </div>
+        </div>
+        <el-empty v-if="!terms.length" description="暂无词条" />
+      </div>
     </el-card>
 
     <el-dialog v-model="dialogVisible" :title="editingId ? '编辑词条' : '新增词条'" width="520px">
@@ -99,7 +138,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '@/utils/api'
 import { useAuthStore } from '@/store/auth'
@@ -107,6 +146,17 @@ import { useAuthStore } from '@/store/auth'
 // 游客只读：隐藏所有写操作
 const auth = useAuthStore()
 const editable = computed(() => !!auth.user?.is_admin)
+
+// ---- 移动端适配 ----
+const isMobile = ref(false)
+function updateViewport() {
+  isMobile.value = window.innerWidth < 768
+}
+onMounted(() => {
+  updateViewport()
+  window.addEventListener('resize', updateViewport)
+})
+onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
 
 interface DictTerm {
   id: number
@@ -235,3 +285,61 @@ async function remove(row: DictTerm) {
 
 onMounted(loadTerms)
 </script>
+
+<style scoped>
+/* ---- 移动端卡片视图 ---- */
+.dict-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.dict-card {
+  background: #fff;
+  border: 1px solid #e8e0d8;
+  border-radius: 10px;
+  padding: 12px 14px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+.dict-card .card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.dict-card .card-name { font-size: 16px; font-weight: 600; color: #2C1810; }
+.dict-card .card-row {
+  display: flex;
+  align-items: flex-start;
+  font-size: 14px;
+  line-height: 1.5;
+  margin-top: 4px;
+}
+.dict-card .card-row .label { flex-shrink: 0; width: 40px; color: #8a7563; }
+.dict-card .card-row .value { flex: 1; color: #333; word-break: break-all; }
+.dict-card .card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #eee;
+}
+
+/* ---- 移动端：词典切换标签自适应滚动 ---- */
+@media (max-width: 767px) {
+  :deep(.el-radio-group) {
+    display: flex;
+    width: 100%;
+  }
+  :deep(.el-radio-group .el-radio-button) {
+    flex: 1;
+  }
+  :deep(.el-radio-group .el-radio-button .el-radio-button__inner) {
+    width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+}
+</style>

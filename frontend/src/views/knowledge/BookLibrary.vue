@@ -56,6 +56,7 @@
 
       <!-- 表格 -->
       <el-table
+        v-if="!isMobile"
         :data="entries"
         v-loading="loading"
         stripe
@@ -94,6 +95,27 @@
           </template>
         </el-table-column>
       </el-table>
+
+      <!-- 移动端卡片视图 -->
+      <div v-if="isMobile" class="book-cards" v-loading="loading">
+        <div v-for="row in entries" :key="row.id" class="book-card" @click="viewDetail(row)">
+          <div class="card-head">
+            <span class="card-title">{{ row.title }}</span>
+            <el-tag size="small" :type="categoryTagType(row.category)">{{ row.category }}</el-tag>
+          </div>
+          <div class="card-source" v-if="row.source">{{ row.source }}</div>
+          <div class="card-preview">{{ row.content_preview }}</div>
+          <div class="card-actions" v-if="editable" @click.stop>
+            <el-button size="small" type="primary" plain @click="openEdit(row)">编辑</el-button>
+            <el-popconfirm title="确定删除这条知识？" @confirm="onDelete(row)">
+              <template #reference>
+                <el-button size="small" type="danger" plain>删除</el-button>
+              </template>
+            </el-popconfirm>
+          </div>
+        </div>
+        <el-empty v-if="!entries.length" description="暂无条目" />
+      </div>
 
       <!-- 分页 -->
       <div class="pagination-wrap" v-if="total > pageSize">
@@ -148,7 +170,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, onBeforeUnmount } from 'vue'
 import { Search, Plus, Upload, Download, Delete } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import api from '@/utils/api'
@@ -159,6 +181,17 @@ import type { UploadFile } from 'element-plus'
 // 游客（非管理员）隐藏所有写操作，只读浏览
 const auth = useAuthStore()
 const editable = computed(() => !!auth.user?.is_admin)
+
+// ---- 移动端适配 ----
+const isMobile = ref(false)
+function updateViewport() {
+  isMobile.value = window.innerWidth < 768
+}
+onMounted(() => {
+  updateViewport()
+  window.addEventListener('resize', updateViewport)
+})
+onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
 
 interface SourceItem { name: string; count: number }
 interface CategoryItem { name: string; count: number }
@@ -565,5 +598,60 @@ onUnmounted(() => {
     :deep(a) { color: #8B4513; }
     :deep(hr) { border: none; border-top: 1px solid #e0d6ca; margin: 12px 0; }
   }
+}
+
+/* ---- 移动端卡片视图 ---- */
+.book-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.book-cards .book-card {
+  background: #fff;
+  border: 1px solid #e8e0d8;
+  border-radius: 10px;
+  padding: 12px 14px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  cursor: pointer;
+}
+.book-cards .card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.book-cards .card-title { font-size: 16px; font-weight: 600; color: #2C1810; }
+.book-cards .card-source { font-size: 13px; color: #8a7563; margin-bottom: 4px; }
+.book-cards .card-preview {
+  font-size: 13px;
+  color: #555;
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.book-cards .card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #eee;
+}
+.book-cards .pagination-wrap { justify-content: center; }
+
+/* ---- 移动端：筛选栏纵向堆叠、控件全宽 ---- */
+@media (max-width: 767px) {
+  :deep(.filter-bar) {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  :deep(.filter-bar .el-select),
+  :deep(.filter-bar .el-input) {
+    width: 100% !important;
+  }
+  .pagination-wrap { justify-content: center; }
 }
 </style>

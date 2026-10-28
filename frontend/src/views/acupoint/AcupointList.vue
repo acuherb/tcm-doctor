@@ -25,7 +25,7 @@
     </div>
 
     <!-- 表格 -->
-    <el-table :data="acupoints" stripe style="width: 100%">
+    <el-table v-if="!isMobile" :data="acupoints" stripe style="width: 100%">
       <el-table-column prop="name" label="穴名" width="110" fixed>
         <template #default="{ row }">
           <span class="acupoint-name">{{ row.name }}</span>
@@ -46,6 +46,30 @@
         </template>
       </el-table-column>
     </el-table>
+
+    <!-- 移动端卡片视图 -->
+    <div v-if="isMobile" class="acupoint-cards">
+      <div v-for="row in acupoints" :key="row.id" class="acupoint-card">
+        <div class="card-head">
+          <span class="card-name">{{ row.name }}</span>
+          <div class="card-tags">
+            <el-tag :type="meridianTag(row.meridian)" effect="plain" size="small">{{ row.meridian }}</el-tag>
+            <el-tag v-if="row.point_type" type="info" size="small">{{ row.point_type }}</el-tag>
+          </div>
+        </div>
+        <div class="card-row" v-if="row.location">
+          <span class="label">定位</span><span class="value">{{ row.location }}</span>
+        </div>
+        <div class="card-row" v-if="row.efficacy">
+          <span class="label">功效</span><span class="value">{{ row.efficacy }}</span>
+        </div>
+        <div class="card-actions" v-if="editable">
+          <el-button link type="primary" size="small" @click="openEdit(row)">编辑</el-button>
+          <el-button link type="danger" size="small" @click="removeAcupoint(row)">删除</el-button>
+        </div>
+      </div>
+      <el-empty v-if="!acupoints.length" description="暂无穴位" />
+    </div>
 
     <!-- 新增/编辑弹窗 -->
     <el-dialog v-model="showDialog" :title="isEdit ? '编辑穴位' : '新增穴位'" width="560px">
@@ -82,7 +106,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '@/utils/api'
 import { useAuthStore } from '@/store/auth'
@@ -90,6 +114,17 @@ import { useAuthStore } from '@/store/auth'
 // 游客只读：隐藏所有写操作
 const auth = useAuthStore()
 const editable = computed(() => !!auth.user?.is_admin)
+
+// ---- 移动端适配 ----
+const isMobile = ref(false)
+function updateViewport() {
+  isMobile.value = window.innerWidth < 768
+}
+onMounted(() => {
+  updateViewport()
+  window.addEventListener('resize', updateViewport)
+})
+onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
 
 const meridians = [
   '手太阴肺经', '手阳明大肠经', '足阳明胃经', '足太阴脾经',
@@ -236,4 +271,62 @@ onMounted(loadAcupoints)
 .toolbar-left { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .toolbar-right { display: flex; align-items: center; gap: 8px; }
 .acupoint-name { font-weight: 600; color: #5b3b1e; }
+
+/* ---- 移动端卡片视图 ---- */
+.acupoint-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.acupoint-cards .acupoint-card {
+  background: #fff;
+  border: 1px solid #e8e0d8;
+  border-radius: 10px;
+  padding: 12px 14px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+.acupoint-cards .card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.acupoint-cards .card-name { font-size: 18px; font-weight: 700; color: #5b3b1e; }
+.acupoint-cards .card-tags { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.acupoint-cards .card-row {
+  display: flex;
+  align-items: flex-start;
+  font-size: 14px;
+  line-height: 1.5;
+  margin-top: 4px;
+}
+.acupoint-cards .card-row .label { flex-shrink: 0; width: 40px; color: #8a7563; }
+.acupoint-cards .card-row .value { flex: 1; color: #333; word-break: break-all; }
+.acupoint-cards .card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #eee;
+}
+
+/* ---- 移动端：工具栏纵向堆叠、控件全宽 ---- */
+@media (max-width: 767px) {
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .toolbar-left,
+  .toolbar-right {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+  .toolbar-left :deep(.el-input),
+  .toolbar-left :deep(.el-select) {
+    width: 100% !important;
+  }
+}
 </style>

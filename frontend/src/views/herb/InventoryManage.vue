@@ -34,7 +34,7 @@
         </el-form-item>
       </el-form>
 
-      <el-table :data="filteredInventory" stripe style="width:100%" empty-text="暂无库存记录">
+      <el-table v-if="!isMobile" :data="filteredInventory" stripe style="width:100%" empty-text="暂无库存记录">
         <el-table-column prop="herb_name" label="药材" width="100" />
         <el-table-column prop="batch_number" label="批号" width="120">
           <template #default="{ row }">{{ row.batch_number || '-' }}</template>
@@ -81,9 +81,50 @@
           </template>
         </el-table-column>
       </el-table>
-    </el-card>
 
-    <!-- 预警面板 -->
+      <!-- 移动端卡片视图 -->
+      <div v-if="isMobile" class="inv-cards">
+        <div v-for="row in filteredInventory" :key="row.id" class="inv-card">
+          <div class="card-head">
+            <span class="card-name">{{ row.herb_name }}</span>
+            <el-tag :type="statusTag(row.status)" size="small">{{ row.status }}</el-tag>
+          </div>
+          <div class="card-body">
+            <div class="card-row">
+              <span class="label">库存</span>
+              <span class="value">
+                <span :class="{ 'low-stock': row.quantity < (row.min_stock || 0) }">{{ row.quantity }}</span>
+                g / 最低 {{ row.min_stock || '-' }}g
+              </span>
+            </div>
+            <div class="card-row" v-if="row.batch_number">
+              <span class="label">批号</span><span class="value">{{ row.batch_number }}</span>
+            </div>
+            <div class="card-row">
+              <span class="label">单价</span><span class="value">{{ row.unit_price != null ? row.unit_price.toFixed(2) + ' 元/g' : '-' }}</span>
+            </div>
+            <div class="card-row">
+              <span class="label">购入</span><span class="value">{{ row.purchase_date || '-' }}</span>
+            </div>
+            <div class="card-row">
+              <span class="label">有效期</span>
+              <span class="value" :class="{ 'near-expiry': isNearExpiry(row.expiry_date) }">{{ row.expiry_date || '-' }}</span>
+            </div>
+            <div class="card-row" v-if="row.supplier">
+              <span class="label">供应商</span><span class="value">{{ row.supplier }}</span>
+            </div>
+            <div class="card-row" v-if="row.location">
+              <span class="label">位置</span><span class="value">{{ row.location }}</span>
+            </div>
+          </div>
+          <div v-if="editable" class="card-actions">
+            <el-button link type="primary" size="small" @click="editStock(row)">设置预警</el-button>
+            <el-button link type="danger" size="small" @click="setLocation(row)">仓位</el-button>
+          </div>
+        </div>
+        <el-empty v-if="!filteredInventory.length" description="暂无库存记录" />
+      </div>
+    </el-card>
     <el-card shadow="hover" style="margin-top:16px;">
       <template #header>
         <div style="display:flex;justify-content:space-between;align-items:center;">
@@ -234,7 +275,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Upload, Download, Search } from '@element-plus/icons-vue'
 import api from '@/utils/api'
@@ -285,6 +326,17 @@ const inventoryHerbOptions = computed(() => {
   }
   return Array.from(map.values())
 })
+
+// ---- 移动端适配 ----
+const isMobile = ref(false)
+function updateViewport() {
+  isMobile.value = window.innerWidth < 768
+}
+onMounted(() => {
+  updateViewport()
+  window.addEventListener('resize', updateViewport)
+})
+onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
 
 function isNearExpiry(dateStr: string) {
   if (!dateStr) return false
@@ -483,6 +535,80 @@ onMounted(() => {
   .near-expiry {
     color: #e6a23c;
     font-weight: 600;
+  }
+}
+
+/* ---- 移动端卡片视图 ---- */
+.inv-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.inv-card {
+  background: #fff;
+  border: 1px solid #e8e0d8;
+  border-radius: 10px;
+  padding: 12px 14px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+.inv-card .card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.inv-card .card-name {
+  font-size: 17px;
+  font-weight: 600;
+  color: #2C1810;
+}
+.inv-card .card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.inv-card .card-row {
+  display: flex;
+  align-items: flex-start;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.inv-card .card-row .label {
+  flex-shrink: 0;
+  width: 54px;
+  color: #8a7563;
+}
+.inv-card .card-row .value {
+  flex: 1;
+  color: #333;
+  word-break: break-all;
+}
+.inv-card .card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #eee;
+}
+
+/* ---- 移动端：搜索/筛选改为全宽纵向堆叠 ---- */
+@media (max-width: 767px) {
+  :deep(.el-form--inline .el-form-item) {
+    display: block;
+    margin-right: 0;
+    margin-bottom: 8px;
+  }
+  :deep(.el-form--inline .el-form-item__content) {
+    display: block;
+    max-width: 100%;
+  }
+  :deep(.el-form--inline .el-input),
+  :deep(.el-form--inline .el-select) {
+    width: 100% !important;
+  }
+  :deep(.el-card__header) {
+    padding: 12px;
   }
 }
 </style>

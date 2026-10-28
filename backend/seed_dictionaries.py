@@ -1,4 +1,4 @@
-"""按倪海厦经方/六经辨证体系预填主数据字典(舌质/舌苔/脉象/证候)。
+"""按倪海厦经方/六经辨证体系预填数据字典(舌质/舌苔/脉象/证候)。
 幂等: 按 (term_type, name) 去重，已存在则跳过。
 运行: cd tcm-doctor/backend && python3 seed_dictionaries.py
 """
@@ -106,7 +106,7 @@ def _add(db, term_type, name, **fields):
 
 
 def seed_dictionaries(db):
-    """幂等导入主数据字典：按 (term_type, name) 去重，已存在则跳过（复用传入会话）"""
+    """幂等导入数据字典：按 (term_type, name) 去重，已存在则跳过（复用传入会话）"""
     added = skipped = 0
 
     for name, desc, attrs in TONGUE_QUALITY:

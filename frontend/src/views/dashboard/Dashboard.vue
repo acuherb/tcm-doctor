@@ -2,7 +2,7 @@
   <div class="dashboard">
     <!-- 统计卡片 -->
     <el-row :gutter="20">
-      <el-col :span="4" v-for="card in statCards" :key="card.title">
+      <el-col :xs="12" :span="4" v-for="card in statCards" :key="card.title">
         <el-card shadow="hover" class="stat-card">
           <div class="stat-card-body">
             <div class="stat-icon" :style="{ backgroundColor: card.color + '20', color: card.color }">
@@ -19,13 +19,13 @@
 
     <!-- 图表区 -->
     <el-row :gutter="20" style="margin-top:20px;">
-      <el-col :span="14">
+      <el-col :xs="24" :span="14">
         <el-card shadow="hover">
           <template #header><span>📈 近7日就诊趋势</span></template>
           <div ref="visitChartRef" style="height:280px;"></div>
         </el-card>
       </el-col>
-      <el-col :span="10">
+      <el-col :xs="24" :span="10">
         <el-card shadow="hover">
           <template #header>
             <div style="display:flex;justify-content:space-between;align-items:center;">
@@ -50,11 +50,11 @@
 
     <!-- 快捷操作 + 待办 -->
     <el-row :gutter="20" style="margin-top:20px;">
-      <el-col :span="14">
+      <el-col :xs="24" :span="14">
         <el-card shadow="hover">
           <template #header><span>🏥 快捷操作</span></template>
           <el-row :gutter="16">
-            <el-col :span="6" v-for="action in quickActions" :key="action.title">
+            <el-col :xs="12" :span="6" v-for="action in quickActions" :key="action.title">
               <div class="quick-action" @click="$router.push(action.route)">
                 <el-icon :size="28" :color="action.color"><component :is="action.icon" /></el-icon>
                 <div class="action-title">{{ action.title }}</div>
@@ -64,7 +64,7 @@
           </el-row>
         </el-card>
       </el-col>
-      <el-col :span="10">
+      <el-col :xs="24" :span="10">
         <el-card shadow="hover">
           <template #header>
             <div style="display:flex;justify-content:space-between;align-items:center;">

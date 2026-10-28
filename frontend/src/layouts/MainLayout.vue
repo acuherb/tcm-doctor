@@ -1,7 +1,10 @@
 <template>
   <el-container class="main-layout">
+    <!-- 手机端遮罩（点击关抽屉） -->
+    <div v-show="isMobile && mobileOpen" class="mobile-mask" @click="mobileOpen = false"></div>
+
     <!-- 侧边栏 -->
-    <el-aside :width="isCollapsed ? '64px' : '210px'" class="sidebar">
+    <el-aside :width="isCollapsed ? '64px' : '210px'" class="sidebar" :class="{ 'sidebar-mobile-open': mobileOpen }">
       <div class="sidebar-logo" @click="$router.push('/dashboard')">
         <span class="logo-icon">🌿</span>
         <span v-show="!isCollapsed" class="logo-text">中医诊所管理</span>
@@ -15,6 +18,7 @@
         text-color="#E8D5C4"
         active-text-color="#D4A574"
         router
+        @select="closeMobileSidebar"
       >
         <el-menu-item index="/dashboard">
           <el-icon><HomeFilled /></el-icon>
@@ -70,7 +74,7 @@
 
         <el-menu-item index="/dictionaries">
           <el-icon><Coin /></el-icon>
-          <template #title>主数据字典</template>
+          <template #title>数据字典</template>
         </el-menu-item>
 
         <el-menu-item index="/settings">
@@ -91,6 +95,7 @@
     <el-container class="main-container">
       <el-header class="main-header">
         <div class="header-left">
+          <el-icon v-show="isMobile" class="menu-hamburger" @click="mobileOpen = !mobileOpen"><Expand /></el-icon>
           <el-breadcrumb separator="/">
             <el-breadcrumb-item :to="{ path: '/dashboard' }">首页</el-breadcrumb-item>
             <el-breadcrumb-item v-if="currentPageTitle">{{ currentPageTitle }}</el-breadcrumb-item>
@@ -149,7 +154,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   HomeFilled, User, FirstAidKit, Document, Search,
@@ -164,6 +169,25 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const isCollapsed = ref(false)
+
+// ---- 移动端抽屉适配 ----
+const isMobile = ref(false)
+const mobileOpen = ref(false)
+
+function updateViewport() {
+  isMobile.value = window.innerWidth < 768
+  if (!isMobile.value) mobileOpen.value = false
+}
+
+function closeMobileSidebar() {
+  if (isMobile.value) mobileOpen.value = false
+}
+
+onMounted(() => {
+  updateViewport()
+  window.addEventListener('resize', updateViewport)
+})
+onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
 
 const currentRoute = computed(() => route.path)
 const currentPageTitle = computed(() => (route.meta.title as string) || '')
@@ -330,5 +354,56 @@ async function onUserCommand(command: string) {
 .main-content {
   padding: 20px;
   overflow-y: auto;
+}
+
+/* 手机端顶部导航汉堡图标 */
+.menu-hamburger {
+  font-size: 20px;
+  cursor: pointer;
+  color: #5b4636;
+  margin-right: 8px;
+}
+
+/* ---------- 移动端适配（窄屏） ---------- */
+@media (max-width: 767px) {
+  .main-layout {
+    position: relative;
+  }
+
+  /* 侧边栏：默认移到屏幕外，开抽屉时滑入 */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 210px !important;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    z-index: 2000;
+    box-shadow: 2px 0 12px rgba(0, 0, 0, 0.35);
+  }
+
+  .sidebar.sidebar-mobile-open {
+    transform: translateX(0);
+  }
+
+  .mobile-mask {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 1990;
+  }
+
+  .main-header {
+    padding: 0 12px;
+  }
+
+  .main-content {
+    padding: 12px;
+  }
+
+  .header-right {
+    gap: 8px;
+  }
 }
 </style>

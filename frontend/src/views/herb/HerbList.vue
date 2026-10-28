@@ -34,7 +34,7 @@
         </el-form-item>
       </el-form>
 
-      <el-table :data="herbs" stripe style="width:100%">
+      <el-table v-if="!isMobile" :data="herbs" stripe style="width:100%">
         <el-table-column prop="name" label="正名" width="100" />
         <el-table-column prop="aliases" label="异名" width="150">
           <template #default="{ row }">
@@ -67,6 +67,45 @@
           </template>
         </el-table-column>
       </el-table>
+
+      <!-- 移动端卡片视图 -->
+      <div v-if="isMobile" class="herb-cards">
+        <div v-for="row in herbs" :key="row.id" class="herb-card">
+          <div class="card-head">
+            <span class="card-name">{{ row.name }}</span>
+            <el-tag :type="row.is_active === false ? 'info' : 'success'" size="small">{{ row.is_active === false ? '停用' : '启用' }}</el-tag>
+          </div>
+          <div class="card-body">
+            <div class="card-row" v-if="row.aliases && row.aliases.length">
+              <span class="label">异名</span><span class="value">{{ row.aliases.join('、') }}</span>
+            </div>
+            <div class="card-row">
+              <span class="label">分类</span><span class="value">{{ row.category || '-' }}</span>
+            </div>
+            <div class="card-row">
+              <span class="label">性味</span><span class="value">{{ row.nature || '-' }} / {{ row.flavor || '-' }}</span>
+            </div>
+            <div class="card-row">
+              <span class="label">归经</span><span class="value">{{ row.meridian_tropism || '-' }}</span>
+            </div>
+            <div class="card-row">
+              <span class="label">剂量</span><span class="value">{{ row.dosage_min }}~{{ row.dosage_max }} g</span>
+            </div>
+            <div class="card-row">
+              <span class="label">毒性</span>
+              <span class="value"><el-tag :type="toxicityTag(row.toxicity)" size="small">{{ row.toxicity || '无毒' }}</el-tag></span>
+            </div>
+            <div class="card-row" v-if="row.efficacy">
+              <span class="label">功效</span><span class="value">{{ row.efficacy }}</span>
+            </div>
+          </div>
+          <div v-if="editable" class="card-actions">
+            <el-button link type="primary" size="small" @click="openEdit(row)">编辑</el-button>
+            <el-button link type="danger" size="small" @click="removeHerb(row)">删除</el-button>
+          </div>
+        </div>
+        <el-empty v-if="!herbs.length" description="暂无药材" />
+      </div>
     </el-card>
 
     <el-dialog v-model="showDialog" :title="isEdit ? '编辑药材' : '新增药材'" width="620px" destroy-on-close>
@@ -119,7 +158,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search, Upload, Download } from '@element-plus/icons-vue'
 import api from '@/utils/api'
@@ -137,6 +176,17 @@ const categories = ['解表药', '清热药', '泻下药', '祛风湿药', '化�
 const showDialog = ref(false)
 const isEdit = ref(false)
 const editingId = ref<number | null>(null)
+
+// ---- 移动端适配：窄屏下用卡片视图替代表格 ----
+const isMobile = ref(false)
+function updateViewport() {
+  isMobile.value = window.innerWidth < 768
+}
+onMounted(() => {
+  updateViewport()
+  window.addEventListener('resize', updateViewport)
+})
+onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
 
 function defaultForm() {
   return { name: '', aliasesStr: '', category: '', nature: '平', flavor: '', meridian_tropism: '', efficacy: '', dosage_min: 3, dosage_max: 10, toxicity: '无毒', storage_condition: '', pregnancy_contraindicated: false }
@@ -255,4 +305,78 @@ onMounted(loadHerbs)
 <style scoped>
 .text-muted { color: #c0c4cc; }
 .unit { margin-left: 2px; color: #909399; font-size: 12px; }
+
+/* ---- 移动端卡片视图 ---- */
+.herb-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.herb-card {
+  background: #fff;
+  border: 1px solid #e8e0d8;
+  border-radius: 10px;
+  padding: 12px 14px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.card-name {
+  font-size: 17px;
+  font-weight: 600;
+  color: #2C1810;
+}
+.card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.card-row {
+  display: flex;
+  align-items: flex-start;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.card-row .label {
+  flex-shrink: 0;
+  width: 48px;
+  color: #8a7563;
+}
+.card-row .value {
+  flex: 1;
+  color: #333;
+  word-break: break-all;
+}
+.card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #eee;
+}
+
+/* ---- 移动端：搜索/筛选改为全宽纵向堆叠 ---- */
+@media (max-width: 767px) {
+  :deep(.el-form--inline .el-form-item) {
+    display: block;
+    margin-right: 0;
+    margin-bottom: 8px;
+  }
+  :deep(.el-form--inline .el-form-item__content) {
+    display: block;
+    max-width: 100%;
+  }
+  :deep(.el-form--inline .el-input),
+  :deep(.el-form--inline .el-select) {
+    width: 100% !important;
+  }
+  :deep(.el-card__header) {
+    padding: 12px;
+  }
+}
 </style>

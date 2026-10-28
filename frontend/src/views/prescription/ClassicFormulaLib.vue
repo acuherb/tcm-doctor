@@ -31,7 +31,7 @@
       </el-form>
 
       <el-row :gutter="16">
-        <el-col :span="8" v-for="formula in formulas" :key="formula.id">
+        <el-col :span="8" :xs="24" v-for="formula in formulas" :key="formula.id">
           <el-card shadow="hover" class="formula-card" @click="viewFormula(formula)">
             <div class="formula-name">{{ formula.name }}</div>
             <div class="formula-source" v-if="formula.source">
@@ -421,5 +421,25 @@ onMounted(loadFormulas)
   margin-bottom: 8px;
 
   .el-checkbox { white-space: nowrap; }
+}
+
+/* ---- 移动端适配 ---- */
+@media (max-width: 767px) {
+  :deep(.el-form--inline .el-form-item) {
+    display: block;
+    margin-right: 0;
+    margin-bottom: 8px;
+  }
+  :deep(.el-form--inline .el-form-item__content) {
+    display: block;
+    max-width: 100%;
+  }
+  :deep(.el-form--inline .el-input),
+  :deep(.el-form--inline .el-select) {
+    width: 100% !important;
+  }
+  .formula-card {
+    margin-bottom: 8px;
+  }
 }
 </style>
