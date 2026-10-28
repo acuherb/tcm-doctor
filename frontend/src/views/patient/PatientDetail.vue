@@ -85,15 +85,23 @@
                   <div v-for="rx in rxByVisit[visit.id]" :key="rx.id" class="sub-item">
                     <div class="rx-row">
                       <el-tag type="danger" size="small">{{ rx.formula_name || '自拟方' }}</el-tag>
+                      <el-tag v-if="rx.acupoint_formula_name" type="warning" size="small">{{ rx.acupoint_formula_name }}</el-tag>
                       <el-tag :type="statusTag(rx.status)" size="small" effect="plain">{{ rx.status }}</el-tag>
                       <span class="rx-doses">{{ rx.doses }} 剂 · {{ rx.preparation_method }}</span>
                     </div>
                     <div class="rx-herbs">
-                      <span v-for="(it, ix) in rx.items.slice(0, 6)" :key="ix" class="rx-herb">
+                      <span v-for="(it, ix) in rx.items.slice(0, 6)" :key="'h'+ix" class="rx-herb">
                         {{ it.herb_name }}<em v-if="it.is_king_herb" class="king">君</em>
                         <b>{{ it.dose }}g</b>
                       </span>
                       <span v-if="rx.items.length > 6" class="rx-more">+{{ rx.items.length - 6 }}味</span>
+                    </div>
+                    <div v-if="rx.acupoints && rx.acupoints.length" class="rx-acupoints">
+                      <span class="rx-acu-label">针灸：</span>
+                      <span v-for="(a, ix) in rx.acupoints.slice(0, 6)" :key="'a'+ix" class="rx-herb">
+                        {{ a.acupoint_name }}<b v-if="a.technique">·{{ a.technique }}</b>
+                      </span>
+                      <span v-if="rx.acupoints.length > 6" class="rx-more">+{{ rx.acupoints.length - 6 }}穴</span>
                     </div>
                     <div class="visit-actions">
                       <el-button link type="danger" size="small" @click="openRxDialog(rx)">查看处方</el-button>
@@ -114,40 +122,6 @@
             </el-timeline-item>
           </el-timeline>
           <el-empty v-else description="暂无就诊记录" />
-        </el-card>
-
-        <!-- AI 诊断库：集中展示所有 AI 辨证分析 -->
-        <el-card shadow="hover" style="margin-top: 16px;">
-          <template #header>
-            <span>🤖 AI 诊断库</span>
-            <el-tag v-if="aiVisits.length" type="success" size="small" style="margin-left: 8px;">共 {{ aiVisits.length }} 条</el-tag>
-          </template>
-          <template v-if="aiVisits.length">
-            <el-timeline>
-              <el-timeline-item
-                v-for="visit in aiVisits"
-                :key="visit.id"
-                :timestamp="visit.visit_date"
-                placement="top"
-              >
-                <el-card shadow="never" class="visit-card">
-                  <div class="visit-header">
-                    <strong>主诉：</strong>{{ visit.chief_complaint }}
-                  </div>
-                  <div v-if="visit.tcm_disease || visit.tcm_syndrome" class="visit-diagnosis">
-                    <el-tag type="primary" size="small">{{ visit.tcm_disease }}</el-tag>
-                    <el-tag type="warning" size="small">{{ visit.tcm_syndrome }}</el-tag>
-                    <el-tag type="info" size="small">{{ visit.treatment_method }}</el-tag>
-                  </div>
-                  <div class="view-ai-analysis" v-html="renderMarkdown(visit.ai_analysis)"></div>
-                  <div class="visit-actions">
-                    <el-button link type="warning" size="small" @click="$router.push(`/patients/${patientId}/visit?visit_id=${visit.id}`)">完善/编辑</el-button>
-                  </div>
-                </el-card>
-              </el-timeline-item>
-            </el-timeline>
-          </template>
-          <el-empty v-else description="暂无 AI 辨证分析（在就诊页点「AI 辅助辨证」并存入诊断库后，这里会汇总展示）" />
         </el-card>
 
         <el-card v-if="orphanInquiries.length > 0" shadow="hover" style="margin-top: 16px;">
@@ -228,10 +202,11 @@
         <el-descriptions-item v-if="viewVisit.tcm_disease" label="中医病名">{{ viewVisit.tcm_disease }}</el-descriptions-item>
         <el-descriptions-item v-if="viewVisit.tcm_syndrome" label="证型">{{ viewVisit.tcm_syndrome }}</el-descriptions-item>
         <el-descriptions-item v-if="viewVisit.treatment_method" label="治法">{{ viewVisit.treatment_method }}</el-descriptions-item>
-        <el-descriptions-item v-if="viewVisit.ai_analysis" label="AI辨证分析">
-          <div class="view-ai-analysis" v-html="renderMarkdown(viewVisit.ai_analysis)"></div>
-        </el-descriptions-item>
       </el-descriptions>
+      <div v-if="viewVisit.ai_analysis" class="sub-block" style="margin-top: 14px;">
+        <div class="sub-title">🤖 AI 诊断库（辨证论治）</div>
+        <div class="view-ai-analysis" v-html="renderMarkdown(viewVisit.ai_analysis)"></div>
+      </div>
       <template #footer>
         <el-button @click="showVisitDialog = false">关闭</el-button>
         <el-button type="primary" @click="$router.push(`/patients/${patientId}/visit?visit_id=${viewVisit?.id}`)">完善/编辑此就诊</el-button>
@@ -266,14 +241,15 @@
       </template>
     </el-dialog>
 
-    <el-dialog :title="'处方详情 · ' + (viewRx?.formula_name || '自拟方')" :model-value="showRxDialog" @update:model-value="showRxDialog = $event" width="680px" destroy-on-close>
+    <el-dialog :title="'处方详情 · ' + (viewRx?.formula_name || viewRx?.acupoint_formula_name || '自拟方')" :model-value="showRxDialog" @update:model-value="showRxDialog = $event" class="rx-detail-dialog" width="min(680px, 92vw)" destroy-on-close>
       <template v-if="viewRx">
         <div class="view-iq-primary">
           <el-tag type="danger">{{ viewRx.formula_name || '自拟方' }}</el-tag>
+          <el-tag v-if="viewRx.acupoint_formula_name" type="warning">{{ viewRx.acupoint_formula_name }}</el-tag>
           <el-tag :type="statusTag(viewRx.status)" size="small" effect="plain" style="margin-left:6px;">{{ viewRx.status }}</el-tag>
           <span style="margin-left:8px;color:#999;font-size:12px;">{{ fmtTime(viewRx.created_at) }}</span>
         </div>
-        <el-table :data="viewRx.items" size="small" border>
+        <el-table v-if="viewRx.items && viewRx.items.length" :data="viewRx.items" size="small" border>
           <el-table-column prop="herb_name" label="药味" min-width="100" />
           <el-table-column prop="dose" label="剂量(g)" width="90" />
           <el-table-column prop="special_method" label="特殊煎法" min-width="110">
@@ -286,6 +262,21 @@
             </template>
           </el-table-column>
         </el-table>
+        <div v-if="viewRx.acupoints && viewRx.acupoints.length" class="view-iq-sec">
+          <h4>针灸配穴{{ viewRx.acupoint_formula_name ? ' · ' + viewRx.acupoint_formula_name : '' }}</h4>
+          <el-table :data="viewRx.acupoints" size="small" border>
+            <el-table-column prop="acupoint_name" label="穴位" min-width="100" />
+            <el-table-column prop="technique" label="手法" min-width="90">
+              <template #default="{ row }">{{ row.technique || '—' }}</template>
+            </el-table-column>
+            <el-table-column prop="retention" label="留针" min-width="90">
+              <template #default="{ row }">{{ row.retention || '—' }}</template>
+            </el-table-column>
+            <el-table-column prop="note" label="备注" min-width="120">
+              <template #default="{ row }">{{ row.note || '—' }}</template>
+            </el-table-column>
+          </el-table>
+        </div>
         <el-descriptions :column="2" size="small" class="rx-meta">
           <el-descriptions-item label="剂数">{{ viewRx.doses }} 剂</el-descriptions-item>
           <el-descriptions-item label="煎法">{{ viewRx.preparation_method }}</el-descriptions-item>
@@ -321,9 +312,6 @@ const visits = ref<any[]>([])
 const inquiries = ref<any[]>([])
 const prescriptions = ref<any[]>([])
 const loading = ref(false)
-
-// AI 诊断库：聚合所有含 AI 辨证分析的就诊，便于集中查看
-const aiVisits = computed(() => visits.value.filter((v: any) => v.ai_analysis))
 
 // 按就诊聚合：处方与十问分别归到对应的 visit_id 下
 const rxByVisit = computed<Record<number, any[]>>(() => {
@@ -457,14 +445,16 @@ function fmtTime(iso?: string): string {
 .visit-actions { margin-top: 8px; text-align: right; }
 /* 弹窗内容超高时，仅 body 内部滚动，底部按钮始终可见（避免 AI 分析把弹窗顶飞） */
 .visit-detail-dialog :deep(.el-dialog__body),
-.iq-detail-dialog :deep(.el-dialog__body) {
+.iq-detail-dialog :deep(.el-dialog__body),
+.rx-detail-dialog :deep(.el-dialog__body) {
   max-height: 72vh;
   overflow-y: auto;
 }
 @media (max-width: 767px) {
-  .visit-detail-dialog, .iq-detail-dialog { margin-top: 6vh !important; }
+  .visit-detail-dialog, .iq-detail-dialog, .rx-detail-dialog { margin-top: 6vh !important; }
   .visit-detail-dialog :deep(.el-dialog__body),
-  .iq-detail-dialog :deep(.el-dialog__body) { max-height: 82vh; }
+  .iq-detail-dialog :deep(.el-dialog__body),
+  .rx-detail-dialog :deep(.el-dialog__body) { max-height: 82vh; }
 }
 .view-iq-primary { font-size: 14px; margin-bottom: 10px; }
 .view-iq-sec { margin-top: 12px; }
@@ -477,6 +467,8 @@ function fmtTime(iso?: string): string {
 .rx-row { display: flex; align-items: center; gap: 6px; }
 .rx-doses { font-size: 12px; color: #999; margin-left: 4px; }
 .rx-herbs { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+.rx-acupoints { margin-top: 6px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.rx-acu-label { font-size: 12px; color: #999; }
 .rx-herb { font-size: 12px; background: #f5f7fa; border-radius: 4px; padding: 2px 8px; color: #333; }
 .rx-herb b { color: #606266; margin-left: 2px; font-weight: normal; }
 .rx-herb .king { color: #F56C6C; font-style: normal; margin-left: 2px; }
