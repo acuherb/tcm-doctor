@@ -84,25 +84,34 @@
                   <div class="sub-title">💊 本次处方</div>
                   <div v-for="rx in rxByVisit[visit.id]" :key="rx.id" class="sub-item">
                     <div class="rx-row">
-                      <el-tag type="danger" size="small">{{ rx.formula_name || '自拟方' }}</el-tag>
-                      <el-tag v-if="rx.acupoint_formula_name" type="warning" size="small">{{ rx.acupoint_formula_name }}</el-tag>
                       <el-tag :type="statusTag(rx.status)" size="small" effect="plain">{{ rx.status }}</el-tag>
-                      <span class="rx-doses">{{ rx.doses }} 剂 · {{ rx.preparation_method }}</span>
+                      <span class="rx-doses" v-if="rx.items && rx.items.length">{{ rx.doses }} 剂 · {{ rx.preparation_method }}</span>
                     </div>
-                    <div class="rx-herbs">
-                      <span v-for="(it, ix) in rx.items.slice(0, 6)" :key="'h'+ix" class="rx-herb">
-                        {{ it.herb_name }}<em v-if="it.is_king_herb" class="king">君</em>
-                        <b>{{ it.dose }}g</b>
-                      </span>
-                      <span v-if="rx.items.length > 6" class="rx-more">+{{ rx.items.length - 6 }}味</span>
-                    </div>
-                    <div v-if="rx.acupoints && rx.acupoints.length" class="rx-acupoints">
-                      <span class="rx-acu-label">针灸：</span>
-                      <span v-for="(a, ix) in rx.acupoints.slice(0, 6)" :key="'a'+ix" class="rx-herb">
-                        {{ a.acupoint_name }}<b v-if="a.technique">·{{ a.technique }}</b>
-                      </span>
-                      <span v-if="rx.acupoints.length > 6" class="rx-more">+{{ rx.acupoints.length - 6 }}穴</span>
-                    </div>
+
+                    <template v-if="rx.items && rx.items.length">
+                      <div class="rx-sub-title">🌿 中药方{{ rx.formula_name ? ' · ' + rx.formula_name : '' }}</div>
+                      <div class="rx-herbs">
+                        <span v-for="(it, ix) in rx.items" :key="'h'+ix" class="rx-herb">
+                          {{ it.herb_name }}<em v-if="it.is_king_herb" class="king">君</em>
+                          <b>{{ it.dose }}g</b>
+                        </span>
+                      </div>
+                    </template>
+
+                    <template v-if="rx.acupoints && rx.acupoints.length">
+                      <div class="rx-sub-title">🪡 针灸方{{ rx.acupoint_formula_name ? ' · ' + rx.acupoint_formula_name : '' }}</div>
+                      <div class="rx-herbs">
+                        <span v-for="(a, ix) in rx.acupoints" :key="'a'+ix" class="rx-herb">
+                          {{ a.acupoint_name }}<b v-if="a.technique">·{{ a.technique }}</b>
+                        </span>
+                      </div>
+                      <div v-if="rx.acupoint_technique || rx.treatment_frequency || rx.treatment_days" class="rx-acu-meta">
+                        <span v-if="rx.acupoint_technique">{{ rx.acupoint_technique }}</span>
+                        <span v-if="rx.treatment_frequency">{{ rx.treatment_frequency }}</span>
+                        <span v-if="rx.treatment_days">{{ rx.treatment_days }} 天</span>
+                      </div>
+                    </template>
+
                     <div class="visit-actions">
                       <el-button link type="danger" size="small" @click="openRxDialog(rx)">查看处方</el-button>
                     </div>
@@ -467,8 +476,8 @@ function fmtTime(iso?: string): string {
 .rx-row { display: flex; align-items: center; gap: 6px; }
 .rx-doses { font-size: 12px; color: #999; margin-left: 4px; }
 .rx-herbs { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
-.rx-acupoints { margin-top: 6px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.rx-acu-label { font-size: 12px; color: #999; }
+.rx-sub-title { margin-top: 8px; font-size: 12.5px; font-weight: 600; color: #6b4f2a; }
+.rx-acu-meta { margin-top: 4px; font-size: 12px; color: #999; display: flex; flex-wrap: wrap; gap: 8px; }
 .rx-herb { font-size: 12px; background: #f5f7fa; border-radius: 4px; padding: 2px 8px; color: #333; }
 .rx-herb b { color: #606266; margin-left: 2px; font-weight: normal; }
 .rx-herb .king { color: #F56C6C; font-style: normal; margin-left: 2px; }
