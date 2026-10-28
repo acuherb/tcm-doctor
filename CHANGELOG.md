@@ -1,5 +1,14 @@
 # 开发日志 CHANGELOG
 
+## 2026-10-28 — 登录页现代化改版
+
+- [Login.vue](file:///home/debian/tcm-doctor/frontend/src/views/auth/Login.vue) 由旧单卡片升级为单栏现代居中式：
+  - 深褐渐变全屏背景 + 暖金装饰圆环 + ❋ 水印，主题色沿用全站 `--tcm-primary` / `--tcm-accent`
+  - 顶部圆角渐变 Logo 徽标、主标语「传承岐黄智慧 · 以数字化服务每一位患者」
+  - 大号圆角输入框、全宽主色登录按钮、「或」分隔 + 游客登录
+  - 卡片 `width: 100%` + `justify-content: center`，修复根容器 `el-container` 横向 flex 使卡片在窄屏/宽屏均居中全屏
+  - 响应式：手机端自动收窄不溢出，桌面/移动均友好
+
 ## 2026-10-28 — 全员移动端适配 + 药材字典补全 + 写接口权限加固
 
 ### 1. 移动端适配（手机浏览友好化）

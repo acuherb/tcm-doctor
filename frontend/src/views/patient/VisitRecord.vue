@@ -4,7 +4,7 @@
 
     <el-row :gutter="20" style="margin-top: 20px;">
       <!-- 左: 四诊信息 -->
-      <el-col :span="12" class="left-col">
+      <el-col :xs="24" :lg="12" class="left-col">
         <el-card shadow="hover">
           <template #header><span>🔍 四诊信息</span></template>
           <el-form :model="form" label-width="80px" label-position="top">
@@ -20,7 +20,7 @@
               <el-input v-model="form.observation" type="textarea" :rows="2" placeholder="如：面色萎黄，神疲倦怠" />
             </el-form-item>
             <el-row :gutter="12">
-              <el-col :span="12">
+              <el-col :xs="24" :sm="12">
                 <el-form-item label="舌质">
                   <el-select v-model="form.tongue_body" clearable filterable placeholder="选择舌质" style="width:100%"
                     @change="form.tongue_body_term_id = findId('tongue', form.tongue_body, '舌质')">
@@ -30,7 +30,7 @@
                   </el-select>
                 </el-form-item>
               </el-col>
-              <el-col :span="12">
+              <el-col :xs="24" :sm="12">
                 <el-form-item label="舌苔">
                   <el-select v-model="form.tongue_coat" clearable filterable placeholder="选择舌苔" style="width:100%"
                     @change="form.tongue_coat_term_id = findId('tongue', form.tongue_coat, '舌苔')">
@@ -43,7 +43,7 @@
             </el-row>
             <!-- 舌象/面色照片上传 -->
             <el-row :gutter="12">
-              <el-col :span="12">
+              <el-col :xs="24" :sm="12">
                 <el-form-item label="舌象照片">
                   <div class="img-upload-row">
                     <el-button size="small" @click="triggerVisitImage('tongue')">📷 拍摄/上传</el-button>
@@ -53,7 +53,7 @@
                   </div>
                 </el-form-item>
               </el-col>
-              <el-col :span="12">
+              <el-col :xs="24" :sm="12">
                 <el-form-item label="面色照片">
                   <div class="img-upload-row">
                     <el-button size="small" @click="triggerVisitImage('face')">📷 拍摄/上传</el-button>
@@ -133,7 +133,7 @@
       </el-col>
 
       <!-- 右: 问诊十问 -->
-      <el-col :span="12">
+      <el-col :xs="24" :lg="12">
         <el-card shadow="hover">
           <template #header><span>🪷 问诊十问（经方家辨证）</span></template>
           <TenAspectsPanel :patient-id="patientId" :visit-id="currentVisitId" />
@@ -388,4 +388,31 @@ async function submitVisit() {
   border-radius: 8px;
 }
 .visit-saved-hint .hint-title { font-size: 13px; color: #67c23a; }
+
+/* 移动端适配 */
+@media (max-width: 767px) {
+  .visit-record :deep(.el-page-header__content) {
+    font-size: 16px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* 辨证论治卡片头部按钮换行 */
+  :deep(.el-card__header) {
+    padding: 12px 14px;
+  }
+  .img-upload-row {
+    flex-wrap: wrap;
+  }
+  .remove-visit-img {
+    position: static;
+  }
+  /* 底部操作按钮全宽 */
+  .visit-saved-hint .el-button {
+    margin-top: 8px;
+  }
+  :deep(.lab-preview) {
+    align-items: flex-start;
+  }
+}
 </style>

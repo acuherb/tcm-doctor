@@ -2,16 +2,18 @@
   <div class="patient-detail" v-loading="loading">
     <el-page-header @back="$router.push('/patients')" :content="patient?.name || '加载中...'">
       <template #extra>
-        <el-button v-if="editable" @click="openEdit"><el-icon><Edit /></el-icon> 编辑</el-button>
-        <el-button v-if="editable" @click="$router.push(`/patients/${patientId}/visit`)">
-          <el-icon><EditPen /></el-icon> 新增就诊
-        </el-button>
+        <div class="header-actions">
+          <el-button v-if="editable" @click="openEdit"><el-icon><Edit /></el-icon> 编辑</el-button>
+          <el-button v-if="editable" @click="$router.push(`/patients/${patientId}/visit`)">
+            <el-icon><EditPen /></el-icon> 新增就诊
+          </el-button>
+        </div>
       </template>
     </el-page-header>
 
     <el-row :gutter="20" style="margin-top: 20px;">
       <!-- 基本信息 -->
-      <el-col :span="8">
+      <el-col :xs="24" :sm="10" :lg="8">
         <el-card shadow="hover">
           <template #header><span>📋 基本信息</span></template>
           <el-descriptions :column="1" border size="small" v-if="patient">
@@ -36,7 +38,7 @@
       </el-col>
 
       <!-- 就诊历史 -->
-      <el-col :span="16">
+      <el-col :xs="24" :sm="14" :lg="16">
         <el-card shadow="hover">
           <template #header><span>🏥 就诊记录</span></template>
           <el-timeline v-if="visits.length > 0">
@@ -144,22 +146,22 @@
           <el-input v-model="editForm.name" />
         </el-form-item>
         <el-row :gutter="12">
-          <el-col :span="12">
+          <el-col :xs="24" :sm="12">
             <el-form-item label="性别">
               <el-select v-model="editForm.gender" style="width:100%">
                 <el-option label="男" value="男" /><el-option label="女" value="女" />
               </el-select>
             </el-form-item>
           </el-col>
-          <el-col :span="12">
+          <el-col :xs="24" :sm="12">
             <el-form-item label="出生日期">
               <el-date-picker v-model="editForm.birth_date" type="date" value-format="YYYY-MM-DD" style="width:100%" />
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="12">
-          <el-col :span="12"><el-form-item label="电话"><el-input v-model="editForm.phone" /></el-form-item></el-col>
-          <el-col :span="12"><el-form-item label="身份证号"><el-input v-model="editForm.id_card" /></el-form-item></el-col>
+          <el-col :xs="24" :sm="12"><el-form-item label="电话"><el-input v-model="editForm.phone" /></el-form-item></el-col>
+          <el-col :xs="24" :sm="12"><el-form-item label="身份证号"><el-input v-model="editForm.id_card" /></el-form-item></el-col>
         </el-row>
         <el-form-item label="地址"><el-input v-model="editForm.address" /></el-form-item>
         <el-form-item label="过敏史"><el-input v-model="editForm.allergy_history" /></el-form-item>
@@ -392,7 +394,45 @@ function fmtTime(iso?: string): string {
 .rx-meta { margin-top: 12px; }
 .sub-block { margin-top: 10px; border-top: 1px dashed #eee; padding-top: 8px; }
 .sub-block + .sub-block { margin-top: 10px; }
-.sub-title { font-size: 13px; font-weight: 600; color: #555; margin-bottom: 6px; }
-.sub-item { margin-bottom: 8px; }
+.sub-title { font-size: 13px; font-weight: 600; color: #555; margin-bottom: 6px; }.sub-item { margin-bottom: 8px; }
 .sub-note { margin-left: 6px; font-size: 12px; color: #999; }
+
+/* 移动端适配 */
+@media (max-width: 767px) {
+  .patient-detail :deep(.el-page-header__content) {
+    font-size: 16px;
+    margin-right: 4px;
+  }
+  .header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .visit-diagnosis,
+  .visit-sizhen,
+  .rx-row {
+    flex-wrap: wrap;
+  }
+  .rx-doses {
+    width: 100%;
+    margin-left: 0;
+  }
+  .visit-actions {
+    text-align: left;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+  }
+  .view-iq-dims {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  :deep(.el-dialog) {
+    margin: 0 !important;
+  }
+  :deep(.el-descriptions) {
+    font-size: 12.5px;
+  }
+}
 </style>
