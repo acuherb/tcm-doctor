@@ -81,11 +81,9 @@
 
                 <!-- 本次处方 -->
                 <div v-if="rxByVisit[visit.id] && rxByVisit[visit.id].length" class="sub-block">
-                  <div class="sub-title">💊 本次处方</div>
                   <div v-for="rx in rxByVisit[visit.id]" :key="rx.id" class="sub-item">
-                    <div class="rx-row">
+                    <div class="sub-title">💊 本次处方
                       <el-tag :type="statusTag(rx.status)" size="small" effect="plain">{{ rx.status }}</el-tag>
-                      <span class="rx-doses" v-if="rx.items && rx.items.length">{{ rx.doses }} 剂 · {{ rx.preparation_method }}</span>
                     </div>
 
                     <template v-if="rx.items && rx.items.length">
@@ -96,6 +94,7 @@
                           <b>{{ it.dose }}g</b>
                         </span>
                       </div>
+                      <div class="rx-doses">{{ rx.doses }} 剂 · {{ rx.preparation_method }}</div>
                     </template>
 
                     <template v-if="rx.acupoints && rx.acupoints.length">
@@ -474,7 +473,7 @@ function fmtTime(iso?: string): string {
 .note-line b { color: #8B4513; margin-right: 4px; }
 .rx-card { margin-top: 16px; }
 .rx-row { display: flex; align-items: center; gap: 6px; }
-.rx-doses { font-size: 12px; color: #999; margin-left: 4px; }
+.rx-doses { font-size: 12px; color: #999; margin-top: 4px; }
 .rx-herbs { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
 .rx-sub-title { margin-top: 8px; font-size: 12.5px; font-weight: 600; color: #6b4f2a; }
 .rx-acu-meta { margin-top: 4px; font-size: 12px; color: #999; display: flex; flex-wrap: wrap; gap: 8px; }
@@ -485,7 +484,7 @@ function fmtTime(iso?: string): string {
 .rx-meta { margin-top: 12px; }
 .sub-block { margin-top: 10px; border-top: 1px dashed #eee; padding-top: 8px; }
 .sub-block + .sub-block { margin-top: 10px; }
-.sub-title { font-size: 13px; font-weight: 600; color: #555; margin-bottom: 6px; }.sub-item { margin-bottom: 8px; }
+.sub-title { font-size: 13px; font-weight: 600; color: #555; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }.sub-item { margin-bottom: 8px; }
 .sub-note { margin-left: 6px; font-size: 12px; color: #999; }
 
 /* 移动端适配 */
