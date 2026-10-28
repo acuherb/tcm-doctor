@@ -63,18 +63,25 @@
                   <span v-if="visit.pulse">脉象: {{ visit.pulse }}</span>
                 </div>
 
-                <!-- 本次问诊十问 -->
+                <!-- 本次问诊十问（按就诊日期关联，半折叠） -->
                 <div v-if="inquiriesByVisit[visit.id] && inquiriesByVisit[visit.id].length" class="sub-block">
-                  <div class="sub-title">🩺 本次问诊十问</div>
-                  <div v-for="iq in inquiriesByVisit[visit.id]" :key="iq.id" class="sub-item">
-                    <el-tag type="warning" size="small">{{ iq.primary_type || '未定型' }}</el-tag>
-                    <span class="sub-note">偏性画像</span>
-                    <ul v-if="iq.result && iq.result.findings && iq.result.findings.length" class="iq-findings">
-                      <li v-for="(f, fi) in iq.result.findings" :key="fi">{{ f }}</li>
-                    </ul>
-                    <div v-if="iq.result && iq.result.suggestion" class="iq-suggestion">{{ iq.result.suggestion }}</div>
-                    <div class="visit-actions">
-                      <el-button link type="warning" size="small" @click="openIqDialog(iq)">查看完整评估</el-button>
+                  <div class="sub-title">
+                    <span>🩺 本次问诊十问</span>
+                    <el-button link type="warning" size="small" style="margin-left:auto;padding:0;height:auto;" @click="iqExpanded[visit.id] = !iqExpanded[visit.id]">
+                      {{ iqExpanded[visit.id] ? '收起' : '查看全部' }}
+                    </el-button>
+                  </div>
+                  <div class="collapse-box" :class="{ collapsed: !iqExpanded[visit.id] }">
+                    <div v-for="iq in inquiriesByVisit[visit.id]" :key="iq.id" class="sub-item">
+                      <el-tag type="warning" size="small">{{ iq.primary_type || '未定型' }}</el-tag>
+                      <span class="sub-note">偏性画像</span>
+                      <ul v-if="iq.result && iq.result.findings && iq.result.findings.length" class="iq-findings">
+                        <li v-for="(f, fi) in iq.result.findings" :key="fi">{{ f }}</li>
+                      </ul>
+                      <div v-if="iq.result && iq.result.suggestion" class="iq-suggestion">{{ iq.result.suggestion }}</div>
+                      <div class="visit-actions">
+                        <el-button link type="warning" size="small" @click="openIqDialog(iq)">查看完整评估</el-button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -343,13 +350,39 @@ const rxByVisit = computed<Record<number, any[]>>(() => {
 })
 const inquiriesByVisit = computed<Record<number, any[]>>(() => {
   const m: Record<number, any[]> = {}
+  // 优先按 visit_id 直接关联
   for (const iq of inquiries.value) {
     if (iq.visit_id != null) (m[iq.visit_id] ||= []).push(iq)
   }
+  // 未关联 visit_id 的（旧数据/未回填），按就诊日期归并到当天就诊：问诊十问通常在就诊时进行
+  const used = new Set<number>()
+  for (const id in m) for (const iq of m[id]) used.add(iq.id)
+  const visitsByDate: Record<string, number[]> = {}
+  for (const v of visits.value) {
+    const d = (v.visit_date || '').slice(0, 10)
+    if (d) (visitsByDate[d] ||= []).push(v.id)
+  }
+  for (const iq of inquiries.value) {
+    if (used.has(iq.id)) continue
+    const d = (iq.created_at || '').slice(0, 10)
+    const vids = d ? visitsByDate[d] : undefined
+    if (vids && vids.length) {
+      const vid = vids[0]
+      ;(m[vid] ||= []).push(iq)
+      used.add(iq.id)
+    }
+  }
   return m
 })
-// 未关联就诊的十问（向后兼容旧数据）
-const orphanInquiries = computed(() => inquiries.value.filter(iq => iq.visit_id == null))
+// 仍未关联到任何就诊（按日期也无法匹配）的十问，保留在独立卡片，避免数据丢失
+const orphanInquiries = computed(() => {
+  const byVisit = inquiriesByVisit.value
+  const used = new Set<number>()
+  for (const id in byVisit) for (const iq of byVisit[id]) used.add(iq.id)
+  return inquiries.value.filter(iq => !used.has(iq.id))
+})
+// 就诊卡片内 问诊十问 默认折叠，按就诊 id 记录是否展开
+const iqExpanded = ref<Record<number, boolean>>({})
 
 const editVisible = ref(false)
 const savingEdit = ref(false)
@@ -477,6 +510,17 @@ function fmtTime(iso?: string): string {
   :deep(pre) { background: #f5f0eb; padding: 8px; border-radius: 5px; overflow-x: auto; }
   :deep(pre code) { background: transparent; padding: 0; }
   :deep(blockquote) { border-left: 3px solid #d9c9a3; margin: 5px 0; padding-left: 8px; color: #999; }
+}
+/* 通用半折叠：默认截断高度 + 底部渐隐，配合「查看全部/收起」切换（问诊十问复用） */
+.collapse-box { position: relative; }
+.collapse-box.collapsed { max-height: 110px; overflow: hidden; }
+.collapse-box.collapsed::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 38px;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0), #fff);
+  pointer-events: none;
 }
 .visit-actions { margin-top: 8px; text-align: right; }
 /* 弹窗内容超高时，仅 body 内部滚动，底部按钮始终可见（避免 AI 分析把弹窗顶飞） */
