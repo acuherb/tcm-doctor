@@ -213,6 +213,12 @@ class DiagnosisService:
 
         user_message = f"请根据以下四诊信息进行辨证分析：\n\n{patient_info}\n" + "\n".join(four_diag)
         user_message += "\n\n请给出：1.病机分析 2.中医病名 3.证型 4.治法 5.推荐方剂及加减 6.调护建议"
+        user_message += (
+            "\n\n请在回答末尾额外输出一个 ```json 代码块，键名为 recommended_formulas，"
+            "内容为方剂数组；每个元素包含：name(方名)、composition(药物与剂量，示例 "
+            "'桂枝9g 芍药9g 生姜9g 大枣4枚 炙甘草6g')、modification(随证加减)、indication(方解/适应症)。"
+            "不要在该代码块之外再解释它。"
+        )
 
         # RAG
         context = ""
@@ -252,13 +258,15 @@ class DiagnosisService:
 
         # 从分析文本中解析出病名/证型/治法，供就诊表单自动填入
         structured = self._parse_structured(reply)
+        # 解析文末的推荐方剂 JSON，供前端「方剂建议/选择」与一键开药
+        formulas = self._parse_formulas(reply)
 
         return {
             "syndrome_analysis": reply,
             "tcm_disease": structured.get("tcm_disease"),
             "tcm_syndrome": structured.get("tcm_syndrome"),
             "treatment_method": structured.get("treatment_method"),
-            "recommended_formulas": [],
+            "recommended_formulas": formulas,
             "safety_warnings": safety_warnings,
             "references": [],
         }
@@ -359,6 +367,45 @@ class DiagnosisService:
             "tcm_syndrome": _pick(False, True, False),
             "treatment_method": _pick(False, False, True),
         }
+
+    def _parse_formulas(self, reply: str) -> list[dict]:
+        """从辨证分析文本中解析推荐方剂（期望文末 ```json 代码块，键 recommended_formulas）"""
+        import json as _json
+        import re
+
+        if not reply:
+            return []
+        # 1) 优先匹配 fenced json 块
+        m = re.search(r"```(?:json)?\s*(\[.*?\])\s*```", reply, re.DOTALL)
+        raw = m.group(1) if m else None
+        if not raw:
+            # 2) 退化：直接定位首个 [ ... ] 数组
+            s, e = reply.find("["), reply.rfind("]")
+            if s != -1 and e > s:
+                raw = reply[s:e + 1]
+        if not raw:
+            return []
+        try:
+            data = _json.loads(raw)
+        except Exception:
+            return []
+        if not isinstance(data, list):
+            return []
+        out: list[dict] = []
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            name = (item.get("name") or item.get("方剂") or "").strip()
+            comp = item.get("composition") or item.get("组成") or item.get("药物") or ""
+            if isinstance(comp, list):
+                comp = " ".join(str(c) for c in comp)
+            out.append({
+                "name": name,
+                "composition": str(comp or "").strip(),
+                "modification": str(item.get("modification") or item.get("加减") or "").strip(),
+                "indication": str(item.get("indication") or item.get("方解") or item.get("适应症") or "").strip(),
+            })
+        return out
 
     async def analyze_stream(
         self,

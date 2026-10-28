@@ -1,6 +1,6 @@
 <template>
   <div class="visit-record">
-    <el-page-header @back="$router.back()" :content="`新增就诊 — ${patientName}`" />
+    <el-page-header @back="$router.back()" :content="(currentVisitId ? '编辑就诊' : '新增就诊') + ' — ' + patientName" />
 
     <el-row :gutter="20" style="margin-top: 20px;">
       <!-- 左: 四诊信息 -->
@@ -182,6 +182,27 @@
         <el-alert :title="w" type="warning" :closable="false" show-icon />
       </div>
       <div class="ai-result-body" v-html="renderMarkdown(aiResultText)"></div>
+
+      <div class="ai-section" v-if="form.tcm_disease || form.tcm_syndrome || form.treatment_method">
+        <div class="ai-section-title">🩺 辨证论治（理法方药）</div>
+        <el-descriptions :column="1" border size="small">
+          <el-descriptions-item label="中医病名" v-if="form.tcm_disease">{{ form.tcm_disease }}</el-descriptions-item>
+          <el-descriptions-item label="证型" v-if="form.tcm_syndrome">{{ form.tcm_syndrome }}</el-descriptions-item>
+          <el-descriptions-item label="治法" v-if="form.treatment_method">{{ form.treatment_method }}</el-descriptions-item>
+        </el-descriptions>
+      </div>
+
+      <div class="ai-section" v-if="aiResultFormulas.length">
+        <div class="ai-section-title">💊 推荐方剂（可一键带入开方）</div>
+        <div v-for="(f, i) in aiResultFormulas" :key="i" class="formula-card">
+          <div class="formula-name">{{ f.name || '推荐方' }}</div>
+          <div class="formula-row" v-if="f.composition"><span class="formula-label">组成</span><span>{{ f.composition }}</span></div>
+          <div class="formula-row" v-if="f.modification"><span class="formula-label">加减</span><span>{{ f.modification }}</span></div>
+          <div class="formula-row" v-if="f.indication"><span class="formula-label">方解</span><span>{{ f.indication }}</span></div>
+          <el-button size="small" type="success" @click="goPrescribeWithFormula(f)">去开药（带入该方）</el-button>
+        </div>
+      </div>
+
       <template #footer>
         <el-button @click="showAiResult = false">仅查看，不入库</el-button>
         <el-button type="primary" @click="saveAiIntoRecord">存入本就诊 AI 诊断库</el-button>
@@ -212,6 +233,7 @@ const showAiResult = ref(false)
 const showAiConfirm = ref(false)
 const aiResultText = ref('')
 const aiResultWarnings = ref<string[]>([])
+const aiResultFormulas = ref<any[]>([])
 const aiBasisText = ref('')
 // 待分析上下文（点击「开始分析」后再真正请求；避免未核对的误请求）
 let pendingAiPayload: any = null
@@ -248,7 +270,11 @@ async function loadDictionary() {
     dictTerms.value = Array.isArray(res) ? res : []
   } catch { /* 后端不可用时回退为空选项 */ }
 }
-onMounted(loadDictionary)
+onMounted(async () => {
+  await loadDictionary()
+  const vid = route.query.visit_id
+  if (vid) await loadExistingVisit(Number(vid))
+})
 
 const form = ref({
   visit_date: new Date().toISOString().slice(0, 10),
@@ -386,6 +412,7 @@ async function doAiAnalyze() {
     if (res.treatment_method) form.value.treatment_method = res.treatment_method
     aiResultText.value = res.syndrome_analysis || ''
     aiResultWarnings.value = res.safety_warnings || []
+    aiResultFormulas.value = Array.isArray(res.recommended_formulas) ? res.recommended_formulas : []
     lastAiFingerprint.value = pendingAiFingerprint
     cachedAiResult.value = { analysis: aiResultText.value, warnings: [...aiResultWarnings.value], basis: aiBasisText.value }
     showAiResult.value = true
@@ -397,20 +424,22 @@ async function doAiAnalyze() {
 function saveAiIntoRecord() {
   const basis = aiBasisText.value ? `【本次辨证依据】\n${aiBasisText.value}\n\n` : ''
   const warnings = aiResultWarnings.value.length ? `\n【注意事项】\n${aiResultWarnings.value.join('\n')}\n` : ''
-  form.value.ai_analysis = `${basis}【AI 辨证分析】\n${aiResultText.value}${warnings}`
+  const formulaText = aiResultFormulas.value.length
+    ? '\n\n【推荐方剂】\n' + aiResultFormulas.value
+        .map((f: any) => `- ${f.name || '推荐方'}：${f.composition || ''}${f.modification ? `（加减：${f.modification}）` : ''}`)
+        .join('\n')
+    : ''
+  form.value.ai_analysis = `${basis}【AI 辨证分析】\n${aiResultText.value}${warnings}${formulaText}`
   showAiResult.value = false
-  ElMessage.success('已存入本就诊 AI 诊断库，保存就诊记录后将一并落库')
+  ElMessage.success('已采纳 AI 辨证建议（证型/治法已回填，分析已存入诊断库），点「保存就诊记录」即可落库')
 }
 
-function renderMarkdown(text: string) {
-  return text
-    ? text
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.*?)\*/g, '<em>$1</em>')
-      .replace(/`([^`]+)`/g, '<code>$1</code>')
-      .replace(/\n/g, '<br>')
-    : ''
+// 将 AI 推荐方剂带入开方页（预填方名与药味）
+function goPrescribeWithFormula(f: any) {
+  const q: any = { patient_id: patientId }
+  if (currentVisitId.value != null) q.visit_id = currentVisitId.value
+  q.ai_formula = JSON.stringify({ name: f.name || '', composition: f.composition || '' })
+  router.push({ path: '/prescriptions/new', query: q })
 }
 
 async function submitVisit() {
@@ -421,13 +450,34 @@ async function submitVisit() {
   submitting.value = true
   try {
     const payload = { ...form.value, pulse: form.value.pulse.join('、') }
+    // 已有就诊则更新（完善/补充病历），否则新建，避免重复建就诊
+    if (currentVisitId.value != null) {
+      const res = await api.put(`/patients/${patientId}/visits/${currentVisitId.value}`, payload) as any
+      ElMessage.success('就诊记录已更新')
+      return res
+    }
     const res = await api.post(`/patients/${patientId}/visits`, payload) as any
     currentVisitId.value = res.id
     ElMessage.success('就诊记录已保存，可在右侧完成本次问诊十问，或下方去开药')
+    return res
   } catch (e: any) {
     ElMessage.error('保存失败：' + (e?.response?.data?.detail || e?.message || ''))
+  } finally {
+    submitting.value = false
   }
-  submitting.value = false
+}
+
+// 编辑已有就诊：从病历详情页带入 visit_id 时加载并填充表单，便于完善病例报告
+async function loadExistingVisit(visitId: number) {
+  try {
+    const res = await api.get(`/patients/${patientId}/visits/${visitId}`) as any
+    currentVisitId.value = res.id
+    const { pulse, ...rest } = res
+    Object.assign(form.value, rest)
+    form.value.pulse = (res.pulse || '').split('、').filter(Boolean)
+  } catch {
+    ElMessage.error('加载就诊记录失败')
+  }
 }
 </script>
 
@@ -541,6 +591,26 @@ async function submitVisit() {
   color: var(--el-text-color-primary);
   white-space: normal;
 }
+/* markdown 渲染样式（AI 辨证结果含标题/列表/表格/代码块） */
+.ai-result-body, .ai-basis-body {
+  :deep(h1), :deep(h2), :deep(h3), :deep(h4) { margin: 12px 0 6px; color: #8B4513; line-height: 1.4; }
+  :deep(h1) { font-size: 18px; }
+  :deep(h2) { font-size: 16px; }
+  :deep(h3) { font-size: 15px; }
+  :deep(p) { margin: 6px 0; }
+  :deep(ul), :deep(ol) { margin: 6px 0; padding-left: 22px; }
+  :deep(li) { margin: 3px 0; }
+  :deep(table) { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 13px; }
+  :deep(th), :deep(td) { border: 1px solid #e8e0d8; padding: 4px 8px; text-align: left; }
+  :deep(th) { background: #faf7f4; }
+  :deep(strong) { color: #8B4513; }
+  :deep(code) {
+    background: #f5f0eb; padding: 0 4px; border-radius: 4px; font-size: 13px;
+  }
+  :deep(pre) { background: #f5f0eb; padding: 10px; border-radius: 6px; overflow-x: auto; }
+  :deep(pre code) { background: transparent; padding: 0; }
+  :deep(blockquote) { border-left: 3px solid #d9c9a3; margin: 6px 0; padding-left: 10px; color: #999; }
+}
 .ai-result-body strong { color: #8B4513; }
 .ai-result-body code {
   background: #f5f0eb;
@@ -548,6 +618,40 @@ async function submitVisit() {
   border-radius: 4px;
   font-size: 13px;
 }
+
+/* 辨证论治摘要 + 推荐方剂卡片 */
+.ai-section { margin-top: 14px; }
+.ai-section-title {
+  font-weight: 600;
+  color: #8B4513;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+.formula-card {
+  border: 1px solid #e8e0d8;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  background: #fffdf9;
+}
+.formula-name {
+  font-weight: 700;
+  color: #6b4f2a;
+  font-size: 15px;
+  margin-bottom: 6px;
+}
+.formula-row {
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.7;
+  margin-bottom: 2px;
+}
+.formula-label {
+  flex: 0 0 40px;
+  color: #999;
+}
+.formula-card :deep(.el-button) { margin-top: 8px; }
 
 /* 移动端适配 */
 @media (max-width: 767px) {

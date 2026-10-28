@@ -11,7 +11,7 @@ from app.models.user import User
 from app.routers.auth import get_current_user
 from app.schemas.patient import (
     PatientCreate, PatientUpdate, PatientResponse, PatientListResponse,
-    VisitCreate, VisitResponse, ConstitutionSubmit, ConstitutionResult,
+    VisitCreate, VisitUpdate, VisitResponse, ConstitutionSubmit, ConstitutionResult,
     InquiryRecordOut,
 )
 
@@ -130,6 +130,25 @@ def get_visit(patient_id: int, visit_id: int, db: Session = Depends(get_db)):
     visit = db.query(Visit).filter(Visit.id == visit_id, Visit.patient_id == patient_id).first()
     if not visit:
         raise HTTPException(status_code=404, detail="就诊记录不存在")
+    return visit
+
+
+@router.put("/{patient_id}/visits/{visit_id}", response_model=VisitResponse, summary="更新就诊记录")
+def update_visit(
+    patient_id: int,
+    visit_id: int,
+    data: VisitUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """更新就诊记录 — 支持完善 AI 辨证分析 / 四诊信息，避免重复新建就诊"""
+    visit = db.query(Visit).filter(Visit.id == visit_id, Visit.patient_id == patient_id).first()
+    if not visit:
+        raise HTTPException(status_code=404, detail="就诊记录不存在")
+    for k, v in data.model_dump(exclude_unset=True).items():
+        setattr(visit, k, v)
+    db.commit()
+    db.refresh(visit)
     return visit
 
 

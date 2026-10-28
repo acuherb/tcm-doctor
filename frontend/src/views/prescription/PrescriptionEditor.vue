@@ -591,6 +591,47 @@ async function selectFormula(formula: any) {
   runSafetyCheck()
 }
 
+// 从 AI 辨证推荐方剂（自由文本组成）带入：预填方名与药味
+async function applyAiFormula(f: any) {
+  if (!f) return
+  form.value.formula_name = f.name || ''
+  form.value.is_classic = false
+  form.value.classic_formula_id = null
+  form.value.items = []
+  if (!herbCacheList.value.length) {
+    await loadHerbList()
+  }
+  const comp: string = f.composition || ''
+  const tokens = comp.split(/\s+/).filter(Boolean)
+  for (const tok of tokens) {
+    const m = tok.match(/^(.*?)(\d+(?:\.\d+)?)\s*(g|克|钱|两|枚|片|条|只)?$/i)
+    let name = tok
+    let dose = 10
+    if (m && m[1].trim()) {
+      name = m[1].trim()
+      dose = parseFloat(m[2])
+    }
+    let matchedHerb = herbCacheList.value.find((herb: any) => herb.name === name)
+    if (!matchedHerb) {
+      matchedHerb = herbCacheList.value.find((herb: any) =>
+        (herb.aliases || []).some((a: string) => a === name) ||
+        (herb.name && (herb.name.includes(name) || name.includes(herb.name)))
+      )
+    }
+    form.value.items.push({
+      herb_id: matchedHerb?.id || null,
+      herb_name: matchedHerb ? matchedHerb.name : name,
+      dose,
+      special_method: null,
+      is_king_herb: false,
+      note: '',
+      _warnings: [],
+    })
+  }
+  ElMessage.success(`已带入 AI 推荐方「${f.name || '未命名'}」`)
+  runSafetyCheck()
+}
+
 const herbCacheList = ref<any[]>([])
 
 // ── 提交处方 ──
@@ -794,6 +835,14 @@ onMounted(async () => {
         if (f) selectFormula(f)
       } catch {}
     }
+  }
+
+  // 从 AI 辨证页带入推荐方剂（自由文本组成）
+  if (q.ai_formula) {
+    try {
+      const f = typeof q.ai_formula === 'string' ? JSON.parse(q.ai_formula) : q.ai_formula
+      await applyAiFormula(f)
+    } catch {}
   }
 })
 </script>

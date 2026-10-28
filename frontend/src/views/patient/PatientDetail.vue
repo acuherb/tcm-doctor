@@ -102,17 +102,52 @@
                 </div>
 
                 <div v-if="visit.ai_analysis" class="sub-block">
-                  <div class="sub-title">🤖 AI 辨证分析</div>
-                  <div class="view-ai-analysis">{{ visit.ai_analysis }}</div>
+                  <div class="sub-title">🤖 AI 诊断库（辨证论治）</div>
+                  <div class="view-ai-analysis" v-html="renderMarkdown(visit.ai_analysis)"></div>
                 </div>
 
                 <div class="visit-actions">
                   <el-button link type="primary" size="small" @click="openVisitDialog(visit)">查看就诊详情</el-button>
+                  <el-button link type="warning" size="small" @click="$router.push(`/patients/${patientId}/visit?visit_id=${visit.id}`)">完善/编辑</el-button>
                 </div>
               </el-card>
             </el-timeline-item>
           </el-timeline>
           <el-empty v-else description="暂无就诊记录" />
+        </el-card>
+
+        <!-- AI 诊断库：集中展示所有 AI 辨证分析 -->
+        <el-card shadow="hover" style="margin-top: 16px;">
+          <template #header>
+            <span>🤖 AI 诊断库</span>
+            <el-tag v-if="aiVisits.length" type="success" size="small" style="margin-left: 8px;">共 {{ aiVisits.length }} 条</el-tag>
+          </template>
+          <template v-if="aiVisits.length">
+            <el-timeline>
+              <el-timeline-item
+                v-for="visit in aiVisits"
+                :key="visit.id"
+                :timestamp="visit.visit_date"
+                placement="top"
+              >
+                <el-card shadow="never" class="visit-card">
+                  <div class="visit-header">
+                    <strong>主诉：</strong>{{ visit.chief_complaint }}
+                  </div>
+                  <div v-if="visit.tcm_disease || visit.tcm_syndrome" class="visit-diagnosis">
+                    <el-tag type="primary" size="small">{{ visit.tcm_disease }}</el-tag>
+                    <el-tag type="warning" size="small">{{ visit.tcm_syndrome }}</el-tag>
+                    <el-tag type="info" size="small">{{ visit.treatment_method }}</el-tag>
+                  </div>
+                  <div class="view-ai-analysis" v-html="renderMarkdown(visit.ai_analysis)"></div>
+                  <div class="visit-actions">
+                    <el-button link type="warning" size="small" @click="$router.push(`/patients/${patientId}/visit?visit_id=${visit.id}`)">完善/编辑</el-button>
+                  </div>
+                </el-card>
+              </el-timeline-item>
+            </el-timeline>
+          </template>
+          <el-empty v-else description="暂无 AI 辨证分析（在就诊页点「AI 辅助辨证」并存入诊断库后，这里会汇总展示）" />
         </el-card>
 
         <el-card v-if="orphanInquiries.length > 0" shadow="hover" style="margin-top: 16px;">
@@ -194,9 +229,13 @@
         <el-descriptions-item v-if="viewVisit.tcm_syndrome" label="证型">{{ viewVisit.tcm_syndrome }}</el-descriptions-item>
         <el-descriptions-item v-if="viewVisit.treatment_method" label="治法">{{ viewVisit.treatment_method }}</el-descriptions-item>
         <el-descriptions-item v-if="viewVisit.ai_analysis" label="AI辨证分析">
-          <div class="view-ai-analysis">{{ viewVisit.ai_analysis }}</div>
+          <div class="view-ai-analysis" v-html="renderMarkdown(viewVisit.ai_analysis)"></div>
         </el-descriptions-item>
       </el-descriptions>
+      <template #footer>
+        <el-button @click="showVisitDialog = false">关闭</el-button>
+        <el-button type="primary" @click="$router.push(`/patients/${patientId}/visit?visit_id=${viewVisit?.id}`)">完善/编辑此就诊</el-button>
+      </template>
     </el-dialog>
 
     <el-dialog :title="'问诊十问详情 · ' + fmtTime(viewIq?.created_at)" :model-value="showIqDialog" @update:model-value="showIqDialog = $event" width="680px" destroy-on-close>
@@ -269,6 +308,7 @@ import { Edit, EditPen, TrendCharts } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import api from '@/utils/api'
 import { useAuthStore } from '@/store/auth'
+import { renderMarkdown } from '@/utils/markdown'
 
 // 游客只读：隐藏所有写操作
 const auth = useAuthStore()
@@ -281,6 +321,9 @@ const visits = ref<any[]>([])
 const inquiries = ref<any[]>([])
 const prescriptions = ref<any[]>([])
 const loading = ref(false)
+
+// AI 诊断库：聚合所有含 AI 辨证分析的就诊，便于集中查看
+const aiVisits = computed(() => visits.value.filter((v: any) => v.ai_analysis))
 
 // 按就诊聚合：处方与十问分别归到对应的 visit_id 下
 const rxByVisit = computed<Record<number, any[]>>(() => {
@@ -384,7 +427,7 @@ function fmtTime(iso?: string): string {
 .iq-findings { margin: 4px 0; padding-left: 16px; font-size: 12.5px; color: #666; line-height: 1.8; }
 .iq-suggestion { margin-top: 6px; font-size: 12.5px; color: #8B4513; }
 .view-ai-analysis {
-  white-space: pre-wrap;
+  white-space: normal;
   word-break: break-word;
   font-size: 12.5px;
   line-height: 1.8;
@@ -395,6 +438,21 @@ function fmtTime(iso?: string): string {
   padding: 8px 10px;
   max-height: 40vh;
   overflow-y: auto;
+  :deep(h1), :deep(h2), :deep(h3), :deep(h4) { margin: 10px 0 5px; color: #8B4513; }
+  :deep(h1) { font-size: 16px; }
+  :deep(h2) { font-size: 15px; }
+  :deep(h3) { font-size: 14px; }
+  :deep(p) { margin: 5px 0; }
+  :deep(ul), :deep(ol) { margin: 5px 0; padding-left: 20px; }
+  :deep(li) { margin: 2px 0; }
+  :deep(table) { border-collapse: collapse; width: 100%; margin: 6px 0; font-size: 12px; }
+  :deep(th), :deep(td) { border: 1px solid #e8e0d8; padding: 3px 6px; text-align: left; }
+  :deep(th) { background: #faf7f4; }
+  :deep(strong) { color: #8B4513; }
+  :deep(code) { background: #f5f0eb; padding: 0 3px; border-radius: 3px; }
+  :deep(pre) { background: #f5f0eb; padding: 8px; border-radius: 5px; overflow-x: auto; }
+  :deep(pre code) { background: transparent; padding: 0; }
+  :deep(blockquote) { border-left: 3px solid #d9c9a3; margin: 5px 0; padding-left: 8px; color: #999; }
 }
 .visit-actions { margin-top: 8px; text-align: right; }
 .view-iq-primary { font-size: 14px; margin-bottom: 10px; }

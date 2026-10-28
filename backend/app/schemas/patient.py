@@ -91,6 +91,30 @@ class VisitCreate(BaseModel):
     doctor_id: int | None = Field(None, description="接诊医师ID")
 
 
+class VisitUpdate(BaseModel):
+    """更新就诊记录（全字段可选，仅更新传入字段）"""
+    visit_date: str | None = Field(None, description="就诊日期")
+    chief_complaint: str | None = Field(None, description="主诉")
+    present_illness: str | None = Field(None, description="现病史")
+    observation: str | None = Field(None, description="望诊")
+    auscultation: str | None = Field(None, description="闻诊")
+    inquiry: str | None = Field(None, description="问诊")
+    palpation: str | None = Field(None, description="切诊")
+    tongue_body: str | None = Field(None, description="舌质")
+    tongue_coat: str | None = Field(None, description="舌苔")
+    pulse: str | None = Field(None, description="脉象")
+    tcm_disease: str | None = Field(None, description="中医病名")
+    tcm_syndrome: str | None = Field(None, description="证型")
+    treatment_method: str | None = Field(None, description="治法")
+    ai_analysis: str | None = Field(None, description="AI 辅助辨证完整分析(含依据)")
+    tongue_body_term_id: int | None = Field(None, description="舌质词条ID")
+    tongue_coat_term_id: int | None = Field(None, description="舌苔词条ID")
+    pulse_term_id: int | None = Field(None, description="脉象词条ID")
+    syndrome_term_id: int | None = Field(None, description="证型词条ID")
+    doctor_notes: str | None = Field(None, description="医嘱")
+    doctor_id: int | None = Field(None, description="接诊医师ID")
+
+
 class VisitResponse(BaseModel):
     """就诊记录响应"""
     id: int
