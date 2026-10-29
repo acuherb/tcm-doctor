@@ -249,10 +249,19 @@
         <el-form-item label="既往史"><el-input v-model="editForm.medical_history" type="textarea" :rows="2" /></el-form-item>
         <el-form-item label="备注"><el-input v-model="editForm.notes" type="textarea" :rows="2" /></el-form-item>
         <el-form-item label="标签">
-          <el-select v-model="editForm.tags" multiple filterable placeholder="从字典中选择（管理员可在『数据字典 → 患者标签』自定义）" style="width:100%">
-            <el-option v-for="t in tagOptions" :key="t.id" :label="t.name" :value="t.name" />
-          </el-select>
-          <div style="font-size:12px;color:#999;margin-top:4px;">标签由数据字典『患者标签』类目维护，新增/停用请到字典页操作</div>
+          <div class="tag-picker">
+            <el-tag
+              v-for="t in tagOptions"
+              :key="t.id"
+              class="tag-option"
+              :class="{ 'tag-selected': (editForm.tags || []).includes(t.name) }"
+              :style="tagChipStyle(t)"
+              effect="plain"
+              @click="toggleTag(t.name)"
+            >{{ t.name }}</el-tag>
+            <span v-if="!tagOptions.length" class="text-muted">暂无标签，请到『数据字典 → 患者标签』添加</span>
+          </div>
+          <div style="font-size:12px;color:#999;margin-top:4px;">点击标签切换选中（颜色由字典定义）；新增/停用请到字典页操作</div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -537,6 +546,19 @@ function bodyTypeOf(p: any): { label: string; color: string } | null {
   return bodyType(calcBmi(p.height, p.weight))
 }
 
+// 标签彩色点选：选中用字典 color 实心，未选中用描边
+function toggleTag(name: string) {
+  const cur = editForm.value.tags || []
+  editForm.value.tags = cur.includes(name) ? cur.filter((x: string) => x !== name) : [...cur, name]
+}
+function tagChipStyle(t: any): Record<string, string> {
+  const selected = (editForm.value.tags || []).includes(t.name)
+  const c = t.color || '#909399'
+  return selected
+    ? { backgroundColor: c, borderColor: c, color: '#fff' }
+    : { color: c, borderColor: c, backgroundColor: '#fff' }
+}
+
 function openEdit() {
   const p = patient.value || {}
   editForm.value = {
@@ -631,6 +653,10 @@ onMounted(async () => {
     prescriptions.value = rx as any
     followups.value = fus as any
     tagOptions.value = tags as any
+    // 从列表点「编辑」带 edit=1 进入时，自动打开编辑框
+    if (route.query.edit === '1' && auth.user?.is_admin) {
+      openEdit()
+    }
   } catch {}
   loading.value = false
 })
@@ -643,6 +669,10 @@ function fmtTime(iso?: string): string {
 
 <style scoped>
 .text-muted { color: #c0c4cc; }
+.tag-picker { display: flex; flex-wrap: wrap; gap: 8px; }
+.tag-option { cursor: pointer; user-select: none; transition: all .15s; }
+.tag-option:hover { opacity: .85; }
+.tag-selected { font-weight: 600; }
 .patient-tags { margin: 12px 0 0 8px; }
 .visit-card { margin-bottom: 4px; }
 .visit-header { font-size: 14px; }

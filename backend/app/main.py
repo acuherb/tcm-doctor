@@ -161,8 +161,16 @@ def _run_light_migrations() -> None:
             db = SessionLocal()
             try:
                 if db.query(DictionaryTerm).filter(DictionaryTerm.term_type == "tag").count() == 0:
-                    for name in ("不遵医瞩", "过敏体质", "慢性病", "孕妇", "儿童", "老年"):
-                        db.add(DictionaryTerm(term_type="tag", name=name, is_active=True))
+                    default_tags = {
+                        "不遵医瞩": "#F56C6C",
+                        "过敏体质": "#E6A23C",
+                        "慢性病": "#409EFF",
+                        "孕妇": "#9B59B6",
+                        "儿童": "#67C23A",
+                        "老年": "#909399",
+                    }
+                    for name, color in default_tags.items():
+                        db.add(DictionaryTerm(term_type="tag", name=name, is_active=True, color=color))
                     db.commit()
                     logger.info("已注入默认患者标签词(字典 tag 类型)")
             finally:

@@ -54,6 +54,7 @@
         <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click.stop="goDetail(row)">详情</el-button>
+            <el-button v-if="editable" link type="primary" @click.stop="editPatient(row)">编辑</el-button>
             <el-button v-if="editable" link type="primary" @click.stop="startVisit(row)">就诊</el-button>
             <el-button v-if="editable" link type="danger" @click.stop="deletePatient(row)">删除</el-button>
           </template>
@@ -98,6 +99,7 @@
           </div>
           <div class="card-actions">
             <el-button link type="primary" size="small" @click.stop="goDetail(row)">详情</el-button>
+            <el-button v-if="editable" link type="primary" size="small" @click.stop="editPatient(row)">编辑</el-button>
             <el-button v-if="editable" link type="primary" size="small" @click.stop="startVisit(row)">就诊</el-button>
             <el-button v-if="editable" link type="danger" size="small" @click.stop="deletePatient(row)">删除</el-button>
           </div>
@@ -243,6 +245,10 @@ function goDetail(row: any) {
 
 function startVisit(row: any) {
   router.push({ path: `/patients/${row.id}/visit`, query: { name: row.name } })
+}
+
+function editPatient(row: any) {
+  router.push({ path: `/patients/${row.id}`, query: { edit: '1' } })
 }
 
 async function addPatient() {
