@@ -6,6 +6,11 @@ __pycache__/
 venv/
 
 # ---- 数据库 / 备份（本地二进制，不入版本库）----
+*.db
+*.db-wal
+*.db-shm
+.probe.md
+
 backend/*.db
 backend/*.db.bak*
 backend/backups/
