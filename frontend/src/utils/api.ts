@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
+import { triggerLogout } from '@/store/authBus'
 
 // 生产模式（Electron 打包后 file:// 协议）需要绝对 URL
 const isElectronProd = typeof window !== 'undefined' && window.location.protocol === 'file:'
@@ -30,17 +31,26 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response.data,
   (error) => {
-    // 401 未登录/过期 → 跳转登录页
-    if (error.response?.status === 401 && !error.config?.url?.includes('/auth/')) {
+    const cfg = error.config as any
+    const status = error.response?.status
+    const isAuthCall = cfg?.url?.includes('/auth/')
+    // 401 未登录/过期 → 清理登录态（localStorage + axios 头 + Pinia）并跳转登录页
+    if (status === 401 && !isAuthCall) {
       localStorage.removeItem('tcm_token')
       localStorage.removeItem('tcm_user')
+      delete api.defaults.headers.common['Authorization']
+      // 同步清理 Pinia 内存登录态（通过总线，避免循环依赖）
+      triggerLogout()
       if (typeof window !== 'undefined' && window.location.hash !== '#/login') {
         window.location.hash = '#/login'
       }
       return Promise.reject(error)
     }
-    const msg = error.response?.data?.detail || error.message || '请求失败'
-    ElMessage.error(msg)
+    // 组件自行处理（config.silent）的错误不再弹全局提示，避免重复报错
+    if (!cfg?.silent) {
+      const msg = error.response?.data?.detail || error.message || '请求失败'
+      ElMessage.error(msg)
+    }
     return Promise.reject(error)
   }
 )

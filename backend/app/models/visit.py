@@ -1,6 +1,6 @@
 """就诊记录 ORM 模型"""
 from datetime import datetime
-from sqlalchemy import String, Text, DateTime, Integer, ForeignKey
+from sqlalchemy import String, Text, DateTime, Integer, ForeignKey, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -36,7 +36,8 @@ class Visit(Base):
     # 受控词条关联 (引用 dictionary_terms, 可选; 为空时仍可用上方原文)
     tongue_body_term_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("dictionary_terms.id"), comment="舌质词条ID")
     tongue_coat_term_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("dictionary_terms.id"), comment="舌苔词条ID")
-    pulse_term_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("dictionary_terms.id"), comment="脉象词条ID")
+    pulse_term_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("dictionary_terms.id"), comment="脉象词条ID(主脉象，向后兼容)")
+    pulse_term_ids: Mapped[list | None] = mapped_column(JSON, comment="脉象词条ID列表(支持多选脉象)")
     syndrome_term_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("dictionary_terms.id"), comment="证型词条ID")
 
     # 医嘱

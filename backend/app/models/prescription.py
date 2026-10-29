@@ -46,6 +46,7 @@ class Prescription(Base):
     acupoint_technique: Mapped[str | None] = mapped_column(String(50), comment="针灸针法/治法")
     treatment_frequency: Mapped[str | None] = mapped_column(String(20), comment="操作频次: 每日/隔日/每周...")
     treatment_days: Mapped[int | None] = mapped_column(Integer, comment="疗程天数")
+    acupuncture_fee: Mapped[float | None] = mapped_column(Numeric(8, 2), comment="针灸费用(元)")
     status: Mapped[str] = mapped_column(String(20), default="已开", comment="状态")
     reviewed_by: Mapped[int | None] = mapped_column(Integer, comment="审核人")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)

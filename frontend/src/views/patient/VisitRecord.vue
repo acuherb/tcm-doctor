@@ -78,7 +78,7 @@
             <el-divider content-position="left">切诊</el-divider>
             <el-form-item label="脉象">
               <el-select v-model="form.pulse" multiple clearable filterable placeholder="选择脉象" style="width:100%"
-                @change="form.pulse_term_id = form.pulse.length ? (pulseTerms.find(p => p.name === form.pulse[0])?.id ?? null) : null">
+                @change="onPulseChange">
                 <el-option v-for="t in pulseTerms" :key="t.id" :label="t.name" :value="t.name">
                   <div class="term-opt"><span class="term-name">{{ t.name }}</span><span v-if="t.description" class="term-desc">{{ t.description }}</span></div>
                 </el-option>
@@ -296,6 +296,7 @@ const form = ref({
   tongue_body_term_id: null as number | null,
   tongue_coat_term_id: null as number | null,
   pulse_term_id: null as number | null,
+  pulse_term_ids: [] as number[],
   syndrome_term_id: null as number | null,
 })
 
@@ -421,7 +422,7 @@ async function doAiAnalyze() {
   aiLoading.value = false
 }
 
-function saveAiIntoRecord() {
+async function saveAiIntoRecord() {
   const basis = aiBasisText.value ? `【本次辨证依据】\n${aiBasisText.value}\n\n` : ''
   const warnings = aiResultWarnings.value.length ? `\n【注意事项】\n${aiResultWarnings.value.join('\n')}\n` : ''
   const formulaText = aiResultFormulas.value.length
@@ -430,8 +431,17 @@ function saveAiIntoRecord() {
         .join('\n')
     : ''
   form.value.ai_analysis = `${basis}【AI 辨证分析】\n${aiResultText.value}${warnings}${formulaText}`
+  if (currentVisitId.value != null) {
+    try {
+      await api.put(`/patients/${patientId}/visits/${currentVisitId.value}`, { ai_analysis: form.value.ai_analysis })
+      ElMessage.success('已存入本就诊 AI 诊断库')
+    } catch (e: any) {
+      ElMessage.error('入库失败：' + (e?.response?.data?.detail || e?.message || ''))
+    }
+  } else {
+    ElMessage.success('AI 辨证建议已采纳，请点「保存就诊记录」后即可在病历详情查看')
+  }
   showAiResult.value = false
-  ElMessage.success('已采纳 AI 辨证建议（证型/治法已回填，分析已存入诊断库），点「保存就诊记录」即可落库')
 }
 
 // 将 AI 推荐方剂带入开方页（预填方名与药味）
@@ -452,11 +462,11 @@ async function submitVisit() {
     const payload = { ...form.value, pulse: form.value.pulse.join('、') }
     // 已有就诊则更新（完善/补充病历），否则新建，避免重复建就诊
     if (currentVisitId.value != null) {
-      const res = await api.put(`/patients/${patientId}/visits/${currentVisitId.value}`, payload) as any
+      const res = await api.put(`/patients/${patientId}/visits/${currentVisitId.value}`, payload, { silent: true }) as any
       ElMessage.success('就诊记录已更新')
       return res
     }
-    const res = await api.post(`/patients/${patientId}/visits`, payload) as any
+    const res = await api.post(`/patients/${patientId}/visits`, payload, { silent: true }) as any
     currentVisitId.value = res.id
     ElMessage.success('就诊记录已保存，可在右侧完成本次问诊十问，或下方去开药')
     return res
@@ -467,6 +477,15 @@ async function submitVisit() {
   }
 }
 
+// 脉象多选：记录全部词条 id（避免只保留第一项导致其余脉象词条丢失）
+function onPulseChange() {
+  const ids = form.value.pulse
+    .map((name: string) => pulseTerms.value.find((p: any) => p.name === name)?.id)
+    .filter((id: number | undefined): id is number => id != null)
+  form.value.pulse_term_ids = ids
+  form.value.pulse_term_id = ids[0] ?? null
+}
+
 // 编辑已有就诊：从病历详情页带入 visit_id 时加载并填充表单，便于完善病例报告
 async function loadExistingVisit(visitId: number) {
   try {
@@ -475,6 +494,7 @@ async function loadExistingVisit(visitId: number) {
     const { pulse, ...rest } = res
     Object.assign(form.value, rest)
     form.value.pulse = (res.pulse || '').split('、').filter(Boolean)
+    form.value.pulse_term_ids = res.pulse_term_ids || []
   } catch {
     ElMessage.error('加载就诊记录失败')
   }

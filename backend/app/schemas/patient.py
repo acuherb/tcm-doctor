@@ -84,7 +84,8 @@ class VisitCreate(BaseModel):
     # 受控词条关联(可选; 指向 /api/v1/dictionaries 的 id)
     tongue_body_term_id: int | None = Field(None, description="舌质词条ID")
     tongue_coat_term_id: int | None = Field(None, description="舌苔词条ID")
-    pulse_term_id: int | None = Field(None, description="脉象词条ID")
+    pulse_term_id: int | None = Field(None, description="脉象词条ID(主脉象，向后兼容)")
+    pulse_term_ids: list[int] | None = Field(None, description="脉象词条ID列表(支持多选脉象)")
     syndrome_term_id: int | None = Field(None, description="证型词条ID")
     # 医嘱
     doctor_notes: str | None = Field(None, description="医嘱")
@@ -109,7 +110,8 @@ class VisitUpdate(BaseModel):
     ai_analysis: str | None = Field(None, description="AI 辅助辨证完整分析(含依据)")
     tongue_body_term_id: int | None = Field(None, description="舌质词条ID")
     tongue_coat_term_id: int | None = Field(None, description="舌苔词条ID")
-    pulse_term_id: int | None = Field(None, description="脉象词条ID")
+    pulse_term_id: int | None = Field(None, description="脉象词条ID(主脉象，向后兼容)")
+    pulse_term_ids: list[int] | None = Field(None, description="脉象词条ID列表(支持多选脉象)")
     syndrome_term_id: int | None = Field(None, description="证型词条ID")
     doctor_notes: str | None = Field(None, description="医嘱")
     doctor_id: int | None = Field(None, description="接诊医师ID")
@@ -136,6 +138,7 @@ class VisitResponse(BaseModel):
     tongue_body_term_id: int | None
     tongue_coat_term_id: int | None
     pulse_term_id: int | None
+    pulse_term_ids: list[int] | None
     syndrome_term_id: int | None
     tongue_body_term_name: str | None
     tongue_coat_term_name: str | None

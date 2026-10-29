@@ -227,9 +227,11 @@
         </div>
         <div v-if="viewIq.notes && Object.values(viewIq.notes).some(x => x && String(x).trim())" class="view-iq-sec">
           <h4>自填描述</h4>
-          <div v-for="(val, key) in viewIq.notes" :key="key" v-if="val && String(val).trim()" class="note-line">
-            <b>{{ key }}</b>：{{ val }}
-          </div>
+          <template v-for="(val, key) in viewIq.notes" :key="key">
+            <div v-if="val && String(val).trim()" class="note-line">
+              <b>{{ key }}</b>：{{ val }}
+            </div>
+          </template>
         </div>
       </template>
     </el-dialog>
@@ -394,7 +396,7 @@ async function saveEdit() {
   if (!editForm.value.name.trim()) { ElMessage.warning('请填写姓名'); return }
   savingEdit.value = true
   try {
-    patient.value = await api.put(`/patients/${patientId}`, editForm.value)
+    patient.value = await api.put(`/patients/${patientId}`, editForm.value, { silent: true })
     ElMessage.success('已保存')
     editVisible.value = false
   } catch {

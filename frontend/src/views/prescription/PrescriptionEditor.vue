@@ -5,7 +5,10 @@
       <template #header>
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span>📝 {{ prescriptionId ? '编辑处方' : '开具处方' }}</span>
-          <div style="display:flex;gap:8px;">
+          <div style="display:flex;gap:8px;align-items:center;">
+            <span v-if="estimatedTotal > 0" title="中药售价×剂量×剂数 + 针灸费用（预估）" style="font-size:14px;font-weight:600;color:#8B4513;">
+              预估合计 ¥{{ estimatedTotal }}
+            </span>
             <el-button v-if="editable" size="small" @click="loadFromFormula">从中药方导入</el-button>
             <el-button v-if="editable" size="small" @click="loadFromAcupointFormula">从针灸方导入</el-button>
             <el-button v-if="editable" type="primary" size="small" @click="submitPrescription" :loading="submitting">
@@ -81,6 +84,9 @@
               <el-input-number v-model="item.dose" :min="0.5" :max="200" :precision="1"
                 placeholder="剂量" style="width:120px;" />
               <span style="font-size:13px;color:#999;">g</span>
+              <span v-if="herbUnitPrice(item) != null" style="font-size:12px;color:#8B4513;white-space:nowrap;min-width:96px;display:inline-block;">
+                ￥{{ herbUnitPrice(item) }}·{{ herbItemAmount(item) }}元
+              </span>
               <el-select v-model="item.special_method" placeholder="煎法" clearable style="width:100px;">
                 <el-option v-for="m in specialMethods" :key="m" :label="m" :value="m" />
               </el-select>
@@ -133,6 +139,11 @@
             <el-form-item label="疗程天数">
               <el-input-number v-model="form.treatment_days" :min="1" :max="60" style="width:100%" />
               <span style="font-size:13px;color:#999;margin-left:6px;">天</span>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="针灸费用">
+              <el-input-number v-model="form.acupuncture_fee" :min="0" :precision="2" placeholder="本次针灸收费(元)" style="width:100%" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -368,6 +379,7 @@ const form = ref({
   acupoint_technique: '',
   treatment_frequency: '',
   treatment_days: null as number | null,
+  acupuncture_fee: null as number | null,
   items: [] as Array<{
     herb_id: number | null
     herb_name: string
@@ -375,6 +387,7 @@ const form = ref({
     special_method: string | null
     is_king_herb: boolean
     note: string
+    price?: number | null
     _warnings?: string[]
   }>,
   acupoints: [] as Array<{
@@ -401,6 +414,32 @@ const filteredAcupointFormulas = computed(() => {
   return acupointFormulas.value.filter((f: any) =>
     f.name.toLowerCase().includes(q) || (f.efficacy || '').toLowerCase().includes(q)
   )
+})
+
+// ── 计价（预估）：单价优先药材参考价，其次该药材进价 ──
+function herbUnitPrice(item: any): number | null {
+  if (item == null || item.herb_id == null) return null
+  const herb = herbCacheList.value.find((h: any) => h.id === item.herb_id)
+  const price = herb?.price ?? item.price ?? null
+  return price != null ? Number(price) : null
+}
+function herbItemAmount(item: any): number | null {
+  const p = herbUnitPrice(item)
+  if (p == null) return null
+  const doses = Number(form.value.doses) || 1
+  return Math.round(p * Number(item.dose || 0) * doses * 100) / 100
+}
+const herbTotal = computed(() => {
+  let sum = 0
+  for (const it of form.value.items) {
+    const amt = herbItemAmount(it)
+    if (amt != null) sum += amt
+  }
+  return Math.round(sum * 100) / 100
+})
+const acupunctureFee = computed(() => Number(form.value.acupuncture_fee) || 0)
+const estimatedTotal = computed(() => {
+  return Math.round((herbTotal.value + acupunctureFee.value) * 100) / 100
 })
 
 function getExcludeIds(currentIdx: number) {
@@ -450,6 +489,8 @@ function onAcupointChange(idx: number, name: string) {
 function onHerbSelect(idx: number, herb: any) {
   if (herb) {
     form.value.items[idx].herb_name = herb.name
+    // 记录单价（参考中药材参考价），用于开方时实时预估金额
+    form.value.items[idx].price = herb.price ?? null
     // 自动填充建议剂量（取中间值）
     const mid = Math.round(((herb.dosage_min || 3) + (herb.dosage_max || 10)) / 2)
     if (!form.value.items[idx].dose || form.value.items[idx].dose === 10) {
@@ -717,6 +758,7 @@ function applyPrescription(p: any) {
   f.acupoint_technique = p.acupoint_technique || ''
   f.treatment_frequency = p.treatment_frequency || ''
   f.treatment_days = p.treatment_days ?? null
+  f.acupuncture_fee = p.acupuncture_fee ?? null
   f.items = (p.items || []).map((i: any) => ({
     herb_id: i.herb_id, herb_name: i.herb_name, dose: i.dose,
     special_method: i.special_method, is_king_herb: i.is_king_herb, note: i.note, _warnings: [],

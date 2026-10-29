@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
 from app.models.prescription import ClassicFormula, Prescription, PrescriptionItem, AcupointPrescription, PrescriptionInjection
-from app.models.herb import IncompatibilityRule, Herb
+from app.models.herb import IncompatibilityRule, Herb, HerbInventory
 from app.models.patient import Patient
 from app.models.user import User
 from app.routers.auth import get_current_user
@@ -185,20 +185,43 @@ def list_prescriptions(
     return rows
 
 
-def _compute_total_price(db: Session, items, doses: int) -> float | None:
-    """按药材参考单价(元/g) × 剂量 × 剂数估算处方总价；无任何单价时返回 None（前端显示—）"""
-    if not items:
-        return None
-    herb_ids = [it.herb_id for it in items]
-    herbs = {h.id: h for h in db.query(Herb).filter(Herb.id.in_(herb_ids)).all()}
-    total = 0.0
+def _compute_total_price(db: Session, items, doses: int, acupuncture_fee: float | None = None) -> float | None:
+    """处方计价 = 中药售价合计 + 针灸费用。
+
+    官方售价优先级：库存该药材售价(sale_price) → 药材参考单价(herb.price)。
+    无任何中药单价且无针灸费用时返回 None（前端显示—）。
+    """
+    fee = float(acupuncture_fee or 0)
+    herb_total = 0.0
     has_price = False
-    for it in items:
-        h = herbs.get(it.herb_id)
-        if h and h.price is not None:
-            total += float(h.price) * float(it.dose) * (doses or 1)
-            has_price = True
-    return round(total, 2) if has_price else None
+    if items:
+        herb_ids = [it.herb_id for it in items]
+        herbs = {h.id: h for h in db.query(Herb).filter(Herb.id.in_(herb_ids)).all()}
+        # 每个药材优先取某条正常库存批次的售价，作为本次处方单价；无售价则回退进价
+        price_map: dict[int, float | None] = {}
+        for inv in db.query(HerbInventory).filter(
+            HerbInventory.herb_id.in_(herb_ids),
+            HerbInventory.status == "正常",
+        ):
+            if inv.herb_id not in price_map:
+                if inv.sale_price is not None:
+                    price_map[inv.herb_id] = float(inv.sale_price)
+                elif inv.unit_price is not None:
+                    price_map[inv.herb_id] = float(inv.unit_price)
+                else:
+                    price_map[inv.herb_id] = None
+        for it in items:
+            p = price_map.get(it.herb_id)
+            if p is None:
+                h = herbs.get(it.herb_id)
+                if h is not None and h.price is not None:
+                    p = float(h.price)
+            if p is not None:
+                herb_total += p * float(it.dose) * (doses or 1)
+                has_price = True
+    if not has_price and fee <= 0:
+        return None
+    return round(herb_total + fee, 2)
 
 
 @router.post("", response_model=PrescriptionResponse, summary="开具处方")
@@ -251,6 +274,7 @@ def create_prescription(data: PrescriptionCreate, current_user: User = Depends(g
         acupoint_technique=data.acupoint_technique,
         treatment_frequency=data.treatment_frequency,
         treatment_days=data.treatment_days,
+        acupuncture_fee=data.acupuncture_fee,
     )
     db.add(prescription)
     db.flush()
@@ -339,6 +363,7 @@ def update_prescription(prescription_id: int, data: PrescriptionCreate, current_
     prescription.acupoint_technique = data.acupoint_technique
     prescription.treatment_frequency = data.treatment_frequency
     prescription.treatment_days = data.treatment_days
+    prescription.acupuncture_fee = data.acupuncture_fee
 
     # 重建药味 / 配穴 / 针剂明细
     prescription.items = [
@@ -360,7 +385,7 @@ def update_prescription(prescription_id: int, data: PrescriptionCreate, current_
         ) for j in data.injections
     ]
 
-    prescription.total_price = _compute_total_price(db, data.items, data.doses)
+    prescription.total_price = _compute_total_price(db, data.items, data.doses, data.acupuncture_fee)
 
     db.commit()
     db.refresh(prescription)
@@ -447,7 +472,7 @@ def dispense_prescription(prescription_id: int, current_user: User = Depends(get
             )
             db.add(txn)
 
-        prescription.total_price = _compute_total_price(db, prescription.items, prescription.doses)
+        prescription.total_price = _compute_total_price(db, prescription.items, prescription.doses, prescription.acupuncture_fee)
         prescription.status = "已发药"
         db.commit()
     db.refresh(prescription)

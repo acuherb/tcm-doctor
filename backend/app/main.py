@@ -107,6 +107,23 @@ def _run_light_migrations() -> None:
         if "ai_analysis" not in vcols:
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE visits ADD COLUMN ai_analysis TEXT"))
+        if "pulse_term_ids" not in vcols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE visits ADD COLUMN pulse_term_ids TEXT"))
+
+    # herb_inventory.sale_price（售价，开方计价用；unit_price 视为进价）
+    if "herb_inventory" in inspector.get_table_names():
+        icols = {c["name"] for c in inspector.get_columns("herb_inventory")}
+        if "sale_price" not in icols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE herb_inventory ADD COLUMN sale_price NUMERIC(8,2)"))
+
+    # prescriptions.acupuncture_fee（针灸费用，计入处方总价）
+    if "prescriptions" in inspector.get_table_names():
+        pcols = {c["name"] for c in inspector.get_columns("prescriptions")}
+        if "acupuncture_fee" not in pcols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE prescriptions ADD COLUMN acupuncture_fee NUMERIC(8,2)"))
 
     # 其它表的新增列可在下方照此扩展
 

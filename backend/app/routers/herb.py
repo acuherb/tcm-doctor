@@ -142,6 +142,7 @@ def inventory_in(data: InventoryIn, current_user: User = Depends(get_current_use
         batch_number=data.batch_number,
         quantity=data.quantity,
         unit_price=data.unit_price,
+        sale_price=data.sale_price,
         purchase_date=data.purchase_date,
         expiry_date=data.expiry_date,
         supplier=data.supplier,
@@ -149,6 +150,10 @@ def inventory_in(data: InventoryIn, current_user: User = Depends(get_current_use
     )
     db.add(inv)
     db.flush()
+
+    # 入库时填的售价同步到药材参考单价(元/g)，供处方计价与编辑器预估单价使用
+    if data.sale_price is not None:
+        herb.price = data.sale_price
 
     # 记录出入库
     txn = InventoryTransaction(

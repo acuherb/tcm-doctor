@@ -49,8 +49,11 @@
         <el-table-column prop="min_stock" label="最低库存(g)" width="110">
           <template #default="{ row }">{{ row.min_stock || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="unit_price" label="单价(元/g)" width="110">
+        <el-table-column prop="unit_price" label="进价(元/g)" width="110">
           <template #default="{ row }">{{ row.unit_price != null ? row.unit_price.toFixed(2) : '-' }}</template>
+        </el-table-column>
+        <el-table-column prop="sale_price" label="售价(元/g)" width="110">
+          <template #default="{ row }">{{ row.sale_price != null ? row.sale_price.toFixed(2) : '-' }}</template>
         </el-table-column>
         <el-table-column prop="purchase_date" label="购入日期" width="110">
           <template #default="{ row }">{{ row.purchase_date || '-' }}</template>
@@ -101,7 +104,10 @@
               <span class="label">批号</span><span class="value">{{ row.batch_number }}</span>
             </div>
             <div class="card-row">
-              <span class="label">单价</span><span class="value">{{ row.unit_price != null ? row.unit_price.toFixed(2) + ' 元/g' : '-' }}</span>
+              <span class="label">进价</span><span class="value">{{ row.unit_price != null ? row.unit_price.toFixed(2) + ' 元/g' : '-' }}</span>
+            </div>
+            <div class="card-row">
+              <span class="label">售价</span><span class="value">{{ row.sale_price != null ? row.sale_price.toFixed(2) + ' 元/g' : '-' }}</span>
             </div>
             <div class="card-row">
               <span class="label">购入</span><span class="value">{{ row.purchase_date || '-' }}</span>
@@ -171,16 +177,19 @@
         </el-form-item>
         <el-row :gutter="12">
           <el-col :span="12">
-            <el-form-item label="单价(元/g)">
+            <el-form-item label="进价(元/g)">
               <el-input-number v-model="stockInForm.unit_price" :min="0" :precision="2" style="width:100%" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="批号">
-              <el-input v-model="stockInForm.batch_number" placeholder="批号" />
+            <el-form-item label="售价(元/g)">
+              <el-input-number v-model="stockInForm.sale_price" :min="0" :precision="2" style="width:100%" />
             </el-form-item>
           </el-col>
         </el-row>
+        <el-form-item label="批号">
+          <el-input v-model="stockInForm.batch_number" placeholder="批号" />
+        </el-form-item>
         <el-row :gutter="12">
           <el-col :span="12">
             <el-form-item label="购入日期">
@@ -377,6 +386,7 @@ const stockInForm = ref({
   herb_id: null as number | null,
   quantity: 100,
   unit_price: null as number | null,
+  sale_price: null as number | null,
   batch_number: '',
   purchase_date: '',
   expiry_date: '',
@@ -389,15 +399,16 @@ const stockInRules = {
 }
 
 function openStockIn() {
-  stockInForm.value = { herb_id: null, quantity: 100, unit_price: null, batch_number: '', purchase_date: '', expiry_date: '', supplier: '', note: '' }
+  stockInForm.value = { herb_id: null, quantity: 100, unit_price: null, sale_price: null, batch_number: '', purchase_date: '', expiry_date: '', supplier: '', note: '' }
   stockInVisible.value = true
 }
 
 function onStockInHerbSelect(herbId: number) {
   const herb = herbs.value.find((h: any) => h.id === herbId)
   if (herb) {
-    // 自动填充建议价格
+    // 自动填充建议价格（进价沿用上次/参考，售价沿用药材参考价或进价）
     stockInForm.value.unit_price = herb.unit_price || null
+    stockInForm.value.sale_price = (herb.price ?? herb.unit_price) || null
   }
 }
 
@@ -409,7 +420,9 @@ async function submitStockIn() {
     ElMessage.success('入库成功')
     stockInVisible.value = false
     loadInventory()
-  } catch {} finally {
+  } catch (e: any) {
+    ElMessage.error('入库失败：' + (e?.response?.data?.detail || e?.message || '未知错误'))
+  } finally {
     submitting.value = false
   }
 }
@@ -457,7 +470,7 @@ async function submitStockOut() {
 
 // ── 快速入库（从预警面板） ──
 function quickStockIn(herbId: number) {
-  stockInForm.value = { herb_id: herbId, quantity: 500, unit_price: null, batch_number: '', purchase_date: '', expiry_date: '', supplier: '', note: '' }
+  stockInForm.value = { herb_id: herbId, quantity: 500, unit_price: null, sale_price: null, batch_number: '', purchase_date: '', expiry_date: '', supplier: '', note: '' }
   stockInVisible.value = true
 }
 

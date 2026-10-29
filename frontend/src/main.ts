@@ -7,6 +7,7 @@ import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 
 import App from './App.vue'
 import router from './router'
+import { useAuthStore } from './store/auth'
 
 import './styles/tcm-theme.scss'
 
@@ -17,8 +18,12 @@ for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
   app.component(key, component)
 }
 
-app.use(createPinia())
+const pinia = createPinia()
+app.use(pinia)
 app.use(router)
 app.use(ElementPlus, { locale: zhCn })
 
-app.mount('#app')
+// 刷新后用 /auth/me 校验 token 有效性，过期则清理登录态再进入；校验完成后再挂载
+useAuthStore().restore().finally(() => {
+  app.mount('#app')
+})

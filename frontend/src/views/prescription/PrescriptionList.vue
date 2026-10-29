@@ -81,6 +81,13 @@
         <el-table-column prop="created_at" label="开具时间" width="160">
           <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
         </el-table-column>
+        <el-table-column label="金额" width="110">
+          <template #default="{ row }">
+            <span :style="{ fontWeight: 600, color: row.total_price != null ? '#8B4513' : '#bbb' }">
+              {{ row.total_price != null ? '¥' + Number(row.total_price).toFixed(2) : '—' }}
+            </span>
+          </template>
+        </el-table-column>
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" size="small" @click="viewDetail(row)">详情</el-button>
@@ -272,6 +279,12 @@
           </template>
 
           <div class="print-footer">
+            <p v-if="currentPrescription.total_price != null" class="print-total">
+              合计金额: ￥{{ Number(currentPrescription.total_price).toFixed(2) }}
+              <span v-if="currentPrescription.acupuncture_fee" style="color:#999;font-size:12px;">
+                （含针灸 ￥{{ Number(currentPrescription.acupuncture_fee).toFixed(2) }}）
+              </span>
+            </p>
             <p v-if="currentPrescription.doctor_notes">医嘱: {{ currentPrescription.doctor_notes }}</p>
             <p v-if="doctorName" class="print-doctor">医师: {{ doctorName }}</p>
           </div>

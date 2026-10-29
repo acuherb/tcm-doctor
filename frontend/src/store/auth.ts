@@ -1,6 +1,7 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import api from '@/utils/api'
+import { setLogoutHandler } from './authBus'
 
 interface UserInfo {
   id: number
@@ -71,6 +72,12 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem(USER_KEY)
     delete api.defaults.headers.common['Authorization']
   }
+
+  // 注册 401 时清理内存登录态的回调（供 api 拦截器调用）
+  setLogoutHandler(() => {
+    token.value = ''
+    user.value = null
+  })
 
   return { token, user, isLoggedIn, login, guestLogin, logout, restore }
 })

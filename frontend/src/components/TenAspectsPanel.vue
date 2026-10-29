@@ -241,7 +241,7 @@ async function evaluate() {
       answers: payloadAnswers,
       notes: notes.value,
       visit_id: props.visitId ?? null,
-    }) as any
+    }, { silent: true }) as any
     ElMessage.success('十问辨证完成，已归档到病历')
     await loadRecommend(result.value)
   } catch (e: any) {

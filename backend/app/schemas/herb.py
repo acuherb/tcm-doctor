@@ -88,7 +88,8 @@ class InventoryIn(BaseModel):
     """入库"""
     herb_id: int
     quantity: float = Field(..., gt=0, description="入库量(g)")
-    unit_price: float | None = Field(None, description="单价(元/g)")
+    unit_price: float | None = Field(None, description="进价(元/g)")
+    sale_price: float | None = Field(None, description="售价(元/g)")
     batch_number: str | None = None
     purchase_date: str | None = None
     expiry_date: str | None = None
@@ -112,6 +113,7 @@ class InventoryResponse(BaseModel):
     batch_number: str | None
     quantity: float
     unit_price: float | None
+    sale_price: float | None
     purchase_date: str | None
     expiry_date: str | None
     supplier: str | None

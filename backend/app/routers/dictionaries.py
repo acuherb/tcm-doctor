@@ -77,6 +77,12 @@ def delete_term(term_id: int, current_user: User = Depends(get_current_user), db
     # 解除就诊记录对该词条的引用，避免孤儿外键（就诊仍有冗余的明文选项）
     for col in (Visit.tongue_body_term_id, Visit.tongue_coat_term_id, Visit.pulse_term_id, Visit.syndrome_term_id):
         db.query(Visit).filter(col == term_id).update({col: None})
+    # 多选脉象列表 pulse_term_ids 同样剔除被删词条 id
+    for v in db.query(Visit).filter(Visit.pulse_term_ids.isnot(None)).all():
+        ids = v.pulse_term_ids or []
+        if term_id in ids:
+            remaining = [i for i in ids if i != term_id]
+            v.pulse_term_ids = remaining if remaining else None
     db.delete(term)
     db.commit()
     return {"detail": "已删除"}
