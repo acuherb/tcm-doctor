@@ -202,10 +202,12 @@
 
     <el-dialog v-model="editVisible" title="编辑患者信息" width="560px">
       <el-form :model="editForm" label-width="80px" label-position="top">
-        <el-form-item label="姓名" required>
-          <el-input v-model="editForm.name" />
-        </el-form-item>
         <el-row :gutter="12">
+          <el-col :xs="24" :sm="12">
+            <el-form-item label="姓名" required>
+              <el-input v-model="editForm.name" />
+            </el-form-item>
+          </el-col>
           <el-col :xs="24" :sm="12">
             <el-form-item label="性别">
               <el-select v-model="editForm.gender" style="width:100%">
@@ -213,9 +215,18 @@
               </el-select>
             </el-form-item>
           </el-col>
+        </el-row>
+        <el-row :gutter="12">
           <el-col :xs="24" :sm="12">
             <el-form-item label="出生日期">
               <el-date-picker v-model="editForm.birth_date" type="date" value-format="YYYY-MM-DD" style="width:100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :sm="12">
+            <el-form-item label="年龄">
+              <el-input :model-value="calcAge(editForm.birth_date) ?? ''" disabled placeholder="自动计算" style="width:100%">
+                <template #append>岁</template>
+              </el-input>
             </el-form-item>
           </el-col>
           <el-col :xs="24" :sm="6">
