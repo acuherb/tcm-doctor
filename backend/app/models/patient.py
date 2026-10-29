@@ -22,11 +22,13 @@ class Patient(Base):
     constitution_type: Mapped[str | None] = mapped_column(String(20), comment="体质类型")
     constitution_score: Mapped[dict | None] = mapped_column(JSON, comment="体质评分明细")
     notes: Mapped[str | None] = mapped_column(Text, comment="备注")
+    tags: Mapped[list | None] = mapped_column(JSON, comment="患者标签，如'不遵医瞩'")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now)
 
     # 关系
     visits: Mapped[list["Visit"]] = relationship(back_populates="patient", cascade="all, delete-orphan")
+    followups: Mapped[list["FollowUp"]] = relationship(back_populates="patient", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Patient(id={self.id}, name='{self.name}')>"

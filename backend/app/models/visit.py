@@ -40,6 +40,11 @@ class Visit(Base):
     pulse_term_ids: Mapped[list | None] = mapped_column(JSON, comment="脉象词条ID列表(支持多选脉象)")
     syndrome_term_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("dictionary_terms.id"), comment="证型词条ID")
 
+    # 影像资料（base64 data URL，作为正式病历资料；亦可经 AI 辨证，但此处独立留存以便查询）
+    tongue_image: Mapped[str | None] = mapped_column(Text, comment="舌苔照片 base64 data URL")
+    face_image: Mapped[str | None] = mapped_column(Text, comment="面色照片 base64 data URL")
+    lab_report_images: Mapped[list | None] = mapped_column(JSON, comment="化验单/影像报告图片列表(base64)")
+
     # 医嘱
     doctor_notes: Mapped[str | None] = mapped_column(Text, comment="医嘱/调护")
     doctor_id: Mapped[int | None] = mapped_column(Integer, comment="接诊医师ID")

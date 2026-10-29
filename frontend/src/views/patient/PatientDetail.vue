@@ -11,6 +11,10 @@
       </template>
     </el-page-header>
 
+    <div v-if="patient?.tags && patient.tags.length" class="patient-tags">
+      <el-tag v-for="t in patient.tags" :key="t" :type="t === '不遵医瞩' ? 'danger' : 'info'" size="small" effect="plain" style="margin-right:6px;">{{ t }}</el-tag>
+    </div>
+
     <el-row :gutter="20" style="margin-top: 20px;">
       <!-- 基本信息 -->
       <el-col :xs="24" :sm="10" :lg="8">
@@ -61,6 +65,25 @@
                   <span v-if="visit.tongue_body">舌质: {{ visit.tongue_body }}</span>
                   <span v-if="visit.tongue_coat">舌苔: {{ visit.tongue_coat }}</span>
                   <span v-if="visit.pulse">脉象: {{ visit.pulse }}</span>
+                </div>
+
+                <!-- 影像资料（舌苔/面色/化验单，点击可放大） -->
+                <div v-if="visit.tongue_image || visit.face_image || (visit.lab_report_images && visit.lab_report_images.length)" class="sub-block">
+                  <div class="sub-title">📷 影像资料</div>
+                  <div class="visit-imgs">
+                    <div v-if="visit.tongue_image" class="visit-img-item">
+                      <span class="img-label">舌苔</span>
+                      <el-image :src="visit.tongue_image" fit="cover" class="visit-thumb" :preview-src-list="[visit.tongue_image]" />
+                    </div>
+                    <div v-if="visit.face_image" class="visit-img-item">
+                      <span class="img-label">面色</span>
+                      <el-image :src="visit.face_image" fit="cover" class="visit-thumb" :preview-src-list="[visit.face_image]" />
+                    </div>
+                    <div v-for="(img, i) in (visit.lab_report_images || [])" :key="i" class="visit-img-item">
+                      <span class="img-label">化验单{{ (visit.lab_report_images || []).length > 1 ? i + 1 : '' }}</span>
+                      <el-image :src="img" fit="cover" class="visit-thumb" :preview-src-list="visit.lab_report_images || []" :initial-index="i" />
+                    </div>
+                  </div>
                 </div>
 
                 <!-- 本次问诊十问（按就诊日期关联，半折叠） -->
@@ -144,6 +167,30 @@
           <el-empty v-else description="暂无就诊记录" />
         </el-card>
 
+        <!-- 病情跟踪（治疗后效果反馈/随访） -->
+        <el-card shadow="hover" style="margin-top: 16px;">
+          <template #header>
+            <span>📈 病情跟踪</span>
+            <el-button v-if="editable" link type="primary" size="small" style="float:right;height:auto;" @click="openFollowupDialog()">+ 新增跟踪</el-button>
+          </template>
+          <el-timeline v-if="followups.length">
+            <el-timeline-item v-for="fu in followups" :key="fu.id" :timestamp="fu.followup_date" placement="top">
+              <el-card shadow="never" class="visit-card">
+                <div class="visit-header">
+                  <el-tag size="small" :type="fu.treatment_type === '针灸' ? 'success' : 'primary'">{{ fu.treatment_type || '未填' }}</el-tag>
+                  <el-tag v-if="fu.improvement" size="small" :type="improvementTag(fu.improvement)">{{ fu.improvement }}</el-tag>
+                  <span v-if="editable" class="visit-actions" style="float:right;">
+                    <el-button link type="primary" size="small" @click="openFollowupDialog(fu)">编辑</el-button>
+                    <el-button link type="danger" size="small" @click="deleteFollowup(fu)">删除</el-button>
+                  </span>
+                </div>
+                <div v-if="fu.feedback" class="fu-feedback">{{ fu.feedback }}</div>
+              </el-card>
+            </el-timeline-item>
+          </el-timeline>
+          <el-empty v-else description="暂无病情跟踪记录" />
+        </el-card>
+
       </el-col>
     </el-row>
 
@@ -174,6 +221,14 @@
         <el-form-item label="过敏史"><el-input v-model="editForm.allergy_history" /></el-form-item>
         <el-form-item label="既往史"><el-input v-model="editForm.medical_history" type="textarea" :rows="2" /></el-form-item>
         <el-form-item label="备注"><el-input v-model="editForm.notes" type="textarea" :rows="2" /></el-form-item>
+        <el-form-item label="标签">
+          <el-select v-model="editForm.tags" multiple filterable allow-create default-first-option placeholder="可输入或选择，如'不遵医瞩'" style="width:100%">
+            <el-option label="不遵医瞩" value="不遵医瞩" />
+            <el-option label="过敏体质" value="过敏体质" />
+            <el-option label="慢性病" value="慢性病" />
+            <el-option label="孕妇" value="孕妇" />
+          </el-select>
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="editVisible = false">取消</el-button>
@@ -196,6 +251,23 @@
         <el-descriptions-item v-if="viewVisit.tcm_syndrome" label="证型">{{ viewVisit.tcm_syndrome }}</el-descriptions-item>
         <el-descriptions-item v-if="viewVisit.treatment_method" label="治法">{{ viewVisit.treatment_method }}</el-descriptions-item>
       </el-descriptions>
+      <div v-if="viewVisit.tongue_image || viewVisit.face_image || (viewVisit.lab_report_images && viewVisit.lab_report_images.length)" class="sub-block" style="margin-top: 14px;">
+        <div class="sub-title">📷 影像资料</div>
+        <div class="visit-imgs">
+          <div v-if="viewVisit.tongue_image" class="visit-img-item">
+            <span class="img-label">舌苔</span>
+            <el-image :src="viewVisit.tongue_image" fit="cover" class="visit-thumb" :preview-src-list="[viewVisit.tongue_image]" />
+          </div>
+          <div v-if="viewVisit.face_image" class="visit-img-item">
+            <span class="img-label">面色</span>
+            <el-image :src="viewVisit.face_image" fit="cover" class="visit-thumb" :preview-src-list="[viewVisit.face_image]" />
+          </div>
+          <div v-for="(img, i) in (viewVisit.lab_report_images || [])" :key="i" class="visit-img-item">
+            <span class="img-label">化验单{{ (viewVisit.lab_report_images || []).length > 1 ? i + 1 : '' }}</span>
+            <el-image :src="img" fit="cover" class="visit-thumb" :preview-src-list="viewVisit.lab_report_images || []" :initial-index="i" />
+          </div>
+        </div>
+      </div>
       <div v-if="viewVisit.ai_analysis" class="sub-block" style="margin-top: 14px;">
         <div class="sub-title">🤖 AI 诊断库（辨证论治）</div>
         <div class="view-ai-analysis" v-html="renderMarkdown(viewVisit.ai_analysis)"></div>
@@ -291,6 +363,38 @@
         </div>
       </template>
     </el-dialog>
+
+    <!-- 病情跟踪 新增/编辑 -->
+    <el-dialog v-model="followupVisible" :title="followupForm.id ? '编辑病情跟踪' : '新增病情跟踪'" width="520px">
+      <el-form :model="followupForm" label-width="90px" label-position="top">
+        <el-form-item label="随访日期" required>
+          <el-date-picker v-model="followupForm.followup_date" type="date" value-format="YYYY-MM-DD" style="width:100%" />
+        </el-form-item>
+        <el-form-item label="治疗类型">
+          <el-select v-model="followupForm.treatment_type" style="width:100%" placeholder="选择治疗方式">
+            <el-option label="中药" value="中药" />
+            <el-option label="针灸" value="针灸" />
+            <el-option label="其他" value="其他" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="改善程度">
+          <el-select v-model="followupForm.improvement" style="width:100%" placeholder="选择改善程度">
+            <el-option label="明显好转" value="明显好转" />
+            <el-option label="好转" value="好转" />
+            <el-option label="稳定" value="稳定" />
+            <el-option label="反复" value="反复" />
+            <el-option label="加重" value="加重" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="效果反馈">
+          <el-input v-model="followupForm.feedback" type="textarea" :rows="3" placeholder="症状变化、耐受情况、患者反馈等" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="followupVisible = false">取消</el-button>
+        <el-button type="primary" @click="saveFollowup" :loading="savingFollowup">保存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -314,6 +418,11 @@ const visits = ref<any[]>([])
 const inquiries = ref<any[]>([])
 const prescriptions = ref<any[]>([])
 const loading = ref(false)
+// 病情跟踪
+const followups = ref<any[]>([])
+const followupVisible = ref(false)
+const savingFollowup = ref(false)
+const followupForm = ref<any>({ id: null, followup_date: '', treatment_type: '', improvement: '', feedback: '', visit_id: null })
 
 // 按就诊聚合：处方与十问分别归到对应的 visit_id 下
 const rxByVisit = computed<Record<number, any[]>>(() => {
@@ -376,6 +485,13 @@ function statusTag(s?: string) {
   return 'info'
 }
 
+function improvementTag(s?: string) {
+  if (s === '明显好转' || s === '好转') return 'success'
+  if (s === '稳定') return 'info'
+  if (s === '反复' || s === '加重') return 'danger'
+  return 'info'
+}
+
 function openEdit() {
   const p = patient.value || {}
   editForm.value = {
@@ -388,6 +504,7 @@ function openEdit() {
     allergy_history: p.allergy_history || '',
     medical_history: p.medical_history || '',
     notes: p.notes || '',
+    tags: p.tags || [],
   }
   editVisible.value = true
 }
@@ -405,19 +522,66 @@ async function saveEdit() {
   savingEdit.value = false
 }
 
+// ── 病情跟踪 ──
+async function loadFollowups() {
+  followups.value = (await api.get(`/patients/${patientId}/followups`)) as any
+}
+
+function openFollowupDialog(fu?: any) {
+  if (fu) {
+    followupForm.value = { ...fu }
+  } else {
+    followupForm.value = {
+      id: null,
+      followup_date: new Date().toISOString().slice(0, 10),
+      treatment_type: '',
+      improvement: '',
+      feedback: '',
+      visit_id: null,
+    }
+  }
+  followupVisible.value = true
+}
+
+async function saveFollowup() {
+  if (!followupForm.value.followup_date) { ElMessage.warning('请选择随访日期'); return }
+  savingFollowup.value = true
+  try {
+    if (followupForm.value.id) {
+      await api.put(`/patients/${patientId}/followups/${followupForm.value.id}`, followupForm.value, { silent: true })
+    } else {
+      await api.post(`/patients/${patientId}/followups`, followupForm.value, { silent: true })
+    }
+    ElMessage.success('已保存')
+    followupVisible.value = false
+    await loadFollowups()
+  } catch {}
+  savingFollowup.value = false
+}
+
+async function deleteFollowup(fu: any) {
+  try {
+    await api.delete(`/patients/${patientId}/followups/${fu.id}`, { silent: true })
+    ElMessage.success('已删除')
+    await loadFollowups()
+  } catch {}
+}
+
 onMounted(async () => {
   loading.value = true
   try {
-    const [p, v, iq, rx] = await Promise.all([
+    const [p, v, iq, rx, fus] = await Promise.all([
       api.get(`/patients/${patientId}`),
       api.get(`/patients/${patientId}/visits`),
       api.get(`/patients/${patientId}/inquiries`),
       api.get(`/prescriptions?patient_id=${patientId}`),
+      api.get(`/patients/${patientId}/followups`),
     ])
     patient.value = p
     visits.value = v as any
     inquiries.value = iq as any
     prescriptions.value = rx as any
+    followups.value = fus as any
   } catch {}
   loading.value = false
 })
@@ -430,10 +594,15 @@ function fmtTime(iso?: string): string {
 
 <style scoped>
 .text-muted { color: #c0c4cc; }
+.patient-tags { margin: 12px 0 0 8px; }
 .visit-card { margin-bottom: 4px; }
 .visit-header { font-size: 14px; }
 .visit-diagnosis { margin-top: 8px; display: flex; gap: 6px; }
 .visit-sizhen { margin-top: 8px; font-size: 13px; color: #666; display: flex; gap: 12px; }
+.visit-imgs { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 6px; }
+.visit-img-item { text-align: center; }
+.visit-img-item .img-label { display: block; font-size: 12px; color: #999; margin-bottom: 4px; }
+.visit-thumb { width: 96px; height: 96px; border-radius: 6px; border: 1px solid #eee; cursor: zoom-in; }
 .iq-type { margin-bottom: 6px; }
 .iq-findings { margin: 4px 0; padding-left: 16px; font-size: 12.5px; color: #666; line-height: 1.8; }
 .iq-suggestion { margin-top: 6px; font-size: 12.5px; color: #8B4513; }
@@ -491,6 +660,7 @@ function fmtTime(iso?: string): string {
   pointer-events: none;
 }
 .visit-actions { margin-top: 8px; text-align: right; }
+.fu-feedback { margin-top: 6px; font-size: 13px; color: #444; line-height: 1.7; white-space: pre-wrap; }
 /* 弹窗内容超高时，仅 body 内部滚动，底部按钮始终可见（避免 AI 分析把弹窗顶飞） */
 .visit-detail-dialog :deep(.el-dialog__body),
 .iq-detail-dialog :deep(.el-dialog__body),

@@ -31,6 +31,7 @@ class PatientUpdate(BaseModel):
     constitution_type: str | None = None
     constitution_score: dict | None = None
     notes: str | None = None
+    tags: list[str] | None = None
 
 
 class PatientResponse(BaseModel):
@@ -47,6 +48,7 @@ class PatientResponse(BaseModel):
     constitution_type: str | None
     constitution_score: dict | None
     notes: str | None
+    tags: list[str] | None
     created_at: datetime | None
     updated_at: datetime | None
 
@@ -76,6 +78,9 @@ class VisitCreate(BaseModel):
     tongue_body: str | None = Field(None, description="舌质")
     tongue_coat: str | None = Field(None, description="舌苔")
     pulse: str | None = Field(None, description="脉象")
+    tongue_image: str | None = Field(None, description="舌苔照片 base64 data URL")
+    face_image: str | None = Field(None, description="面色照片 base64 data URL")
+    lab_report_images: list[str] | None = Field(None, description="化验单/影像报告图片列表(base64)")
     # 中医诊断
     tcm_disease: str | None = Field(None, description="中医病名")
     tcm_syndrome: str | None = Field(None, description="证型")
@@ -104,6 +109,9 @@ class VisitUpdate(BaseModel):
     tongue_body: str | None = Field(None, description="舌质")
     tongue_coat: str | None = Field(None, description="舌苔")
     pulse: str | None = Field(None, description="脉象")
+    tongue_image: str | None = Field(None, description="舌苔照片 base64 data URL")
+    face_image: str | None = Field(None, description="面色照片 base64 data URL")
+    lab_report_images: list[str] | None = Field(None, description="化验单/影像报告图片列表(base64)")
     tcm_disease: str | None = Field(None, description="中医病名")
     tcm_syndrome: str | None = Field(None, description="证型")
     treatment_method: str | None = Field(None, description="治法")
@@ -131,6 +139,9 @@ class VisitResponse(BaseModel):
     tongue_body: str | None
     tongue_coat: str | None
     pulse: str | None
+    tongue_image: str | None
+    face_image: str | None
+    lab_report_images: list[str] | None
     tcm_disease: str | None
     tcm_syndrome: str | None
     treatment_method: str | None
@@ -170,6 +181,43 @@ class InquiryRecordOut(BaseModel):
     notes: dict | None
     result: dict | None
     created_at: datetime | None
+
+
+# === 病情跟踪（治疗后效果反馈/随访） ===
+
+class FollowUpCreate(BaseModel):
+    """新增病情跟踪"""
+    followup_date: str = Field(..., description="随访/反馈日期 YYYY-MM-DD")
+    visit_id: int | None = Field(None, description="关联的治疗就诊(可选)")
+    treatment_type: str | None = Field(None, description="治疗类型: 中药/针灸/其他")
+    improvement: str | None = Field(None, description="改善程度: 明显好转/好转/稳定/反复/加重")
+    feedback: str | None = Field(None, description="效果反馈/症状变化描述")
+    doctor_id: int | None = Field(None, description="记录医师ID")
+
+
+class FollowUpUpdate(BaseModel):
+    """更新病情跟踪（全字段可选）"""
+    followup_date: str | None = None
+    visit_id: int | None = None
+    treatment_type: str | None = None
+    improvement: str | None = None
+    feedback: str | None = None
+    doctor_id: int | None = None
+
+
+class FollowUpResponse(BaseModel):
+    """病情跟踪响应"""
+    id: int
+    patient_id: int
+    visit_id: int | None
+    followup_date: str
+    treatment_type: str | None
+    improvement: str | None
+    feedback: str | None
+    doctor_id: int | None
+    created_at: datetime | None
+
+    model_config = {"from_attributes": True}
 
     model_config = {"from_attributes": True}
 

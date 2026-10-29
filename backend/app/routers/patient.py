@@ -7,12 +7,13 @@ from app.database import get_db
 from app.models.patient import Patient
 from app.models.visit import Visit
 from app.models.inquiry import InquiryRecord
+from app.models.followup import FollowUp
 from app.models.user import User
 from app.routers.auth import get_current_user
 from app.schemas.patient import (
     PatientCreate, PatientUpdate, PatientResponse, PatientListResponse,
     VisitCreate, VisitUpdate, VisitResponse, ConstitutionSubmit, ConstitutionResult,
-    InquiryRecordOut,
+    InquiryRecordOut, FollowUpCreate, FollowUpUpdate, FollowUpResponse,
 )
 
 router = APIRouter(prefix="/patients", tags=["患者管理"])
@@ -79,6 +80,7 @@ def delete_patient(patient_id: int, current_user: User = Depends(get_current_use
         Prescription, PrescriptionItem, AcupointPrescription, PrescriptionInjection,
     )
     from app.models.conversation import Conversation, Message
+    from app.models.followup import FollowUp
 
     # 1) 处方明细 → 处方（需在就诊记录之前，因处方外键指向就诊）
     pres_ids = db.query(Prescription.id).filter(Prescription.patient_id == patient_id)
@@ -97,6 +99,9 @@ def delete_patient(patient_id: int, current_user: User = Depends(get_current_use
 
     # 4) 就诊记录
     db.query(Visit).filter(Visit.patient_id == patient_id).delete(synchronize_session=False)
+
+    # 4.5) 病情跟踪
+    db.query(FollowUp).filter(FollowUp.patient_id == patient_id).delete(synchronize_session=False)
 
     # 5) 患者本身
     db.query(Patient).filter(Patient.id == patient_id).delete(synchronize_session=False)
@@ -239,3 +244,47 @@ def get_constitution(patient_id: int, db: Session = Depends(get_db)):
         secondary_types=[],
         suggestion="",
     )
+
+
+# ── 病情跟踪（治疗后效果反馈/随访） ──
+
+@router.get("/{patient_id}/followups", response_model=list[FollowUpResponse], summary="病情跟踪列表")
+def list_followups(patient_id: int, db: Session = Depends(get_db)):
+    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="患者不存在")
+    return db.query(FollowUp).filter(FollowUp.patient_id == patient_id).order_by(FollowUp.followup_date.desc()).all()
+
+
+@router.post("/{patient_id}/followups", response_model=FollowUpResponse, summary="新增病情跟踪")
+def create_followup(patient_id: int, data: FollowUpCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="患者不存在")
+    fu = FollowUp(patient_id=patient_id, **data.model_dump())
+    db.add(fu)
+    db.commit()
+    db.refresh(fu)
+    return fu
+
+
+@router.put("/{patient_id}/followups/{fu_id}", response_model=FollowUpResponse, summary="更新病情跟踪")
+def update_followup(patient_id: int, fu_id: int, data: FollowUpUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    fu = db.query(FollowUp).filter(FollowUp.id == fu_id, FollowUp.patient_id == patient_id).first()
+    if not fu:
+        raise HTTPException(status_code=404, detail="病情跟踪记录不存在")
+    for k, v in data.model_dump(exclude_unset=True).items():
+        setattr(fu, k, v)
+    db.commit()
+    db.refresh(fu)
+    return fu
+
+
+@router.delete("/{patient_id}/followups/{fu_id}", summary="删除病情跟踪")
+def delete_followup(patient_id: int, fu_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    fu = db.query(FollowUp).filter(FollowUp.id == fu_id, FollowUp.patient_id == patient_id).first()
+    if not fu:
+        raise HTTPException(status_code=404, detail="病情跟踪记录不存在")
+    db.delete(fu)
+    db.commit()
+    return {"detail": "已删除"}

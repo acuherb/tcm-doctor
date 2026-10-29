@@ -2,6 +2,10 @@
   <div class="visit-record">
     <el-page-header @back="$router.back()" :content="(currentVisitId ? '编辑就诊' : '新增就诊') + ' — ' + patientName" />
 
+    <el-alert v-if="patientTags.includes('不遵医瞩')" type="warning" show-icon :closable="false" style="margin-top:16px;"
+      title="该患者有不遵医瞩记录"
+      description="治疗期间请密切随访；使用峻烈之品（如附子、大黄、麻黄、细辛等）须谨慎，做好剂量与炮制把控，必要时签知情同意。" />
+
     <el-row :gutter="20" style="margin-top: 20px;">
       <!-- 左: 四诊信息 -->
       <el-col :xs="24" :lg="12" class="left-col">
@@ -226,6 +230,8 @@ const route = useRoute()
 const router = useRouter()
 const patientId = Number(route.params.id)
 const patientName = (route.query.name as string) || ''
+// 患者标签：用于在治疗页提示（如"不遵医瞩"→慎用峻药）
+const patientTags = ref<string[]>([])
 const submitting = ref(false)
 const aiLoading = ref(false)
 const currentVisitId = ref<number | null>(null)
@@ -272,6 +278,10 @@ async function loadDictionary() {
 }
 onMounted(async () => {
   await loadDictionary()
+  try {
+    const p = (await api.get(`/patients/${patientId}`)) as any
+    patientTags.value = p.tags || []
+  } catch {}
   const vid = route.query.visit_id
   if (vid) await loadExistingVisit(Number(vid))
 })
@@ -459,7 +469,13 @@ async function submitVisit() {
   }
   submitting.value = true
   try {
-    const payload = { ...form.value, pulse: form.value.pulse.join('、') }
+    const payload = {
+      ...form.value,
+      pulse: form.value.pulse.join('、'),
+      tongue_image: visitImages.value.tongue || null,
+      face_image: visitImages.value.face || null,
+      lab_report_images: visitImages.value.lab.length ? visitImages.value.lab : null,
+    }
     // 已有就诊则更新（完善/补充病历），否则新建，避免重复建就诊
     if (currentVisitId.value != null) {
       const res = await api.put(`/patients/${patientId}/visits/${currentVisitId.value}`, payload, { silent: true }) as any
@@ -495,6 +511,9 @@ async function loadExistingVisit(visitId: number) {
     Object.assign(form.value, rest)
     form.value.pulse = (res.pulse || '').split('、').filter(Boolean)
     form.value.pulse_term_ids = res.pulse_term_ids || []
+    visitImages.value.tongue = res.tongue_image || ''
+    visitImages.value.face = res.face_image || ''
+    visitImages.value.lab = res.lab_report_images || []
   } catch {
     ElMessage.error('加载就诊记录失败')
   }

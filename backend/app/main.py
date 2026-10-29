@@ -110,6 +110,22 @@ def _run_light_migrations() -> None:
         if "pulse_term_ids" not in vcols:
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE visits ADD COLUMN pulse_term_ids TEXT"))
+        # visits 影像资料（舌苔/面色照片 + 化验单列表）
+        for col, ctype in (
+            ("tongue_image", "TEXT"),
+            ("face_image", "TEXT"),
+            ("lab_report_images", "TEXT"),
+        ):
+            if col not in vcols:
+                with engine.begin() as conn:
+                    conn.execute(text(f"ALTER TABLE visits ADD COLUMN {col} {ctype}"))
+
+    # patients.tags（患者标签，如'不遵医瞩'）
+    if "patients" in inspector.get_table_names():
+        pcols = {c["name"] for c in inspector.get_columns("patients")}
+        if "tags" not in pcols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE patients ADD COLUMN tags TEXT"))
 
     # herb_inventory.sale_price（售价，开方计价用；unit_price 视为进价）
     if "herb_inventory" in inspector.get_table_names():
