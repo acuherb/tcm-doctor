@@ -22,6 +22,7 @@ class DictionaryTerm(Base):
     pulse_type: Mapped[str | None] = mapped_column(String(30), comment="脉类(仅脉象)")
     clinical_meaning: Mapped[str | None] = mapped_column(Text, comment="临床主病(仅脉象)")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    color: Mapped[str | None] = mapped_column(String(20), comment="自定义颜色(HEX)，用于标签/词条着色")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
 
     def __repr__(self):

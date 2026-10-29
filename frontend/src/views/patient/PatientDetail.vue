@@ -12,7 +12,7 @@
     </el-page-header>
 
     <div v-if="patient?.tags && patient.tags.length" class="patient-tags">
-      <el-tag v-for="t in patient.tags" :key="t" :type="t === '不遵医瞩' ? 'danger' : 'info'" size="small" effect="plain" style="margin-right:6px;">{{ t }}</el-tag>
+      <el-tag v-for="t in patient.tags" :key="t" size="small" :type="tagTypeOf(t)" :style="tagStyleOf(t)" style="margin-right:6px;">{{ t }}</el-tag>
     </div>
 
     <el-row :gutter="20" style="margin-top: 20px;">
@@ -35,6 +35,12 @@
             <el-descriptions-item label="体质">
               <el-tag v-if="patient.constitution_type" type="warning">{{ patient.constitution_type }}</el-tag>
               <span v-else class="text-muted">未评估</span>
+            </el-descriptions-item>
+            <el-descriptions-item label="身高/体重">
+              {{ patient.height != null ? patient.height + 'cm' : '-' }} / {{ patient.weight != null ? patient.weight + 'kg' : '-' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="身型" v-if="bodyTypeOf(patient)">
+              <el-tag size="small" :style="tagStyleOf(bodyTypeOf(patient)!.color)">{{ bodyTypeOf(patient)!.label }}</el-tag>
             </el-descriptions-item>
             <el-descriptions-item label="备注">{{ patient.notes || '-' }}</el-descriptions-item>
           </el-descriptions>
@@ -210,6 +216,16 @@
           <el-col :xs="24" :sm="12">
             <el-form-item label="出生日期">
               <el-date-picker v-model="editForm.birth_date" type="date" value-format="YYYY-MM-DD" style="width:100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :sm="6">
+            <el-form-item label="身高(cm)">
+              <el-input v-model.number="editForm.height" type="number" placeholder="如 170" />
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :sm="6">
+            <el-form-item label="体重(kg)">
+              <el-input v-model.number="editForm.weight" type="number" placeholder="如 65" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -404,6 +420,7 @@ import { ElMessage } from 'element-plus'
 import api from '@/utils/api'
 import { useAuthStore } from '@/store/auth'
 import { renderMarkdown } from '@/utils/markdown'
+import { calcBmi, bodyType } from '@/utils/health'
 
 // 游客只读：隐藏所有写操作
 const auth = useAuthStore()
@@ -492,6 +509,23 @@ function improvementTag(s?: string) {
   return 'info'
 }
 
+// 患者标签颜色：优先用字典词条自定义 color，否则回退危险/普通
+const tagColorMap = computed<Record<string, string>>(() => {
+  const m: Record<string, string> = {}
+  for (const t of tagOptions.value) if (t.name) m[t.name] = t.color
+  return m
+})
+function tagStyleOf(name: string): Record<string, string> {
+  const c = tagColorMap.value[name]
+  return c ? { backgroundColor: c, borderColor: c, color: '#fff' } : {}
+}
+function tagTypeOf(name: string): any {
+  return tagColorMap.value[name] ? undefined : (name === '不遵医瞩' ? 'danger' : 'info')
+}
+function bodyTypeOf(p: any): { label: string; color: string } | null {
+  return bodyType(calcBmi(p.height, p.weight))
+}
+
 function openEdit() {
   const p = patient.value || {}
   editForm.value = {
@@ -501,6 +535,8 @@ function openEdit() {
     phone: p.phone || '',
     id_card: p.id_card || '',
     address: p.address || '',
+    height: p.height ?? null,
+    weight: p.weight ?? null,
     allergy_history: p.allergy_history || '',
     medical_history: p.medical_history || '',
     notes: p.notes || '',

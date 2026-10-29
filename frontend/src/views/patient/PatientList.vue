@@ -27,6 +27,21 @@
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="name" label="姓名" width="100" />
         <el-table-column prop="gender" label="性别" width="60" />
+        <el-table-column label="年龄" width="60">
+          <template #default="{ row }">{{ ageOf(row) }}</template>
+        </el-table-column>
+        <el-table-column prop="height" label="身高" width="80">
+          <template #default="{ row }">{{ row.height != null ? row.height + 'cm' : '-' }}</template>
+        </el-table-column>
+        <el-table-column prop="weight" label="体重" width="80">
+          <template #default="{ row }">{{ row.weight != null ? row.weight + 'kg' : '-' }}</template>
+        </el-table-column>
+        <el-table-column label="身型" width="80">
+          <template #default="{ row }">
+            <el-tag v-if="bodyOf(row)" size="small" :style="tagStyle(bodyOf(row)!.color)">{{ bodyOf(row)!.label }}</el-tag>
+            <span v-else class="text-muted">-</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="phone" label="电话" width="130" />
         <el-table-column prop="birth_date" label="出生日期" width="110" />
         <el-table-column prop="constitution_type" label="体质" width="100">
@@ -59,7 +74,19 @@
             <span class="label">电话</span><span class="value">{{ row.phone }}</span>
           </div>
           <div class="card-row" v-if="row.birth_date">
-            <span class="label">出生</span><span class="value">{{ row.birth_date }}</span>
+            <span class="label">出生</span><span class="value">{{ row.birth_date }}（{{ ageOf(row) }}岁）</span>
+          </div>
+          <div class="card-row" v-if="row.height != null">
+            <span class="label">身高</span><span class="value">{{ row.height }}cm</span>
+          </div>
+          <div class="card-row" v-if="row.weight != null">
+            <span class="label">体重</span><span class="value">{{ row.weight }}kg</span>
+          </div>
+          <div class="card-row" v-if="bodyOf(row)">
+            <span class="label">身型</span>
+            <span class="value">
+              <el-tag size="small" :style="tagStyle(bodyOf(row)!.color)">{{ bodyOf(row)!.label }}</el-tag>
+            </span>
           </div>
           <div class="card-row">
             <span class="label">体质</span>
@@ -105,6 +132,18 @@
         <el-form-item label="出生日期">
           <el-date-picker v-model="newPatient.birth_date" type="date" value-format="YYYY-MM-DD" placeholder="选择日期" />
         </el-form-item>
+        <el-row :gutter="12">
+          <el-col :xs="24" :sm="12">
+            <el-form-item label="身高(cm)">
+              <el-input v-model.number="newPatient.height" type="number" placeholder="如 170" />
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :sm="12">
+            <el-form-item label="体重(kg)">
+              <el-input v-model.number="newPatient.weight" type="number" placeholder="如 65" />
+            </el-form-item>
+          </el-col>
+        </el-row>
         <el-form-item label="电话">
           <el-input v-model="newPatient.phone" placeholder="请输入电话" />
         </el-form-item>
@@ -139,6 +178,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
 import api from '@/utils/api'
 import { useAuthStore } from '@/store/auth'
+import { calcAge, calcBmi, bodyType } from '@/utils/health'
 
 // 游客只读：隐藏所有写操作
 const auth = useAuthStore()
@@ -155,6 +195,17 @@ onMounted(() => window.addEventListener('resize', updateViewport))
 
 const router = useRouter()
 const patients = ref<any[]>([])
+
+function ageOf(row: any): string {
+  const a = calcAge(row.birth_date)
+  return a == null ? '-' : String(a)
+}
+function bodyOf(row: any): { label: string; color: string } | null {
+  return bodyType(calcBmi(row.height, row.weight))
+}
+function tagStyle(color: string) {
+  return { backgroundColor: color, borderColor: color, color: '#fff' }
+}
 const total = ref(0)
 const page = ref(1)
 const pageSize = ref(20)
@@ -169,6 +220,8 @@ const newPatient = ref({
   phone: '',
   id_card: '',
   address: '',
+  height: null as number | null,
+  weight: null as number | null,
   allergy_history: '',
   medical_history: '',
   notes: '',
@@ -202,7 +255,7 @@ async function addPatient() {
     await api.post('/patients', newPatient.value)
     ElMessage.success('患者添加成功')
     showAddDialog.value = false
-    newPatient.value = { name: '', gender: '男', birth_date: '', phone: '', id_card: '', address: '', allergy_history: '', medical_history: '', notes: '' }
+    newPatient.value = { name: '', gender: '男', birth_date: '', phone: '', id_card: '', address: '', height: null, weight: null, allergy_history: '', medical_history: '', notes: '' }
     loadPatients()
   } catch {
     // 已被拦截器处理

@@ -1,6 +1,6 @@
 """患者 ORM 模型"""
 from datetime import datetime
-from sqlalchemy import String, Text, DateTime, JSON
+from sqlalchemy import String, Text, DateTime, JSON, Integer, Float
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -17,6 +17,8 @@ class Patient(Base):
     phone: Mapped[str | None] = mapped_column(String(20), comment="电话")
     id_card: Mapped[str | None] = mapped_column(String(18), comment="身份证号")
     address: Mapped[str | None] = mapped_column(Text, comment="地址")
+    height: Mapped[int | None] = mapped_column(Integer, comment="身高(cm)")
+    weight: Mapped[float | None] = mapped_column(Float, comment="体重(kg)")
     allergy_history: Mapped[str | None] = mapped_column(Text, comment="过敏史")
     medical_history: Mapped[str | None] = mapped_column(Text, comment="既往史")
     constitution_type: Mapped[str | None] = mapped_column(String(20), comment="体质类型")

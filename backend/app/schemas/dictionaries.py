@@ -16,6 +16,7 @@ class DictTermCreate(BaseModel):
     attributes: list[str] | None = Field(None, description="附属特征(仅 tongue)")
     pulse_type: str | None = Field(None, description="脉类(仅 pulse)")
     clinical_meaning: str | None = Field(None, description="临床主病(仅 pulse)")
+    color: str | None = Field(None, description="自定义颜色(HEX)，用于标签/词条着色")
 
 
 class DictTermUpdate(BaseModel):
@@ -28,6 +29,7 @@ class DictTermUpdate(BaseModel):
     attributes: list[str] | None = None
     pulse_type: str | None = None
     clinical_meaning: str | None = None
+    color: str | None = None
     is_active: bool | None = None
     term_type: str | None = Field(None, pattern="^(syndrome|tongue|pulse|tag)$")
 
@@ -44,6 +46,7 @@ class DictTermResponse(BaseModel):
     attributes: list[str] | None
     pulse_type: str | None
     clinical_meaning: str | None
+    color: str | None
     is_active: bool
     created_at: datetime | None
     model_config = {"from_attributes": True}

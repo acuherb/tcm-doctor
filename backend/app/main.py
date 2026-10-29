@@ -126,6 +126,17 @@ def _run_light_migrations() -> None:
         if "tags" not in pcols:
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE patients ADD COLUMN tags TEXT"))
+        for col, ctype in (("height", "INTEGER"), ("weight", "REAL")):
+            if col not in pcols:
+                with engine.begin() as conn:
+                    conn.execute(text(f"ALTER TABLE patients ADD COLUMN {col} {ctype}"))
+
+    # dictionary_terms.color（词条自定义颜色，用于标签着色）
+    if "dictionary_terms" in inspector.get_table_names():
+        dcols = {c["name"] for c in inspector.get_columns("dictionary_terms")}
+        if "color" not in dcols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE dictionary_terms ADD COLUMN color VARCHAR(20)"))
 
     # herb_inventory.sale_price（售价，开方计价用；unit_price 视为进价）
     if "herb_inventory" in inspector.get_table_names():

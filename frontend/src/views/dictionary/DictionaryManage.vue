@@ -29,6 +29,12 @@
         <el-table-column v-if="activeType === 'tongue'" prop="aspect" label="舌象维度" width="100" />
         <el-table-column v-if="activeType === 'pulse'" prop="pulse_type" label="脉类" width="110" />
         <el-table-column prop="description" label="释义" min-width="220" show-overflow-tooltip />
+        <el-table-column label="颜色" width="70" align="center">
+          <template #default="{ row }">
+            <span v-if="row.color" class="color-dot" :style="{ backgroundColor: row.color }"></span>
+            <span v-else class="text-muted">-</span>
+          </template>
+        </el-table-column>
         <el-table-column label="启用" width="80" align="center">
           <template #default="{ row }">
             <el-tag :type="row.is_active ? 'success' : 'info'" size="small">{{ row.is_active ? '启用' : '停用' }}</el-tag>
@@ -71,6 +77,9 @@
 
           <div class="card-row" v-if="row.description">
             <span class="label">释义</span><span class="value">{{ row.description }}</span>
+          </div>
+          <div class="card-row" v-if="row.color">
+            <span class="label">颜色</span><span class="value"><span class="color-dot" :style="{ backgroundColor: row.color }"></span></span>
           </div>
 
           <div class="card-actions" v-if="editable">
@@ -126,6 +135,10 @@
         <el-form-item label="释义">
           <el-input v-model="form.description" type="textarea" :rows="2" />
         </el-form-item>
+        <el-form-item label="颜色">
+          <el-color-picker v-model="form.color" />
+          <span style="font-size:12px;color:#999;margin-left:8px;">自定义颜色，用于标签/词条着色（如患者标签红/橙区分）</span>
+        </el-form-item>
         <el-form-item label="启用">
           <el-switch v-model="form.is_active" />
         </el-form-item>
@@ -170,6 +183,7 @@ interface DictTerm {
   attributes?: string[] | null
   pulse_type?: string | null
   clinical_meaning?: string | null
+  color?: string | null
   is_active: boolean
 }
 
@@ -184,7 +198,7 @@ const saving = ref(false)
 const form = reactive<any>({
   term_type: 'syndrome', name: '', description: '',
   meridian: [], category: null, aspect: '舌质', attributes: null,
-  pulse_type: null, clinical_meaning: null, is_active: true,
+  pulse_type: null, clinical_meaning: null, color: null, is_active: true,
 })
 const attributesText = ref('')
 
@@ -207,6 +221,7 @@ function resetForm() {
   form.attributes = null
   form.pulse_type = null
   form.clinical_meaning = null
+  form.color = null
   form.is_active = true
   attributesText.value = ''
 }
@@ -223,7 +238,7 @@ function openEdit(row: DictTerm) {
     term_type: row.term_type, name: row.name, description: row.description || '',
     meridian: (row.meridian || '').split(',').filter(Boolean), category: row.category, aspect: row.aspect || '舌质',
     attributes: row.attributes, pulse_type: row.pulse_type,
-    clinical_meaning: row.clinical_meaning, is_active: row.is_active,
+    clinical_meaning: row.clinical_meaning, color: row.color || null, is_active: row.is_active,
   })
   if (row.term_type === 'tongue' && Array.isArray(row.attributes)) {
     attributesText.value = row.attributes.join(',')
@@ -257,6 +272,7 @@ async function save() {
       payload.pulse_type = form.pulse_type || null
       payload.clinical_meaning = form.clinical_meaning || null
     }
+    payload.color = form.color || null
     if (editingId.value) {
       await api.put(`/dictionaries/${editingId.value}`, payload)
     } else {
@@ -318,6 +334,14 @@ onMounted(loadTerms)
 }
 .dict-card .card-row .label { flex-shrink: 0; width: 40px; color: #8a7563; }
 .dict-card .card-row .value { flex: 1; color: #333; word-break: break-all; }
+.color-dot {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid #dcdfe6;
+  vertical-align: middle;
+}
 .dict-card .card-actions {
   display: flex;
   justify-content: flex-end;

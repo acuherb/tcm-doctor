@@ -13,6 +13,8 @@ class PatientCreate(BaseModel):
     phone: str | None = Field(None, description="电话")
     id_card: str | None = Field(None, description="身份证号")
     address: str | None = Field(None, description="地址")
+    height: int | None = Field(None, ge=0, le=300, description="身高(cm)")
+    weight: float | None = Field(None, ge=0, le=500, description="体重(kg)")
     allergy_history: str | None = Field(None, description="过敏史")
     medical_history: str | None = Field(None, description="既往史")
     notes: str | None = Field(None, description="备注")
@@ -26,6 +28,8 @@ class PatientUpdate(BaseModel):
     phone: str | None = None
     id_card: str | None = None
     address: str | None = None
+    height: int | None = None
+    weight: float | None = None
     allergy_history: str | None = None
     medical_history: str | None = None
     constitution_type: str | None = None
@@ -43,6 +47,8 @@ class PatientResponse(BaseModel):
     phone: str | None
     id_card: str | None
     address: str | None
+    height: int | None
+    weight: float | None
     allergy_history: str | None
     medical_history: str | None
     constitution_type: str | None
