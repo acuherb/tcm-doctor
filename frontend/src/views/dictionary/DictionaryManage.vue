@@ -12,6 +12,7 @@
         <el-radio-button value="syndrome">证型</el-radio-button>
         <el-radio-button value="tongue">舌象</el-radio-button>
         <el-radio-button value="pulse">脉象</el-radio-button>
+        <el-radio-button value="tag">患者标签</el-radio-button>
       </el-radio-group>
 
       <el-table v-if="!isMobile" :data="terms" border stripe>
@@ -111,7 +112,7 @@
           </el-form-item>
         </template>
 
-        <template v-else>
+        <template v-else-if="activeType === 'pulse'">
           <el-form-item label="脉类">
             <el-select v-model="form.pulse_type" clearable placeholder="选择脉类" style="width:100%">
               <el-option v-for="p in pulseTypes" :key="p" :label="p" :value="p" />
@@ -172,7 +173,7 @@ interface DictTerm {
   is_active: boolean
 }
 
-const activeType = ref<'syndrome' | 'tongue' | 'pulse'>('syndrome')
+const activeType = ref<'syndrome' | 'tongue' | 'pulse' | 'tag'>('syndrome')
 const terms = ref<DictTerm[]>([])
 const meridians = ['太阳', '阳明', '少阳', '太阴', '少阴', '厥阴']
 const pulseTypes = ['浮脉类', '沉脉类', '迟脉类', '数脉类', '虚脉类', '实脉类']

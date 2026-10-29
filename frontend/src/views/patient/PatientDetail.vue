@@ -222,12 +222,10 @@
         <el-form-item label="既往史"><el-input v-model="editForm.medical_history" type="textarea" :rows="2" /></el-form-item>
         <el-form-item label="备注"><el-input v-model="editForm.notes" type="textarea" :rows="2" /></el-form-item>
         <el-form-item label="标签">
-          <el-select v-model="editForm.tags" multiple filterable allow-create default-first-option placeholder="可输入或选择，如'不遵医瞩'" style="width:100%">
-            <el-option label="不遵医瞩" value="不遵医瞩" />
-            <el-option label="过敏体质" value="过敏体质" />
-            <el-option label="慢性病" value="慢性病" />
-            <el-option label="孕妇" value="孕妇" />
+          <el-select v-model="editForm.tags" multiple filterable placeholder="从字典中选择（管理员可在『数据字典 → 患者标签』自定义）" style="width:100%">
+            <el-option v-for="t in tagOptions" :key="t.id" :label="t.name" :value="t.name" />
           </el-select>
+          <div style="font-size:12px;color:#999;margin-top:4px;">标签由数据字典『患者标签』类目维护，新增/停用请到字典页操作</div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -423,6 +421,8 @@ const followups = ref<any[]>([])
 const followupVisible = ref(false)
 const savingFollowup = ref(false)
 const followupForm = ref<any>({ id: null, followup_date: '', treatment_type: '', improvement: '', feedback: '', visit_id: null })
+// 字典中的患者标签（供编辑表单选择）
+const tagOptions = ref<any[]>([])
 
 // 按就诊聚合：处方与十问分别归到对应的 visit_id 下
 const rxByVisit = computed<Record<number, any[]>>(() => {
@@ -570,18 +570,20 @@ async function deleteFollowup(fu: any) {
 onMounted(async () => {
   loading.value = true
   try {
-    const [p, v, iq, rx, fus] = await Promise.all([
+    const [p, v, iq, rx, fus, tags] = await Promise.all([
       api.get(`/patients/${patientId}`),
       api.get(`/patients/${patientId}/visits`),
       api.get(`/patients/${patientId}/inquiries`),
       api.get(`/prescriptions?patient_id=${patientId}`),
       api.get(`/patients/${patientId}/followups`),
+      api.get('/dictionaries', { params: { term_type: 'tag', is_active: true } }),
     ])
     patient.value = p
     visits.value = v as any
     inquiries.value = iq as any
     prescriptions.value = rx as any
     followups.value = fus as any
+    tagOptions.value = tags as any
   } catch {}
   loading.value = false
 })

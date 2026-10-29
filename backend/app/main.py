@@ -143,6 +143,22 @@ def _run_light_migrations() -> None:
 
     # 其它表的新增列可在下方照此扩展
 
+    # 默认患者标签词（字典 tag 类型）：存量库首次启动注入，管理员可在字典页继续自定义
+    if "dictionary_terms" in inspector.get_table_names():
+        try:
+            from app.models.dictionaries import DictionaryTerm
+            db = SessionLocal()
+            try:
+                if db.query(DictionaryTerm).filter(DictionaryTerm.term_type == "tag").count() == 0:
+                    for name in ("不遵医瞩", "过敏体质", "慢性病", "孕妇", "儿童", "老年"):
+                        db.add(DictionaryTerm(term_type="tag", name=name, is_active=True))
+                    db.commit()
+                    logger.info("已注入默认患者标签词(字典 tag 类型)")
+            finally:
+                db.close()
+        except Exception as e:
+            logger.warning(f"注入默认患者标签词失败: {e}")
+
 
 app = FastAPI(
     title=settings.app_name,
