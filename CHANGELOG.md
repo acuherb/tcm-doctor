@@ -14,6 +14,10 @@
 - [PrescriptionEditor.vue](file:///home/debian/tcm-doctor/frontend/src/views/prescription/PrescriptionEditor.vue)：`/prescriptions/new?ai_import=<结构化方剂>` 打开带入弹窗；确认后生成处方（药名纯中文、剂量单独、特殊煎法写入 `special_method`、`preparation_method` 写入剂型）；主方/副方各自独立成方。保留旧 `ai_formula` 自由文本兜底。
 - [VisitCard.vue](file:///home/debian/tcm-doctor/frontend/src/components/VisitCard.vue) / [VisitRecord.vue](file:///home/debian/tcm-doctor/frontend/src/views/patient/VisitRecord.vue)：解析与渲染结构化方剂（role 标签、组成、加减），「去开药」改传 `ai_import`；诊断库展示用 `stripJsonBlock` 去除 JSON 代码块；`saveAiIntoRecord` 以规范 Markdown（【推荐方剂】）存库，可再次解析回结构化。
 
+### 3. 修复：带入弹窗只显示方名、药味丢失（URL 超长截断）
+- 根因：结构化方剂（主方+副方，各含药味与多条长加减方案）作为 JSON 直接塞进 URL query，体积过大超出 URL/请求行长度限制，服务端截断 JSON 致 `herbs` 被切掉（弹窗只剩方名）。
+- 修复：`goPrescribeWithFormula` 改为把结构化方剂写入 `sessionStorage`、仅传一个短 key（[VisitCard.vue](file:///home/debian/tcm-doctor/frontend/src/components/VisitCard.vue) / [VisitRecord.vue](file:///home/debian/tcm-doctor/frontend/src/views/patient/VisitRecord.vue)）；[PrescriptionEditor.vue](file:///home/debian/tcm-doctor/frontend/src/views/prescription/PrescriptionEditor.vue) 按 key 从 `sessionStorage` 取回（读取后删除），并保留 `ai_import` / `ai_formula` 旧 query 形式兜底。
+
 ## 2026-10-30 — AI 辨证纳入性别/年龄/身高/体重，剂量个体化
 
 ### 1. 患者体征信息进入辨证 prompt

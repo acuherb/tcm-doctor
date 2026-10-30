@@ -856,7 +856,20 @@ onMounted(async () => {
   }
 
   // 从 AI 辨证页带入推荐方剂（结构化：勾选加减→合并→字典校验）
-  if (q.ai_import) {
+  const importKey = q.ai_import_key as string | undefined
+  if (importKey) {
+    try {
+      const raw = sessionStorage.getItem(importKey)
+      if (raw) {
+        const f = JSON.parse(raw)
+        await loadHerbList()
+        aiImportFormula.value = f
+        aiImportVisible.value = true
+        sessionStorage.removeItem(importKey)
+      }
+    } catch {}
+  } else if (q.ai_import) {
+    // 兼容旧版：结构化 JSON 直接置于 query
     try {
       const f = typeof q.ai_import === 'string' ? JSON.parse(q.ai_import) : q.ai_import
       await loadHerbList()

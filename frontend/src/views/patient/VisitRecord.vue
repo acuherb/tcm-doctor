@@ -847,7 +847,10 @@ async function saveAiIntoRecord() {
 function goPrescribeWithFormula(f: any) {
   const q: any = { patient_id: patientId }
   if (currentVisitId.value != null) q.visit_id = currentVisitId.value
-  q.ai_import = JSON.stringify(f)
+  // 结构化方剂较大，走 sessionStorage 传递，避免超长 URL / 编码导致 herbs 丢失
+  const key = 'ai_import_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
+  sessionStorage.setItem(key, JSON.stringify(f))
+  q.ai_import_key = key
   router.push({ path: '/prescriptions/new', query: q })
 }
 
