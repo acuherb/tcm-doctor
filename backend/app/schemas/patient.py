@@ -57,6 +57,11 @@ class PatientResponse(BaseModel):
     tags: list[str] | None
     created_at: datetime | None
     updated_at: datetime | None
+    # 列表聚合字段（由 list_patients 计算并附加，其它接口返回时为 None）
+    last_visit_date: str | None = None
+    days_since_visit: int | None = None
+    last_improvement: str | None = None
+    active_status: str | None = None
 
     model_config = {"from_attributes": True}
 

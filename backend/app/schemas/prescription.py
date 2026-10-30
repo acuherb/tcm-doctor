@@ -51,6 +51,7 @@ class PrescriptionCreate(BaseModel):
     acupoint_technique: str | None = Field(None, description="针灸针法/治法")
     treatment_frequency: str | None = Field(None, description="操作频次: 每日/隔日/每周...")
     treatment_days: int | None = Field(None, description="疗程天数")
+    follow_up_date: str | None = Field(None, description="建议复诊日期 YYYY-MM-DD（可选，用于自动生成随访提醒）")
     acupuncture_fee: float | None = Field(None, description="针灸费用(元)")
     items: list[PrescriptionItemCreate] = Field(default_factory=list, description="药味列表")
     acupoints: list[AcupointPrescriptionCreate] = Field(default_factory=list, description="针灸配穴列表")

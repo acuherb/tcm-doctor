@@ -26,15 +26,87 @@ def list_patients(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     search: str | None = Query(None, description="搜索(姓名/电话)"),
+    constitution_type: str | None = Query(None, description="按体质类型筛选"),
+    tag: str | None = Query(None, description="按患者标签筛选"),
+    has_allergy: bool | None = Query(None, description="有无过敏史: true/false"),
+    improvement: str | None = Query(None, description="按最近一次随访改善程度筛选"),
+    sort_by: str | None = Query(None, description="排序字段: last_visit_date(按最近就诊)"),
+    order: str = Query("desc", description="排序方向: desc/asc"),
     db: Session = Depends(get_db),
 ):
+    from datetime import date
+    from sqlalchemy import or_
+
+    from app.models.followup import FollowUp
+    from app.models.visit import Visit
+
     query = db.query(Patient)
     if search:
-        query = query.filter(
-            (Patient.name.contains(search)) | (Patient.phone.contains(search))
-        )
-    total = query.count()
-    items = query.order_by(Patient.updated_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
+        query = query.filter((Patient.name.contains(search)) | (Patient.phone.contains(search)))
+    if constitution_type:
+        query = query.filter(Patient.constitution_type == constitution_type)
+    if has_allergy is True:
+        query = query.filter(Patient.allergy_history.isnot(None), Patient.allergy_history != "")
+    elif has_allergy is False:
+        query = query.filter(or_(Patient.allergy_history == None, Patient.allergy_history == ""))
+
+    # 单诊所数据量有限，拉取匹配集合后在 Python 侧做聚合/筛选/排序（避免复杂 SQL 子查询）
+    candidates = query.all()
+    ids = [p.id for p in candidates]
+    visits = db.query(Visit).filter(Visit.patient_id.in_(ids)).all() if ids else []
+    followups = db.query(FollowUp).filter(FollowUp.patient_id.in_(ids)).all() if ids else []
+    visits_by_p: dict[int, list] = {}
+    for v in visits:
+        visits_by_p.setdefault(v.patient_id, []).append(v)
+    fups_by_p: dict[int, list] = {}
+    for f in followups:
+        fups_by_p.setdefault(f.patient_id, []).append(f)
+
+    today = date.today()
+    enriched = []
+    for p in candidates:
+        pv = sorted(visits_by_p.get(p.id, []), key=lambda x: x.visit_date or "")
+        pf = sorted(fups_by_p.get(p.id, []), key=lambda x: x.followup_date or "")
+        last_visit_date = pv[-1].visit_date if pv else None
+        last_fu = pf[-1] if pf else None
+        last_improvement = last_fu.improvement if last_fu else None
+        days_since = None
+        if last_visit_date:
+            try:
+                days_since = (today - date.fromisoformat(str(last_visit_date)[:10])).days
+            except Exception:
+                days_since = None
+        # 在治/停诊 启发式：最近改善为好转类→在治；反复/加重→停诊；无随访→新诊/未复诊
+        if last_improvement in ("明显好转", "好转", "稳定"):
+            active_status = "在治"
+        elif last_improvement in ("反复", "加重"):
+            active_status = "停诊"
+        elif last_visit_date:
+            active_status = "未复诊"
+        else:
+            active_status = "新诊"
+        # 附加聚合字段（Pydantic from_attributes 会拾取）
+        p.last_visit_date = last_visit_date
+        p.days_since_visit = days_since
+        p.last_improvement = last_improvement
+        p.active_status = active_status
+        enriched.append(p)
+
+    # 标签（JSON 列表，Python 侧精确匹配）
+    if tag:
+        enriched = [p for p in enriched if tag in (p.tags or [])]
+    # 最近改善筛选
+    if improvement:
+        enriched = [p for p in enriched if p.last_improvement == improvement]
+    # 排序
+    if sort_by == "last_visit_date":
+        enriched.sort(key=lambda x: x.last_visit_date or "", reverse=(order != "asc"))
+    else:
+        enriched.sort(key=lambda x: str(x.updated_at or ""), reverse=True)
+
+    total = len(enriched)
+    start = (page - 1) * page_size
+    items = enriched[start : start + page_size]
     return PatientListResponse(total=total, items=items, page=page, page_size=page_size)
 
 

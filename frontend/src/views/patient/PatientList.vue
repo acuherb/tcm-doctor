@@ -10,15 +10,41 @@
         </div>
       </template>
 
-      <!-- 搜索栏 -->
-      <el-form :inline="true" @submit.prevent="loadPatients">
-        <el-form-item>
-          <el-input v-model="searchText" placeholder="搜索姓名/电话" clearable @clear="loadPatients" style="width: 240px;">
+      <!-- 搜索/筛选栏 -->
+      <el-form :inline="true" @submit.prevent="onSearch">
+        <el-form-item label="搜索">
+          <el-input v-model="searchText" placeholder="姓名/电话" clearable @clear="onSearch" style="width: 200px;">
             <template #prefix><el-icon><Search /></el-icon></template>
           </el-input>
         </el-form-item>
+        <el-form-item label="体质">
+          <el-select v-model="filterConstitution" placeholder="全部" clearable filterable style="width: 140px;" @change="onFilterChange">
+            <el-option v-for="c in constitutionOptions" :key="c" :label="c" :value="c" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="标签">
+          <el-select v-model="filterTag" placeholder="全部" clearable filterable style="width: 150px;" @change="onFilterChange">
+            <el-option v-for="t in tagOptions" :key="t.name" :label="t.name" :value="t.name" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="过敏">
+          <el-select v-model="filterAllergy" placeholder="全部" clearable style="width: 100px;" @change="onFilterChange">
+            <el-option label="有" value="yes" /><el-option label="无" value="no" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="最近改善">
+          <el-select v-model="filterImprovement" placeholder="全部" clearable style="width: 130px;" @change="onFilterChange">
+            <el-option v-for="s in IMPROVE_LIST" :key="s" :label="s" :value="s" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="排序">
+          <el-select v-model="sortOrder" placeholder="默认" clearable style="width: 130px;" @change="onFilterChange">
+            <el-option label="最近就诊↓" value="desc" /><el-option label="最近就诊↑" value="asc" />
+          </el-select>
+        </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="loadPatients">查询</el-button>
+          <el-button type="primary" @click="onSearch">查询</el-button>
+          <el-button @click="onReset">重置</el-button>
         </el-form-item>
       </el-form>
 
@@ -51,6 +77,33 @@
           </template>
         </el-table-column>
         <el-table-column prop="notes" label="备注" show-overflow-tooltip />
+        <el-table-column label="最近就诊" width="120">
+          <template #default="{ row }">{{ row.last_visit_date || '—' }}</template>
+        </el-table-column>
+        <el-table-column label="距今天数" width="100" align="center">
+          <template #default="{ row }">
+            <span v-if="row.days_since_visit == null">—</span>
+            <span v-else :class="{ overdue: row.days_since_visit > 30 }">{{ row.days_since_visit }} 天</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="最近改善" width="100">
+          <template #default="{ row }">
+            <el-tag v-if="row.last_improvement" size="small" :type="improveTag(row.last_improvement)">{{ row.last_improvement }}</el-tag>
+            <span v-else class="text-muted">—</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="状态" width="90" align="center">
+          <template #default="{ row }">
+            <el-tag size="small" :type="statusTag(row.active_status)">{{ row.active_status || '—' }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="风险" width="150">
+          <template #default="{ row }">
+            <el-tag v-if="row.allergy_history" type="danger" size="small" effect="dark">过敏</el-tag>
+            <el-tag v-if="(row.tags || []).includes('不遵医嘱')" type="warning" size="small" effect="dark">不遵医嘱</el-tag>
+            <span v-if="!row.allergy_history && !((row.tags || []).includes('不遵医嘱'))" class="text-muted">—</span>
+          </template>
+        </el-table-column>
         <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click.stop="goDetail(row)">详情</el-button>
@@ -94,6 +147,18 @@
           </div>
           <div class="card-row" v-if="row.notes">
             <span class="label">备注</span><span class="value">{{ row.notes }}</span>
+          </div>
+          <div class="card-row">
+            <span class="label">最近就诊</span>
+            <span class="value" v-if="row.last_visit_date">{{ row.last_visit_date }}<template v-if="row.days_since_visit != null">（{{ row.days_since_visit }}天前）</template></span>
+            <span class="value text-muted" v-else>—</span>
+          </div>
+          <div class="card-row">
+            <span class="label">状态</span>
+            <span class="value">
+              <el-tag size="small" :type="statusTag(row.active_status)">{{ row.active_status || '—' }}</el-tag>
+              <el-tag v-if="row.allergy_history" type="danger" size="small" effect="dark" style="margin-left:4px;">过敏</el-tag>
+            </span>
           </div>
           <div class="card-actions">
             <el-button link type="primary" size="small" @click.stop="goDetail(row)">详情</el-button>
@@ -240,8 +305,53 @@ const pageSize = ref(20)
 const searchText = ref('')
 const showAddDialog = ref(false)
 const submitting = ref(false)
-// 字典中的患者标签（供新增表单选择）
+// 字典中的患者标签（供新增表单选择 + 列表筛选）
 const tagOptions = ref<any[]>([])
+
+// 列表筛选条件
+const filterConstitution = ref('')
+const filterTag = ref('')
+const filterAllergy = ref('') // '' / 'yes' / 'no'
+const filterImprovement = ref('')
+const sortOrder = ref('') // '' / 'desc' / 'asc'
+const IMPROVE_LIST = ['明显好转', '好转', '稳定', '反复', '加重']
+// 体质筛选选项：标准九种体质 + 数据集中实际出现的值
+const BASE_CONSTITUTIONS = ['平和质', '气虚质', '阳虚质', '阴虚质', '痰湿质', '湿热质', '血瘀质', '气郁质', '特禀质']
+const constitutionOptions = computed<string[]>(() => {
+  const set = new Set(BASE_CONSTITUTIONS)
+  for (const p of patients.value) if (p.constitution_type) set.add(p.constitution_type)
+  return Array.from(set)
+})
+function improveTag(s: string): string {
+  if (s === '明显好转' || s === '好转') return 'success'
+  if (s === '稳定') return 'warning'
+  return 'danger' // 反复 / 加重
+}
+function statusTag(s: string): string {
+  if (s === '在治') return 'success'
+  if (s === '停诊') return 'danger'
+  if (s === '未复诊') return 'warning'
+  return 'info' // 新诊
+}
+
+function onSearch() {
+  page.value = 1
+  loadPatients()
+}
+function onReset() {
+  searchText.value = ''
+  filterConstitution.value = ''
+  filterTag.value = ''
+  filterAllergy.value = ''
+  filterImprovement.value = ''
+  sortOrder.value = ''
+  page.value = 1
+  loadPatients()
+}
+function onFilterChange() {
+  page.value = 1
+  loadPatients()
+}
 
 const newPatient = ref({
   name: '',
@@ -262,6 +372,15 @@ async function loadPatients() {
   try {
     const params: any = { page: page.value, page_size: pageSize.value }
     if (searchText.value) params.search = searchText.value
+    if (filterConstitution.value) params.constitution_type = filterConstitution.value
+    if (filterTag.value) params.tag = filterTag.value
+    if (filterAllergy.value === 'yes') params.has_allergy = true
+    if (filterAllergy.value === 'no') params.has_allergy = false
+    if (filterImprovement.value) params.improvement = filterImprovement.value
+    if (sortOrder.value) {
+      params.sort_by = 'last_visit_date'
+      params.order = sortOrder.value
+    }
     const res = await api.get('/patients', { params }) as any
     patients.value = res.items || []
     total.value = res.total || 0
@@ -336,6 +455,7 @@ onMounted(async () => {
   color: #c0c4cc;
   font-size: 13px;
 }
+.overdue { color: #f56c6c; font-weight: 600; }
 .tag-picker { display: flex; flex-wrap: wrap; gap: 8px; }
 .tag-option { cursor: pointer; user-select: none; transition: all .15s; }
 .tag-option:hover { opacity: .85; }

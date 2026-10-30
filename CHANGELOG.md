@@ -1,5 +1,25 @@
 # 开发日志 CHANGELOG
 
+## 2026-10-30 — 患者模块决策辅助升级 + 随访提醒
+
+### 1. 患者列表多维筛选 + 聚合信号（不动 schema）
+- 后端 `list_patients` 新增筛选参数 `constitution_type`（体质）/ `tag`（标签）/ `has_allergy`（有无过敏）/ `improvement`（最近改善）/ `sort_by & order`（按最近就诊排序）；返回追加聚合字段 `last_visit_date` / `days_since_visit` / `last_improvement` / `active_status`（在治 / 停诊 / 未复诊 / 新诊），其它接口返回为 `null`，无副作用
+- 前端 [PatientList.vue](file:///home/debian/tcm-doctor/frontend/src/views/patient/PatientList.vue) 顶部筛选栏（搜索 + 体质 / 标签 / 过敏 / 最近改善下拉 + 排序 + 重置）；表格新增「最近就诊 / 距今天数（超 30 天标红）/ 最近改善 / 状态（彩色）/ 风险（过敏🔴·不遵医嘱⚠️）」列；窄屏卡片同样补充最近就诊与状态 / 风险信号
+
+### 2. 患者详情「健康速览」卡 + 病情跟踪关联开方对比
+- 概览页顶部新增 🩺 健康速览卡：体质大卡 + BMI / 身型 + 过敏史告警（红 / 绿）+ 标签色块，一眼抓住关键风险
+- 病情跟踪每张随访卡片关联展示其对应就诊的处方（方名 / 疗程 / 剂数 / 味数），形成「上次开药方 → 本次反馈」并排对比，便于判断原方案是否有效
+
+### 3. 随访提醒（诊断 / 处方用药后自动生成，工作台待办提醒）
+- 新增 `followup_reminders` 表与路由 `/api/v1/followup-reminders`（列表 / 创建（手动）/ 标记完成·取消·改期 / 删除），由 `Base.metadata.create_all` 启动时自动建表，无需手写迁移；`FollowUpReminder` 已注册进 `app/models/__init__` 以确保建表与关系解析
+- 开方时（填写疗程天数 `treatment_days` 或表单「建议复诊日期」）自动生成待回访提醒：应回访日期 = 就诊日 + 疗程天数（或医生指定日期），备注标注来源处方
+- 工作台 [Dashboard.vue](file:///home/debian/tcm-doctor/frontend/src/views/dashboard/Dashboard.vue) 待办新增「📞 待回访 N 人」，列出逾期 / 到期患者（姓名 / 日期 / 备注，逾期标红），点击直达患者详情
+- `/stats/dashboard` 新增返回 `pending_followups`（逾期 + 今日应回访计数）与 `followup_reminders` 列表
+- 患者详情「病情跟踪」tab 新增「⏰ 随访提醒」卡片：列出该患者全部提醒（状态 / 逾期高亮），可手动添加（日期 + 备注）/ 完成 / 取消 / 删除
+
+### 4. 设计决策（未落地代码，仅记录）
+- 症状矩阵 / 趋势：**症状不做字典、也不硬编码清单**——临床上症状词汇近乎无限且一次多症，随访表单改为「自由录入多行症状 + 严重度 0–3」；严重度与改善程度（明显好转 / 好转 / 稳定 / 反复 / 加重）保持系统固化，不开放自定义，以免破坏跨患者 / 跨时间可比性与现有决策逻辑
+
 ## 2026-10-28 — 登录页现代化改版
 
 - [Login.vue](file:///home/debian/tcm-doctor/frontend/src/views/auth/Login.vue) 由旧单卡片升级为单栏现代居中式：

@@ -14,6 +14,40 @@
     <el-tabs v-model="activeTab" class="detail-tabs" style="margin-top: 16px;">
       <!-- 概览 -->
       <el-tab-pane label="概览" name="overview">
+        <el-card v-if="patient" shadow="hover" class="health-overview">
+          <template #header><span>🩺 健康速览</span></template>
+          <el-row :gutter="12">
+            <el-col :xs="12" :sm="6">
+              <div class="ho-block">
+                <div class="ho-label">体质类型</div>
+                <div class="ho-value" :class="{ 'ho-muted': !patient.constitution_type }">
+                  {{ patient.constitution_type || '未评估' }}
+                </div>
+              </div>
+            </el-col>
+            <el-col :xs="12" :sm="6">
+              <div class="ho-block">
+                <div class="ho-label">BMI / 身型</div>
+                <div class="ho-value" v-if="patient.height != null && patient.weight != null">
+                  {{ calcBmi(patient.height, patient.weight)?.toFixed(1) }}
+                  <el-tag v-if="bodyTypeOf(patient)" size="small" :style="tagStyleOf(bodyTypeOf(patient)!.color)">{{ bodyTypeOf(patient)!.label }}</el-tag>
+                </div>
+                <div class="ho-value ho-muted" v-else>未填身高/体重</div>
+              </div>
+            </el-col>
+            <el-col :xs="24" :sm="12">
+              <div class="ho-block">
+                <div class="ho-label">过敏史</div>
+                <el-alert v-if="patient.allergy_history" type="error" :closable="false" show-icon :title="patient.allergy_history" />
+                <el-tag v-else type="success" size="small">无过敏史</el-tag>
+              </div>
+            </el-col>
+          </el-row>
+          <div class="ho-tags" v-if="patient.tags && patient.tags.length">
+            <span class="ho-label">标签</span>
+            <el-tag v-for="t in patient.tags" :key="t" size="small" effect="plain" :style="tagStyleOf(t)">{{ t }}</el-tag>
+          </div>
+        </el-card>
         <el-card shadow="hover">
           <template #header><span>📋 基本信息</span></template>
           <el-descriptions :column="1" border size="small" v-if="patient">
@@ -142,6 +176,44 @@
 
       <!-- 病情跟踪：该患者全病程随访/回访轨迹（按日期排序，标注归属初诊，给出整体趋势） -->
       <el-tab-pane label="病情跟踪" name="followup">
+        <!-- 随访提醒：处方用药后自动生成；逾期/到期在工作台待办提醒 -->
+        <el-card shadow="hover" class="reminder-card">
+          <template #header>
+            <span>⏰ 随访提醒</span>
+            <span class="reminder-hint">处方用药后会自动生成；时间到了会在工作台待办提醒</span>
+          </template>
+          <div v-if="reminders.length" class="reminder-list">
+            <div
+              v-for="r in reminders"
+              :key="r.id"
+              class="reminder-item"
+              :class="{ 'is-done': r.status === 'done', 'is-overdue': r.overdue && r.status === 'pending' }"
+            >
+              <el-tag size="small" :type="r.status === 'done' ? 'success' : r.overdue ? 'danger' : 'primary'">
+                {{ r.status === 'done' ? '已完成' : r.overdue ? '已逾期' : '待回访' }}
+              </el-tag>
+              <span class="reminder-date">{{ r.due_date }}</span>
+              <span v-if="r.note" class="reminder-note">{{ r.note }}</span>
+              <span class="reminder-actions" v-if="editable">
+                <el-button v-if="r.status === 'pending'" link type="success" size="small" @click="setReminderStatus(r, 'done')">完成</el-button>
+                <el-button v-if="r.status === 'pending'" link type="warning" size="small" @click="setReminderStatus(r, 'cancelled')">取消</el-button>
+                <el-button link type="danger" size="small" @click="deleteReminder(r)">删除</el-button>
+              </span>
+            </div>
+          </div>
+          <el-empty v-else description="暂无随访提醒" :image-size="50" />
+          <el-form v-if="editable" :inline="true" class="reminder-add">
+            <el-form-item label="应回访日期">
+              <el-date-picker v-model="newReminderDate" type="date" value-format="YYYY-MM-DD" placeholder="选择日期" style="width: 160px;" />
+            </el-form-item>
+            <el-form-item label="备注">
+              <el-input v-model="newReminderNote" placeholder="如：7 剂服完复诊" style="width: 200px;" />
+            </el-form-item>
+            <el-form-item>
+              <el-button type="primary" size="small" :loading="savingReminder" @click="addReminder">添加提醒</el-button>
+            </el-form-item>
+          </el-form>
+        </el-card>
         <el-card shadow="hover">
           <template #header>
             <span>📈 病情跟踪（全病程恢复轨迹）</span>
@@ -170,6 +242,15 @@
                   </span>
                 </div>
                 <div v-if="fu.feedback" class="fu-feedback">{{ fu.feedback }}</div>
+                <div v-if="rxByVisit[fu.visit_id] && rxByVisit[fu.visit_id].length" class="fu-rx">
+                  <div class="fu-rx-title">关联开方（本次反馈所对应的上次方案）</div>
+                  <div v-for="rx in rxByVisit[fu.visit_id]" :key="rx.id" class="fu-rx-item">
+                    <el-tag size="small" type="primary">{{ rx.formula_name || rx.prescription_type || '处方' }}</el-tag>
+                    <span v-if="rx.treatment_days">疗程 {{ rx.treatment_days }} 天</span>
+                    <span v-if="rx.doses">{{ rx.doses }} 剂</span>
+                    <span v-if="rx.items && rx.items.length">· {{ rx.items.length }} 味</span>
+                  </div>
+                </div>
               </el-card>
             </el-timeline-item>
           </el-timeline>
@@ -538,7 +619,12 @@ function toggleEpisode(id: number) {
 
 // 病情跟踪
 const followups = ref<any[]>([])
+const reminders = ref<any[]>([])
 const followupVisible = ref(false)
+// 随访提醒：新增表单
+const newReminderDate = ref('')
+const newReminderNote = ref('')
+const savingReminder = ref(false)
 const savingFollowup = ref(false)
 const followupForm = ref<any>({ id: null, followup_date: '', treatment_type: '', improvement: '', feedback: '', visit_id: null })
 // 字典中的患者标签（供编辑表单选择）
@@ -776,13 +862,14 @@ async function deleteFollowup(fu: any) {
 }
 
 async function loadPatientData() {
-  const [p, v, iq, rx, fus, tags] = await Promise.all([
+  const [p, v, iq, rx, fus, tags, rms] = await Promise.all([
     api.get(`/patients/${patientId}`),
     api.get(`/patients/${patientId}/visits`),
     api.get(`/patients/${patientId}/inquiries`),
     api.get(`/prescriptions?patient_id=${patientId}`),
     api.get(`/patients/${patientId}/followups`),
     api.get('/dictionaries', { params: { term_type: 'tag', is_active: true } }),
+    api.get(`/followup-reminders?patient_id=${patientId}`),
   ])
   patient.value = p
   visits.value = v as any
@@ -790,6 +877,44 @@ async function loadPatientData() {
   prescriptions.value = rx as any
   followups.value = fus as any
   tagOptions.value = tags as any
+  reminders.value = (rms || []) as any
+}
+
+async function loadReminders() {
+  try {
+    reminders.value = (await api.get(`/followup-reminders?patient_id=${patientId}`)) as any
+  } catch {}
+}
+async function addReminder() {
+  if (!newReminderDate.value) { ElMessage.warning('请选择应回访日期'); return }
+  savingReminder.value = true
+  try {
+    await api.post('/followup-reminders', {
+      patient_id: Number(patientId),
+      due_date: newReminderDate.value,
+      note: newReminderNote.value || null,
+      source_type: 'manual',
+    }, { silent: true })
+    ElMessage.success('已添加随访提醒')
+    newReminderDate.value = ''
+    newReminderNote.value = ''
+    await loadReminders()
+  } catch {}
+  savingReminder.value = false
+}
+async function setReminderStatus(r: any, status: string) {
+  try {
+    await api.patch(`/followup-reminders/${r.id}`, { status }, { silent: true })
+    ElMessage.success(status === 'done' ? '已标记完成' : status === 'cancelled' ? '已取消' : '已更新')
+    await loadReminders()
+  } catch {}
+}
+async function deleteReminder(r: any) {
+  try {
+    await api.delete(`/followup-reminders/${r.id}`, { silent: true })
+    ElMessage.success('已删除')
+    await loadReminders()
+  } catch {}
 }
 
 onMounted(async () => {
@@ -910,6 +1035,27 @@ function fmtTime(iso?: string): string {
 .fu-episode--link { color: #409eff; background: #ecf5ff; cursor: pointer; }
 .fu-episode--link:hover { background: #d9ecff; }
 .fu-episode--orphan { color: #999; background: #f5f5f5; }
+/* 病情跟踪：关联开方对比 */
+.fu-rx { margin-top: 8px; padding: 8px 10px; background: #f7faff; border-left: 3px solid #409eff; border-radius: 4px; }
+.fu-rx-title { font-size: 12px; color: #409eff; margin-bottom: 4px; }
+.fu-rx-item { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; color: #555; padding: 2px 0; }
+/* 病情跟踪：随访提醒 */
+.reminder-card .reminder-hint { font-size: 12px; color: #999; font-weight: 400; margin-left: 8px; }
+.reminder-list { margin-bottom: 8px; }
+.reminder-item { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid #f0f0f0; flex-wrap: wrap; }
+.reminder-item.is-done { opacity: 0.55; }
+.reminder-item.is-overdue .reminder-date { color: #f56c6c; font-weight: 600; }
+.reminder-date { font-weight: 500; }
+.reminder-note { font-size: 12px; color: #999; }
+.reminder-actions { margin-left: auto; }
+.reminder-add { margin-top: 8px; }
+/* 概览：健康速览卡 */
+.health-overview .ho-block { padding: 6px 4px; }
+.health-overview .ho-label { font-size: 12px; color: #999; margin-bottom: 6px; }
+.health-overview .ho-value { font-size: 16px; font-weight: 600; color: #6b4f2a; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.health-overview .ho-value.ho-muted { font-size: 13px; font-weight: 400; color: #c0c4cc; }
+.health-overview .ho-tags { margin-top: 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.health-overview .ho-tags .ho-label { margin-bottom: 0; }
 /* 弹窗内容超高时，仅 body 内部滚动，底部按钮始终可见（避免 AI 分析把弹窗顶飞） */
 .visit-detail-dialog :deep(.el-dialog__body),
 .iq-detail-dialog :deep(.el-dialog__body),

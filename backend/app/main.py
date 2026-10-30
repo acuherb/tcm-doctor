@@ -16,7 +16,7 @@ from app.database import engine, Base, SessionLocal
 from app.models.user import User, AuthToken
 from app.routers import patient, herb, prescription, knowledge, diagnosis, dictionaries, acupuncture
 from app.routers import acupoint_formula
-from app.routers import stats, backup, auth
+from app.routers import stats, backup, auth, followup_reminders
 from app.routers.auth import get_current_user
 
 WRITE_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
@@ -256,6 +256,7 @@ app.include_router(dictionaries.router, prefix="/api/v1")
 app.include_router(acupuncture.router, prefix="/api/v1")
 app.include_router(acupoint_formula.router, prefix="/api/v1")
 app.include_router(auth.router, prefix="/api/v1")
+app.include_router(followup_reminders.router, prefix="/api/v1")
 
 
 @app.get("/health", tags=["系统"])

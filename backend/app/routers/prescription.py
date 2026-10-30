@@ -2,10 +2,14 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from sqlalchemy.orm import Session, joinedload
 
+from datetime import datetime as _dt, timedelta
+
 from app.database import get_db
 from app.models.prescription import ClassicFormula, Prescription, PrescriptionItem, AcupointPrescription, PrescriptionInjection
 from app.models.herb import IncompatibilityRule, Herb, HerbInventory
 from app.models.patient import Patient
+from app.models.visit import Visit
+from app.models.followup_reminder import FollowUpReminder
 from app.models.user import User
 from app.routers.auth import get_current_user
 from app.schemas.prescription import (
@@ -317,6 +321,27 @@ def create_prescription(data: PrescriptionCreate, current_user: User = Depends(g
         ))
 
     prescription.total_price = _compute_total_price(db, data.items, data.doses)
+
+    # 自动生成随访提醒：医生指定复诊日期 或 依据疗程天数（就诊日 + 疗程天数）
+    fu_due = data.follow_up_date
+    if not fu_due and data.treatment_days:
+        base = _dt.now().date().isoformat()
+        if data.visit_id:
+            v = db.query(Visit).filter(Visit.id == data.visit_id).first()
+            if v and v.visit_date:
+                base = str(v.visit_date)[:10]
+        try:
+            fu_due = (_dt.fromisoformat(base).date() + timedelta(days=data.treatment_days)).isoformat()
+        except Exception:
+            fu_due = None
+    if fu_due:
+        db.add(FollowUpReminder(
+            patient_id=data.patient_id,
+            due_date=fu_due,
+            note=f"处方「{data.formula_name or data.prescription_type}」疗程结束后复诊",
+            source_type="prescription",
+            source_id=prescription.id,
+        ))
 
     db.commit()
     db.refresh(prescription)

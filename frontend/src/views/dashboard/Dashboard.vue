@@ -82,7 +82,22 @@
               <span>{{ alerts.length }} 种药材库存不足</span>
               <el-button link type="primary" size="small" @click="$router.push('/herbs/inventory')">去处理</el-button>
             </div>
-            <el-empty v-if="pendingCount === 0 && alerts.length === 0" description="暂无待办事项" :image-size="60" />
+            <div v-if="pendingFollowups > 0" class="todo-item">
+              <el-tag type="primary" size="small">待回访</el-tag>
+              <span>{{ pendingFollowups }} 位患者需随访</span>
+            </div>
+            <div
+              v-for="r in followupReminders"
+              :key="r.id"
+              class="todo-item todo-followup"
+              @click="goPatient(r.patient_id)"
+            >
+              <el-tag :type="r.overdue ? 'danger' : 'primary'" size="small">{{ r.overdue ? '已逾期' : '待回访' }}</el-tag>
+              <span class="todo-name">{{ r.patient_name }}</span>
+              <span class="todo-date">{{ r.due_date }}</span>
+              <span v-if="r.note" class="todo-note">{{ r.note }}</span>
+            </div>
+            <el-empty v-if="pendingCount === 0 && alerts.length === 0 && pendingFollowups === 0" description="暂无待办事项" :image-size="60" />
           </div>
         </el-card>
       </el-col>
@@ -92,8 +107,14 @@
 
 <script setup lang="ts">
 import { ref, onMounted, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
 import { User, FirstAidKit, Document, ChatDotRound, Warning } from '@element-plus/icons-vue'
 import api from '@/utils/api'
+
+const router = useRouter()
+function goPatient(id: number) {
+  if (id) router.push(`/patients/${id}`)
+}
 
 const statCards = ref([
   { title: '今日就诊', value: 0, icon: 'User', color: '#8B4513' },
@@ -117,6 +138,8 @@ const quickActions = [
 
 const alerts = ref<any[]>([])
 const pendingCount = ref(0)
+const pendingFollowups = ref(0)
+const followupReminders = ref<any[]>([])
 const visitChartRef = ref<HTMLElement>()
 const visitTrend = ref<any[]>([])
 
@@ -135,6 +158,8 @@ async function loadDashboard() {
 
     pendingCount.value = dashData.pending_prescriptions || 0
     alerts.value = alertsData || []
+    pendingFollowups.value = dashData.pending_followups || 0
+    followupReminders.value = dashData.followup_reminders || []
     visitTrend.value = dashData.visit_trend || []
 
     // 绘制图表
@@ -262,6 +287,14 @@ onMounted(loadDashboard)
         font-size: 13px;
         color: #999;
       }
+    }
+
+    .todo-followup {
+      cursor: pointer;
+      .todo-name { font-weight: 500; }
+      .todo-date { font-size: 13px; color: #666; }
+      .todo-note { font-size: 12px; color: #999; }
+      &:hover { background: #f7faff; }
     }
   }
 }

@@ -148,6 +148,14 @@
           </el-col>
         </el-row>
 
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="建议复诊日期" prop="follow_up_date">
+              <el-date-picker v-model="form.follow_up_date" type="date" value-format="YYYY-MM-DD" placeholder="可选，留空则按疗程天数自动提醒" style="width:100%" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
         <!-- 配穴明细 -->
         <el-divider content-position="left">配穴明细</el-divider>
         <div class="herb-items" v-if="form.acupoints.length">
@@ -379,6 +387,7 @@ const form = ref({
   acupoint_technique: '',
   treatment_frequency: '',
   treatment_days: null as number | null,
+  follow_up_date: '' as string,
   acupuncture_fee: null as number | null,
   items: [] as Array<{
     herb_id: number | null

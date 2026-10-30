@@ -49,6 +49,29 @@ def dashboard_stats(db: Session = Depends(get_db)):
         if float(item.quantity) < float(item.min_stock or 0):
             low_stock_count += 1
 
+    # 待回访提醒（应回访日期 <= 今天 且未完成的）
+    from app.models.followup_reminder import FollowUpReminder
+
+    due_reminders = (
+        db.query(FollowUpReminder)
+        .filter(FollowUpReminder.status == "pending", FollowUpReminder.due_date <= today.isoformat())
+        .all()
+    )
+    pending_followups = len(due_reminders)
+    rpids = {r.patient_id for r in due_reminders}
+    rmap = {p.id: p.name for p in db.query(Patient).filter(Patient.id.in_(rpids)).all()} if rpids else {}
+    followup_reminders = [
+        {
+            "id": r.id,
+            "patient_id": r.patient_id,
+            "patient_name": rmap.get(r.patient_id),
+            "due_date": r.due_date,
+            "note": r.note,
+            "overdue": r.due_date < today.isoformat(),
+        }
+        for r in sorted(due_reminders, key=lambda x: x.due_date)[:10]
+    ]
+
     # 最近7天就诊趋势
     seven_days_ago = today - timedelta(days=7)
     visit_trend = []
@@ -67,6 +90,8 @@ def dashboard_stats(db: Session = Depends(get_db)):
         "today_prescriptions": today_prescriptions,
         "pending_prescriptions": pending_prescriptions,
         "low_stock_count": low_stock_count,
+        "pending_followups": pending_followups,
+        "followup_reminders": followup_reminders,
         "visit_trend": visit_trend,
     }
 
