@@ -312,24 +312,41 @@ function jsonObjToFormula(o: any): any {
   if (!name) return null
   const role = (o?.role || '').toString().trim() || ''
   const prep = (o?.preparation || o?.剂型 || '').toString().trim()
-  const herbs = (Array.isArray(o?.herbs) ? o.herbs : []).map((h: any) => {
-    if (typeof h === 'string') return splitHerbs(h)[0] || { name: h, dose: '', method: '' }
-    return {
-      name: (h?.name || '').toString().replace(/["""]/g, '').trim(),
-      dose: (h?.dose || '').toString().trim(),
-      method: (h?.method || '').toString().trim(),
+  // 新格式：herbs 为数组；旧格式（recommended_formulas）：composition 为药味字符串，需拆出
+  let herbs: any[] = []
+  if (Array.isArray(o?.herbs) && o.herbs.length) {
+    herbs = o.herbs.map((h: any) => {
+      if (typeof h === 'string') return splitHerbs(h)[0] || { name: h, dose: '', method: '' }
+      return {
+        name: (h?.name || '').toString().replace(/["""]/g, '').trim(),
+        dose: (h?.dose || '').toString().trim(),
+        method: (h?.method || '').toString().trim(),
+      }
+    }).filter((h: any) => h.name)
+  } else {
+    const comp = o?.composition || o?.组成 || ''
+    const compStr = typeof comp === 'string' ? comp : (Array.isArray(comp) ? comp.join(' ') : '')
+    herbs = splitHerbs(compStr)
+  }
+  // 新格式：modifications 为数组；旧格式：modification 为加减文本
+  let mods: any[] = []
+  if (Array.isArray(o?.modifications) && o.modifications.length) {
+    mods = o.modifications.map((m: any) => {
+      const label = (m?.label || '').toString().trim()
+      if (!label) return null
+      const add = (Array.isArray(m?.add) ? m.add : []).map((a: any) => {
+        if (typeof a === 'string') return splitHerbs(a)[0] || { name: a, dose: '', method: '' }
+        return { name: (a?.name || '').toString().trim(), dose: (a?.dose || '').toString().trim(), method: (a?.method || '').toString().trim() }
+      }).filter((a: any) => a.name)
+      const remove = (Array.isArray(m?.remove) ? m.remove : []).map((r: any) => (r || '').toString().trim()).filter(Boolean)
+      return { label, add, remove }
+    }).filter(Boolean)
+  } else {
+    const modifier = o?.modification || o?.加减 || ''
+    if (typeof modifier === 'string' && modifier.trim()) {
+      mods = modifier.split(/[；;]/).map((s: string) => s.trim()).filter(Boolean).map((label: string) => ({ label, add: [], remove: [] }))
     }
-  }).filter((h: any) => h.name)
-  const mods = (Array.isArray(o?.modifications) ? o.modifications : []).map((m: any) => {
-    const label = (m?.label || '').toString().trim()
-    if (!label) return null
-    const add = (Array.isArray(m?.add) ? m.add : []).map((a: any) => {
-      if (typeof a === 'string') return splitHerbs(a)[0] || { name: a, dose: '', method: '' }
-      return { name: (a?.name || '').toString().trim(), dose: (a?.dose || '').toString().trim(), method: (a?.method || '').toString().trim() }
-    }).filter((a: any) => a.name)
-    const remove = (Array.isArray(m?.remove) ? m.remove : []).map((r: any) => (r || '').toString().trim()).filter(Boolean)
-    return { label, add, remove }
-  }).filter(Boolean)
+  }
   return { name, role, preparation: prep, herbs, modifications: mods }
 }
 

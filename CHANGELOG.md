@@ -18,6 +18,10 @@
 - 根因：结构化方剂（主方+副方，各含药味与多条长加减方案）作为 JSON 直接塞进 URL query，体积过大超出 URL/请求行长度限制，服务端截断 JSON 致 `herbs` 被切掉（弹窗只剩方名）。
 - 修复：`goPrescribeWithFormula` 改为把结构化方剂写入 `sessionStorage`、仅传一个短 key（[VisitCard.vue](file:///home/debian/tcm-doctor/frontend/src/components/VisitCard.vue) / [VisitRecord.vue](file:///home/debian/tcm-doctor/frontend/src/views/patient/VisitRecord.vue)）；[PrescriptionEditor.vue](file:///home/debian/tcm-doctor/frontend/src/views/prescription/PrescriptionEditor.vue) 按 key 从 `sessionStorage` 取回（读取后删除），并保留 `ai_import` / `ai_formula` 旧 query 形式兜底。
 
+### 4. 修复：历史存档 AI 方剂带入后处方列表空白（老格式 composition 未解析）
+- 根因：[VisitCard.vue](file:///home/debian/tcm-doctor/frontend/src/components/VisitCard.vue) 的 `jsonObjToFormula` 只读取新格式 `herbs` 数组；而**此前已存档**的诊断库文本里 `recommended_formulas` 是 `{name, composition(药味字符串), modification(加减文本)}`，无 `herbs` 数组 → 解析出方名但 `herbs` 为空，诊断库与带入开方都看不到药味。
+- 修复：`jsonObjToFormula` 增加兜底——`herbs` 缺失时由 `composition` 字符串经 `splitHerbs` 拆出药名/剂量/煎法；`modifications` 缺失时由 `modification` 文本按 `；` 拆为加减项（纯文本标注）。已用新旧两种格式单测验证均正确解析出药味。
+
 ## 2026-10-30 — AI 辨证纳入性别/年龄/身高/体重，剂量个体化
 
 ### 1. 患者体征信息进入辨证 prompt
