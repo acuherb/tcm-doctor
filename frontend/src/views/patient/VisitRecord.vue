@@ -304,6 +304,8 @@ const patientName = props.patientName ?? (route.query.name as string) ?? ''
 const effectiveVisitId = props.visitId ?? (route.query.visit_id ? Number(route.query.visit_id) : null)
 // 患者标签：用于在治疗页提示（如"不遵医瞩"→慎用峻药）
 const patientTags = ref<string[]>([])
+// 患者基本信息（性别/出生日期/身高/体重），用于 AI 辨证时个体化剂量
+const patient = ref<any>(null)
 // 根据字典释义匹配患者标签，进入就诊页时提醒医生
 const patientTagInfos = computed(() => {
   return patientTags.value
@@ -372,6 +374,7 @@ onMounted(async () => {
   } else {
     try {
       const p = (await api.get(`/patients/${patientId}`)) as any
+      patient.value = p
       patientTags.value = p.tags || []
     } catch {}
   }
@@ -721,7 +724,10 @@ async function aiAssist() {
     tongue_body: form.value.tongue_body,
     tongue_coat: form.value.tongue_coat,
     pulse: form.value.pulse.join('、'),
-    patient_gender: '',
+    patient_gender: patient.value?.gender || '',
+    patient_age: patient.value?.birth_date ? calcAge(patient.value.birth_date) : null,
+    patient_height_cm: patient.value?.height ?? null,
+    patient_weight_kg: patient.value?.weight ?? null,
     is_pregnant: false,
   }
   if (aspects) pendingAiPayload.ten_aspects = aspects

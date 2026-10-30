@@ -30,6 +30,7 @@ TCM_SYSTEM_PROMPT = """你是一位以「倪海厦经方体系」为根基的中
 7. **免责声明**：每次回复末尾加上"⚠️ 本分析由AI辅助生成，仅供参考，不替代专业中医师面诊。"
 8. **中西医结合**：如提供西医诊断（病名、化验指标、影像报告），应解读其临床意义，从中医辨病名与证型，提出中西医结合方案，并标注哪些以中医为主、哪些需西医优先。
 9. **图片解读**：舌苔/面色/化验单照片应描述并辨证，注明仅供参考，临床需四诊合参。
+10. **剂量个体化（结合患者体重/年龄/性别）**：推荐经方剂量须结合患者信息调整——以标准成人（约 60kg）为基准，患者体重明显偏高/偏低按比例增减；儿童、老人、久病体弱者相应减量；女性经期、孕期、产期注意用药禁忌；若患者体重/年龄未知，按常规成人量并在方后注明「剂量按常规成人，需结合体重/年龄调整」。严禁对所有人都给同一固定剂量。
 
 请用中文回答，保持专业性与可读性。"""
 
@@ -164,6 +165,9 @@ class DiagnosisService:
         chief_complaint: str | None = None,
         patient_gender: str | None = None,
         is_pregnant: bool | None = None,
+        patient_age: int | None = None,
+        patient_height_cm: float | None = None,
+        patient_weight_kg: float | None = None,
         ten_aspects: str | None = None,
         ten_answers: dict | None = None,
         tongue_image: str | None = None,
@@ -208,6 +212,21 @@ class DiagnosisService:
         patient_info = ""
         if patient_gender:
             patient_info += f"患者性别：{patient_gender}。"
+        if patient_age is not None:
+            patient_info += f"年龄：{patient_age}岁。"
+        if patient_height_cm is not None or patient_weight_kg is not None:
+            phys = []
+            if patient_height_cm is not None:
+                phys.append(f"身高{patient_height_cm}cm")
+            if patient_weight_kg is not None:
+                phys.append(f"体重{patient_weight_kg}kg")
+            patient_info += "体态：" + "，".join(phys) + "。"
+            if patient_height_cm and patient_weight_kg:
+                try:
+                    bmi = round(patient_weight_kg / ((patient_height_cm / 100) ** 2), 1)
+                    patient_info += f"（BMI≈{bmi}）"
+                except Exception:
+                    pass
         if is_pregnant:
             patient_info += "⚠️患者为孕妇，需注意孕妇禁忌。"
 
@@ -558,6 +577,9 @@ class DiagnosisService:
         chief_complaint: str | None = None,
         patient_gender: str | None = None,
         is_pregnant: bool | None = None,
+        patient_age: int | None = None,
+        patient_height_cm: float | None = None,
+        patient_weight_kg: float | None = None,
         ten_aspects: str | None = None,
         ten_answers: dict | None = None,
         tongue_image: str | None = None,
@@ -607,6 +629,21 @@ class DiagnosisService:
         patient_info = ""
         if patient_gender:
             patient_info += f"患者性别：{patient_gender}。"
+        if patient_age is not None:
+            patient_info += f"年龄：{patient_age}岁。"
+        if patient_height_cm is not None or patient_weight_kg is not None:
+            phys = []
+            if patient_height_cm is not None:
+                phys.append(f"身高{patient_height_cm}cm")
+            if patient_weight_kg is not None:
+                phys.append(f"体重{patient_weight_kg}kg")
+            patient_info += "体态：" + "，".join(phys) + "。"
+            if patient_height_cm and patient_weight_kg:
+                try:
+                    bmi = round(patient_weight_kg / ((patient_height_cm / 100) ** 2), 1)
+                    patient_info += f"（BMI≈{bmi}）"
+                except Exception:
+                    pass
         if is_pregnant:
             patient_info += "⚠️患者为孕妇，需注意孕妇禁忌。"
 
