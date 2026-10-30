@@ -54,8 +54,6 @@
         <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click.stop="goDetail(row)">详情</el-button>
-            <el-button v-if="editable" link type="primary" @click.stop="editPatient(row)">编辑</el-button>
-            <el-button v-if="editable" link type="primary" @click.stop="startVisit(row)">就诊</el-button>
             <el-button v-if="editable" link type="danger" @click.stop="deletePatient(row)">删除</el-button>
           </template>
         </el-table-column>
@@ -99,8 +97,6 @@
           </div>
           <div class="card-actions">
             <el-button link type="primary" size="small" @click.stop="goDetail(row)">详情</el-button>
-            <el-button v-if="editable" link type="primary" size="small" @click.stop="editPatient(row)">编辑</el-button>
-            <el-button v-if="editable" link type="primary" size="small" @click.stop="startVisit(row)">就诊</el-button>
             <el-button v-if="editable" link type="danger" size="small" @click.stop="deletePatient(row)">删除</el-button>
           </div>
         </div>
@@ -120,20 +116,37 @@
     </el-card>
 
     <!-- 新增患者对话框 -->
-    <el-dialog v-model="showAddDialog" title="新增患者" width="500px" destroy-on-close>
-      <el-form :model="newPatient" label-width="80px" label-position="right">
-        <el-form-item label="姓名" required>
-          <el-input v-model="newPatient.name" placeholder="请输入姓名" />
-        </el-form-item>
-        <el-form-item label="性别">
-          <el-radio-group v-model="newPatient.gender">
-            <el-radio value="男">男</el-radio>
-            <el-radio value="女">女</el-radio>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item label="出生日期">
-          <el-date-picker v-model="newPatient.birth_date" type="date" value-format="YYYY-MM-DD" placeholder="选择日期" />
-        </el-form-item>
+    <el-dialog v-model="showAddDialog" title="新增患者" width="560px" destroy-on-close class="patient-form-dialog">
+      <el-form :model="newPatient" label-position="top">
+        <el-row :gutter="12">
+          <el-col :xs="24" :sm="12">
+            <el-form-item label="姓名" required>
+              <el-input v-model="newPatient.name" placeholder="请输入姓名" />
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :sm="12">
+            <el-form-item label="性别">
+              <el-radio-group v-model="newPatient.gender">
+                <el-radio value="男">男</el-radio>
+                <el-radio value="女">女</el-radio>
+              </el-radio-group>
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="12">
+          <el-col :xs="24" :sm="12">
+            <el-form-item label="出生日期">
+              <el-date-picker v-model="newPatient.birth_date" type="date" value-format="YYYY-MM-DD" placeholder="选择日期" style="width:100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :sm="12">
+            <el-form-item label="年龄">
+              <el-input :model-value="calcAge(newPatient.birth_date) ?? ''" disabled placeholder="自动计算" style="width:100%">
+                <template #append>岁</template>
+              </el-input>
+            </el-form-item>
+          </el-col>
+        </el-row>
         <el-row :gutter="12">
           <el-col :xs="24" :sm="12">
             <el-form-item label="身高(cm)">
@@ -146,12 +159,10 @@
             </el-form-item>
           </el-col>
         </el-row>
-        <el-form-item label="电话">
-          <el-input v-model="newPatient.phone" placeholder="请输入电话" />
-        </el-form-item>
-        <el-form-item label="身份证号">
-          <el-input v-model="newPatient.id_card" placeholder="请输入身份证号" />
-        </el-form-item>
+        <el-row :gutter="12">
+          <el-col :xs="24" :sm="12"><el-form-item label="电话"><el-input v-model="newPatient.phone" placeholder="请输入电话" /></el-form-item></el-col>
+          <el-col :xs="24" :sm="12"><el-form-item label="身份证号"><el-input v-model="newPatient.id_card" placeholder="请输入身份证号" /></el-form-item></el-col>
+        </el-row>
         <el-form-item label="地址">
           <el-input v-model="newPatient.address" placeholder="请输入地址" />
         </el-form-item>
@@ -163,6 +174,21 @@
         </el-form-item>
         <el-form-item label="备注">
           <el-input v-model="newPatient.notes" type="textarea" :rows="2" />
+        </el-form-item>
+        <el-form-item label="标签">
+          <div class="tag-picker">
+            <el-tag
+              v-for="t in tagOptions"
+              :key="t.id"
+              class="tag-option"
+              :class="{ 'tag-selected': (newPatient.tags || []).includes(t.name) }"
+              :style="tagChipStyle(t)"
+              effect="plain"
+              @click="toggleTag(t.name)"
+            >{{ t.name }}</el-tag>
+            <span v-if="!tagOptions.length" class="text-muted">暂无标签，请到『数据字典 → 患者标签』添加</span>
+          </div>
+          <div style="font-size:12px;color:#999;margin-top:4px;">点击标签切换选中（颜色由字典定义）；新增/停用请到字典页操作</div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -214,6 +240,8 @@ const pageSize = ref(20)
 const searchText = ref('')
 const showAddDialog = ref(false)
 const submitting = ref(false)
+// 字典中的患者标签（供新增表单选择）
+const tagOptions = ref<any[]>([])
 
 const newPatient = ref({
   name: '',
@@ -227,6 +255,7 @@ const newPatient = ref({
   allergy_history: '',
   medical_history: '',
   notes: '',
+  tags: [] as string[],
 })
 
 async function loadPatients() {
@@ -243,12 +272,17 @@ function goDetail(row: any) {
   router.push(`/patients/${row.id}`)
 }
 
-function startVisit(row: any) {
-  router.push({ path: `/patients/${row.id}/visit`, query: { name: row.name } })
+// 标签彩色点选：选中用字典 color 实心，未选中用描边
+function toggleTag(name: string) {
+  const cur = newPatient.value.tags || []
+  newPatient.value.tags = cur.includes(name) ? cur.filter((x: string) => x !== name) : [...cur, name]
 }
-
-function editPatient(row: any) {
-  router.push({ path: `/patients/${row.id}`, query: { edit: '1' } })
+function tagChipStyle(t: any): Record<string, string> {
+  const selected = (newPatient.value.tags || []).includes(t.name)
+  const c = t.color || '#909399'
+  return selected
+    ? { backgroundColor: c, borderColor: c, color: '#fff' }
+    : { color: c, borderColor: c, backgroundColor: '#fff' }
 }
 
 async function addPatient() {
@@ -261,7 +295,7 @@ async function addPatient() {
     await api.post('/patients', newPatient.value)
     ElMessage.success('患者添加成功')
     showAddDialog.value = false
-    newPatient.value = { name: '', gender: '男', birth_date: '', phone: '', id_card: '', address: '', height: null, weight: null, allergy_history: '', medical_history: '', notes: '' }
+    newPatient.value = { name: '', gender: '男', birth_date: '', phone: '', id_card: '', address: '', height: null, weight: null, allergy_history: '', medical_history: '', notes: '', tags: [] }
     loadPatients()
   } catch {
     // 已被拦截器处理
@@ -279,7 +313,12 @@ async function deletePatient(row: any) {
   } catch {}
 }
 
-onMounted(loadPatients)
+onMounted(async () => {
+  loadPatients()
+  try {
+    tagOptions.value = (await api.get('/dictionaries', { params: { term_type: 'tag', is_active: true } })) as any
+  } catch {}
+})
 </script>
 
 <style scoped>
@@ -297,6 +336,10 @@ onMounted(loadPatients)
   color: #c0c4cc;
   font-size: 13px;
 }
+.tag-picker { display: flex; flex-wrap: wrap; gap: 8px; }
+.tag-option { cursor: pointer; user-select: none; transition: all .15s; }
+.tag-option:hover { opacity: .85; }
+.tag-selected { font-weight: 600; }
 
 /* ---- 移动端卡片视图 ---- */
 .pt-cards {
@@ -371,4 +414,7 @@ onMounted(loadPatients)
     justify-content: center;
   }
 }
+/* 患者表单弹窗：顶部对齐，内容区内滚动，保证一屏内显示全 */
+.patient-form-dialog { margin-top: 4vh !important; }
+.patient-form-dialog :deep(.el-dialog__body) { max-height: 82vh; overflow-y: auto; }
 </style>

@@ -13,6 +13,8 @@ class Visit(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     patient_id: Mapped[int] = mapped_column(Integer, ForeignKey("patients.id"), nullable=False)
     visit_date: Mapped[str] = mapped_column(String(20), nullable=False, comment="就诊日期")
+    # 就诊类型：初诊 / 复诊（同一病种的首次为初诊，其后为复诊）
+    visit_type: Mapped[str | None] = mapped_column(String(10), comment="就诊类型: 初诊/复诊", default="初诊")
 
     # 主诉与病史
     chief_complaint: Mapped[str] = mapped_column(Text, nullable=False, comment="主诉")
@@ -48,6 +50,10 @@ class Visit(Base):
     # 医嘱
     doctor_notes: Mapped[str | None] = mapped_column(Text, comment="医嘱/调护")
     doctor_id: Mapped[int | None] = mapped_column(Integer, comment="接诊医师ID")
+    # 父子关联：复诊指向其初诊，构成一次完整就诊（初诊→复诊链）
+    parent_visit_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("visits.id"), comment="父就诊ID(复诊指向其初诊，构成一次完整就诊)", nullable=True
+    )
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
 

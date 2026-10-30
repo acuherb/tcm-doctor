@@ -6,6 +6,22 @@
           <template #header><span>🏥 诊所信息</span></template>
           <el-form label-width="100px">
             <el-form-item label="诊所名称"><el-input v-model="clinicName" placeholder="请输入诊所名称，如 张氏中医馆" /></el-form-item>
+            <el-form-item label="诊所 Logo" v-if="editable">
+              <div class="logo-upload">
+                <img v-if="clinicLogo" :src="clinicLogo" class="logo-preview" alt="诊所Logo" />
+                <div v-else class="logo-placeholder">尚未设置</div>
+                <div class="logo-actions">
+                  <el-upload :auto-upload="false" :show-file-list="false" accept="image/*" :limit="1" @change="onLogoChange">
+                    <el-button size="small" type="primary">上传</el-button>
+                  </el-upload>
+                  <el-button v-if="clinicLogo" size="small" @click="clinicLogo = ''">清除</el-button>
+                </div>
+              </div>
+            </el-form-item>
+            <el-form-item label="诊所 Logo" v-else>
+              <img v-if="clinicLogo" :src="clinicLogo" class="logo-preview" alt="诊所Logo" />
+              <span v-else class="text-muted">尚未设置</span>
+            </el-form-item>
             <el-form-item label="医师姓名"><el-input v-model="doctorName" placeholder="请输入开方医师姓名" /></el-form-item>
             <el-form-item v-if="editable">
               <el-button type="primary" @click="saveClinic" :loading="savingClinic">保存诊所信息</el-button>
@@ -111,11 +127,11 @@
           <template #header><span>ℹ️ 系统信息</span></template>
           <el-descriptions :column="1" border>
             <el-descriptions-item label="应用名称">中医诊所管理平台</el-descriptions-item>
-            <el-descriptions-item label="版本">v0.2.0</el-descriptions-item>
+            <el-descriptions-item label="版本">{{ appVersion ? 'v' + appVersion : '未获取' }}</el-descriptions-item>
             <el-descriptions-item label="技术栈">Electron + FastAPI + Vue3</el-descriptions-item>
             <el-descriptions-item label="AI 引擎">
-              <el-tag :type="hasKey ? 'success' : 'info'" size="small">
-                {{ hasKey ? 'DeepSeek 已配置' : '未配置' }}
+              <el-tag :type="aiEngineStatus.type" size="small">
+                {{ aiEngineStatus.text }}
               </el-tag>
             </el-descriptions-item>
             <el-descriptions-item label="向量库">
@@ -143,6 +159,7 @@ const editable = computed(() => !!auth.user?.is_admin)
 
 const clinicName = ref('')
 const doctorName = ref('')
+const clinicLogo = ref('')
 const deepseekKey = ref('')
 const hasKey = ref(false)
 const deepseekModel = ref('deepseek-chat')
@@ -152,6 +169,7 @@ const visionBaseUrl = ref('')
 const visionKey = ref('')
 const hasVisionKey = ref(false)
 const visionConfigured = ref(false)
+const appVersion = ref('')
 const testing = ref(false)
 const exporting = ref(false)
 const vectorAvailable = ref(false)
@@ -159,11 +177,23 @@ const savingClinic = ref(false)
 
 const connectionStatus = ref({ type: 'info' as 'success' | 'danger' | 'info', text: '未测试' })
 
+// 系统信息里的「AI 引擎」状态：与真实测试结果一致，而不只依据「是否存了 key」
+const aiEngineStatus = computed(() => {
+  const cs = connectionStatus.value
+  if (cs.type === 'danger') return { type: 'danger' as const, text: 'DeepSeek 连接失败' }
+  if (cs.text === '✅ 连接成功') return { type: 'success' as const, text: 'DeepSeek 已连接' }
+  return hasKey.value
+    ? { type: 'success' as const, text: 'DeepSeek 已配置' }
+    : { type: 'info' as const, text: 'DeepSeek 未配置' }
+})
+
 onMounted(async () => {
   try {
     const res = await api.get('/config') as any
+    appVersion.value = res.version || ''
     clinicName.value = res.clinic_name || ''
     doctorName.value = res.doctor_name || ''
+    clinicLogo.value = res.clinic_logo || ''
     deepseekModel.value = res.deepseek_model || 'deepseek-chat'
     deepseekBaseUrl.value = res.deepseek_base_url || 'https://api.deepseek.com'
     if (res.deepseek_configured) {
@@ -191,13 +221,29 @@ async function saveClinic() {
     await api.put('/config', {
       clinic_name: clinicName.value,
       doctor_name: doctorName.value,
+      clinic_logo: clinicLogo.value,
     })
     ElMessage.success('诊所信息已保存')
+    document.title = clinicName.value.trim() || '中医诊所管理平台'
   } catch {
     ElMessage.error('保存失败')
   } finally {
     savingClinic.value = false
   }
+}
+
+function onLogoChange(uploadFile: any) {
+  const raw = uploadFile?.raw
+  if (!raw) return
+  if (raw.size > 2 * 1024 * 1024) {
+    ElMessage.warning('Logo 图片请小于 2MB')
+    return
+  }
+  const reader = new FileReader()
+  reader.onload = () => {
+    clinicLogo.value = reader.result as string
+  }
+  reader.readAsDataURL(raw)
 }
 
 async function saveConfig() {
@@ -345,4 +391,34 @@ async function resetData() {
     margin-top: auto;
   }
 }
+.logo-upload {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.logo-preview {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  border: 1px solid #e8e0d8;
+  border-radius: 8px;
+  padding: 4px;
+  background: #fff;
+}
+.logo-placeholder {
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #bbb;
+  font-size: 12px;
+  border: 1px dashed #dcd3c9;
+  border-radius: 8px;
+}
+.logo-actions {
+  display: flex;
+  gap: 8px;
+}
+.text-muted { color: #aaa; font-size: 13px; }
 </style>

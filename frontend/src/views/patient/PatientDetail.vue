@@ -4,26 +4,25 @@
       <template #extra>
         <div class="header-actions">
           <el-button v-if="editable" @click="openEdit"><el-icon><Edit /></el-icon> 编辑</el-button>
-          <el-button v-if="editable" @click="$router.push(`/patients/${patientId}/visit`)">
+          <el-button v-if="editable" @click="openVisitDrawer()">
             <el-icon><EditPen /></el-icon> 新增就诊
           </el-button>
         </div>
       </template>
     </el-page-header>
 
-    <div v-if="patient?.tags && patient.tags.length" class="patient-tags">
-      <el-tag v-for="t in patient.tags" :key="t" size="small" :type="tagTypeOf(t)" :style="tagStyleOf(t)" style="margin-right:6px;">{{ t }}</el-tag>
-    </div>
-
-    <el-row :gutter="20" style="margin-top: 20px;">
-      <!-- 基本信息 -->
-      <el-col :xs="24" :sm="10" :lg="8">
+    <el-tabs v-model="activeTab" class="detail-tabs" style="margin-top: 16px;">
+      <!-- 概览 -->
+      <el-tab-pane label="概览" name="overview">
         <el-card shadow="hover">
           <template #header><span>📋 基本信息</span></template>
           <el-descriptions :column="1" border size="small" v-if="patient">
             <el-descriptions-item label="姓名">{{ patient.name }}</el-descriptions-item>
             <el-descriptions-item label="性别">{{ patient.gender }}</el-descriptions-item>
             <el-descriptions-item label="出生日期">{{ patient.birth_date || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="年龄">
+              {{ patient.birth_date ? (calcAge(patient.birth_date) ?? '-') + ' 岁' : '-' }}
+            </el-descriptions-item>
             <el-descriptions-item label="电话">{{ patient.phone || '-' }}</el-descriptions-item>
             <el-descriptions-item label="身份证号">{{ patient.id_card || '-' }}</el-descriptions-item>
             <el-descriptions-item label="地址">{{ patient.address || '-' }}</el-descriptions-item>
@@ -43,148 +42,128 @@
               <el-tag size="small" :style="tagStyleOf(bodyTypeOf(patient)!.color)">{{ bodyTypeOf(patient)!.label }}</el-tag>
             </el-descriptions-item>
             <el-descriptions-item label="备注">{{ patient.notes || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="标签">
+              <template v-if="patient.tags && patient.tags.length">
+                <div class="tag-list">
+                  <el-tag
+                    v-for="t in patient.tags"
+                    :key="t"
+                    size="small"
+                    effect="plain"
+                    :style="tagStyleOf(t)"
+                  >{{ t }}</el-tag>
+                </div>
+              </template>
+              <span v-else class="text-muted">无</span>
+            </el-descriptions-item>
           </el-descriptions>
         </el-card>
-      </el-col>
+      </el-tab-pane>
 
-      <!-- 就诊历史 -->
-      <el-col :xs="24" :sm="14" :lg="16">
+      <!-- 就诊记录 -->
+      <el-tab-pane label="就诊记录" name="visits">
         <el-card shadow="hover">
           <template #header><span>🏥 就诊记录</span></template>
-          <el-timeline v-if="visits.length > 0">
-            <el-timeline-item
-              v-for="visit in visits"
-              :key="visit.id"
-              :timestamp="visit.visit_date"
-              placement="top"
-            >
-              <el-card shadow="never" class="visit-card">
-                <div class="visit-header">
-                  <strong>主诉：</strong>{{ visit.chief_complaint }}
-                </div>
-                <div v-if="visit.tcm_disease || visit.tcm_syndrome" class="visit-diagnosis">
-                  <el-tag type="primary" size="small">{{ visit.tcm_disease }}</el-tag>
-                  <el-tag type="warning" size="small">{{ visit.tcm_syndrome }}</el-tag>
-                  <el-tag type="info" size="small">{{ visit.treatment_method }}</el-tag>
-                </div>
-                <div v-if="visit.tongue_body || visit.tongue_coat || visit.pulse" class="visit-sizhen">
-                  <span v-if="visit.tongue_body">舌质: {{ visit.tongue_body }}</span>
-                  <span v-if="visit.tongue_coat">舌苔: {{ visit.tongue_coat }}</span>
-                  <span v-if="visit.pulse">脉象: {{ visit.pulse }}</span>
-                </div>
+          <!-- 筛选条件：关键词 / 病种 / 日期范围 -->
+          <div v-if="visits.length > 0" class="visit-filter">
+            <el-input v-model="visitKeyword" clearable placeholder="搜索 病名/主诉/证型/症状" class="vf-key" />
+            <el-select v-model="visitDisease" clearable placeholder="按病种筛选" class="vf-disease">
+              <el-option v-for="t in visitDiseaseOptions" :key="t" :value="t" :label="t" />
+            </el-select>
+            <el-date-picker v-model="visitDateRange" type="daterange" value-format="YYYY-MM-DD"
+              start-placeholder="开始日期" end-placeholder="结束日期" class="vf-date" />
+            <el-button v-if="visitKeyword || visitDisease || visitDateRange" size="small" @click="resetVisitFilter">重置</el-button>
+          </div>
 
-                <!-- 影像资料（舌苔/面色/化验单，点击可放大） -->
-                <div v-if="visit.tongue_image || visit.face_image || (visit.lab_report_images && visit.lab_report_images.length)" class="sub-block">
-                  <div class="sub-title">📷 影像资料</div>
-                  <div class="visit-imgs">
-                    <div v-if="visit.tongue_image" class="visit-img-item">
-                      <span class="img-label">舌苔</span>
-                      <el-image :src="visit.tongue_image" fit="cover" class="visit-thumb" :preview-src-list="[visit.tongue_image]" />
-                    </div>
-                    <div v-if="visit.face_image" class="visit-img-item">
-                      <span class="img-label">面色</span>
-                      <el-image :src="visit.face_image" fit="cover" class="visit-thumb" :preview-src-list="[visit.face_image]" />
-                    </div>
-                    <div v-for="(img, i) in (visit.lab_report_images || [])" :key="i" class="visit-img-item">
-                      <span class="img-label">化验单{{ (visit.lab_report_images || []).length > 1 ? i + 1 : '' }}</span>
-                      <el-image :src="img" fit="cover" class="visit-thumb" :preview-src-list="visit.lab_report_images || []" :initial-index="i" />
-                    </div>
-                  </div>
+          <!-- 按「初诊→复诊」父子关系组织：每条初诊为一个完整就诊，其下内嵌复诊 -->
+          <div v-if="visitRoots.length" class="visit-tree">
+            <div v-for="root in visitRoots" :key="root.id" class="visit-episode">
+              <div class="episode-header" @click="toggleEpisode(root.id)">
+                <span class="ep-arrow">{{ openEpisodes.has(root.id) ? '▾' : '▸' }}</span>
+                <el-tag size="small" type="info" effect="plain">初诊</el-tag>
+                <span class="ep-title">{{ root.chief_complaint }}</span>
+                <span class="ep-meta">
+                  {{ root.visit_date }}
+                  <template v-if="root.tcm_disease || root.tcm_syndrome"> · {{ root.tcm_disease }}{{ root.tcm_syndrome ? ' / ' + root.tcm_syndrome : '' }}</template>
+                  <template v-if="root.children && root.children.length"> · 复诊 {{ root.children.length }} 次</template>
+                </span>
+              </div>
+              <div v-show="openEpisodes.has(root.id)">
+                <VisitCard
+                  :visit="root"
+                  :inquiries="inquiriesByVisit[root.id] || []"
+                  :prescriptions="rxByVisit[root.id] || []"
+                  :followups="followupsByVisit[root.id] || []"
+                  :editable="editable"
+                  @view="openVisitDialog"
+                  @edit="openVisitDrawer"
+                  @add-followup="(v) => openFollowupDialog(undefined, v)"
+                  @view-followup="openFollowupDialog"
+                  @delete-followup="deleteFollowup"
+                  @view-rx="openRxDialog"
+                  @view-iq="openIqDialog"
+                />
+                <div v-if="rootTrend(root).length" class="visit-trend">
+                  <span class="trend-label">📊 病情变化</span>
+                  <span v-for="(t, ti) in rootTrend(root)" :key="'t' + t.visit_id + '-' + ti" class="trend-step">
+                    <span class="trend-date">{{ t.date }}</span>
+                    <el-tag size="small" :type="improvementTag(t.improvement)">{{ t.improvement }}</el-tag>
+                    <span v-if="ti < rootTrend(root).length - 1" class="trend-arrow">→</span>
+                  </span>
                 </div>
-
-                <!-- 本次问诊十问（按就诊日期关联，半折叠） -->
-                <div v-if="inquiriesByVisit[visit.id] && inquiriesByVisit[visit.id].length" class="sub-block">
-                  <div class="sub-title">
-                    <span>🩺 本次问诊十问</span>
-                    <el-button link type="warning" size="small" style="margin-left:auto;padding:0;height:auto;" @click="iqExpanded[visit.id] = !iqExpanded[visit.id]">
-                      {{ iqExpanded[visit.id] ? '收起' : '查看全部' }}
-                    </el-button>
-                  </div>
-                  <div class="collapse-box" :class="{ collapsed: !iqExpanded[visit.id] }">
-                    <div v-for="iq in inquiriesByVisit[visit.id]" :key="iq.id" class="sub-item">
-                      <el-tag type="warning" size="small">{{ iq.primary_type || '未定型' }}</el-tag>
-                      <span class="sub-note">偏性画像</span>
-                      <ul v-if="iq.result && iq.result.findings && iq.result.findings.length" class="iq-findings">
-                        <li v-for="(f, fi) in iq.result.findings" :key="fi">{{ f }}</li>
-                      </ul>
-                      <div v-if="iq.result && iq.result.suggestion" class="iq-suggestion">{{ iq.result.suggestion }}</div>
-                      <div class="visit-actions">
-                        <el-button link type="warning" size="small" @click="openIqDialog(iq)">查看完整评估</el-button>
-                      </div>
-                    </div>
-                  </div>
+                <div v-if="editable" class="visit-add-child">
+                  <el-button link type="success" size="small" icon="Plus" @click="openVisitDrawerWithParent(root)">＋ 复诊</el-button>
                 </div>
-
-                <!-- 本次处方 -->
-                <div v-if="rxByVisit[visit.id] && rxByVisit[visit.id].length" class="sub-block">
-                  <div v-for="rx in rxByVisit[visit.id]" :key="rx.id" class="sub-item">
-                    <div class="sub-title">💊 本次处方
-                      <el-tag :type="statusTag(rx.status)" size="small" effect="plain">{{ rx.status }}</el-tag>
-                    </div>
-
-                    <template v-if="rx.items && rx.items.length">
-                      <div class="rx-sub-title">🌿 中药方{{ rx.formula_name ? ' · ' + rx.formula_name : '' }}</div>
-                      <div class="rx-herbs">
-                        <span v-for="(it, ix) in rx.items" :key="'h'+ix" class="rx-herb">
-                          {{ it.herb_name }}<em v-if="it.is_king_herb" class="king">君</em>
-                          <b>{{ it.dose }}g</b>
-                        </span>
-                      </div>
-                      <div class="rx-doses">{{ rx.doses }} 剂 · {{ rx.preparation_method }}</div>
-                    </template>
-
-                    <template v-if="rx.acupoints && rx.acupoints.length">
-                      <div class="rx-sub-title">🪡 针灸方{{ rx.acupoint_formula_name ? ' · ' + rx.acupoint_formula_name : '' }}</div>
-                      <div class="rx-herbs">
-                        <span v-for="(a, ix) in rx.acupoints" :key="'a'+ix" class="rx-herb">
-                          {{ a.acupoint_name }}<b v-if="a.technique">·{{ a.technique }}</b>
-                        </span>
-                      </div>
-                      <div v-if="rx.acupoint_technique || rx.treatment_frequency || rx.treatment_days" class="rx-acu-meta">
-                        <span v-if="rx.acupoint_technique">{{ rx.acupoint_technique }}</span>
-                        <span v-if="rx.treatment_frequency">{{ rx.treatment_frequency }}</span>
-                        <span v-if="rx.treatment_days">{{ rx.treatment_days }} 天</span>
-                      </div>
-                    </template>
-
-                    <div class="visit-actions">
-                      <el-button link type="danger" size="small" @click="openRxDialog(rx)">查看处方</el-button>
-                    </div>
-                  </div>
+                <div v-if="root.children && root.children.length" class="visit-children">
+                  <VisitCard
+                    v-for="child in root.children" :key="child.id"
+                    :visit="child"
+                    :is-child="true"
+                    :inquiries="inquiriesByVisit[child.id] || []"
+                    :prescriptions="rxByVisit[child.id] || []"
+                    :followups="followupsByVisit[child.id] || []"
+                    :editable="editable"
+                    @view="openVisitDialog"
+                    @edit="openVisitDrawer"
+                    @add-followup="(v) => openFollowupDialog(undefined, v)"
+                    @view-followup="openFollowupDialog"
+                    @delete-followup="deleteFollowup"
+                    @view-rx="openRxDialog"
+                    @view-iq="openIqDialog"
+                  />
                 </div>
-
-                <div v-if="visit.ai_analysis" class="sub-block">
-                  <div class="sub-title">
-                    <span>🤖 AI 诊断库（辨证论治）</span>
-                    <el-button link type="warning" size="small" style="margin-left:auto;padding:0;height:auto;" @click="aiExpanded[visit.id] = !aiExpanded[visit.id]">
-                      {{ aiExpanded[visit.id] ? '收起' : '查看全部' }}
-                    </el-button>
-                  </div>
-                  <div class="view-ai-analysis" :class="{ collapsed: !aiExpanded[visit.id] }" v-html="renderMarkdown(visit.ai_analysis)"></div>
-                </div>
-
-                <div class="visit-actions">
-                  <el-button link type="primary" size="small" @click="openVisitDialog(visit)">查看就诊详情</el-button>
-                  <el-button link type="warning" size="small" @click="$router.push(`/patients/${patientId}/visit?visit_id=${visit.id}`)">完善/编辑</el-button>
-                </div>
-              </el-card>
-            </el-timeline-item>
-          </el-timeline>
+              </div>
+            </div>
+          </div>
+          <el-empty v-else-if="visits.length" description="无匹配的就诊记录，试试调整筛选条件" />
           <el-empty v-else description="暂无就诊记录" />
         </el-card>
+      </el-tab-pane>
 
-        <!-- 病情跟踪（治疗后效果反馈/随访） -->
-        <el-card shadow="hover" style="margin-top: 16px;">
+      <!-- 病情跟踪：该患者全病程随访/回访轨迹（按日期排序，标注归属初诊，给出整体趋势） -->
+      <el-tab-pane label="病情跟踪" name="followup">
+        <el-card shadow="hover">
           <template #header>
-            <span>📈 病情跟踪</span>
+            <span>📈 病情跟踪（全病程恢复轨迹）</span>
             <el-button v-if="editable" link type="primary" size="small" style="float:right;height:auto;" @click="openFollowupDialog()">+ 新增跟踪</el-button>
           </template>
-          <el-timeline v-if="followups.length">
-            <el-timeline-item v-for="fu in followups" :key="fu.id" :timestamp="fu.followup_date" placement="top">
+          <div v-if="allFollowups.length" class="fu-summary">
+            <span>共 {{ allFollowups.length }} 次随访</span>
+            <el-tag size="small" :type="followupTrend.type">{{ followupTrend.label }}</el-tag>
+            <span class="fu-latest">最近：{{ allFollowups[allFollowups.length - 1].followup_date }}</span>
+          </div>
+          <el-timeline v-if="allFollowups.length">
+            <el-timeline-item v-for="fu in allFollowups" :key="fu.id" :timestamp="fu.followup_date" placement="top">
               <el-card shadow="never" class="visit-card">
                 <div class="visit-header">
                   <el-tag size="small" :type="fu.treatment_type === '针灸' ? 'success' : 'primary'">{{ fu.treatment_type || '未填' }}</el-tag>
                   <el-tag v-if="fu.improvement" size="small" :type="improvementTag(fu.improvement)">{{ fu.improvement }}</el-tag>
+                  <span
+                    v-if="fu.episodeVisit"
+                    class="fu-episode fu-episode--link"
+                    @click="openVisitDialog(fu.episodeVisit)"
+                  >归属：{{ fu.episodeLabel }} ↗</span>
+                  <span v-else class="fu-episode fu-episode--orphan">{{ fu.episodeLabel }}</span>
                   <span v-if="editable" class="visit-actions" style="float:right;">
                     <el-button link type="primary" size="small" @click="openFollowupDialog(fu)">编辑</el-button>
                     <el-button link type="danger" size="small" @click="deleteFollowup(fu)">删除</el-button>
@@ -194,13 +173,12 @@
               </el-card>
             </el-timeline-item>
           </el-timeline>
-          <el-empty v-else description="暂无病情跟踪记录" />
+          <el-empty v-else description="暂无随访/回访记录，可在『就诊记录』卡片或此处添加" />
         </el-card>
+      </el-tab-pane>
+    </el-tabs>
 
-      </el-col>
-    </el-row>
-
-    <el-dialog v-model="editVisible" title="编辑患者信息" width="560px">
+    <el-dialog v-model="editVisible" title="编辑患者信息" width="560px" class="patient-form-dialog">
       <el-form :model="editForm" label-width="80px" label-position="top">
         <el-row :gutter="12">
           <el-col :xs="24" :sm="12">
@@ -308,7 +286,7 @@
       </div>
       <template #footer>
         <el-button @click="showVisitDialog = false">关闭</el-button>
-        <el-button type="primary" @click="$router.push(`/patients/${patientId}/visit?visit_id=${viewVisit?.id}`)">完善/编辑此就诊</el-button>
+        <el-button type="primary" @click="showVisitDialog = false; openVisitDrawer(viewVisit?.id)">完善/编辑此就诊</el-button>
       </template>
     </el-dialog>
 
@@ -411,6 +389,16 @@
             <el-option label="其他" value="其他" />
           </el-select>
         </el-form-item>
+        <el-form-item label="关联就诊">
+          <el-select v-model="followupForm.visit_id" clearable filterable placeholder="选择对应的初诊/复诊（留空为独立随访）" style="width:100%">
+            <el-option
+              v-for="v in visits"
+              :key="v.id"
+              :value="v.id"
+              :label="`${v.visit_date} · ${v.visit_type} · ${v.chief_complaint || v.tcm_disease || ''}`"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="改善程度">
           <el-select v-model="followupForm.improvement" style="width:100%" placeholder="选择改善程度">
             <el-option label="明显好转" value="明显好转" />
@@ -429,18 +417,40 @@
         <el-button type="primary" @click="saveFollowup" :loading="savingFollowup">保存</el-button>
       </template>
     </el-dialog>
+
+    <!-- 新增/编辑就诊：抽屉式，复用 VisitRecord（embedded），保留详情上下文 -->
+    <el-drawer
+      v-model="visitDrawer"
+      :title="visitDrawerId ? '编辑就诊' : '新增就诊'"
+      size="72%"
+      :with-header="true"
+      destroy-on-close
+    >
+      <VisitRecord
+        :patient-id="patientId"
+        :patient-name="patient?.name || ''"
+        :patient-tags="patient?.tags || []"
+        :visit-id="visitDrawerId"
+        :parent-visit="visitDrawerParent"
+        embedded
+        @saved="onVisitSaved"
+        @cancel="visitDrawer = false"
+      />
+    </el-drawer>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { Edit, EditPen, TrendCharts } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import api from '@/utils/api'
 import { useAuthStore } from '@/store/auth'
 import { renderMarkdown } from '@/utils/markdown'
-import { calcBmi, bodyType } from '@/utils/health'
+import { calcAge, calcBmi, bodyType } from '@/utils/health'
+import VisitRecord from '@/views/patient/VisitRecord.vue'
+import VisitCard from '@/components/VisitCard.vue'
 
 // 游客只读：隐藏所有写操作
 const auth = useAuthStore()
@@ -453,6 +463,79 @@ const visits = ref<any[]>([])
 const inquiries = ref<any[]>([])
 const prescriptions = ref<any[]>([])
 const loading = ref(false)
+
+// —— 就诊记录筛选 + 按病种分组（方案A）——
+const visitKeyword = ref('')
+const visitDisease = ref('')
+const visitDateRange = ref<[string, string] | null>(null)
+function resetVisitFilter() {
+  visitKeyword.value = ''
+  visitDisease.value = ''
+  visitDateRange.value = null
+}
+const visitDiseaseOptions = computed(() => {
+  const set = new Set<string>()
+  visits.value.forEach((v: any) => { if (v.tcm_disease && v.tcm_disease.trim()) set.add(v.tcm_disease.trim()) })
+  return Array.from(set)
+})
+const filteredVisits = computed(() => {
+  let list = visits.value.slice()
+  const kw = visitKeyword.value.trim().toLowerCase()
+  if (kw) {
+    list = list.filter((v: any) =>
+      [v.chief_complaint, v.tcm_disease, v.tcm_syndrome, v.treatment_method, v.observation, v.inquiry, v.palpation]
+        .some((f: any) => f && String(f).toLowerCase().includes(kw)))
+  }
+  if (visitDisease.value) {
+    const d = visitDisease.value
+    list = list.filter((v: any) => (v.tcm_disease || '').trim() === d)
+  }
+  if (visitDateRange.value?.[0]) {
+    const [s, e] = visitDateRange.value
+    list = list.filter((v: any) => v.visit_date >= s && v.visit_date <= e)
+  }
+  return list
+})
+// 就诊记录：按「初诊→复诊」父子关系组织成一棵就诊树（初诊为根，复诊内嵌其下）
+const visitRoots = computed<any[]>(() => {
+  const all = visits.value
+  const matched = new Set(filteredVisits.value.map((v: any) => v.id))
+  const childrenOf: Record<number, any[]> = {}
+  const roots: any[] = []
+  for (const v of all) {
+    const pid = v.parent_visit_id
+    if (pid == null) roots.push(v)
+    else (childrenOf[pid] ||= []).push(v)
+  }
+  roots.sort((a: any, b: any) => b.visit_date.localeCompare(a.visit_date))
+  const out: any[] = []
+  for (const r of roots) {
+    const chAll = (childrenOf[r.id] || []).slice().sort((a: any, b: any) => a.visit_date.localeCompare(b.visit_date))
+    const ch = chAll.filter((c: any) => matched.has(c.id))
+    if (matched.has(r.id) || ch.length) out.push({ ...r, children: ch })
+  }
+  return out
+})
+// 初诊(根)及其复诊的随访改善趋势
+function rootTrend(root: any): any[] {
+  const items: any[] = []
+  const collect = (v: any) => {
+    for (const fu of followupsByVisit.value[v.id] || []) {
+      if (fu && fu.improvement) items.push({ date: fu.followup_date, improvement: fu.improvement, visit_id: v.id })
+    }
+  }
+  collect(root)
+  for (const c of root.children || []) collect(c)
+  items.sort((a: any, b: any) => String(a.date).localeCompare(String(b.date)))
+  return items
+}
+
+// 初诊链折叠：表头常驻，点一下收起/展开该初诊及其随访复诊
+const openEpisodes = reactive(new Set<number>())
+function toggleEpisode(id: number) {
+  openEpisodes.has(id) ? openEpisodes.delete(id) : openEpisodes.add(id)
+}
+
 // 病情跟踪
 const followups = ref<any[]>([])
 const followupVisible = ref(false)
@@ -495,8 +578,48 @@ const inquiriesByVisit = computed<Record<number, any[]>>(() => {
   }
   return m
 })
-// 就诊卡片内 问诊十问 默认折叠，按就诊 id 记录是否展开
-const iqExpanded = ref<Record<number, boolean>>({})
+// 按就诊聚合：随访/回访记录归到对应的 visit_id 下
+const followupsByVisit = computed<Record<number, any[]>>(() => {
+  const m: Record<number, any[]> = {}
+  for (const fu of followups.value) {
+    if (fu.visit_id != null) (m[fu.visit_id] ||= []).push(fu)
+  }
+  const orphans: any[] = []
+  for (const fu of followups.value) if (fu.visit_id == null) orphans.push(fu)
+  if (orphans.length) m[-1] = orphans
+  return m
+})
+// 病情跟踪：汇总该患者全部随访（含已关联/未关联就诊），按日期排序，标注归属初诊，整体趋势
+const allFollowups = computed<any[]>(() => {
+  const byId = new Map(visits.value.map((v: any) => [v.id, v]))
+  const rootOf = (vid: number | null): any => {
+    let cur = vid != null ? byId.get(vid) : null
+    while (cur && cur.parent_visit_id != null && byId.has(cur.parent_visit_id)) cur = byId.get(cur.parent_visit_id)
+    return cur || null
+  }
+  return followups.value
+    .map((fu: any) => {
+      const root = rootOf(fu.visit_id)
+      return {
+        ...fu,
+        episodeVisit: root,
+        episodeLabel: root ? `${root.visit_date} · ${root.chief_complaint || root.tcm_disease || '初诊'}` : '未关联就诊',
+      }
+    })
+    .sort((a: any, b: any) => String(a.followup_date).localeCompare(String(b.followup_date)))
+})
+// 整体改善趋势：按首末次评估推断（末次 - 首次）
+const IMPROVE_SCORE: Record<string, number> = { 明显好转: 2, 好转: 1, 稳定: 0, 反复: -1, 加重: -2 }
+const followupTrend = computed<{ label: string; type: string }>(() => {
+  const scored = allFollowups.value
+    .map((f: any) => IMPROVE_SCORE[f.improvement])
+    .filter((s: number | undefined): s is number => s !== undefined)
+  if (!scored.length) return { label: '暂无评估', type: 'info' }
+  const delta = scored[scored.length - 1] - scored[0]
+  if (delta > 0) return { label: '整体向好', type: 'success' }
+  if (delta < 0) return { label: '整体变差', type: 'danger' }
+  return { label: '总体平稳', type: 'warning' }
+})
 
 const editVisible = ref(false)
 const savingEdit = ref(false)
@@ -505,11 +628,30 @@ const editForm = ref<any>({})
 const showVisitDialog = ref(false)
 const viewVisit = ref<any>(null)
 const showIqDialog = ref(false)
-// 就诊卡片内 AI 诊断库默认折叠，按就诊 id 记录是否展开
-const aiExpanded = ref<Record<number, boolean>>({})
 const viewIq = ref<any>(null)
 const showRxDialog = ref(false)
 const viewRx = ref<any>(null)
+
+// 新增/编辑就诊：抽屉式，复用 VisitRecord（embedded），保留详情上下文
+const activeTab = ref('overview')
+const visitDrawer = ref(false)
+const visitDrawerId = ref<number | null>(null)
+const visitDrawerParent = ref<any>(null)
+function openVisitDrawer(id?: number) {
+  visitDrawerId.value = id ?? null
+  visitDrawerParent.value = null
+  visitDrawer.value = true
+}
+// 基于某次初诊发起复诊：抽屉内表单以该初诊为底稿并标记 parent 关系
+function openVisitDrawerWithParent(root: any) {
+  visitDrawerId.value = null
+  visitDrawerParent.value = root
+  visitDrawer.value = true
+}
+async function onVisitSaved() {
+  visitDrawer.value = false
+  try { await loadPatientData() } catch {}
+}
 
 function openVisitDialog(v: any) { viewVisit.value = v; showVisitDialog.value = true }
 function openIqDialog(i: any) { viewIq.value = i; showIqDialog.value = true }
@@ -538,9 +680,6 @@ const tagColorMap = computed<Record<string, string>>(() => {
 function tagStyleOf(name: string): Record<string, string> {
   const c = tagColorMap.value[name]
   return c ? { backgroundColor: c, borderColor: c, color: '#fff' } : {}
-}
-function tagTypeOf(name: string): any {
-  return tagColorMap.value[name] ? undefined : (name === '不遵医瞩' ? 'danger' : 'info')
 }
 function bodyTypeOf(p: any): { label: string; color: string } | null {
   return bodyType(calcBmi(p.height, p.weight))
@@ -596,7 +735,7 @@ async function loadFollowups() {
   followups.value = (await api.get(`/patients/${patientId}/followups`)) as any
 }
 
-function openFollowupDialog(fu?: any) {
+function openFollowupDialog(fu?: any, visit?: any) {
   if (fu) {
     followupForm.value = { ...fu }
   } else {
@@ -606,7 +745,7 @@ function openFollowupDialog(fu?: any) {
       treatment_type: '',
       improvement: '',
       feedback: '',
-      visit_id: null,
+      visit_id: visit?.id ?? null,
     }
   }
   followupVisible.value = true
@@ -636,27 +775,27 @@ async function deleteFollowup(fu: any) {
   } catch {}
 }
 
+async function loadPatientData() {
+  const [p, v, iq, rx, fus, tags] = await Promise.all([
+    api.get(`/patients/${patientId}`),
+    api.get(`/patients/${patientId}/visits`),
+    api.get(`/patients/${patientId}/inquiries`),
+    api.get(`/prescriptions?patient_id=${patientId}`),
+    api.get(`/patients/${patientId}/followups`),
+    api.get('/dictionaries', { params: { term_type: 'tag', is_active: true } }),
+  ])
+  patient.value = p
+  visits.value = v as any
+  inquiries.value = iq as any
+  prescriptions.value = rx as any
+  followups.value = fus as any
+  tagOptions.value = tags as any
+}
+
 onMounted(async () => {
   loading.value = true
   try {
-    const [p, v, iq, rx, fus, tags] = await Promise.all([
-      api.get(`/patients/${patientId}`),
-      api.get(`/patients/${patientId}/visits`),
-      api.get(`/patients/${patientId}/inquiries`),
-      api.get(`/prescriptions?patient_id=${patientId}`),
-      api.get(`/patients/${patientId}/followups`),
-      api.get('/dictionaries', { params: { term_type: 'tag', is_active: true } }),
-    ])
-    patient.value = p
-    visits.value = v as any
-    inquiries.value = iq as any
-    prescriptions.value = rx as any
-    followups.value = fus as any
-    tagOptions.value = tags as any
-    // 从列表点「编辑」带 edit=1 进入时，自动打开编辑框
-    if (route.query.edit === '1' && auth.user?.is_admin) {
-      openEdit()
-    }
+    await loadPatientData()
   } catch {}
   loading.value = false
 })
@@ -674,6 +813,25 @@ function fmtTime(iso?: string): string {
 .tag-option:hover { opacity: .85; }
 .tag-selected { font-weight: 600; }
 .patient-tags { margin: 12px 0 0 8px; }
+.tag-list { display: flex; flex-wrap: wrap; gap: 4px; }
+.visit-filter { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.vf-key { width: 200px; }
+.vf-disease { width: 150px; }
+.vf-date { width: 240px; }
+.visit-group { margin-bottom: 6px; }
+.visit-tree { margin-top: 4px; }
+.visit-episode { margin-bottom: 14px; border: 1px solid #eee; border-radius: 8px; overflow: hidden; }
+.episode-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 12px;
+  background: #f7f3ee; cursor: pointer;
+  font-size: 14px; user-select: none;
+}
+.episode-header:hover { background: #f0e9e0; }
+.ep-arrow { color: #b07d33; font-size: 12px; width: 12px; text-align: center; }
+.ep-title { font-weight: 600; color: #6b4f2a; }
+.ep-meta { font-size: 12px; color: #999; margin-left: auto; text-align: right; }
+.visit-children { padding-top: 4px; }
 .visit-card { margin-bottom: 4px; }
 .visit-header { font-size: 14px; }
 .visit-diagnosis { margin-top: 8px; display: flex; gap: 6px; }
@@ -739,13 +897,32 @@ function fmtTime(iso?: string): string {
   pointer-events: none;
 }
 .visit-actions { margin-top: 8px; text-align: right; }
+.visit-trend { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 2px 0 8px 14px; padding: 6px 10px; background: #faf8f5; border-radius: 6px; }
+.visit-trend .trend-label { font-size: 12px; font-weight: 600; color: #8B4513; }
+.trend-step { display: inline-flex; align-items: center; gap: 5px; }
+.trend-date { font-size: 12px; color: #999; }
+.fu-date { font-size:12px; color:#888; min-width:96px; }
+.fu-item { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:4px 0; border-bottom:1px dashed #f0f0f0; }
 .fu-feedback { margin-top: 6px; font-size: 13px; color: #444; line-height: 1.7; white-space: pre-wrap; }
+.fu-summary { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; font-size: 13px; color: #666; }
+.fu-summary .fu-latest { color: #999; }
+.fu-episode { font-size: 12px; margin-left: 8px; padding: 1px 6px; border-radius: 4px; }
+.fu-episode--link { color: #409eff; background: #ecf5ff; cursor: pointer; }
+.fu-episode--link:hover { background: #d9ecff; }
+.fu-episode--orphan { color: #999; background: #f5f5f5; }
 /* 弹窗内容超高时，仅 body 内部滚动，底部按钮始终可见（避免 AI 分析把弹窗顶飞） */
 .visit-detail-dialog :deep(.el-dialog__body),
 .iq-detail-dialog :deep(.el-dialog__body),
 .rx-detail-dialog :deep(.el-dialog__body) {
   max-height: 72vh;
   overflow-y: auto;
+}
+/* 患者表单弹窗：顶部对齐，内容区内滚动，保证一屏内显示全 */
+.patient-form-dialog { margin-top: 4vh !important; }
+.patient-form-dialog :deep(.el-dialog__body) { max-height: 82vh; overflow-y: auto; }
+@media (max-width: 767px) {
+  .patient-form-dialog { margin-top: 4vh !important; }
+  .patient-form-dialog :deep(.el-dialog__body) { max-height: 82vh; }
 }
 @media (max-width: 767px) {
   .visit-detail-dialog, .iq-detail-dialog, .rx-detail-dialog { margin-top: 6vh !important; }

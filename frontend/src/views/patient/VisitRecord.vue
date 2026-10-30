@@ -1,17 +1,50 @@
 <template>
   <div class="visit-record">
-    <el-page-header @back="$router.back()" :content="(currentVisitId ? '编辑就诊' : '新增就诊') + ' — ' + patientName" />
+    <el-page-header v-if="!props.embedded" @back="$router.back()" :content="(currentVisitId ? '编辑就诊' : '新增就诊') + ' — ' + patientName" />
 
-    <el-alert v-if="patientTags.includes('不遵医瞩')" type="warning" show-icon :closable="false" style="margin-top:16px;"
-      title="该患者有不遵医瞩记录"
-      description="治疗期间请密切随访；使用峻烈之品（如附子、大黄、麻黄、细辛等）须谨慎，做好剂量与炮制把控，必要时签知情同意。" />
+    <el-alert v-if="patientTagInfos.length" type="warning" show-icon :closable="false" style="margin-top:16px;"
+      title="该患者带标签提醒，请关注：">
+      <template #default>
+        <div class="tag-reminders">
+          <div v-for="ti in patientTagInfos" :key="ti.name" class="tag-remind-item">
+            <el-tag size="small" effect="plain" :style="tagRemindStyle(ti)">{{ ti.name }}</el-tag>
+            <span class="tag-remind-desc">{{ ti.description }}</span>
+          </div>
+        </div>
+      </template>
+    </el-alert>
 
     <el-row :gutter="20" style="margin-top: 20px;">
       <!-- 左: 四诊信息 -->
       <el-col :xs="24" :lg="12" class="left-col">
         <el-card shadow="hover">
           <template #header><span>🔍 四诊信息</span></template>
+          <div v-if="lastVisitHint || lastVisit" class="visit-type-hint">
+            <template v-if="lastVisitHint">{{ lastVisitHint }}</template>
+            <el-button v-if="lastVisit && currentVisitId == null" size="small" type="warning" style="margin-left:8px;" @click="applyLastVisitDraft">📋 参照上次</el-button>
+            <span v-if="lastVisit && lastVisit.prescriptions && lastVisit.prescriptions.length" class="vit-last-rx">
+              上次处方：{{ lastVisit.prescriptions.map((r: any) => r.formula_name || r.id).join('、') }}
+            </span>
+          </div>
           <el-form :model="form" label-width="80px" label-position="top">
+            <el-form-item label="就诊类型" required>
+              <el-radio-group v-model="form.visit_type" @change="onVisitTypeChange">
+                <el-radio-button value="初诊">初诊</el-radio-button>
+                <el-radio-button value="复诊">复诊</el-radio-button>
+              </el-radio-group>
+            </el-form-item>
+            <el-form-item v-if="form.visit_type === '复诊'" label="关联初诊" required>
+              <el-select v-model="form.parent_visit_id" placeholder="选择本次复诊对应的初诊" filterable clearable style="width:100%">
+                <el-option
+                  v-for="r in rootVisits"
+                  :key="r.id"
+                  :value="r.id"
+                  :label="`${r.visit_date} · ${r.chief_complaint || r.tcm_disease || '初诊'}`"
+                />
+              </el-select>
+              <div v-if="!rootVisits.length" class="form-tip">该患者暂无初诊记录，请先建立初诊后再添加复诊</div>
+              <div v-else class="form-tip">请选择本次复诊归属的初诊，便于归入同一次完整就诊</div>
+            </el-form-item>
             <el-form-item label="主诉" required>
               <el-input v-model="form.chief_complaint" placeholder="如：胃脘胀痛3天" />
             </el-form-item>
@@ -144,11 +177,11 @@
         </el-card>
 
         <div style="margin-top: 16px; text-align: right;">
-          <el-button @click="$router.back()">取消</el-button>
+          <el-button @click="onCancel">取消</el-button>
           <el-button type="primary" @click="submitVisit" :loading="submitting">保存就诊记录</el-button>
         </div>
 
-        <div v-if="currentVisitId" class="visit-saved-hint">
+        <div v-if="currentVisitId && !props.embedded" class="visit-saved-hint">
           <div class="hint-title">✓ 本次就诊已保存（ID: {{ currentVisitId }}），可继续在上方完成本次问诊十问，或：</div>
           <div style="text-align: right; margin-top: 8px;">
             <el-button @click="$router.push(`/patients/${patientId}`)">返回详情</el-button>
@@ -216,7 +249,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ChatDotRound, Close } from '@element-plus/icons-vue'
@@ -226,12 +259,35 @@ import TenAspectsPanel from '@/components/TenAspectsPanel.vue'
 
 const tenAspectsRef = ref<{ getAspectSummary: () => string; getAspectAnswers?: () => { answers: Record<string, string>; notes: Record<string, string> } } | null>(null)
 
+const props = defineProps<{
+  patientId?: number
+  patientName?: string
+  patientTags?: string[]
+  visitId?: number | null
+  parentVisit?: any
+  embedded?: boolean
+}>()
+const emit = defineEmits<{ saved: [any]; cancel: [] }>()
 const route = useRoute()
 const router = useRouter()
-const patientId = Number(route.params.id)
-const patientName = (route.query.name as string) || ''
+const patientId = props.patientId ?? Number(route.params.id)
+const patientName = props.patientName ?? (route.query.name as string) ?? ''
+const effectiveVisitId = props.visitId ?? (route.query.visit_id ? Number(route.query.visit_id) : null)
 // 患者标签：用于在治疗页提示（如"不遵医瞩"→慎用峻药）
 const patientTags = ref<string[]>([])
+// 根据字典释义匹配患者标签，进入就诊页时提醒医生
+const patientTagInfos = computed(() => {
+  return patientTags.value
+    .map(name => {
+      const t = dictTerms.value.find(x => x.term_type === 'tag' && x.name === name)
+      return { name, description: (t?.description || '').trim(), color: t?.color || '' }
+    })
+    .filter(x => x.description)
+})
+function tagRemindStyle(ti: { color: string }): Record<string, string> {
+  const c = ti.color || '#909399'
+  return { color: c, borderColor: c, backgroundColor: '#fff' }
+}
 const submitting = ref(false)
 const aiLoading = ref(false)
 const currentVisitId = ref<number | null>(null)
@@ -254,6 +310,8 @@ interface DictTerm {
   term_type: string
   name: string
   aspect?: string | null
+  description?: string | null
+  color?: string | null
 }
 const dictTerms = ref<DictTerm[]>([])
 const tongueBodyTerms = computed(() => dictTerms.value.filter(t => t.term_type === 'tongue' && t.aspect === '舌质'))
@@ -278,16 +336,73 @@ async function loadDictionary() {
 }
 onMounted(async () => {
   await loadDictionary()
+  if (props.patientTags) {
+    patientTags.value = props.patientTags
+  } else {
+    try {
+      const p = (await api.get(`/patients/${patientId}`)) as any
+      patientTags.value = p.tags || []
+    } catch {}
+  }
+  // 加载既有就诊记录，用于自动推断初诊/复诊
   try {
-    const p = (await api.get(`/patients/${patientId}`)) as any
-    patientTags.value = p.tags || []
+    const vl = (await api.get(`/patients/${patientId}/visits`)) as any
+    visits.value = vl || []
   } catch {}
-  const vid = route.query.visit_id
-  if (vid) await loadExistingVisit(Number(vid))
+  if (effectiveVisitId != null) await loadExistingVisit(effectiveVisitId)
+  // 基于某次初诊发起复诊：以该初诊为底稿预填，并标记 parent 关系
+  else if (props.parentVisit) applyParentVisit(props.parentVisit)
 })
+
+// 以父就诊(初诊)为底稿预填复诊表单
+function applyParentVisit(p: any) {
+  form.value.visit_type = '复诊'
+  form.value.parent_visit_id = p.id
+  const set = (k: string, v: any) => { if (v != null && v !== '') (form.value as any)[k] = v }
+  set('present_illness', p.present_illness)
+  set('observation', p.observation)
+  set('auscultation', p.auscultation)
+  set('inquiry', p.inquiry)
+  set('palpation', p.palpation)
+  set('tongue_body', p.tongue_body)
+  set('tongue_coat', p.tongue_coat)
+  set('tcm_disease', p.tcm_disease)
+  set('tcm_syndrome', p.tcm_syndrome)
+  set('treatment_method', p.treatment_method)
+  if (p.pulse) form.value.pulse = String(p.pulse).split('、').filter(Boolean)
+  loadLastPrescription(p.id)
+}
+
+// 同患者既往就诊（用于初诊/复诊自动判断）
+const visits = ref<any[]>([])
+const lastVisitHint = ref('')
+// 上次同病种就诊（复诊时作为四诊/证型/处方的参照底稿）
+const lastVisit = ref<any>(null)
+
+// 可作为「本次复诊」父节点的初诊列表（parent_visit_id 为空者），供用户明确选择归属
+const rootVisits = computed<any[]>(() => {
+  const cur = effectiveVisitId
+  return (visits.value || [])
+    .filter((v: any) => v.parent_visit_id == null && v.id !== cur)
+    .sort((a: any, b: any) => b.visit_date.localeCompare(a.visit_date))
+})
+// 给定就诊，沿 parent 链找到其所属初诊根节点 id
+function findRootId(v: any): number {
+  let cur = v
+  const byId = new Map((visits.value || []).map((x: any) => [x.id, x]))
+  while (cur && cur.parent_visit_id != null && byId.has(cur.parent_visit_id)) {
+    cur = byId.get(cur.parent_visit_id)
+  }
+  return cur ? cur.id : v.id
+}
+// 切换就诊类型：选初诊则清除关联初诊；选复诊时若已通过「＋复诊」预设父节点则保留
+function onVisitTypeChange(t: string) {
+  if (t === '初诊') form.value.parent_visit_id = null
+}
 
 const form = ref({
   visit_date: new Date().toISOString().slice(0, 10),
+  visit_type: '初诊',
   chief_complaint: '',
   present_illness: '',
   observation: '',
@@ -308,7 +423,67 @@ const form = ref({
   pulse_term_id: null as number | null,
   pulse_term_ids: [] as number[],
   syndrome_term_id: null as number | null,
+  parent_visit_id: null as number | null,
 })
+
+// 病名变化时自动推断：同病种曾就诊 → 复诊，否则初诊
+watch(
+  () => form.value.tcm_disease,
+  (d) => {
+    if (!d || currentVisitId.value != null) {
+      if (!d) { lastVisitHint.value = ''; lastVisit.value = null }
+      return
+    }
+    const hit = visits.value
+      .filter((v: any) => v.tcm_disease && v.tcm_disease.trim() === d.trim())
+      .sort((a: any, b: any) => a.visit_date.localeCompare(b.visit_date))
+    if (hit.length) {
+      form.value.visit_type = '复诊'
+      // 自动关联该病种最近一次初诊（若用户未手动指定/未通过「＋复诊」预设则预填）
+      if (form.value.parent_visit_id == null) {
+        form.value.parent_visit_id = findRootId(hit[hit.length - 1])
+      }
+      lastVisitHint.value = `该病种曾于 ${hit[hit.length - 1].visit_date} 就诊，本次已默认标记为复诊（可手动改为初诊）`
+      lastVisit.value = hit[hit.length - 1]
+      loadLastPrescription(lastVisit.value.id)
+    } else {
+      form.value.visit_type = '初诊'
+      lastVisit.value = null
+      lastVisitHint.value = currentVisitId.value == null ? '该病种尚未在本院就诊，默认为初诊' : ''
+    }
+  }
+)
+
+// 预取上次就诊处方作参考
+async function loadLastPrescription(vid: number) {
+  try {
+    const rxs = (await api.get(`/prescriptions?visit_id=${vid}`)) as any[]
+    if (lastVisit.value) lastVisit.value = { ...lastVisit.value, prescriptions: rxs || [] }
+  } catch {}
+}
+
+// 复诊时把上次同病种就诊的四诊/证型/治法带入为底稿（只填充当前为空字段，避免覆盖本次新内容）
+function applyLastVisitDraft() {
+  const lv = lastVisit.value
+  if (!lv) return
+  const setIfEmpty = (key: string, val: any) => {
+    if (val && !form.value[key]) form.value[key] = val
+  }
+  setIfEmpty('present_illness', lv.present_illness)
+  setIfEmpty('observation', lv.observation)
+  setIfEmpty('auscultation', lv.auscultation)
+  setIfEmpty('inquiry', lv.inquiry)
+  setIfEmpty('palpation', lv.palpation)
+  setIfEmpty('tongue_body', lv.tongue_body)
+  setIfEmpty('tongue_coat', lv.tongue_coat)
+  if (lv.pulse) {
+    const arr = typeof lv.pulse === 'string' ? lv.pulse.split('、').filter(Boolean) : [...(lv.pulse || [])]
+    if (!form.value.pulse.length) form.value.pulse = arr
+  }
+  setIfEmpty('tcm_syndrome', lv.tcm_syndrome)
+  setIfEmpty('treatment_method', lv.treatment_method)
+  ElMessage.info('已带入上次四诊/证型/治法作参考，请核对并按本次变化调整')
+}
 
 // 图片上传
 const visitFileInputRef = ref<HTMLInputElement>()
@@ -467,6 +642,10 @@ async function submitVisit() {
     ElMessage.warning('请填写主诉')
     return
   }
+  if (form.value.visit_type === '复诊' && !form.value.parent_visit_id) {
+    ElMessage.warning('请选择本次复诊关联的初诊')
+    return
+  }
   submitting.value = true
   try {
     const payload = {
@@ -480,17 +659,24 @@ async function submitVisit() {
     if (currentVisitId.value != null) {
       const res = await api.put(`/patients/${patientId}/visits/${currentVisitId.value}`, payload, { silent: true }) as any
       ElMessage.success('就诊记录已更新')
+      if (props.embedded) emit('saved', res)
       return res
     }
     const res = await api.post(`/patients/${patientId}/visits`, payload, { silent: true }) as any
     currentVisitId.value = res.id
-    ElMessage.success('就诊记录已保存，可在右侧完成本次问诊十问，或下方去开药')
+    ElMessage.success(props.embedded ? '就诊记录已保存' : '就诊记录已保存，可在右侧完成本次问诊十问，或下方去开药')
+    if (props.embedded) emit('saved', res)
     return res
   } catch (e: any) {
     ElMessage.error('保存失败：' + (e?.response?.data?.detail || e?.message || ''))
   } finally {
     submitting.value = false
   }
+}
+
+function onCancel() {
+  if (props.embedded) emit('cancel')
+  else router.back()
 }
 
 // 脉象多选：记录全部词条 id（避免只保留第一项导致其余脉象词条丢失）
@@ -509,6 +695,7 @@ async function loadExistingVisit(visitId: number) {
     currentVisitId.value = res.id
     const { pulse, ...rest } = res
     Object.assign(form.value, rest)
+    if (!form.value.visit_type) form.value.visit_type = '初诊'
     form.value.pulse = (res.pulse || '').split('、').filter(Boolean)
     form.value.pulse_term_ids = res.pulse_term_ids || []
     visitImages.value.tongue = res.tongue_image || ''
@@ -521,6 +708,18 @@ async function loadExistingVisit(visitId: number) {
 </script>
 
 <style scoped>
+.visit-type-hint {
+  font-size: 12px;
+  color: #d48806;
+  background: #fffbe6;
+  border: 1px solid #ffe58f;
+  border-radius: 6px;
+  padding: 6px 10px;
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+.vit-last-rx { margin-left: 8px; color: #8B4513; }
+.form-tip { font-size: 12px; color: #999; line-height: 1.5; margin-top: 4px; }
 .el-divider { margin: 12px 0 16px; }
 
 .left-col { display: flex; flex-direction: column; }
@@ -718,4 +917,7 @@ async function loadExistingVisit(visitId: number) {
     align-items: flex-start;
   }
 }
+.tag-reminders { display: flex; flex-direction: column; gap: 6px; }
+.tag-remind-item { display: flex; align-items: flex-start; gap: 8px; }
+.tag-remind-item .tag-remind-desc { font-size: 13px; color: #6b4f2a; line-height: 1.5; }
 </style>

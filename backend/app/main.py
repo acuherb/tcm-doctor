@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from app.config import settings
+from app.config import settings, build_display_version
 from app.database import engine, Base, SessionLocal
 from app.models.user import User, AuthToken
 from app.routers import patient, herb, prescription, knowledge, diagnosis, dictionaries, acupuncture
@@ -94,6 +94,15 @@ def _run_light_migrations() -> None:
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE inquiry_records ADD COLUMN visit_id INTEGER"))
 
+    # visits.parent_visit_id（复诊指向其初诊，构成一次完整就诊）
+    if "visits" in inspector.get_table_names():
+        vcols = {c["name"] for c in inspector.get_columns("visits")}
+        if "parent_visit_id" not in vcols:
+            with engine.begin() as conn:
+                conn.execute(text(
+                    "ALTER TABLE visits ADD COLUMN parent_visit_id INTEGER REFERENCES visits(id)"
+                ))
+
     # herbs.price（参考单价，用于处方总价估算 M5）
     if "herbs" in inspector.get_table_names():
         hcols = {c["name"] for c in inspector.get_columns("herbs")}
@@ -110,6 +119,10 @@ def _run_light_migrations() -> None:
         if "pulse_term_ids" not in vcols:
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE visits ADD COLUMN pulse_term_ids TEXT"))
+        # visits.visit_type（初诊/复诊；历史记录默认按初诊处理）
+        if "visit_type" not in vcols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE visits ADD COLUMN visit_type VARCHAR(10) DEFAULT '初诊'"))
         # visits 影像资料（舌苔/面色照片 + 化验单列表）
         for col, ctype in (
             ("tongue_image", "TEXT"),
@@ -248,7 +261,7 @@ app.include_router(auth.router, prefix="/api/v1")
 @app.get("/health", tags=["系统"])
 def health_check():
     """健康检查 — Electron 启动时轮询此接口"""
-    return {"status": "ok", "version": settings.app_version}
+    return {"status": "ok", "version": build_display_version()}
 
 
 @app.get("/api/v1/config", tags=["系统"])
@@ -256,9 +269,10 @@ def get_config():
     """获取系统配置"""
     return {
         "app_name": settings.app_name,
-        "version": settings.app_version,
+        "version": build_display_version(),
         "clinic_name": settings.clinic_name,
         "doctor_name": settings.doctor_name,
+        "clinic_logo": settings.clinic_logo,
         "deepseek_configured": bool(settings.deepseek_api_key),
         "deepseek_model": settings.deepseek_model,
         "deepseek_base_url": settings.deepseek_base_url,
@@ -273,6 +287,7 @@ class ConfigUpdate(BaseModel):
     """系统配置更新请求体（通过 JSON 传输，避免密钥出现在 URL / 访问日志中）"""
     clinic_name: str | None = None
     doctor_name: str | None = None
+    clinic_logo: str | None = None
     deepseek_api_key: str | None = None
     deepseek_model: str | None = None
     deepseek_base_url: str | None = None
@@ -289,6 +304,7 @@ def update_config(payload: ConfigUpdate, current_user: User = Depends(get_curren
     data = payload.model_dump(exclude_unset=True)
     clinic_name = data.get("clinic_name")
     doctor_name = data.get("doctor_name")
+    clinic_logo = data.get("clinic_logo")
     deepseek_api_key = data.get("deepseek_api_key")
     deepseek_model = data.get("deepseek_model")
     deepseek_base_url = data.get("deepseek_base_url")
@@ -320,6 +336,10 @@ def update_config(payload: ConfigUpdate, current_user: User = Depends(get_curren
     if doctor_name is not None:
         settings.doctor_name = doctor_name
         env_lines["DOCTOR_NAME"] = doctor_name
+    # 诊所 logo 允许清空：空字符串也写入
+    if clinic_logo is not None:
+        settings.clinic_logo = clinic_logo
+        env_lines["CLINIC_LOGO"] = clinic_logo
     if deepseek_api_key:
         settings.deepseek_api_key = deepseek_api_key
         env_lines["DEEPSEEK_API_KEY"] = deepseek_api_key

@@ -38,12 +38,6 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '患者详情', hidden: true },
       },
       {
-        path: 'patients/:id/visit',
-        name: 'VisitRecord',
-        component: () => import('@/views/patient/VisitRecord.vue'),
-        meta: { title: '就诊记录', hidden: true },
-      },
-      {
         path: 'constitution/:id?',
         name: 'ConstitutionScale',
         component: () => import('@/views/patient/ConstitutionScale.vue'),

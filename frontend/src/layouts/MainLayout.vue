@@ -6,8 +6,9 @@
     <!-- 侧边栏 -->
     <el-aside :width="isCollapsed ? '64px' : '210px'" class="sidebar" :class="{ 'sidebar-mobile-open': mobileOpen }">
       <div class="sidebar-logo" @click="$router.push('/dashboard')">
-        <span class="logo-icon">🌿</span>
-        <span v-show="!isCollapsed" class="logo-text">中医诊所管理</span>
+        <img v-if="clinicLogo" :src="clinicLogo" class="logo-img" alt="诊所Logo" />
+        <span v-else class="logo-icon">🌿</span>
+        <span v-show="!isCollapsed" class="logo-text">{{ clinicName || '中医诊所管理' }}</span>
       </div>
 
       <el-menu
@@ -102,7 +103,6 @@
           </el-breadcrumb>
         </div>
         <div class="header-right">
-          <el-tag type="info" size="small">v0.1.0</el-tag>
           <el-dropdown @command="onUserCommand">
             <span class="user-box">
               <el-icon><UserFilled /></el-icon>
@@ -169,6 +169,8 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const isCollapsed = ref(false)
+const clinicName = ref('')
+const clinicLogo = ref('')
 
 // ---- 移动端抽屉适配 ----
 const isMobile = ref(false)
@@ -186,6 +188,11 @@ function closeMobileSidebar() {
 onMounted(() => {
   updateViewport()
   window.addEventListener('resize', updateViewport)
+  // 拉取诊所信息用于侧边栏展示
+  api.get('/config').then((res: any) => {
+    clinicName.value = res.clinic_name?.trim() || ''
+    clinicLogo.value = res.clinic_logo || ''
+  }).catch(() => {})
 })
 onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
 
@@ -283,6 +290,13 @@ async function onUserCommand(command: string) {
 
     .logo-icon {
       font-size: 28px;
+    }
+
+    .logo-img {
+      width: 30px;
+      height: 30px;
+      object-fit: contain;
+      border-radius: 4px;
     }
 
     .logo-text {

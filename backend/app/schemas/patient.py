@@ -74,6 +74,7 @@ class PatientListResponse(BaseModel):
 class VisitCreate(BaseModel):
     """创建就诊记录"""
     visit_date: str = Field(..., description="就诊日期")
+    visit_type: str = Field("初诊", description="就诊类型: 初诊/复诊")
     chief_complaint: str = Field(..., min_length=1, description="主诉")
     present_illness: str | None = Field(None, description="现病史")
     # 四诊信息
@@ -101,11 +102,13 @@ class VisitCreate(BaseModel):
     # 医嘱
     doctor_notes: str | None = Field(None, description="医嘱")
     doctor_id: int | None = Field(None, description="接诊医师ID")
+    parent_visit_id: int | None = Field(None, description="父就诊ID(复诊指向其初诊，构成一次完整就诊)")
 
 
 class VisitUpdate(BaseModel):
     """更新就诊记录（全字段可选，仅更新传入字段）"""
     visit_date: str | None = Field(None, description="就诊日期")
+    visit_type: str | None = Field(None, description="就诊类型: 初诊/复诊")
     chief_complaint: str | None = Field(None, description="主诉")
     present_illness: str | None = Field(None, description="现病史")
     observation: str | None = Field(None, description="望诊")
@@ -129,6 +132,7 @@ class VisitUpdate(BaseModel):
     syndrome_term_id: int | None = Field(None, description="证型词条ID")
     doctor_notes: str | None = Field(None, description="医嘱")
     doctor_id: int | None = Field(None, description="接诊医师ID")
+    parent_visit_id: int | None = Field(None, description="父就诊ID(复诊指向其初诊，构成一次完整就诊)")
 
 
 class VisitResponse(BaseModel):
@@ -136,6 +140,7 @@ class VisitResponse(BaseModel):
     id: int
     patient_id: int
     visit_date: str
+    visit_type: str | None
     chief_complaint: str
     present_illness: str | None
     observation: str | None
@@ -163,6 +168,7 @@ class VisitResponse(BaseModel):
     syndrome_term_name: str | None
     doctor_notes: str | None
     doctor_id: int | None
+    parent_visit_id: int | None
     created_at: datetime | None
 
     model_config = {"from_attributes": True}

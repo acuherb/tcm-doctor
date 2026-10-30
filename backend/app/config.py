@@ -1,6 +1,7 @@
 """应用配置管理"""
 import sys
 import os
+import subprocess
 from pydantic_settings import BaseSettings
 
 
@@ -22,11 +23,13 @@ class Settings(BaseSettings):
 
     # 应用信息
     app_name: str = "中医诊所管理平台"
-    app_version: str = "0.1.0"
+    app_version: str = "1.0.0"
 
     # 诊所信息（用于处方笺抬头、门诊病历落款等）
     clinic_name: str = ""
     doctor_name: str = ""
+    # 诊所 logo（data URL，如 data:image/png;base64,xxx），用于浏览器标签图标/登录页展示
+    clinic_logo: str = ""
 
     # 数据库（容器内默认落到 DATA_DIR=/data，挂载后持久化；开发/桌面默认项目内）
     database_url: str = (
@@ -65,3 +68,30 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+# 项目根目录（git 仓库根）
+_APP_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def _git_head_short() -> str:
+    """返回当前 git 提交的短哈希；非 git 环境或出错时返回空串。"""
+    try:
+        r = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True, text=True, timeout=3,
+            cwd=_APP_ROOT,
+        )
+        return r.stdout.strip() if r.returncode == 0 else ""
+    except Exception:
+        return ""
+
+
+# 打包（PyInstaller/容器）或非 git 环境下跳过，避免额外开销与误判
+_GIT_HEAD_SHORT = "" if getattr(sys, "frozen", False) else _git_head_short()
+
+
+def build_display_version() -> str:
+    """供系统信息展示的版本号：配置版本 + 当前 git 提交短哈希（无 git 环境时仅配置版本）。"""
+    if _GIT_HEAD_SHORT:
+        return f"{settings.app_version} ({_GIT_HEAD_SHORT})"
+    return settings.app_version

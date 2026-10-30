@@ -3,9 +3,10 @@
     <div class="login-card">
       <div class="card-head">
         <div class="logo-badge">
-          <span class="logo-icon">🌿</span>
+          <img v-if="clinicLogo" :src="clinicLogo" class="logo-img" alt="诊所Logo" />
+          <span v-else class="logo-icon">🌿</span>
         </div>
-        <h1 class="title">中医诊所管理平台</h1>
+        <h1 class="title">{{ clinicName || '中医诊所管理平台' }}</h1>
         <p class="subtitle">传承岐黄智慧 · 以数字化服务每一位患者</p>
       </div>
 
@@ -71,14 +72,36 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { User, Lock } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/store/auth'
+import api from '@/utils/api'
 
 const router = useRouter()
 const auth = useAuthStore()
+
+const clinicName = ref('')
+const clinicLogo = ref('')
+
+onMounted(async () => {
+  try {
+    const res = await api.get('/config') as any
+    clinicName.value = res.clinic_name?.trim() || ''
+    clinicLogo.value = res.clinic_logo || ''
+    document.title = clinicName.value || '中医诊所管理平台'
+    if (clinicLogo.value) {
+      let link = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
+      if (!link) {
+        link = document.createElement('link')
+        link.rel = 'icon'
+        document.head.appendChild(link)
+      }
+      link.href = clinicLogo.value
+    }
+  } catch {}
+})
 
 const formRef = ref<FormInstance>()
 const loading = ref(false)
@@ -168,6 +191,13 @@ async function onGuestLogin() {
 
       .logo-icon {
         font-size: 32px;
+      }
+
+      .logo-img {
+        width: 42px;
+        height: 42px;
+        object-fit: contain;
+        filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
       }
     }
 
