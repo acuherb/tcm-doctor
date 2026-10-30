@@ -1,6 +1,6 @@
 <template>
   <div class="patient-detail" v-loading="loading">
-    <el-page-header @back="$router.push('/patients')" :content="patient?.name || '加载中...'">
+    <el-page-header @back="$router.push('/patients')">
       <template #extra>
         <div class="header-actions">
           <el-button v-if="editable" @click="openEdit"><el-icon><Edit /></el-icon> 编辑</el-button>
@@ -349,15 +349,15 @@
         <div class="visit-imgs">
           <div v-if="viewVisit.tongue_image" class="visit-img-item">
             <span class="img-label">舌苔</span>
-            <el-image :src="viewVisit.tongue_image" fit="cover" class="visit-thumb" :preview-src-list="[viewVisit.tongue_image]" />
+            <PinchImage :src="viewVisit.tongue_image" thumb-class="visit-thumb" />
           </div>
           <div v-if="viewVisit.face_image" class="visit-img-item">
             <span class="img-label">面色</span>
-            <el-image :src="viewVisit.face_image" fit="cover" class="visit-thumb" :preview-src-list="[viewVisit.face_image]" />
+            <PinchImage :src="viewVisit.face_image" thumb-class="visit-thumb" />
           </div>
           <div v-for="(img, i) in (viewVisit.lab_report_images || [])" :key="i" class="visit-img-item">
             <span class="img-label">化验单{{ (viewVisit.lab_report_images || []).length > 1 ? i + 1 : '' }}</span>
-            <el-image :src="img" fit="cover" class="visit-thumb" :preview-src-list="viewVisit.lab_report_images || []" :initial-index="i" />
+            <PinchImage :src="img" :list="viewVisit.lab_report_images || []" :index="i" thumb-class="visit-thumb" />
           </div>
         </div>
       </div>
@@ -374,6 +374,19 @@
     <el-dialog :title="'问诊十问详情 · ' + fmtTime(viewIq?.created_at)" :model-value="showIqDialog" @update:model-value="showIqDialog = $event" class="iq-detail-dialog" width="min(680px, 92vw)" destroy-on-close>
       <template v-if="viewIq">
         <div class="view-iq-primary">主偏性&nbsp;:&nbsp;<el-tag type="warning">{{ viewIq.primary_type || '未定型' }}</el-tag></div>
+        <div class="view-iq-sec">
+          <h4>原始问诊十问（每问所选 + 该选项结果）</h4>
+          <div class="iq-answers">
+            <div v-for="q in TEN_QUESTIONS" :key="q.key" class="iq-answer-row">
+              <div class="iq-answer-q">{{ q.title }}</div>
+              <div class="iq-answer-a">
+                <span class="iq-opt">{{ iqOptionText(q.key) }}</span>
+                <span v-if="iqCustomNote(q.key)" class="iq-custom-note">（自填：{{ iqCustomNote(q.key) }}）</span>
+              </div>
+              <div v-if="iqFinding(q.title)" class="iq-answer-result">{{ iqFinding(q.title) }}</div>
+            </div>
+          </div>
+        </div>
         <div v-if="viewIq.result?.findings?.length" class="view-iq-sec">
           <h4>判据解析</h4>
           <ul class="iq-findings"><li v-for="(f, fi) in viewIq.result.findings" :key="fi">{{ f }}</li></ul>
@@ -530,8 +543,10 @@ import api from '@/utils/api'
 import { useAuthStore } from '@/store/auth'
 import { renderMarkdown } from '@/utils/markdown'
 import { calcAge, calcBmi, bodyType } from '@/utils/health'
+import { TEN_QUESTIONS } from '@/utils/tenAspectsQuestions'
 import VisitRecord from '@/views/patient/VisitRecord.vue'
 import VisitCard from '@/components/VisitCard.vue'
+import PinchImage from '@/components/PinchImage.vue'
 
 // 游客只读：隐藏所有写操作
 const auth = useAuthStore()
@@ -741,6 +756,26 @@ async function onVisitSaved() {
 
 function openVisitDialog(v: any) { viewVisit.value = v; showVisitDialog.value = true }
 function openIqDialog(i: any) { viewIq.value = i; showIqDialog.value = true }
+
+// 问诊十问详情：把"原始选项"与"该选项结果"按问对应展示
+function iqOptionText(qKey: string): string {
+  const a = (viewIq.value?.answers && viewIq.value.answers[qKey]) || ''
+  if (!a) return '（未作答）'
+  if (a === 'custom') return '（自填）'
+  const q = TEN_QUESTIONS.find(x => x.key === qKey)
+  const o = q?.options.find(o => o.key === a)
+  return o ? o.label : a
+}
+function iqCustomNote(qKey: string): string {
+  const n = viewIq.value?.notes?.[qKey]
+  return n && String(n).trim() ? String(n) : ''
+}
+function iqFinding(title: string): string {
+  const fs: string[] = viewIq.value?.result?.findings || []
+  const hit = fs.find((f: string) => f.startsWith('《' + title + '》'))
+  if (!hit) return ''
+  return hit.replace('《' + title + '》', '').trim()
+}
 function openRxDialog(p: any) { viewRx.value = p; showRxDialog.value = true }
 
 function statusTag(s?: string) {
@@ -964,7 +999,7 @@ function fmtTime(iso?: string): string {
 .visit-imgs { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 6px; }
 .visit-img-item { text-align: center; }
 .visit-img-item .img-label { display: block; font-size: 12px; color: #999; margin-bottom: 4px; }
-.visit-thumb { width: 96px; height: 96px; border-radius: 6px; border: 1px solid #eee; cursor: zoom-in; }
+.visit-thumb { width: 96px; height: 96px; border-radius: 6px; border: 1px solid #eee; cursor: zoom-in; overflow: hidden; }
 .iq-type { margin-bottom: 6px; }
 .iq-findings { margin: 4px 0; padding-left: 16px; font-size: 12.5px; color: #666; line-height: 1.8; }
 .iq-suggestion { margin-top: 6px; font-size: 12.5px; color: #8B4513; }
@@ -1079,6 +1114,15 @@ function fmtTime(iso?: string): string {
 .view-iq-primary { font-size: 14px; margin-bottom: 10px; }
 .view-iq-sec { margin-top: 12px; }
 .view-iq-sec h4 { margin: 0 0 6px; font-size: 13px; color: #555; }
+/* 原始问诊十问：每问所选 + 该选项结果 */
+.iq-answers { border: 1px solid #f0ece3; border-radius: 8px; overflow: hidden; }
+.iq-answer-row { display: flex; flex-direction: column; gap: 2px; padding: 7px 10px; border-bottom: 1px solid #f3efe7; }
+.iq-answer-row:last-child { border-bottom: none; }
+.iq-answer-q { font-size: 12px; color: #999; font-weight: 600; }
+.iq-answer-a { font-size: 13.5px; color: #333; }
+.iq-opt { font-weight: 600; color: #6b4f2a; }
+.iq-custom-note { font-size: 12px; color: #888; }
+.iq-answer-result { font-size: 12.5px; color: #8B4513; line-height: 1.6; margin-top: 2px; }
 .view-iq-dims { display: flex; flex-wrap: wrap; gap: 6px; }
 .dim-chip { font-size: 12px; background: #f4f4f5; border-radius: 4px; padding: 2px 8px; color: #606266; }
 .note-line { font-size: 13px; color: #333; margin: 4px 0; }
@@ -1100,15 +1144,22 @@ function fmtTime(iso?: string): string {
 
 /* 移动端适配 */
 @media (max-width: 767px) {
-  .patient-detail :deep(.el-page-header__content) {
-    font-size: 16px;
-    margin-right: 4px;
+  .patient-detail :deep(.el-page-header) {
+    flex-wrap: wrap;
+  }
+  .patient-detail :deep(.el-page-header__left) {
+    margin-right: 8px;
+    white-space: nowrap;
+  }
+  .patient-detail :deep(.el-page-header__extra) {
+    flex: 1 1 100%;
+    margin-top: 8px;
   }
   .header-actions {
     display: flex;
     flex-wrap: wrap;
+    justify-content: flex-end;
     gap: 8px;
-    margin-top: 8px;
   }
   .visit-diagnosis,
   .visit-sizhen,

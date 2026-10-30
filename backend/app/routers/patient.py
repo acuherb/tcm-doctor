@@ -281,13 +281,18 @@ def submit_constitution(patient_id: int, data: ConstitutionSubmit, current_user:
 
 
 @router.get("/{patient_id}/inquiries", response_model=list[InquiryRecordOut], summary="问诊十问记录列表")
-def get_inquiries(patient_id: int, db: Session = Depends(get_db)):
+def get_inquiries(
+    patient_id: int,
+    visit_id: int | None = Query(None, description="按就诊过滤，用于二次编辑回填报错"),
+    db: Session = Depends(get_db),
+):
     patient = db.query(Patient).filter(Patient.id == patient_id).first()
     if not patient:
         raise HTTPException(status_code=404, detail="患者不存在")
-    return db.query(InquiryRecord).filter(
-        InquiryRecord.patient_id == patient_id
-    ).order_by(InquiryRecord.created_at.desc()).all()
+    q = db.query(InquiryRecord).filter(InquiryRecord.patient_id == patient_id)
+    if visit_id is not None:
+        q = q.filter(InquiryRecord.visit_id == visit_id)
+    return q.order_by(InquiryRecord.created_at.desc()).all()
 
 
 @router.get("/{patient_id}/constitution", response_model=ConstitutionResult | None, summary="获取体质报告")

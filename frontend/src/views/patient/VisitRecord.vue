@@ -17,7 +17,7 @@
     <el-row :gutter="20" style="margin-top: 20px;">
       <!-- 左: 四诊信息 -->
       <el-col :xs="24" :lg="12" class="left-col">
-        <el-card shadow="hover">
+        <el-card shadow="hover" class="tcm-visit-card">
           <template #header><span>🔍 四诊信息</span></template>
           <div v-if="lastVisitHint || lastVisit" class="visit-type-hint">
             <template v-if="lastVisitHint">{{ lastVisitHint }}</template>
@@ -83,20 +83,24 @@
               <el-col :xs="24" :sm="12">
                 <el-form-item label="舌象照片">
                   <div class="img-upload-row">
-                    <el-button size="small" @click="triggerVisitImage('tongue')">📷 拍摄/上传</el-button>
-                    <el-image v-if="visitImages.tongue" :src="visitImages.tongue" fit="cover" class="visit-thumb"
-                      :preview-src-list="[visitImages.tongue]" />
-                    <el-icon v-if="visitImages.tongue" class="remove-visit-img" @click="visitImages.tongue = ''"><Close /></el-icon>
+                    <el-button size="small" @click="triggerVisitImage('tongue','camera')">📷 拍摄</el-button>
+                    <el-button size="small" @click="triggerVisitImage('tongue','album')">🖼 相册</el-button>
+                    <span v-if="visitImages.tongue" class="visit-thumb-wrap">
+                      <PinchImage :src="visitImages.tongue" thumb-class="pinch-thumb" />
+                      <el-icon class="remove-visit-img" @click="visitImages.tongue = ''"><Close /></el-icon>
+                    </span>
                   </div>
                 </el-form-item>
               </el-col>
               <el-col :xs="24" :sm="12">
                 <el-form-item label="面色照片">
                   <div class="img-upload-row">
-                    <el-button size="small" @click="triggerVisitImage('face')">📷 拍摄/上传</el-button>
-                    <el-image v-if="visitImages.face" :src="visitImages.face" fit="cover" class="visit-thumb"
-                      :preview-src-list="[visitImages.face]" />
-                    <el-icon v-if="visitImages.face" class="remove-visit-img" @click="visitImages.face = ''"><Close /></el-icon>
+                    <el-button size="small" @click="triggerVisitImage('face','camera')">📷 拍摄</el-button>
+                    <el-button size="small" @click="triggerVisitImage('face','album')">🖼 相册</el-button>
+                    <span v-if="visitImages.face" class="visit-thumb-wrap">
+                      <PinchImage :src="visitImages.face" thumb-class="pinch-thumb" />
+                      <el-icon class="remove-visit-img" @click="visitImages.face = ''"><Close /></el-icon>
+                    </span>
                   </div>
                 </el-form-item>
               </el-col>
@@ -127,25 +131,15 @@
           </el-form>
         </el-card>
 
-        <el-card shadow="hover" class="right-col-equal">
+        <el-card shadow="hover" class="tcm-visit-card right-col-equal">
           <template #header>
-            <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
               <span>🩺 辨证论治 (理法方药)</span>
-              <div style="display:flex;gap:8px;">
-                <el-button size="small" @click="triggerVisitImage('lab')">📷 化验单</el-button>
-                <el-button type="primary" size="small" @click="aiAssist" :loading="aiLoading">
-                  <el-icon><ChatDotRound /></el-icon> AI辅助辨证
-                </el-button>
-              </div>
+              <el-button type="primary" size="small" @click="aiAssist" :loading="aiLoading">
+                <el-icon><ChatDotRound /></el-icon> AI辅助辨证
+              </el-button>
             </div>
           </template>
-          <!-- 已上传化验单预览 -->
-          <div v-if="visitImages.lab.length" class="lab-preview">
-            <span class="lab-label">已上传化验单：</span>
-            <el-image v-for="(img, i) in visitImages.lab" :key="i" :src="img" fit="cover" class="lab-thumb"
-              :preview-src-list="visitImages.lab" :initial-index="i" />
-            <el-button size="small" text type="danger" @click="visitImages.lab = []">清除</el-button>
-          </div>
           <el-form :model="form" label-width="80px" label-position="top">
             <el-form-item label="中医病名">
               <el-input v-model="form.tcm_disease" placeholder="如：胃脘痛" />
@@ -167,16 +161,35 @@
             </el-form-item>
           </el-form>
         </el-card>
+
+        <!-- 其他资料补充：独立于四诊与辨证论治，按需上传纸质/影像资料 -->
+        <el-card shadow="hover" class="tcm-visit-card other-files-card">
+          <template #header>
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+              <span>📎 其他资料补充</span>
+              <div style="display:flex;gap:8px;">
+                <el-button size="small" @click="triggerVisitImage('lab','camera')">📷 拍摄</el-button>
+                <el-button size="small" @click="triggerVisitImage('lab','album')">🖼 相册</el-button>
+              </div>
+            </div>
+          </template>
+          <div v-if="visitImages.lab.length" class="lab-preview">
+            <span class="lab-label">已上传 {{ visitImages.lab.length }} 张：</span>
+            <PinchImage v-for="(img, i) in visitImages.lab" :key="i" :src="img" :list="visitImages.lab" :index="i" thumb-class="lab-thumb" />
+            <el-button size="small" text type="danger" @click="visitImages.lab = []">清除全部</el-button>
+          </div>
+          <div v-else class="form-tip">可补充上传化验单、诊断报告、既往病历等纸质资料（最多 {{ MAX_LAB }} 张）</div>
+        </el-card>
       </el-col>
 
       <!-- 右: 问诊十问 -->
-      <el-col :xs="24" :lg="12">
-        <el-card shadow="hover">
+      <el-col :xs="24" :lg="12" class="right-col">
+        <el-card shadow="hover" class="tcm-visit-card">
           <template #header><span>🪷 问诊十问（经方家辨证）</span></template>
-          <TenAspectsPanel ref="tenAspectsRef" :patient-id="patientId" :visit-id="currentVisitId" />
+          <TenAspectsPanel ref="tenAspectsRef" :patient-id="patientId" :visit-id="currentVisitId" :initial="initialIq" />
         </el-card>
 
-        <div style="margin-top: 16px; text-align: right;">
+        <div style="text-align: right;">
           <el-button @click="onCancel">取消</el-button>
           <el-button type="primary" @click="submitVisit" :loading="submitting">保存就诊记录</el-button>
         </div>
@@ -191,8 +204,21 @@
       </el-col>
     </el-row>
 
-    <!-- 隐藏的图片上传 input -->
+    <!-- 隐藏的图片上传 input：拍摄(相机) + 相册(选择) -->
     <input ref="visitFileInputRef" type="file" accept="image/*" style="display:none" @change="onVisitImageSelect" />
+    <input ref="visitCameraInputRef" type="file" accept="image/*" capture="camera" style="display:none" @change="onVisitImageSelect" />
+
+    <!-- 桌面端拍摄：网页摄像头捕捉 -->
+    <el-dialog v-model="showCamera" title="📷 拍摄照片" width="420px" append-to-body class="camera-dialog" @closed="stopCamera">
+      <div class="camera-box">
+        <video ref="cameraVideoRef" autoplay playsinline muted></video>
+        <canvas ref="cameraCanvasRef" style="display:none"></canvas>
+      </div>
+      <template #footer>
+        <el-button @click="stopCamera">取消</el-button>
+        <el-button type="primary" @click="capturePhoto">拍摄</el-button>
+      </template>
+    </el-dialog>
 
     <!-- AI 辨证前核对 -->
     <el-dialog v-model="showAiConfirm" title="🪧 核对本次辨证信息" width="620px" class="ai-basis-dialog">
@@ -249,13 +275,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ChatDotRound, Close } from '@element-plus/icons-vue'
 import api from '@/utils/api'
 import { renderMarkdown } from '@/utils/markdown'
+import { compressImageFile } from '@/utils/image'
 import TenAspectsPanel from '@/components/TenAspectsPanel.vue'
+import PinchImage from '@/components/PinchImage.vue'
 
 const tenAspectsRef = ref<{ getAspectSummary: () => string; getAspectAnswers?: () => { answers: Record<string, string>; notes: Record<string, string> } } | null>(null)
 
@@ -291,6 +319,8 @@ function tagRemindStyle(ti: { color: string }): Record<string, string> {
 const submitting = ref(false)
 const aiLoading = ref(false)
 const currentVisitId = ref<number | null>(null)
+// 二次编辑时回填上一次问诊十问（选项/自填/结果）
+const initialIq = ref<any>(null)
 const showAiResult = ref(false)
 const showAiConfirm = ref(false)
 const aiResultText = ref('')
@@ -349,7 +379,14 @@ onMounted(async () => {
     const vl = (await api.get(`/patients/${patientId}/visits`)) as any
     visits.value = vl || []
   } catch {}
-  if (effectiveVisitId != null) await loadExistingVisit(effectiveVisitId)
+  if (effectiveVisitId != null) {
+    await loadExistingVisit(effectiveVisitId)
+    // 取该就诊已存的问诊十问，回填到右侧面板，避免二次编辑从头重选
+    try {
+      const iqs = (await api.get(`/patients/${patientId}/inquiries`, { params: { visit_id: effectiveVisitId } })) as any
+      if (iqs && iqs.length) initialIq.value = iqs[0]
+    } catch {}
+  }
   // 基于某次初诊发起复诊：以该初诊为底稿预填，并标记 parent 关系
   else if (props.parentVisit) applyParentVisit(props.parentVisit)
 })
@@ -487,25 +524,45 @@ function applyLastVisitDraft() {
 
 // 图片上传
 const visitFileInputRef = ref<HTMLInputElement>()
+const visitCameraInputRef = ref<HTMLInputElement>()
+// 化验单最多上传张数
+const MAX_LAB = 6
 const visitImageTarget = ref<'tongue' | 'face' | 'lab'>('tongue')
 const visitImages = ref<{ tongue: string; face: string; lab: string[] }>({ tongue: '', face: '', lab: [] })
 
-function triggerVisitImage(target: 'tongue' | 'face' | 'lab') {
+// 手机端检测：true 时「拍摄」走系统相机，否则走网页摄像头弹窗
+const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+
+// mode: 'camera' 拍照；'album' 从相册/文件选择。桌面端拍照用网页摄像头弹窗，手机端走系统相机
+function triggerVisitImage(target: 'tongue' | 'face' | 'lab', mode: 'camera' | 'album' = 'album') {
   visitImageTarget.value = target
-  visitFileInputRef.value?.click()
+  if (mode === 'camera') {
+    if (isMobile) {
+      visitCameraInputRef.value?.click()
+    } else {
+      openCamera(target)
+    }
+  } else {
+    visitFileInputRef.value?.click()
+  }
 }
 
-async function onVisitImageSelect(event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
-  if (file.size > 5 * 1024 * 1024) {
+async function uploadImageFile(file: File) {
+  let f = file
+  try {
+    f = await compressImageFile(file)
+  } catch { /* 压缩失败则使用原图，后续会校验大小 */ }
+  if (f.size > 5 * 1024 * 1024) {
     ElMessage.warning('图片不能超过5MB')
+    return
+  }
+  if (visitImageTarget.value === 'lab' && visitImages.value.lab.length >= MAX_LAB) {
+    ElMessage.warning(`化验单最多上传 ${MAX_LAB} 张`)
     return
   }
   try {
     const formData = new FormData()
-    formData.append('file', file)
+    formData.append('file', f)
     const res = await api.post('/diagnosis/upload-image', formData) as any
     const target = visitImageTarget.value
     if (target === 'lab') {
@@ -516,7 +573,69 @@ async function onVisitImageSelect(event: Event) {
   } catch {
     ElMessage.error('图片上传失败')
   }
+}
+
+async function onVisitImageSelect(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  await uploadImageFile(file)
   input.value = ''
+}
+
+// ---- 桌面端网页摄像头拍摄 ----
+const showCamera = ref(false)
+const cameraVideoRef = ref<HTMLVideoElement>()
+const cameraCanvasRef = ref<HTMLCanvasElement>()
+let cameraStream: MediaStream | null = null
+let cameraStarted = false
+
+async function startCamera() {
+  if (cameraStarted) return
+  try {
+    cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
+    cameraStarted = true
+    const video = cameraVideoRef.value
+    if (video) {
+      video.srcObject = cameraStream
+      await video.play().catch(() => {})
+    }
+  } catch (e: any) {
+    cameraStarted = false
+    ElMessage.error('无法访问摄像头：' + (e?.message || '请检查权限设置'))
+  }
+}
+
+function stopCamera() {
+  cameraStream?.getTracks().forEach(t => t.stop())
+  cameraStream = null
+  cameraStarted = false
+  if (cameraVideoRef.value) cameraVideoRef.value.srcObject = null
+  showCamera.value = false
+}
+
+function openCamera(target: 'tongue' | 'face' | 'lab') {
+  visitImageTarget.value = target
+  showCamera.value = true
+  cameraStarted = false
+  nextTick(startCamera)
+}
+
+function capturePhoto() {
+  const video = cameraVideoRef.value
+  const canvas = cameraCanvasRef.value
+  if (!video || !canvas || !video.videoWidth) {
+    ElMessage.warning('摄像头尚未就绪，请稍候')
+    return
+  }
+  canvas.width = video.videoWidth
+  canvas.height = video.videoHeight
+  canvas.getContext('2d')?.drawImage(video, 0, 0, canvas.width, canvas.height)
+  canvas.toBlob(blob => {
+    if (!blob) return
+    uploadImageFile(new File([blob], 'camera.jpg', { type: 'image/jpeg' }))
+    stopCamera()
+  }, 'image/jpeg', 0.9)
 }
 
 async function aiAssist() {
@@ -720,16 +839,58 @@ async function loadExistingVisit(visitId: number) {
 }
 .vit-last-rx { margin-left: 8px; color: #8B4513; }
 .form-tip { font-size: 12px; color: #999; line-height: 1.5; margin-top: 4px; }
+.camera-box video {
+  width: 100%;
+  border-radius: 8px;
+  background: #000;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
 .el-divider { margin: 12px 0 16px; }
 
-.left-col { display: flex; flex-direction: column; }
-.right-col-equal { margin-top: 24px; }
+.left-col { display: flex; flex-direction: column; gap: 18px; }
+.right-col { display: flex; flex-direction: column; gap: 18px; }
+.right-col-equal { margin-top: 0; }
+.other-files-card { margin-top: 0; }
+
+/* 四张就诊卡片统一美化 */
+.tcm-visit-card {
+  --el-card-padding: 18px;
+  border-radius: 12px;
+  border: 1px solid #efe5d8;
+  overflow: hidden;
+  box-shadow: 0 2px 12px rgba(120, 80, 40, 0.06);
+
+  :deep(.el-card__header) {
+    padding: 13px 18px;
+    background: linear-gradient(90deg, #fbf4ea 0%, #f4e7d3 100%);
+    border-bottom: 1px solid #efe2d0;
+    font-weight: 700;
+    font-size: 15px;
+    color: #6b4423;
+    letter-spacing: 0.5px;
+  }
+  :deep(.el-card__body) {
+    padding: var(--el-card-padding);
+  }
+}
+/* 头部有操作按钮时与标题对齐保持美观 */
+.tcm-visit-card.is-hover-shadow:hover {
+  box-shadow: 0 4px 18px rgba(120, 80, 40, 0.12);
+}
 
 .img-upload-row {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
   position: relative;
+
+  .visit-thumb-wrap {
+    position: relative;
+    display: inline-block;
+    line-height: 0;
+  }
 
   .visit-thumb {
     width: 40px;
@@ -738,10 +899,19 @@ async function loadExistingVisit(visitId: number) {
     border: 1px solid #e8e0d8;
   }
 
+  .pinch-thumb {
+    width: 40px;
+    height: 40px;
+    border-radius: 4px;
+    border: 1px solid #e8e0d8;
+    overflow: hidden;
+  }
+
   .remove-visit-img {
     position: absolute;
     top: -4px;
-    left: 96px;
+    right: -4px;
+    left: auto;
     background: #f56c6c;
     color: #fff;
     border-radius: 50%;
@@ -770,6 +940,7 @@ async function loadExistingVisit(visitId: number) {
     border-radius: 4px;
     border: 1px solid #e8e0d8;
     cursor: pointer;
+    overflow: hidden;
   }
 }
 
@@ -903,11 +1074,15 @@ async function loadExistingVisit(visitId: number) {
   :deep(.el-card__header) {
     padding: 12px 14px;
   }
+  :deep(.el-card__header > div) {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  :deep(.el-card__header > div > span) {
+    white-space: nowrap;
+  }
   .img-upload-row {
     flex-wrap: wrap;
-  }
-  .remove-visit-img {
-    position: static;
   }
   /* 底部操作按钮全宽 */
   .visit-saved-hint .el-button {
