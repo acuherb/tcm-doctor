@@ -267,6 +267,33 @@ def health_check():
 @app.get("/api/v1/config", tags=["系统"])
 def get_config():
     """获取系统配置"""
+    # 数据库文件路径（解析为绝对路径，便于排查数据落盘位置）
+    raw_db = str(engine.url.database) if engine.url and engine.url.database else ""
+    db_path = os.path.abspath(raw_db) if raw_db else ""
+
+    # 各表数据条数（运营概览）
+    counts: dict = {}
+    try:
+        from app.models.patient import Patient
+        from app.models.visit import Visit
+        from app.models.followup import FollowUp
+        from app.models.prescription import Prescription
+        from app.models.inquiry import InquiryRecord
+
+        db = SessionLocal()
+        try:
+            counts = {
+                "patients": db.query(Patient).count(),
+                "visits": db.query(Visit).count(),
+                "followups": db.query(FollowUp).count(),
+                "prescriptions": db.query(Prescription).count(),
+                "inquiries": db.query(InquiryRecord).count(),
+            }
+        finally:
+            db.close()
+    except Exception as e:  # 统计失败不应影响配置下发
+        logger.warning(f"统计系统数据条数失败: {e}")
+
     return {
         "app_name": settings.app_name,
         "version": build_display_version(),
@@ -280,6 +307,8 @@ def get_config():
         "deepseek_vision_model": settings.deepseek_vision_model,
         "deepseek_vision_base_url": settings.deepseek_vision_base_url,
         "vision_key_configured": bool(settings.deepseek_vision_api_key),
+        "db_path": db_path,
+        "counts": counts,
     }
 
 

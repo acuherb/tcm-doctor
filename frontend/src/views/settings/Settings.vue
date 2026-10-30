@@ -5,7 +5,6 @@
         <el-card shadow="hover">
           <template #header><span>🏥 诊所信息</span></template>
           <el-form label-width="100px">
-            <el-form-item label="诊所名称"><el-input v-model="clinicName" placeholder="请输入诊所名称，如 张氏中医馆" /></el-form-item>
             <el-form-item label="诊所 Logo" v-if="editable">
               <div class="logo-upload">
                 <img v-if="clinicLogo" :src="clinicLogo" class="logo-preview" alt="诊所Logo" />
@@ -22,6 +21,7 @@
               <img v-if="clinicLogo" :src="clinicLogo" class="logo-preview" alt="诊所Logo" />
               <span v-else class="text-muted">尚未设置</span>
             </el-form-item>
+            <el-form-item label="诊所名称"><el-input v-model="clinicName" placeholder="请输入诊所名称，如 张氏中医馆" /></el-form-item>
             <el-form-item label="医师姓名"><el-input v-model="doctorName" placeholder="请输入开方医师姓名" /></el-form-item>
             <el-form-item v-if="editable">
               <el-button type="primary" @click="saveClinic" :loading="savingClinic">保存诊所信息</el-button>
@@ -129,10 +129,17 @@
             <el-descriptions-item label="应用名称">中医诊所管理平台</el-descriptions-item>
             <el-descriptions-item label="版本">{{ appVersion ? 'v' + appVersion : '未获取' }}</el-descriptions-item>
             <el-descriptions-item label="技术栈">Electron + FastAPI + Vue3</el-descriptions-item>
+            <el-descriptions-item label="数据库路径">
+              <span class="mono">{{ dbPath || '未知' }}</span>
+            </el-descriptions-item>
+            <el-descriptions-item label="数据概览">
+              患者 <b>{{ counts.patients || 0 }}</b> · 就诊 <b>{{ counts.visits || 0 }}</b> · 随访 <b>{{ counts.followups || 0 }}</b> · 处方 <b>{{ counts.prescriptions || 0 }}</b> · 问诊 <b>{{ counts.inquiries || 0 }}</b>
+            </el-descriptions-item>
             <el-descriptions-item label="AI 引擎">
-              <el-tag :type="aiEngineStatus.type" size="small">
-                {{ aiEngineStatus.text }}
-              </el-tag>
+              <span class="status-retest" @click="testConnection" title="点击重新测试 DeepSeek 连接">
+                <el-tag :type="aiEngineStatus.type" size="small">{{ aiEngineStatus.text }}</el-tag>
+                <span class="retest-hint">↻ 重测</span>
+              </span>
             </el-descriptions-item>
             <el-descriptions-item label="向量库">
               <el-tag :type="vectorAvailable ? 'success' : 'info'" size="small">
@@ -174,6 +181,8 @@ const testing = ref(false)
 const exporting = ref(false)
 const vectorAvailable = ref(false)
 const savingClinic = ref(false)
+const dbPath = ref('')
+const counts = ref<any>({})
 
 const connectionStatus = ref({ type: 'info' as 'success' | 'danger' | 'info', text: '未测试' })
 
@@ -191,6 +200,8 @@ onMounted(async () => {
   try {
     const res = await api.get('/config') as any
     appVersion.value = res.version || ''
+    dbPath.value = res.db_path || ''
+    counts.value = res.counts || {}
     clinicName.value = res.clinic_name || ''
     doctorName.value = res.doctor_name || ''
     clinicLogo.value = res.clinic_logo || ''
@@ -421,4 +432,8 @@ async function resetData() {
   gap: 8px;
 }
 .text-muted { color: #aaa; font-size: 13px; }
+.status-retest { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.status-retest:hover .retest-hint { text-decoration: underline; }
+.retest-hint { font-size: 12px; color: #409eff; }
+.mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; word-break: break-all; color: #555; }
 </style>
