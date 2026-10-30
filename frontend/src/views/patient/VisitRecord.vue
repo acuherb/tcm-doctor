@@ -131,33 +131,6 @@
           </el-form>
         </el-card>
 
-        <!-- 其他资料补充：独立于四诊与辨证论治，按需上传纸质/影像资料 -->
-        <el-card shadow="hover" class="tcm-visit-card other-files-card">
-          <template #header>
-            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-              <span>📎 其他资料补充</span>
-              <div style="display:flex;gap:8px;">
-                <el-button size="small" @click="triggerVisitImage('lab','camera')">📷 拍摄</el-button>
-                <el-button size="small" @click="triggerVisitImage('lab','album')">🖼 相册</el-button>
-              </div>
-            </div>
-          </template>
-          <div v-if="visitImages.lab.length" class="lab-preview">
-            <span class="lab-label">已上传 {{ visitImages.lab.length }} 张：</span>
-            <PinchImage v-for="(img, i) in visitImages.lab" :key="i" :src="img" :list="visitImages.lab" :index="i" thumb-class="lab-thumb" />
-            <el-button size="small" text type="danger" @click="visitImages.lab = []">清除全部</el-button>
-          </div>
-          <div v-else class="form-tip">可补充上传化验单、诊断报告、既往病历等纸质资料（最多 {{ MAX_LAB }} 张）</div>
-        </el-card>
-      </el-col>
-
-      <!-- 右: 问诊十问 -->
-      <el-col :xs="24" :lg="12" class="right-col">
-        <el-card shadow="hover" class="tcm-visit-card">
-          <template #header><span>🪷 问诊十问（经方家辨证）</span></template>
-          <TenAspectsPanel ref="tenAspectsRef" :patient-id="patientId" :visit-id="currentVisitId" :initial="initialIq" />
-        </el-card>
-
         <el-card shadow="hover" class="tcm-visit-card right-col-equal">
           <template #header>
             <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
@@ -187,6 +160,33 @@
               <el-input v-model="form.doctor_notes" type="textarea" :rows="3" placeholder="饮食禁忌、生活调摄等" />
             </el-form-item>
           </el-form>
+        </el-card>
+
+        <!-- 其他资料补充：独立于四诊与辨证论治，按需上传纸质/影像资料 -->
+        <el-card shadow="hover" class="tcm-visit-card other-files-card">
+          <template #header>
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+              <span>📎 其他资料补充</span>
+              <div style="display:flex;gap:8px;">
+                <el-button size="small" @click="triggerVisitImage('lab','camera')">📷 拍摄</el-button>
+                <el-button size="small" @click="triggerVisitImage('lab','album')">🖼 相册</el-button>
+              </div>
+            </div>
+          </template>
+          <div v-if="visitImages.lab.length" class="lab-preview">
+            <span class="lab-label">已上传 {{ visitImages.lab.length }} 张：</span>
+            <PinchImage v-for="(img, i) in visitImages.lab" :key="i" :src="img" :list="visitImages.lab" :index="i" thumb-class="lab-thumb" />
+            <el-button size="small" text type="danger" @click="visitImages.lab = []">清除全部</el-button>
+          </div>
+          <div v-else class="form-tip">可补充上传化验单、诊断报告、既往病历等纸质资料（最多 {{ MAX_LAB }} 张）</div>
+        </el-card>
+      </el-col>
+
+      <!-- 右: 问诊十问 -->
+      <el-col :xs="24" :lg="12" class="right-col">
+        <el-card shadow="hover" class="tcm-visit-card">
+          <template #header><span>🪷 问诊十问（经方家辨证）</span></template>
+          <TenAspectsPanel ref="tenAspectsRef" :patient-id="patientId" :visit-id="currentVisitId" :initial="initialIq" />
         </el-card>
 
         <div style="text-align: right;">
@@ -258,10 +258,17 @@
       <div class="ai-section" v-if="aiResultFormulas.length">
         <div class="ai-section-title">💊 推荐方剂（可一键带入开方）</div>
         <div v-for="(f, i) in aiResultFormulas" :key="i" class="formula-card">
-          <div class="formula-name">{{ f.name || '推荐方' }}</div>
-          <div class="formula-row" v-if="f.composition"><span class="formula-label">组成</span><span>{{ f.composition }}</span></div>
-          <div class="formula-row" v-if="f.modification"><span class="formula-label">加减</span><span>{{ f.modification }}</span></div>
-          <div class="formula-row" v-if="f.indication"><span class="formula-label">方解</span><span>{{ f.indication }}</span></div>
+          <div class="formula-name">
+            <el-tag v-if="f.role" :type="f.role === '主方' ? 'danger' : 'warning'" size="small" style="margin-right:6px">{{ f.role }}</el-tag>
+            {{ f.name || '推荐方' }}
+            <span v-if="f.preparation" class="formula-prep">· {{ f.preparation }}</span>
+          </div>
+          <div class="formula-row" v-if="f.herbs?.length"><span class="formula-label">组成</span>
+            <span><template v-for="(h, hi) in f.herbs" :key="hi">{{ h.name }}{{ h.dose ? ' ' + h.dose : '' }}<template v-if="h.method">（{{ h.method }}）</template><template v-if="hi < f.herbs.length - 1">、</template></template></span>
+          </div>
+          <div class="formula-row" v-if="f.modifications?.length"><span class="formula-label">加减</span>
+            <span><template v-for="(m, mi) in f.modifications" :key="mi">{{ m.label }}<template v-if="mi < f.modifications.length - 1">；</template></template></span>
+          </div>
           <el-button size="small" type="success" @click="goPrescribeWithFormula(f)">去开药（带入该方）</el-button>
         </div>
       </div>
@@ -682,8 +689,7 @@ async function aiAssist() {
   }
 
   const basisLines: string[] = []
-  basisLines.push(`主诉：${form.value.chief_complaint}`)
-  // 患者基本信息（性别/年龄/身高/体重/BMI）——供医生核对，并随请求发给 AI 用于个体化剂量
+  // 患者基本信息（性别/年龄/身高/体重/BMI）——供医生核对，并随请求发给 AI 用于个体化剂量，置于「主诉」之前
   const p = patient.value
   const pParts: string[] = []
   if (p?.gender) pParts.push(`性别：${p.gender}`)
@@ -696,6 +702,7 @@ async function aiAssist() {
     if (p?.height && p?.weight) pParts.push(`BMI≈${(p.weight / ((p.height / 100) ** 2)).toFixed(1)}`)
   }
   basisLines.push('—— 患者基本信息 ——\n' + (pParts.length ? pParts.join('；') : '（未填写，AI 剂量将无法个体化）'))
+  basisLines.push(`主诉：${form.value.chief_complaint}`)
   const fourDiag: [string, string][] = [
     ['望诊', form.value.observation],
     ['闻诊', form.value.auscultation],
@@ -782,14 +789,31 @@ async function doAiAnalyze() {
   aiLoading.value = false
 }
 
+// 将结构化 AI 方剂渲染为规范文本（便于存库后再解析回结构化）
+function fmtFormulaBlock(formulas: any[]): string {
+  if (!formulas?.length) return ''
+  const fmtHerb = (h: any) => `${h.name || ''}${h.dose ? h.dose : ''}${h.method ? '(' + h.method + ')' : ''}`
+  const lines = formulas.map((f, i) => {
+    const role = f.role || (i === 0 ? '主方' : '副方')
+    const prep = f.preparation || '水煎服'
+    const head = `${i + 1}. ${f.name || '推荐方'}（${role}·${prep}）`
+    const herbs = '   组成：' + (f.herbs || []).map(fmtHerb).join('、')
+    const mods = (f.modifications || []).length
+      ? '\n   加减：\n' + (f.modifications || []).map((m: any) => {
+          const add = (m.add || []).map(fmtHerb).join('、')
+          const rm = (m.remove || []).join('、')
+          return `     - ${m.label || ''}：加 ${add}${rm ? '；减 ' + rm : ''}`
+        }).join('\n')
+      : ''
+    return head + '\n' + herbs + mods
+  })
+  return '\n\n【推荐方剂】\n' + lines.join('\n')
+}
+
 async function saveAiIntoRecord() {
   const basis = aiBasisText.value ? `【本次辨证依据】\n${aiBasisText.value}\n\n` : ''
   const warnings = aiResultWarnings.value.length ? `\n【注意事项】\n${aiResultWarnings.value.join('\n')}\n` : ''
-  const formulaText = aiResultFormulas.value.length
-    ? '\n\n【推荐方剂】\n' + aiResultFormulas.value
-        .map((f: any) => `- ${f.name || '推荐方'}：${f.composition || ''}${f.modification ? `（加减：${f.modification}）` : ''}`)
-        .join('\n')
-    : ''
+  const formulaText = fmtFormulaBlock(aiResultFormulas.value)
   form.value.ai_analysis = `${basis}【AI 辨证分析】\n${aiResultText.value}${warnings}${formulaText}`
   if (currentVisitId.value != null) {
     try {
@@ -799,16 +823,31 @@ async function saveAiIntoRecord() {
       ElMessage.error('入库失败：' + (e?.response?.data?.detail || e?.message || ''))
     }
   } else {
-    ElMessage.success('AI 辨证建议已采纳，请点「保存就诊记录」后即可在病历详情查看')
+    // 就诊尚未创建（新增就诊）：把整条就诊（含 AI 辨证）真实落库，避免 AI 结果丢失/需再手动点保存
+    try {
+      const payload = {
+        ...form.value,
+        pulse: form.value.pulse.join('、'),
+        tongue_image: visitImages.value.tongue || null,
+        face_image: visitImages.value.face || null,
+        lab_report_images: visitImages.value.lab.length ? visitImages.value.lab : null,
+      }
+      const res = await api.post(`/patients/${patientId}/visits`, payload, { silent: true }) as any
+      currentVisitId.value = res.id
+      if (props.embedded) emit('saved', res)
+      ElMessage.success('已存入本就诊 AI 诊断库')
+    } catch (e: any) {
+      ElMessage.error('入库失败：' + (e?.response?.data?.detail || e?.message || ''))
+    }
   }
   showAiResult.value = false
 }
 
-// 将 AI 推荐方剂带入开方页（预填方名与药味）
+// 将 AI 推荐方剂（结构化）带入开方页，由开方页弹窗勾选加减后生成处方
 function goPrescribeWithFormula(f: any) {
   const q: any = { patient_id: patientId }
   if (currentVisitId.value != null) q.visit_id = currentVisitId.value
-  q.ai_formula = JSON.stringify({ name: f.name || '', composition: f.composition || '' })
+  q.ai_import = JSON.stringify(f)
   router.push({ path: '/prescriptions/new', query: q })
 }
 

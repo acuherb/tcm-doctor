@@ -8,13 +8,8 @@ import httpx
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models.herb import Herb, IncompatibilityRule
+from app.models.herb import Herb
 from app.models.knowledge import KnowledgeEntry
-from app.services.incompatibility_checker import (
-    check_prescription_herbs,
-    check_dosage_limits,
-    check_pregnancy_contraindications,
-)
 
 
 # ── System Prompt ──
@@ -238,13 +233,18 @@ class DiagnosisService:
             "也不要使用一级/二级大标题，统一用三级及以下小标题。"
         )
         user_message += (
-            "\n\n请在回答末尾额外输出一个 ```json 代码块，键名为 recommended_formulas，"
-            "内容为方剂数组；每个元素包含：name(方名)、composition(药物与剂量，示例 "
-            "'桂枝9g 芍药9g 生姜9g 大枣4枚 炙甘草6g')、modification(随证加减)、indication(方解/适应症)。"
-            "推荐方剂必须为《伤寒论》《金匮要略》经方（严禁温病/时方），并按上述 JSON 格式输出。"
-            "注意：composition 和 modification 必须是纯文本字符串，不要包含 JSON 或引号包裹的键名，"
-            "每个元素只能有一组 name/composition/modification/indication 键，严禁重复键名或把多个方子塞进一个对象的字符串里。"
-            "不要在该代码块之外再解释它。"
+            "\n\n请在回答末尾额外输出一个 ```json 代码块，键名为 formulas，"
+            "内容为方剂数组；每个元素包含：\n"
+            "name(方名，纯中文，如『麻子仁丸』)；\n"
+            "role(『主方』或『副方/备选方』，第一个为主方)；\n"
+            "preparation(煎法/剂型，如『水煎服』『丸剂』『汤剂』)；\n"
+            "herbs(组成药味数组，每个元素 {name: 纯中文药名, dose: 剂量字符串如『15g』, method: 特殊煎法如『后下』『先煎』『包煎』，无则空字符串})；\n"
+            "modifications(加减数组，每个元素 {label: 加减方案名(纯中文), add: 需加入的药味数组[{name,dose,method}], remove: 需去掉的药味名数组(纯中文)})。\n"
+            "严格要求：\n"
+            "1. 推荐方剂必须为《伤寒论》《金匮要略》经方（严禁温病/时方）。\n"
+            "2. herbs 与 add 中的 name 必须是纯中文药名——不要把剂量(如15g)或煎法(如后下)写进 name；剂量写进 dose，煎法写进 method。\n"
+            "3. 每个方子一个独立元素，严禁把多个方子塞进同一个对象或字符串里。\n"
+            "4. 不要在代码块之外再解释它。"
         )
 
         # RAG
@@ -417,49 +417,158 @@ class DiagnosisService:
         toks = [t for t in re.split(r"\s+", v) if t and re.search(r"[\u4e00-\u9fff]", t)]
         return " ".join(toks).strip()
 
-    def _parse_formulas(self, reply: str) -> list[dict]:
-        """从辨证分析文本中解析推荐方剂（期望文末 ```json 代码块，键 recommended_formulas）"""
+    def _extract_json_block(self, reply: str):
+        """从回复中提取 fenced json 或裸 json 对象/数组，返回解析后的 Python 对象或 None"""
         import json as _json
         import re
 
         if not reply:
+            return None
+        candidates: list[str] = []
+        m = re.search(r"```(?:json)?\s*(.*?)```", reply, re.DOTALL)
+        if m:
+            candidates.append(m.group(1).strip())
+        s, e = reply.find("{"), reply.rfind("}")
+        if s != -1 and e > s:
+            candidates.append(reply[s:e + 1])
+        s2, e2 = reply.find("["), reply.rfind("]")
+        if s2 != -1 and e2 > s2:
+            candidates.append(reply[s2:e2 + 1])
+        for c in candidates:
+            try:
+                return _json.loads(c)
+            except Exception:
+                continue
+        return None
+
+    def _clean_herb_name(self, s: str) -> str:
+        """提取纯中文药名（去掉括号内容、剂量、英文残留）"""
+        import re
+
+        if not s:
+            return ""
+        s = re.sub(r"[（(].*?[）)]", "", str(s))
+        s = s.replace('"', "").strip()
+        s = re.sub(r"\d+(?:\.\d+)?\s*(?:g|克|钱|两|枚|片|条|只)?$", "", s).strip()
+        return "".join(re.findall(r"[一-龥]+", s)).strip()
+
+    def _split_herbs(self, text: str) -> list[dict]:
+        """把『麻子仁15g 白芍12g 大黄6g(后下)』拆成 [{name,dose,method}]"""
+        import re
+
+        out: list[dict] = []
+        if not text:
+            return out
+        for tok in re.split(r"[\s,，、;；]+", str(text)):
+            tok = tok.strip()
+            if not tok or not re.search(r"[一-龥]", tok):
+                continue
+            method = ""
+            mm = re.search(r"[（(]([^（）()]*?(?:先煎|后下|包煎|冲服|烊化|另煎))[）)]", tok)
+            if mm:
+                method = mm.group(1).strip("（）()")
+                tok = tok.replace(mm.group(0), "")
+            name = self._clean_herb_name(tok)
+            if not name:
+                continue
+            dose = ""
+            dm = re.search(r"(\d+(?:\.\d+)?)\s*(g|克|钱|两|枚|片|条|只)?", tok)
+            if dm:
+                dose = dm.group(0).strip()
+            out.append({"name": name, "dose": dose, "method": method})
+        return out
+
+    def _parse_formulas(self, reply: str) -> list[dict]:
+        """解析推荐方剂：优先结构化 formulas JSON（含 role/herbs/modifications），
+        兼容旧 recommended_formulas（composition 文本）；输出元素含 name/role/preparation/herbs/modifications。"""
+        import re
+
+        obj = self._extract_json_block(reply)
+        if not obj:
             return []
-        # 1) 优先匹配 fenced json 块
-        m = re.search(r"```(?:json)?\s*(\[.*?\])\s*```", reply, re.DOTALL)
-        raw = m.group(1) if m else None
-        if not raw:
-            # 2) 退化：直接定位首个 [ ... ] 数组
-            s, e = reply.find("["), reply.rfind("]")
-            if s != -1 and e > s:
-                raw = reply[s:e + 1]
-        if not raw:
-            return []
-        try:
-            data = _json.loads(raw)
-        except Exception:
-            return []
+        data = None
+        if isinstance(obj, dict):
+            data = obj.get("formulas") or obj.get("recommended_formulas")
+        elif isinstance(obj, list):
+            data = obj
         if not isinstance(data, list):
             return []
         out: list[dict] = []
         for item in data:
             if not isinstance(item, dict):
                 continue
-            name = (item.get("name") or item.get("方剂") or "").strip()
-            # composition/modification/indication 可能是嵌套 JSON 字符串（AI 把对象又序列化进字段），递归提取真实文本
-            comp = self._extract_text_field(item, ("composition", "组成", "药物"))
-            modifier = self._extract_text_field(item, ("modification", "加减"))
-            indication = self._extract_text_field(item, ("indication", "方解", "适应症"))
-            if isinstance(comp, list):
-                comp = " ".join(str(c) for c in comp)
-            if isinstance(modifier, list):
-                modifier = " ".join(str(c) for c in modifier)
-            if isinstance(indication, list):
-                indication = " ".join(str(c) for c in indication)
+            name = self._clean_herb_name(str(item.get("name") or item.get("方剂") or "")).strip()
+            if not name:
+                continue
+            role = str(item.get("role") or "").strip()
+            if not role:
+                role = "主方" if not out else "副方"
+            preparation = self._clean_herb_name(str(item.get("preparation") or item.get("剂型") or "")).strip()
+            # 新 schema：herbs 数组
+            herbs: list[dict] = []
+            raw_herbs = item.get("herbs") or []
+            if isinstance(raw_herbs, list):
+                for h in raw_herbs:
+                    if isinstance(h, dict):
+                        hname = self._clean_herb_name(str(h.get("name") or ""))
+                        if not hname:
+                            continue
+                        herbs.append({
+                            "name": hname,
+                            "dose": str(h.get("dose") or "").strip(),
+                            "method": str(h.get("method") or "").strip(),
+                        })
+                    elif isinstance(h, str):
+                        herbs.extend(self._split_herbs(h))
+            # 旧 schema 兼容：composition 文本
+            if not herbs:
+                comp = item.get("composition") or item.get("组成") or ""
+                if isinstance(comp, list):
+                    comp = " ".join(str(c) for c in comp)
+                herbs = self._split_herbs(self._clean_herb_string(str(comp)))
+            # modifications
+            mods: list[dict] = []
+            raw_mods = item.get("modifications") or []
+            if isinstance(raw_mods, list):
+                for mod in raw_mods:
+                    if not isinstance(mod, dict):
+                        continue
+                    label = self._clean_herb_name(str(mod.get("label") or mod.get("加减") or "")).strip()
+                    if not label:
+                        continue
+                    add: list[dict] = []
+                    for a in (mod.get("add") or []):
+                        if isinstance(a, dict):
+                            an = self._clean_herb_name(str(a.get("name") or ""))
+                            if an:
+                                add.append({
+                                    "name": an,
+                                    "dose": str(a.get("dose") or "").strip(),
+                                    "method": str(a.get("method") or "").strip(),
+                                })
+                        elif isinstance(a, str):
+                            add.extend(self._split_herbs(a))
+                    remove: list[str] = []
+                    for r in (mod.get("remove") or []):
+                        if isinstance(r, str):
+                            rn = self._clean_herb_name(r)
+                            if rn:
+                                remove.append(rn)
+                    mods.append({"label": label, "add": add, "remove": remove})
+            # 旧 schema 兼容：modification 纯文本
+            if not mods:
+                modifier = item.get("modification") or item.get("加减") or ""
+                if isinstance(modifier, str):
+                    for part in re.split(r"[；;\n]+", modifier):
+                        part = self._clean_herb_name(part).strip()
+                        if part:
+                            mods.append({"label": part, "add": [], "remove": []})
             out.append({
-                "name": self._clean_herb_string(name),
-                "composition": self._clean_herb_string(str(comp or "")),
-                "modification": self._clean_herb_string(str(modifier or "")),
-                "indication": self._clean_herb_string(str(indication or "")),
+                "name": name,
+                "role": role,
+                "preparation": preparation,
+                "herbs": herbs,
+                "modifications": mods,
             })
         return out
 
@@ -946,13 +1055,6 @@ class DiagnosisService:
                     if alias in reply:
                         mentioned_herbs.append(herb)
                         break
-
-        # 配伍禁忌检查
-        if len(mentioned_herbs) >= 2:
-            herb_ids = [h.id for h in mentioned_herbs]
-            conflicts = check_prescription_herbs(herb_ids, db)
-            for w in conflicts:
-                warnings.append(f"⚠️ 配伍禁忌: {w['herb_a']} + {w['herb_b']} ({w['rule_type']})")
 
         # 孕妇禁忌检查
         for herb in mentioned_herbs:

@@ -226,16 +226,6 @@
         </div>
       </template>
 
-      <!-- 配伍禁忌 -->
-      <div v-if="incompatibilityWarnings.length > 0" class="safety-section">
-        <el-alert type="error" :closable="false" show-icon title="配伍禁忌" style="margin-bottom:8px;" />
-        <div v-for="w in incompatibilityWarnings" :key="w.herb_a + w.herb_b" class="safety-item danger">
-          <el-tag type="danger" size="small">{{ w.rule_type }}</el-tag>
-          <span>{{ w.herb_a }} + {{ w.herb_b }}</span>
-          <span v-if="w.description" style="color:#999;font-size:12px;">{{ w.description }}</span>
-        </div>
-      </div>
-
       <!-- 剂量超限 -->
       <div v-if="dosageWarnings.length > 0" class="safety-section">
         <el-alert type="warning" :closable="false" show-icon title="剂量超限" style="margin-bottom:8px;" />
@@ -255,13 +245,13 @@
       </div>
 
       <!-- 安全通过 -->
-      <div v-if="incompatibilityWarnings.length === 0 && dosageWarnings.length === 0 && pregnancyWarnings.length === 0 && form.items.length > 0"
+      <div v-if="dosageWarnings.length === 0 && pregnancyWarnings.length === 0 && form.items.length > 0"
         class="safety-section">
-        <el-alert type="success" :closable="false" show-icon title="安全检查通过" description="未检测到配伍禁忌、剂量超限或孕妇禁忌" />
+        <el-alert type="success" :closable="false" show-icon title="安全检查通过" description="未检测到剂量超限或孕妇禁忌" />
       </div>
 
       <div v-if="form.items.length === 0 && hasAcupointContent" class="safety-section">
-        <el-alert type="info" :closable="false" show-icon title="纯针灸方" description="已添加配穴，无需配伍安全检查" />
+        <el-alert type="info" :closable="false" show-icon title="纯针灸方" description="已添加配穴，无需剂量安全检查" />
       </div>
 
       <el-empty v-if="form.items.length === 0 && !hasAcupointContent"
@@ -302,21 +292,19 @@
             <span v-else style="color:#bbb;">—</span>
           </template>
         </el-table-column>
-      </el-table>
-    </el-dialog>
+        </el-table>
+        </el-dialog>
 
-    <!-- 配伍禁忌弹窗 -->
-    <IncompatibilityAlert
-      v-model="showIncompatibilityDialog"
-      :warnings="incompatibilityWarnings"
-      :pregnancy-warnings="pregnancyWarnings"
-      :dosage-warnings="dosageWarnings"
-      :allow-force="incompatibilityWarnings.length === 0"
-      @cancel="showIncompatibilityDialog = false"
-      @force-confirm="forceSubmit"
-    />
-  </div>
-</template>
+        <!-- AI 结构化方剂带入：勾选加减、字典校验 -->
+        <AiFormulaImportDialog
+        :visible="aiImportVisible"
+        :formula="aiImportFormula"
+        :herb-list="herbCacheList"
+        @confirm="applyStructuredFormula"
+        @close="aiImportVisible = false"
+        />
+        </div>
+        </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
@@ -325,7 +313,7 @@ import { Plus, Delete } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '@/utils/api'
 import HerbSelector from '@/components/HerbSelector.vue'
-import IncompatibilityAlert from '@/components/IncompatibilityAlert.vue'
+import AiFormulaImportDialog from '@/components/AiFormulaImportDialog.vue'
 import { useAuthStore } from '@/store/auth'
 
 const route = useRoute()
@@ -349,9 +337,7 @@ const formulaSearch = ref('')
 const acupointFormulas = ref<any[]>([])
 const acupointFormulaDialogVisible = ref(false)
 const acupointFormulaSearch = ref('')
-const showIncompatibilityDialog = ref(false)
 
-const incompatibilityWarnings = ref<any[]>([])
 const dosageWarnings = ref<string[]>([])
 const pregnancyWarnings = ref<string[]>([])
 
@@ -520,22 +506,9 @@ function onPatientChange(patientId: number) {
 async function runSafetyCheck() {
   const herbIds = form.value.items.map(i => i.herb_id).filter(Boolean) as number[]
   if (herbIds.length < 1) {
-    incompatibilityWarnings.value = []
     dosageWarnings.value = []
     pregnancyWarnings.value = []
     return
-  }
-
-  // 配伍禁忌检查
-  if (herbIds.length >= 2) {
-    try {
-      const res = await api.post('/herbs/incompatibility-check', { herb_ids: herbIds }) as any
-      incompatibilityWarnings.value = res.warnings || []
-    } catch {
-      incompatibilityWarnings.value = []
-    }
-  } else {
-    incompatibilityWarnings.value = []
   }
 
   // 剂量和孕妇禁忌检查（应用层）
@@ -560,11 +533,6 @@ async function runSafetyCheck() {
   // 标记每项的警告
   form.value.items.forEach(item => {
     const itemWarnings: string[] = []
-    for (const w of incompatibilityWarnings.value) {
-      if (w.herb_a === item.herb_name || w.herb_b === item.herb_name) {
-        itemWarnings.push(`${w.rule_type}: ${w.herb_a}+${w.herb_b}`)
-      }
-    }
     for (const dw of dosageWarnings.value) {
       if (dw.startsWith(item.herb_name)) itemWarnings.push(dw)
     }
@@ -693,16 +661,14 @@ async function submitPrescription() {
   if (!hasHerb && !hasAcupoint) { ElMessage.warning('请至少添加一味药或一个配穴'); return }
   if (hasHerb && form.value.items.some(i => !i.herb_id)) { ElMessage.warning('有药味未选择'); return }
 
-  // 仅药味方需检查配伍禁忌；纯针灸方无需安全检查
-  if (hasHerb && incompatibilityWarnings.value.length > 0) {
-    showIncompatibilityDialog.value = true
-    return
+  // 仅药味方需做剂量/孕妇检查；纯针灸方无需安全检查
+  if (hasHerb && dosageWarnings.value.length > 0) {
+    ElMessage.warning('存在剂量超限，已自动添加到对应药物备注，可继续提交')
+  }
+  if (hasHerb && pregnancyWarnings.value.length > 0) {
+    ElMessage.warning('存在孕妇禁忌药物，请谨慎开具')
   }
 
-  await doSubmit()
-}
-
-async function forceSubmit() {
   await doSubmit()
 }
 
@@ -889,14 +855,51 @@ onMounted(async () => {
     }
   }
 
-  // 从 AI 辨证页带入推荐方剂（自由文本组成）
-  if (q.ai_formula) {
+  // 从 AI 辨证页带入推荐方剂（结构化：勾选加减→合并→字典校验）
+  if (q.ai_import) {
+    try {
+      const f = typeof q.ai_import === 'string' ? JSON.parse(q.ai_import) : q.ai_import
+      await loadHerbList()
+      aiImportFormula.value = f
+      aiImportVisible.value = true
+    } catch {}
+  } else if (q.ai_formula) {
+    // 兼容旧版自由文本带入
     try {
       const f = typeof q.ai_formula === 'string' ? JSON.parse(q.ai_formula) : q.ai_formula
       await applyAiFormula(f)
     } catch {}
   }
 })
+
+// AI 结构化方剂 → 处方（主方/副方各自独立成方）
+const aiImportVisible = ref(false)
+const aiImportFormula = ref<any>(null)
+
+function applyStructuredFormula(f: any) {
+  if (!f) return
+  form.value.formula_name = f.name || ''
+  form.value.is_classic = false
+  form.value.classic_formula_id = null
+  if (f.preparation) form.value.preparation_method = f.preparation
+  form.value.items = (f.herbs || []).map((h: any) => {
+    const doseNum = parseFloat(String(h.dose || '').replace(/[^\d.]/g, ''))
+    const hit = h.herb_id ? herbCacheList.value.find((x: any) => x.id === h.herb_id) : null
+    const herbName = hit ? hit.name : h.name
+    return {
+      herb_id: h.herb_id ?? null,
+      herb_name: herbName,
+      dose: isNaN(doseNum) ? 10 : doseNum,
+      special_method: h.method || null,
+      is_king_herb: false,
+      note: h.unknown ? `⚠️字典无此药：${h.name}` : '',
+      _warnings: h.unknown ? [`药材字典中无「${h.name}」，请核对`] : [],
+    }
+  })
+  aiImportVisible.value = false
+  ElMessage.success(`已带入 AI 推荐方「${f.name || '未命名'}」${f.role ? '（' + f.role + '）' : ''}`)
+  runSafetyCheck()
+}
 </script>
 
 <style scoped lang="scss">

@@ -114,12 +114,19 @@
           {{ aiExpanded ? '收起' : '查看全部' }}
         </el-button>
       </div>
-      <div class="view-ai-analysis" :class="{ collapsed: !aiExpanded }" v-html="renderMarkdown(visit.ai_analysis)"></div>
+      <div class="view-ai-analysis" :class="{ collapsed: !aiExpanded }" v-html="renderMarkdown(stripJsonBlock(visit.ai_analysis))"></div>
       <div v-if="parseAiFormulas(visit).length" class="ai-formulas">
         <div class="ai-formulas-title">💊 将 AI 推荐方带入开方</div>
         <div v-for="(f, fi) in parseAiFormulas(visit)" :key="fi" class="ai-formula-row">
-          <span class="ai-formula-name">{{ f.name }}</span>
-          <span class="ai-formula-comp">{{ f.composition }}</span>
+          <div class="ai-formula-head">
+            <el-tag v-if="f.role" :type="f.role === '主方' ? 'danger' : 'warning'" size="small">{{ f.role }}</el-tag>
+            <span class="ai-formula-name">{{ f.name }}</span>
+            <span v-if="f.preparation" class="ai-formula-prep">· {{ f.preparation }}</span>
+          </div>
+          <div class="ai-formula-herbs">
+            <template v-for="(h, hi) in (f.herbs || [])" :key="hi">{{ h.name }}{{ h.dose ? ' ' + h.dose : '' }}<template v-if="h.method">（{{ h.method }}）</template><template v-if="hi < f.herbs.length - 1">、</template></template>
+          </div>
+          <div v-if="f.modifications?.length" class="ai-formula-mods">加减：<template v-for="(m, mi) in f.modifications" :key="mi">{{ m.label }}<template v-if="mi < f.modifications.length - 1">；</template></template></div>
           <el-button link type="success" size="small" style="flex:none;" @click="goPrescribeWithFormula(f)">去开药（带入该方）</el-button>
         </div>
       </div>
@@ -280,84 +287,149 @@ function cleanAiField(s: string, key = 'composition'): string {
   }
   return cleanComposition(v)
 }
-// 从已保存的 ai_analysis 文本中解析出推荐方剂（兼容新版JSON/【推荐方剂】段/旧版「推荐方剂及加减」）
-function parseAiFormulas(visit: any): { name: string; composition: string; modification: string }[] {
-  const text = visit?.ai_analysis || ''
-  const out: { name: string; composition: string; modification: string }[] = []
-  const fm = text.match(/```(?:json)?\s*\{[^`]*?recommended_formulas\s*:\s*(\[[\s\S]*?\])\s*\}?\s*```/)
-  if (fm) {
-    try {
-      const data = JSON.parse(fm[1])
-      if (Array.isArray(data)) {
-        const jout: { name: string; composition: string; modification: string }[] = []
-        for (const it of data) {
-          if (!it?.name) continue
-          let c = it.composition || it.组成 || ''
-          if (Array.isArray(c)) c = c.join(' ')
-          jout.push({ name: cleanAiField(String(it.name).trim(), 'name'), composition: cleanAiField(String(c || ''), 'composition'), modification: cleanAiField(String(it.modification || ''), 'modification') })
-        }
-        if (jout.length) return jout
-      }
-    } catch {}
-  }
-  // 旧版「推荐方剂及加减」Markdown 结构兜底：主方：X + 缩进药行
-  const mi = text.search(/推荐方剂及加减|主方[：:]/)
-  if (mi >= 0) {
-    const seg2 = text.slice(mi).split('\n')
-    let pname = ''
-    const herbs: string[] = []
-    for (let li = 0; li < seg2.length; li++) {
-      const l2 = seg2[li]
-      const nm = l2.match(/主方[：:]\s*(.+)/)
-      if (nm) { pname = nm[1].trim().split(/[（(]/)[0].trim(); continue }
-      if (/^\s{2,}/.test(l2) && /\d[\d.。]*\s*(g|克|钱|两|枚|片|条|只)/.test(l2)) {
-        herbs.push(l2.trim().replace(/\s*[（(].*?[）)]\s*$/, ''))
-        if (li < seg2.length - 1) continue
-      }
-      if (pname && herbs.length && /^\S/.test(l2) && (l2.includes('加减') || l2.startsWith('加减'))) break
-    }
-    if (pname && herbs.length) {
-      out.push({ name: cleanAiField(pname, 'name'), composition: cleanComposition(herbs.join(' ')), modification: '' })
-      return out
-    }
-  }
-  const idx = text.lastIndexOf('【推荐方剂】')
-  if (idx < 0) return []
-  const seg = text.slice(idx).split('\n')
-  for (const line of seg) {
-    const m = line.match(/^[-•]\s*(.+?)[：:]\s*(.*)$/)
-    if (!m) continue
-    const name = m[1].trim()
-    let composition = m[2].trim()
-    let modification = ''
-    // 兼容 AI 把 composition 输出为嵌套 JSON 对象（含 composition + modification 键）
-    if (composition.includes('"composition"')) {
-      const cmp = composition.match(/"composition"\s*:\s*"((?:[^"\\]|\\.)*)"/)
-      const modj = composition.match(/"modification"\s*:\s*"((?:[^"\\]|\\.)*)"/)
-      if (cmp) composition = cmp[1].replace(/\\"/g, '"').trim()
-      if (modj) modification = modj[1].replace(/\\"/g, '"').trim()
-    } else {
-      const mod = composition.match(/（加减：([^）]+)）/)
-      if (mod) {
-        modification = mod[1].trim()
-        composition = composition.replace(/（加减：[^）]+）/, '').trim()
-      }
-    }
+// 把「麻子仁15g 白芍12g 大黄6g(后下)」拆成 [{name,dose,method}]
+function splitHerbs(text: string): { name: string; dose: string; method: string }[] {
+  if (!text) return []
+  const out: any[] = []
+  for (const raw of String(text).split(/[\s,，、;；]+/).filter(Boolean)) {
+    if (!/[一-龥]/.test(raw)) continue
+    let method = ''
+    const mm = raw.match(/[（(]([^（）()]*?(?:先煎|后下|包煎|冲服|烊化|另煎))[）)]/)
+    if (mm) method = mm[1]
+    const cleaned = raw.replace(/[（(].*?[）)]/g, '').replace(/"/g, '').trim()
+    let name = cleaned.replace(/\d+(?:\.\d+)?\s*(?:g|克|钱|两|枚|片|条|只)?$/, '').trim()
+    name = (name.match(/[一-龥]+/g) || []).join('')
     if (!name) continue
-    out.push({ name: cleanAiField(name, 'name'), composition: cleanAiField(composition), modification: cleanAiField(modification, 'modification') })
+    const dm = raw.match(/(\d+(?:\.\d+)?)\s*(g|克|钱|两|枚|片|条|只)?/)
+    const dose = dm ? dm[0].trim() : ''
+    out.push({ name, dose, method })
   }
   return out
 }
 
-// 将推荐方剂带入开方页（预填方名与药味）
-function goPrescribeWithFormula(f: { name: string; composition: string }) {
+function jsonObjToFormula(o: any): any {
+  const name = (o?.name || '').toString().replace(/["""]/g, '').trim()
+  if (!name) return null
+  const role = (o?.role || '').toString().trim() || ''
+  const prep = (o?.preparation || o?.剂型 || '').toString().trim()
+  const herbs = (Array.isArray(o?.herbs) ? o.herbs : []).map((h: any) => {
+    if (typeof h === 'string') return splitHerbs(h)[0] || { name: h, dose: '', method: '' }
+    return {
+      name: (h?.name || '').toString().replace(/["""]/g, '').trim(),
+      dose: (h?.dose || '').toString().trim(),
+      method: (h?.method || '').toString().trim(),
+    }
+  }).filter((h: any) => h.name)
+  const mods = (Array.isArray(o?.modifications) ? o.modifications : []).map((m: any) => {
+    const label = (m?.label || '').toString().trim()
+    if (!label) return null
+    const add = (Array.isArray(m?.add) ? m.add : []).map((a: any) => {
+      if (typeof a === 'string') return splitHerbs(a)[0] || { name: a, dose: '', method: '' }
+      return { name: (a?.name || '').toString().trim(), dose: (a?.dose || '').toString().trim(), method: (a?.method || '').toString().trim() }
+    }).filter((a: any) => a.name)
+    const remove = (Array.isArray(m?.remove) ? m.remove : []).map((r: any) => (r || '').toString().trim()).filter(Boolean)
+    return { label, add, remove }
+  }).filter(Boolean)
+  return { name, role, preparation: prep, herbs, modifications: mods }
+}
+
+// 从已保存的 ai_analysis 文本中解析出结构化推荐方剂
+// （优先规范 Markdown【推荐方剂】；其次 JSON 块 formulas/recommended_formulas；最后旧版 bullet 兜底）
+function parseAiFormulas(visit: any): any[] {
+  const text = visit?.ai_analysis || ''
+  const out: any[] = []
+  // 1) 规范化 Markdown【推荐方剂】
+  const idx = text.indexOf('【推荐方剂】')
+  if (idx >= 0) {
+    const seg = text.slice(idx)
+    const blocks = seg.split(/\n(?=\d+\.)/).slice(1)
+    for (const b of blocks) {
+      const hm = b.match(/^\d+\.\s*(.+?)（(.+?)·(.+?)）/)
+      if (!hm) continue
+      const name = hm[1].trim()
+      const role = hm[2].trim()
+      const prep = hm[3].trim()
+      const herbs: any[] = []
+      const cm = b.match(/组成[：:]\s*(.+)/)
+      if (cm) herbs.push(...splitHerbs(cm[1]))
+      const mods: any[] = []
+      const modLines = b.split('\n').filter(l => /^\s*-\s*/.test(l))
+      for (const l of modLines) {
+        const mm = l.match(/-\s*(.+?)[：:]\s*加\s*(.+?)(?:；|;|$)/)
+        if (!mm) continue
+        const label = mm[1].trim()
+        const add = splitHerbs(mm[2])
+        let remove: string[] = []
+        const rm = l.match(/减\s*([^；;]+)/)
+        if (rm) remove = rm[1].split(/[、,，]/).map(s => s.trim()).filter(Boolean)
+        mods.push({ label, add, remove })
+      }
+      if (name) out.push({ name, role, preparation: prep, herbs, modifications: mods })
+    }
+    if (out.length) return out
+  }
+  // 2) JSON 块 formulas / recommended_formulas
+  const jm = text.match(/```(?:json)?\s*([\s\S]*?)```/)
+  if (jm) {
+    try {
+      const obj = JSON.parse(jm[1])
+      const data = obj.formulas || obj.recommended_formulas
+      if (Array.isArray(data)) {
+        const got = data.map(jsonObjToFormula).filter(Boolean)
+        if (got.length) return got
+      }
+    } catch {}
+  }
+  // 3) 旧版【推荐方剂】 bullet（name：composition（加减：...））
+  const bulletIdx = text.lastIndexOf('【推荐方剂】')
+  if (bulletIdx >= 0) {
+    const seg = text.slice(bulletIdx).split('\n')
+    for (const line of seg) {
+      const m = line.match(/^[-•]\s*(.+?)[：:]\s*(.*)$/)
+      if (!m) continue
+      const name = m[1].trim()
+      let composition = m[2].trim()
+      let modification = ''
+      if (composition.includes('"composition"')) {
+        const cmp = composition.match(/"composition"\s*:\s*"((?:[^"\\]|\\.)*)"/)
+        const modj = composition.match(/"modification"\s*:\s*"((?:[^"\\]|\\.)*)"/)
+        if (cmp) composition = cmp[1].replace(/\\"/g, '"').trim()
+        if (modj) modification = modj[1].replace(/\\"/g, '"').trim()
+      } else {
+        const mod = composition.match(/（加减：([^）]+)）/)
+        if (mod) {
+          modification = mod[1].trim()
+          composition = composition.replace(/（加减：[^）]+）/, '').trim()
+        }
+      }
+      if (!name) continue
+      out.push({
+        name: cleanAiField(name, 'name'),
+        role: '',
+        preparation: '',
+        herbs: splitHerbs(cleanComposition(composition)),
+        modifications: modification ? [{ label: cleanAiField(modification, 'modification'), add: [], remove: [] }] : [],
+      })
+    }
+    if (out.length) return out
+  }
+  return []
+}
+
+// 诊断库展示时去掉 JSON 代码块，保持文本干净
+function stripJsonBlock(s: string): string {
+  return (s || '').replace(/```json[\s\S]*?```/g, '').replace(/```[\s\S]*?```/g, '')
+}
+
+// 将推荐方剂（结构化）带入开方页，由开方页弹窗勾选加减后生成处方
+function goPrescribeWithFormula(f: any) {
   if (!props.patientId) {
     router.push({ path: '/prescriptions/new' })
     return
   }
   const q: any = { patient_id: props.patientId }
   if (props.visit?.id) q.visit_id = props.visit.id
-  q.ai_formula = JSON.stringify({ name: f.name || '', composition: f.composition || '' })
+  q.ai_import = JSON.stringify(f)
   router.push({ path: '/prescriptions/new', query: q })
 }
 </script>

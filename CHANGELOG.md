@@ -1,5 +1,19 @@
 # 开发日志 CHANGELOG
 
+## 2026-10-30 — AI 推荐方结构化带入开方（主方/副方 + 加减勾选 + 字典校验）
+
+### 背景
+此前 AI 把主方、副方、加减全揉成一段自由文本，前端正则硬抠导致串味（如「仁子丸」、把 15g/后下 混进药名、副方药味并到主方）。本次改为 **AI 输出强制结构化 JSON + 前端勾选式带入**。
+
+### 1. 后端：结构化 JSON 输出与解析
+- [ai_diagnosis_service.py](file:///home/debian/tcm-doctor/backend/app/services/ai_diagnosis_service.py) 分析 prompt 末端 JSON 指令改为要求 `formulas` 数组，元素含 `name / role(主方·副方) / preparation / herbs[{name,dose,method}] / modifications[{label, add:[{name,dose,method}], remove:[]}]`；并要求药名纯中文、剂量进 `dose`、煎法进 `method`、严禁多方针塞同一对象。
+- 新增 `_extract_json_block` / `_clean_herb_name` / `_split_herbs`，重写 `_parse_formulas`：解析新 schema，并兼容旧 `recommended_formulas`(composition 文本) / 旧 bullet 文本兜底。
+
+### 2. 前端：结构化带入开方弹窗
+- 新增 [AiFormulaImportDialog.vue](file:///home/debian/tcm-doctor/frontend/src/components/AiFormulaImportDialog.vue)：展示主方/副方 + 基础组成 + 加减项（checkbox），勾选后**合并**（add 并入、remove 移除对应药味），并对照药材字典（`herbs` 表）校验——字典无此药则**标红警告但仍可带入**（由医生核对）。
+- [PrescriptionEditor.vue](file:///home/debian/tcm-doctor/frontend/src/views/prescription/PrescriptionEditor.vue)：`/prescriptions/new?ai_import=<结构化方剂>` 打开带入弹窗；确认后生成处方（药名纯中文、剂量单独、特殊煎法写入 `special_method`、`preparation_method` 写入剂型）；主方/副方各自独立成方。保留旧 `ai_formula` 自由文本兜底。
+- [VisitCard.vue](file:///home/debian/tcm-doctor/frontend/src/components/VisitCard.vue) / [VisitRecord.vue](file:///home/debian/tcm-doctor/frontend/src/views/patient/VisitRecord.vue)：解析与渲染结构化方剂（role 标签、组成、加减），「去开药」改传 `ai_import`；诊断库展示用 `stripJsonBlock` 去除 JSON 代码块；`saveAiIntoRecord` 以规范 Markdown（【推荐方剂】）存库，可再次解析回结构化。
+
 ## 2026-10-30 — AI 辨证纳入性别/年龄/身高/体重，剂量个体化
 
 ### 1. 患者体征信息进入辨证 prompt
