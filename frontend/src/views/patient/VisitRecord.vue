@@ -131,6 +131,33 @@
           </el-form>
         </el-card>
 
+        <!-- 其他资料补充：独立于四诊与辨证论治，按需上传纸质/影像资料 -->
+        <el-card shadow="hover" class="tcm-visit-card other-files-card">
+          <template #header>
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+              <span>📎 其他资料补充</span>
+              <div style="display:flex;gap:8px;">
+                <el-button size="small" @click="triggerVisitImage('lab','camera')">📷 拍摄</el-button>
+                <el-button size="small" @click="triggerVisitImage('lab','album')">🖼 相册</el-button>
+              </div>
+            </div>
+          </template>
+          <div v-if="visitImages.lab.length" class="lab-preview">
+            <span class="lab-label">已上传 {{ visitImages.lab.length }} 张：</span>
+            <PinchImage v-for="(img, i) in visitImages.lab" :key="i" :src="img" :list="visitImages.lab" :index="i" thumb-class="lab-thumb" />
+            <el-button size="small" text type="danger" @click="visitImages.lab = []">清除全部</el-button>
+          </div>
+          <div v-else class="form-tip">可补充上传化验单、诊断报告、既往病历等纸质资料（最多 {{ MAX_LAB }} 张）</div>
+        </el-card>
+      </el-col>
+
+      <!-- 右: 问诊十问 -->
+      <el-col :xs="24" :lg="12" class="right-col">
+        <el-card shadow="hover" class="tcm-visit-card">
+          <template #header><span>🪷 问诊十问（经方家辨证）</span></template>
+          <TenAspectsPanel ref="tenAspectsRef" :patient-id="patientId" :visit-id="currentVisitId" :initial="initialIq" />
+        </el-card>
+
         <el-card shadow="hover" class="tcm-visit-card right-col-equal">
           <template #header>
             <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
@@ -160,33 +187,6 @@
               <el-input v-model="form.doctor_notes" type="textarea" :rows="3" placeholder="饮食禁忌、生活调摄等" />
             </el-form-item>
           </el-form>
-        </el-card>
-
-        <!-- 其他资料补充：独立于四诊与辨证论治，按需上传纸质/影像资料 -->
-        <el-card shadow="hover" class="tcm-visit-card other-files-card">
-          <template #header>
-            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-              <span>📎 其他资料补充</span>
-              <div style="display:flex;gap:8px;">
-                <el-button size="small" @click="triggerVisitImage('lab','camera')">📷 拍摄</el-button>
-                <el-button size="small" @click="triggerVisitImage('lab','album')">🖼 相册</el-button>
-              </div>
-            </div>
-          </template>
-          <div v-if="visitImages.lab.length" class="lab-preview">
-            <span class="lab-label">已上传 {{ visitImages.lab.length }} 张：</span>
-            <PinchImage v-for="(img, i) in visitImages.lab" :key="i" :src="img" :list="visitImages.lab" :index="i" thumb-class="lab-thumb" />
-            <el-button size="small" text type="danger" @click="visitImages.lab = []">清除全部</el-button>
-          </div>
-          <div v-else class="form-tip">可补充上传化验单、诊断报告、既往病历等纸质资料（最多 {{ MAX_LAB }} 张）</div>
-        </el-card>
-      </el-col>
-
-      <!-- 右: 问诊十问 -->
-      <el-col :xs="24" :lg="12" class="right-col">
-        <el-card shadow="hover" class="tcm-visit-card">
-          <template #header><span>🪷 问诊十问（经方家辨证）</span></template>
-          <TenAspectsPanel ref="tenAspectsRef" :patient-id="patientId" :visit-id="currentVisitId" :initial="initialIq" />
         </el-card>
 
         <div style="text-align: right;">
@@ -283,6 +283,7 @@ import api from '@/utils/api'
 import { renderMarkdown } from '@/utils/markdown'
 import { compressImageFile } from '@/utils/image'
 import { TEN_QUESTIONS } from '@/utils/tenAspectsQuestions'
+import { calcAge } from '@/utils/health'
 import TenAspectsPanel from '@/components/TenAspectsPanel.vue'
 import PinchImage from '@/components/PinchImage.vue'
 
