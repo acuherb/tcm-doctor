@@ -679,6 +679,19 @@ async function aiAssist() {
 
   const basisLines: string[] = []
   basisLines.push(`主诉：${form.value.chief_complaint}`)
+  // 患者基本信息（性别/年龄/身高/体重/BMI）——供医生核对，并随请求发给 AI 用于个体化剂量
+  const p = patient.value
+  const pParts: string[] = []
+  if (p?.gender) pParts.push(`性别：${p.gender}`)
+  if (p?.birth_date) { const pa = calcAge(p.birth_date); if (pa != null) pParts.push(`年龄：${pa}岁`) }
+  const pPhys: string[] = []
+  if (p?.height != null) pPhys.push(`身高${p.height}cm`)
+  if (p?.weight != null) pPhys.push(`体重${p.weight}kg`)
+  if (pPhys.length) {
+    pParts.push('体态：' + pPhys.join('，'))
+    if (p?.height && p?.weight) pParts.push(`BMI≈${(p.weight / ((p.height / 100) ** 2)).toFixed(1)}`)
+  }
+  basisLines.push('—— 患者基本信息 ——\n' + (pParts.length ? pParts.join('；') : '（未填写，AI 剂量将无法个体化）'))
   const fourDiag: [string, string][] = [
     ['望诊', form.value.observation],
     ['闻诊', form.value.auscultation],
@@ -700,6 +713,12 @@ async function aiAssist() {
     tongue_coat: form.value.tongue_coat,
     pulse: form.value.pulse.join('、'),
     aspects,
+    patient: {
+      gender: p?.gender || '',
+      age: p?.birth_date ? calcAge(p.birth_date) : null,
+      height: p?.height ?? null,
+      weight: p?.weight ?? null,
+    },
   })
 
   // 缓存命中：同一输入直接回显结果，不重复请求(零 token)

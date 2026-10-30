@@ -7,6 +7,7 @@
 - [ai_diagnosis_service.py](file:///home/debian/tcm-doctor/backend/app/services/ai_diagnosis_service.py) `analyze` / `analyze_stream` 的 `patient_info` 现拼接 性别 / 年龄 / 身高 / 体重，并在身高体重齐全时自动计算 BMI
 - 路由 `/diagnosis/analyze`、`/analyze/stream` 透传上述字段
 - 前端 [VisitRecord.vue](file:///home/debian/tcm-doctor/frontend/src/views/patient/VisitRecord.vue) 加载患者信息时存入 `patient`，AI 辨证请求携带真实 性别 / 出生日期(推导年龄) / 身高 / 体重（顺带修复此前 `patient_gender` 被硬编码为空、性别也未真正传入的问题）
+- 「核对本次辨证信息」预览现在也会列出患者基本信息（性别 / 年龄 / 身高 / 体重 / BMI），并把患者体征纳入缓存指纹——体征变化时重新辨证而非复用旧结果
 
 ### 2. 剂量个体化规则（系统提示第 10 条）
 - 推荐经方剂量须结合患者体重 / 年龄 / 性别调整：以标准成人约 60kg 为基准按比例增减；儿童 / 老人 / 久病体弱者减量；女性经期 / 孕期 / 产期注意禁忌；未知体重年龄则按常规成人量并注明需结合调整；严禁对所有人均给同一固定剂量
