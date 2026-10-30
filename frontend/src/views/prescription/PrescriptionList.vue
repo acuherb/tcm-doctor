@@ -91,6 +91,7 @@
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" size="small" @click="viewDetail(row)">详情</el-button>
+            <el-button v-if="editable && row.status !== '已发药' && row.status !== '已取消'" link type="primary" size="small" @click="$router.push(`/prescriptions/new?id=${row.id}`)">编辑</el-button>
             <el-button v-if="editable && row.status === '已开'" link type="success" size="small" @click="reviewPrescription(row)">审核</el-button>
             <el-button v-if="editable && row.status === '已审核'" link type="warning" size="small" @click="dispensePrescription(row)">发药</el-button>
             <el-button link type="info" size="small" @click="printPrescription(row)">打印</el-button>
@@ -139,6 +140,7 @@
 
           <div class="card-actions">
             <el-button link type="primary" size="small" @click="viewDetail(row)">详情</el-button>
+            <el-button v-if="editable && row.status !== '已发药' && row.status !== '已取消'" link type="primary" size="small" @click="$router.push(`/prescriptions/new?id=${row.id}`)">编辑</el-button>
             <el-button v-if="editable && row.status === '已开'" link type="success" size="small" @click="reviewPrescription(row)">审核</el-button>
             <el-button v-if="editable && row.status === '已审核'" link type="warning" size="small" @click="dispensePrescription(row)">发药</el-button>
             <el-button link type="info" size="small" @click="printPrescription(row)">打印</el-button>
