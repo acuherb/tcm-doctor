@@ -526,6 +526,7 @@
         :patient-id="patientId"
         :patient-name="patient?.name || ''"
         :patient-tags="patient?.tags || []"
+        :patient="patient"
         :visit-id="visitDrawerId"
         :parent-visit="visitDrawerParent"
         embedded

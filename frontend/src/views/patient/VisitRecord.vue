@@ -292,6 +292,7 @@ const props = defineProps<{
   patientId?: number
   patientName?: string
   patientTags?: string[]
+  patient?: any
   visitId?: number | null
   parentVisit?: any
   embedded?: boolean
@@ -369,13 +370,15 @@ async function loadDictionary() {
 }
 onMounted(async () => {
   await loadDictionary()
-  if (props.patientTags) {
-    patientTags.value = props.patientTags
+  // 优先用父组件传入的患者对象（嵌入详情页抽屉时），避免重复请求且保证拿到性别/年龄/身高/体重
+  if (props.patient) {
+    patient.value = props.patient
+    patientTags.value = props.patientTags ?? props.patient.tags ?? []
   } else {
     try {
       const p = (await api.get(`/patients/${patientId}`)) as any
       patient.value = p
-      patientTags.value = p.tags || []
+      patientTags.value = props.patientTags ?? p.tags ?? []
     } catch {}
   }
   // 加载既有就诊记录，用于自动推断初诊/复诊
