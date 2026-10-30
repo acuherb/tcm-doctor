@@ -6,7 +6,7 @@ from datetime import datetime as _dt, timedelta
 
 from app.database import get_db
 from app.models.prescription import ClassicFormula, Prescription, PrescriptionItem, AcupointPrescription, PrescriptionInjection
-from app.models.herb import IncompatibilityRule, Herb, HerbInventory
+from app.models.herb import Herb, HerbInventory
 from app.models.patient import Patient
 from app.models.visit import Visit
 from app.models.followup_reminder import FollowUpReminder
@@ -18,6 +18,22 @@ from app.schemas.prescription import (
 )
 
 router = APIRouter(prefix="/prescriptions", tags=["处方管理"])
+
+
+def _refresh_dosage_reminder(note: str, herb, dose: float) -> str:
+    """根据当前剂量刷新备注中的剂量超限提醒。
+
+    先移除旧的剂量超限提醒片段，再按当前剂量决定是否追加新的，确保提醒与剂量保持一致。
+    """
+    note = note or ""
+    # 移除旧提醒片段
+    remains = [s.strip() for s in note.split("；") if s.strip()]
+    remains = [s for s in remains if not s.startswith("⚠️ 剂量超限提醒")]
+    # 按当前剂量判断是否超限
+    if herb and herb.dosage_max and dose > float(herb.dosage_max):
+        remind = f"⚠️ 剂量超限提醒：最大剂量{herb.dosage_max}g，实际{dose}g，请核对"
+        remains.append(remind)
+    return "；".join(remains)
 
 
 # ── 经典方剂库（必须在 /{prescription_id} 之前，否则会被动态路由捕获） ──
@@ -230,36 +246,12 @@ def _compute_total_price(db: Session, items, doses: int, acupuncture_fee: float 
 
 @router.post("", response_model=PrescriptionResponse, summary="开具处方")
 def create_prescription(data: PrescriptionCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """开具处方 — 自动校验配伍禁忌和剂量"""
+    """开具处方 — 自动校验剂量"""
     herb_ids = [item.herb_id for item in data.items]
 
-    # 配伍禁忌检查
-    conflicts = db.query(IncompatibilityRule).filter(
-        (IncompatibilityRule.herb_a_id.in_(herb_ids)) & (IncompatibilityRule.herb_b_id.in_(herb_ids))
-    ).all()
-
-    if conflicts:
-        herbs = db.query(Herb).filter(Herb.id.in_(herb_ids)).all()
-        herb_map = {h.id: h.name for h in herbs}
-        conflict_names = [
-            f"{herb_map.get(c.herb_a_id, '?')} + {herb_map.get(c.herb_b_id, '?')} ({c.rule_type})"
-            for c in conflicts
-        ]
-        raise HTTPException(
-            status_code=400,
-            detail=f"配伍禁忌冲突: {', '.join(conflict_names)}",
-        )
-
-    # 剂量检查
+    # 剂量检查 → 超限不拦截提交，改为把提醒写入该药备注
     herbs = db.query(Herb).filter(Herb.id.in_(herb_ids)).all()
     herb_map = {h.id: h for h in herbs}
-    for item in data.items:
-        herb = herb_map.get(item.herb_id)
-        if herb and herb.dosage_max and item.dose > float(herb.dosage_max):
-            raise HTTPException(
-                status_code=400,
-                detail=f"剂量超限: {herb.name} 最大剂量{herb.dosage_max}g，实际{item.dose}g",
-            )
 
     # 创建处方
     prescription = Prescription(
@@ -283,8 +275,11 @@ def create_prescription(data: PrescriptionCreate, current_user: User = Depends(g
     db.add(prescription)
     db.flush()
 
-    # 创建药味明细
+    # 创建药味明细（剂量超限时自动附加提醒到备注）
     for item_data in data.items:
+        note = item_data.note or ""
+        herb = herb_map.get(item_data.herb_id)
+        note = _refresh_dosage_reminder(note, herb, item_data.dose)
         item = PrescriptionItem(
             prescription_id=prescription.id,
             herb_id=item_data.herb_id,
@@ -292,7 +287,7 @@ def create_prescription(data: PrescriptionCreate, current_user: User = Depends(g
             dose=item_data.dose,
             special_method=item_data.special_method,
             is_king_herb=item_data.is_king_herb,
-            note=item_data.note,
+            note=note,
         )
         db.add(item)
 
@@ -390,13 +385,20 @@ def update_prescription(prescription_id: int, data: PrescriptionCreate, current_
     prescription.treatment_days = data.treatment_days
     prescription.acupuncture_fee = data.acupuncture_fee
 
-    # 重建药味 / 配穴 / 针剂明细
-    prescription.items = [
-        PrescriptionItem(
+    # 重建药味 / 配穴 / 针剂明细（剂量超限时自动附加提醒到备注，不拦截提交）
+    herb_ids = [i.herb_id for i in data.items]
+    dose_herbs = db.query(Herb).filter(Herb.id.in_(herb_ids)).all() if herb_ids else []
+    dherb_map = {h.id: h for h in dose_herbs}
+    rebuilt_items = []
+    for i in data.items:
+        note = i.note or ""
+        herb = dherb_map.get(i.herb_id)
+        note = _refresh_dosage_reminder(note, herb, i.dose)
+        rebuilt_items.append(PrescriptionItem(
             herb_id=i.herb_id, herb_name=i.herb_name, dose=i.dose,
-            special_method=i.special_method, is_king_herb=i.is_king_herb, note=i.note,
-        ) for i in data.items
-    ]
+            special_method=i.special_method, is_king_herb=i.is_king_herb, note=note,
+        ))
+    prescription.items = rebuilt_items
     prescription.acupoints = [
         AcupointPrescription(
             acupoint_id=a.acupoint_id, acupoint_name=a.acupoint_name,

@@ -33,19 +33,7 @@ class Herb(Base):
         return f"<Herb(id={self.id}, name='{self.name}')>"
 
 
-class IncompatibilityRule(Base):
-    """配伍禁忌规则 (十八反/十九畏)"""
-    __tablename__ = "incompatibility_rules"
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    rule_type: Mapped[str] = mapped_column(String(20), nullable=False, comment="十八反/十九畏")
-    herb_a_id: Mapped[int] = mapped_column(Integer, ForeignKey("herbs.id"), nullable=False)
-    herb_b_id: Mapped[int] = mapped_column(Integer, ForeignKey("herbs.id"), nullable=False)
-    description: Mapped[str | None] = mapped_column(Text, comment="禁忌说明")
-    source: Mapped[str | None] = mapped_column(String(100), comment="出处")
-
-    def __repr__(self):
-        return f"<IncompatibilityRule(type='{self.rule_type}', a={self.herb_a_id}, b={self.herb_b_id})>"
 
 
 class HerbInventory(Base):

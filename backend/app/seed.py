@@ -7,7 +7,7 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal, engine, Base
-from app.models.herb import Herb, IncompatibilityRule
+from app.models.herb import Herb
 from app.models.prescription import ClassicFormula
 from app.models.acupuncture import AcupointFormula
 from app.models.knowledge import KnowledgeEntry
@@ -63,38 +63,6 @@ def seed_herbs(db: Session) -> int:
 
     db.commit()
     return added_count
-
-
-def seed_incompatibility_rules(db: Session) -> int:
-    """导入配伍禁忌规则(十八反/十九畏)"""
-    count = db.query(IncompatibilityRule).count()
-    if count > 0:
-        return count
-
-    data_file = DATA_DIR / "incompatibility_rules.json"
-    if not data_file.exists():
-        return 0
-
-    with open(data_file, "r", encoding="utf-8") as f:
-        rules = json.load(f)
-
-    for r in rules:
-        # 通过药名查找 ID
-        herb_a = db.query(Herb).filter(Herb.name == r["herb_a"]).first()
-        herb_b = db.query(Herb).filter(Herb.name == r["herb_b"]).first()
-
-        if herb_a and herb_b:
-            rule = IncompatibilityRule(
-                rule_type=r["rule_type"],
-                herb_a_id=herb_a.id,
-                herb_b_id=herb_b.id,
-                description=r.get("description"),
-                source=r.get("source"),
-            )
-            db.add(rule)
-
-    db.commit()
-    return len(rules)
 
 
 def seed_classic_formulas(db: Session) -> int:
@@ -283,7 +251,6 @@ def seed_all():
     db = SessionLocal()
     try:
         h = seed_herbs(db)
-        i = seed_incompatibility_rules(db)
         f = seed_classic_formulas(db)
         af = seed_acupoint_formulas(db)
         k = seed_knowledge(db)
@@ -291,7 +258,7 @@ def seed_all():
         g = seed_guest_user(db)
         d = seed_dictionaries(db)
         a = seed_acupoints(db)
-        print(f"[Seed] 导入完成: 药材={h}, 配伍禁忌={i}, 经典方={f}, 针灸方={af}, 知识条目={k}, 用户={u+1}, 游客={g}, 字典词条={d[0]}, 腧穴={a}")
+        print(f"[Seed] 导入完成: 药材={h}, 经典方={f}, 针灸方={af}, 知识条目={k}, 用户={u+1}, 游客={g}, 字典词条={d[0]}, 腧穴={a}")
     finally:
         db.close()
 

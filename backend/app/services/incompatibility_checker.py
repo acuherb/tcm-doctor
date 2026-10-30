@@ -1,36 +1,6 @@
-"""配伍禁忌检查引擎 — 十八反/十九畏核心逻辑"""
+"""药材安全辅助检查 — 剂量上限/孕妇禁忌（十八反·十九畏已移除）"""
 from sqlalchemy.orm import Session
-from app.models.herb import Herb, IncompatibilityRule
-
-
-def check_prescription_herbs(herb_ids: list[int], db: Session) -> list[dict]:
-    """
-    检查一组药材ID是否存在配伍禁忌。
-
-    返回: [{"herb_a": "甘草", "herb_b": "甘遂", "rule_type": "十八反", "description": "..."}]
-    """
-    if len(herb_ids) < 2:
-        return []
-
-    conflicts = db.query(IncompatibilityRule).filter(
-        (IncompatibilityRule.herb_a_id.in_(herb_ids))
-        & (IncompatibilityRule.herb_b_id.in_(herb_ids))
-    ).all()
-
-    herbs = db.query(Herb).filter(Herb.id.in_(herb_ids)).all()
-    herb_map = {h.id: h.name for h in herbs}
-
-    results = []
-    for rule in conflicts:
-        # 确保两个药材都在当前处方中
-        if rule.herb_a_id in herb_ids and rule.herb_b_id in herb_ids:
-            results.append({
-                "herb_a": herb_map.get(rule.herb_a_id, f"ID:{rule.herb_a_id}"),
-                "herb_b": herb_map.get(rule.herb_b_id, f"ID:{rule.herb_b_id}"),
-                "rule_type": rule.rule_type,
-                "description": rule.description,
-            })
-    return results
+from app.models.herb import Herb
 
 
 def check_dosage_limits(herb_id: int, dose: float, db: Session) -> dict | None:

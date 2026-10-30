@@ -3,13 +3,12 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
-from app.models.herb import Herb, IncompatibilityRule, HerbInventory, InventoryTransaction
+from app.models.herb import Herb, HerbInventory, InventoryTransaction
 from app.models.prescription import PrescriptionItem
 from app.models.user import User
 from app.routers.auth import get_current_user
 from app.schemas.herb import (
     HerbCreate, HerbUpdate, HerbResponse,
-    IncompatibilityCheckRequest, IncompatibilityCheckResponse, IncompatibilityWarning,
     InventoryIn, InventoryOut, InventoryResponse, InventoryAlert, InventoryUpdate, InventorySummary,
 )
 
@@ -79,35 +78,6 @@ def import_herbs(data: list[HerbCreate] = Body(...), current_user: User = Depend
             imported += 1
     db.commit()
     return {"imported": imported, "updated": updated, "total": imported + updated}
-
-
-# ── 配伍禁忌检查 ──
-
-@router.post("/incompatibility-check", response_model=IncompatibilityCheckResponse, summary="配伍禁忌检查")
-def check_incompatibility(data: IncompatibilityCheckRequest, db: Session = Depends(get_db)):
-    """检查一组药材是否存在十八反/十九畏配伍禁忌"""
-    herb_ids = data.herb_ids
-
-    # 查询涉及的禁忌规则
-    rules = db.query(IncompatibilityRule).filter(
-        (IncompatibilityRule.herb_a_id.in_(herb_ids)) & (IncompatibilityRule.herb_b_id.in_(herb_ids))
-    ).all()
-
-    # 构建药材ID→名称映射
-    herbs = db.query(Herb).filter(Herb.id.in_(herb_ids)).all()
-    herb_map = {h.id: h.name for h in herbs}
-
-    warnings = []
-    for rule in rules:
-        if rule.herb_a_id in herb_ids and rule.herb_b_id in herb_ids:
-            warnings.append(IncompatibilityWarning(
-                herb_a=herb_map.get(rule.herb_a_id, f"ID:{rule.herb_a_id}"),
-                herb_b=herb_map.get(rule.herb_b_id, f"ID:{rule.herb_b_id}"),
-                rule_type=rule.rule_type,
-                description=rule.description,
-            ))
-
-    return IncompatibilityCheckResponse(is_safe=len(warnings) == 0, warnings=warnings)
 
 
 # ── 库存管理（必须在 /{herb_id} 之前定义，否则 inventory 会被当作 herb_id 匹配）──
@@ -304,19 +274,16 @@ def update_herb(herb_id: int, data: HerbUpdate, current_user: User = Depends(get
 
 @router.delete("/{herb_id}", summary="删除药材")
 def delete_herb(herb_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """存在库存/禁忌引用时软删除(停用)，否则物理删除"""
+    """存在库存/处方引用时软删除(停用)，否则物理删除"""
     herb = db.query(Herb).filter(Herb.id == herb_id).first()
     if not herb:
         raise HTTPException(status_code=404, detail="药材不存在")
     ref_inv = db.query(HerbInventory).filter(HerbInventory.herb_id == herb_id).first()
-    ref_rule = db.query(IncompatibilityRule).filter(
-        (IncompatibilityRule.herb_a_id == herb_id) | (IncompatibilityRule.herb_b_id == herb_id)
-    ).first()
     ref_item = db.query(PrescriptionItem).filter(PrescriptionItem.herb_id == herb_id).first()
-    if ref_inv or ref_rule or ref_item:
+    if ref_inv or ref_item:
         herb.is_active = False
         db.commit()
-        return {"deleted": False, "soft": True, "message": "存在库存/配伍禁忌/处方引用，已改为停用"}
+        return {"deleted": False, "soft": True, "message": "存在库存/处方引用，已改为停用"}
     db.delete(herb)
     db.commit()
     return {"deleted": True, "soft": False, "message": "已删除"}

@@ -31,7 +31,7 @@ async def lifespan(app: FastAPI):
 
     _run_light_migrations()
 
-    # 首次启动时导入药材、配伍禁忌、经典方剂数据
+    # 首次启动时导入药材、经典方剂数据
     from app.seed import seed_all
     seed_all()
 
@@ -190,6 +190,42 @@ def _run_light_migrations() -> None:
                 db.close()
         except Exception as e:
             logger.warning(f"注入默认患者标签词失败: {e}")
+
+    # 数据清洗：剂量超限提醒去重（历史重复叠加）
+    try:
+        _dedupe_dosage_reminders()
+    except Exception as e:
+        logger.warning(f"清洗剂量超限提醒失败: {e}")
+
+
+def _dedupe_dosage_reminders() -> None:
+    """一次性清洗：将 prescription_items.note 中重复的剂量超限提醒片段合并为一条"""
+    from app.models.prescription import PrescriptionItem
+    db = SessionLocal()
+    try:
+        items = db.query(PrescriptionItem).filter(
+            PrescriptionItem.note.like("%剂量超限提醒%")
+        ).all()
+        changed = 0
+        for it in items:
+            if not it.note:
+                continue
+            notes = [s.strip() for s in it.note.split("；")]
+            seen = set()
+            for n in notes:
+                if n.startswith("⚠️ 剂量超限提醒"):
+                    seen.add(n)
+            if len(seen) > 1:
+                # 只保留一条剂量超限提醒，与其它非提醒内容合并
+                keep_reminder = sorted(seen, key=len, reverse=True)[0]
+                others = [n for n in notes if n and not n.startswith("⚠️ 剂量超限提醒")]
+                it.note = "；".join([keep_reminder] + others) if others else keep_reminder
+                changed += 1
+        if changed:
+            db.commit()
+            logger.info(f"已清洗 {changed} 条重复的剂量超限提醒")
+    finally:
+        db.close()
 
 
 app = FastAPI(

@@ -61,27 +61,6 @@ class HerbResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-# === 配伍禁忌检查 ===
-
-class IncompatibilityCheckRequest(BaseModel):
-    """配伍禁忌检查请求"""
-    herb_ids: list[int] = Field(..., min_length=2, description="待检查的药材ID列表")
-
-
-class IncompatibilityWarning(BaseModel):
-    """配伍禁忌警告"""
-    herb_a: str
-    herb_b: str
-    rule_type: str
-    description: str | None
-
-
-class IncompatibilityCheckResponse(BaseModel):
-    """配伍禁忌检查响应"""
-    is_safe: bool
-    warnings: list[IncompatibilityWarning]
-
-
 # === 库存 ===
 
 class InventoryIn(BaseModel):

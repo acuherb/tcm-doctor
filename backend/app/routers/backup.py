@@ -104,7 +104,7 @@ def reset_data(
     """清空所有数据（保留表结构）— 显式要求管理员权限"""
     if not current_user.is_admin:
         raise HTTPException(status_code=403, detail="仅管理员可清空数据")
-    from app.models.herb import Herb, IncompatibilityRule, HerbInventory, InventoryTransaction
+    from app.models.herb import Herb, HerbInventory, InventoryTransaction
     from app.models.prescription import ClassicFormula, Prescription, PrescriptionItem
     from app.models.patient import Patient
     from app.models.visit import Visit
@@ -115,7 +115,7 @@ def reset_data(
 
     # 按依赖顺序删除（含会话/问诊/令牌，避免重置后残留关联数据 M7）
     for model in [Message, Conversation, PrescriptionItem, Prescription, InventoryTransaction,
-                  HerbInventory, IncompatibilityRule, InquiryRecord, AuthToken, Visit, Patient,
+                  HerbInventory, InquiryRecord, AuthToken, Visit, Patient,
                   ClassicFormula, KnowledgeEntry, Herb]:
         db.query(model).delete()
 

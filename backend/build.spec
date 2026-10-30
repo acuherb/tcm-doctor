@@ -49,7 +49,6 @@ hiddenimports = [
     'app.schemas.prescription',
     'app.schemas.diagnosis',
     'app.services',
-    'app.services.incompatibility_checker',
     'app.services.constitution_evaluator',
     'app.services.ai_diagnosis_service',
     'app.services.vector_store',

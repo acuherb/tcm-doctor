@@ -5,7 +5,7 @@ from app.models.followup import FollowUp
 from app.models.followup_reminder import FollowUpReminder
 from app.models.visit import Visit
 from app.models.inquiry import InquiryRecord
-from app.models.herb import Herb, IncompatibilityRule, HerbInventory, InventoryTransaction
+from app.models.herb import Herb, HerbInventory, InventoryTransaction
 from app.models.prescription import ClassicFormula, Prescription, PrescriptionItem
 from app.models.knowledge import KnowledgeEntry
 from app.models.conversation import Conversation, Message
@@ -20,7 +20,6 @@ __all__ = [
     "Visit",
     "InquiryRecord",
     "Herb",
-    "IncompatibilityRule",
     "HerbInventory",
     "InventoryTransaction",
     "ClassicFormula",
