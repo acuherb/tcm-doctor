@@ -194,10 +194,10 @@
           <el-button type="primary" @click="submitVisit" :loading="submitting">保存就诊记录</el-button>
         </div>
 
-        <div v-if="currentVisitId && !props.embedded" class="visit-saved-hint">
+        <div v-if="currentVisitId" class="visit-saved-hint">
           <div class="hint-title">✓ 本次就诊已保存（ID: {{ currentVisitId }}），可继续在上方完成本次问诊十问，或：</div>
           <div style="text-align: right; margin-top: 8px;">
-            <el-button @click="$router.push(`/patients/${patientId}`)">返回详情</el-button>
+            <el-button @click="props.embedded ? onCancel() : $router.push(`/patients/${patientId}`)">返回详情</el-button>
             <el-button type="primary" @click="$router.push(`/prescriptions/new?patient_id=${patientId}&visit_id=${currentVisitId}`)">去开药</el-button>
           </div>
         </div>
@@ -282,6 +282,7 @@ import { ChatDotRound, Close } from '@element-plus/icons-vue'
 import api from '@/utils/api'
 import { renderMarkdown } from '@/utils/markdown'
 import { compressImageFile } from '@/utils/image'
+import { TEN_QUESTIONS } from '@/utils/tenAspectsQuestions'
 import TenAspectsPanel from '@/components/TenAspectsPanel.vue'
 import PinchImage from '@/components/PinchImage.vue'
 
@@ -638,14 +639,40 @@ function capturePhoto() {
   }, 'image/jpeg', 0.9)
 }
 
+// 由已保存的问诊十问记录生成可读摘要（AI 辨证用于兜底展示）
+function buildIqSummaryFromRecord(rec: any): string {
+  if (!rec || !rec.answers) return ''
+  const lines: string[] = []
+  for (const q of TEN_QUESTIONS) {
+    let text = ''
+    const picked = rec.answers[q.key]
+    if (picked && picked !== 'custom') {
+      const o = q.options.find(opt => opt.key === picked)
+      text = o ? o.label : picked
+    }
+    const note = (rec.notes?.[q.key] || '').trim()
+    if (note) text = text ? text + '；' + note : (picked === 'custom' ? '（自填）' : '')
+    if (!text && picked === 'custom') text = '（自填）'
+    lines.push(text ? `${q.title}：${text}` : `${q.title}：未回答`)
+  }
+  return lines.join('\n')
+}
+
 async function aiAssist() {
   if (!form.value.chief_complaint) {
     ElMessage.warning('请先填写主诉')
     return
   }
   // 组装当前录入的信息与输入指纹
-  const aspects = tenAspectsRef.value?.getAspectSummary() || ''
-  const tenAns = tenAspectsRef.value?.getAspectAnswers?.()
+  let aspects = tenAspectsRef.value?.getAspectSummary() || ''
+  let tenAns = tenAspectsRef.value?.getAspectAnswers?.()
+  // 面板十问为空时，从已保存的问诊十问记录兜底，避免 AI 辨证/依据里十问全是"未回答"
+  if (!aspects && initialIq.value) {
+    aspects = buildIqSummaryFromRecord(initialIq.value)
+    tenAns = initialIq.value.answers
+      ? { answers: initialIq.value.answers, notes: initialIq.value.notes || {} }
+      : undefined
+  }
 
   const basisLines: string[] = []
   basisLines.push(`主诉：${form.value.chief_complaint}`)

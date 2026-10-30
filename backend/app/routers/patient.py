@@ -199,6 +199,17 @@ def create_visit(patient_id: int, data: VisitCreate, current_user: User = Depend
     db.add(visit)
     db.commit()
     db.refresh(visit)
+    # 若问诊十问在保存就诊前已提交（当时 currentVisitId 仍为空，存成了 visit_id=null 的孤儿记录），
+    # 在此将该患者最早的未关联十问记录挂到新就诊上，确保十问能出现在就诊记录且可二次编辑回填
+    orphan = (
+        db.query(InquiryRecord)
+        .filter(InquiryRecord.patient_id == patient_id, InquiryRecord.visit_id.is_(None))
+        .order_by(InquiryRecord.created_at.asc())
+        .first()
+    )
+    if orphan:
+        orphan.visit_id = visit.id
+        db.commit()
     return visit
 
 

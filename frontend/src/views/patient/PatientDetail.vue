@@ -129,6 +129,7 @@
                   :prescriptions="rxByVisit[root.id] || []"
                   :followups="followupsByVisit[root.id] || []"
                   :editable="editable"
+                  :patient-id="patientId"
                   @view="openVisitDialog"
                   @edit="openVisitDrawer"
                   @add-followup="(v) => openFollowupDialog(undefined, v)"
@@ -157,6 +158,7 @@
                     :prescriptions="rxByVisit[child.id] || []"
                     :followups="followupsByVisit[child.id] || []"
                     :editable="editable"
+                    :patient-id="patientId"
                     @view="openVisitDialog"
                     @edit="openVisitDrawer"
                     @add-followup="(v) => openFollowupDialog(undefined, v)"
@@ -750,7 +752,6 @@ function openVisitDrawerWithParent(root: any) {
   visitDrawer.value = true
 }
 async function onVisitSaved() {
-  visitDrawer.value = false
   try { await loadPatientData() } catch {}
 }
 
