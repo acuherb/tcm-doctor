@@ -98,7 +98,7 @@
         <div class="header-left">
           <el-icon v-show="isMobile" class="menu-hamburger" @click="mobileOpen = !mobileOpen"><Expand /></el-icon>
           <el-breadcrumb separator="/">
-            <el-breadcrumb-item :to="{ path: '/dashboard' }">首页</el-breadcrumb-item>
+            <el-breadcrumb-item v-if="!isMobile" :to="{ path: '/dashboard' }">首页</el-breadcrumb-item>
             <el-breadcrumb-item v-if="currentPageTitle">{{ currentPageTitle }}</el-breadcrumb-item>
           </el-breadcrumb>
         </div>
@@ -340,6 +340,12 @@ async function onUserCommand(command: string) {
   border-bottom: 1px solid #e8e0d8;
   padding: 0 20px;
   height: 48px;
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+  }
 
   .header-right {
     display: flex;

@@ -20,6 +20,23 @@
 ### 4. 设计决策（未落地代码，仅记录）
 - 症状矩阵 / 趋势：**症状不做字典、也不硬编码清单**——临床上症状词汇近乎无限且一次多症，随访表单改为「自由录入多行症状 + 严重度 0–3」；严重度与改善程度（明显好转 / 好转 / 稳定 / 反复 / 加重）保持系统固化，不开放自定义，以免破坏跨患者 / 跨时间可比性与现有决策逻辑
 
+### 5. 问诊十问展示与二次编辑回填修正（修 bug）
+- 原「问诊十问详情」只展示辨证结论（偏性画像 / 判据解析 / 方域提示），**看不到当时选了哪些原始选项**；现新增「原始问诊十问」区块：逐问展示所选选项标签 + 自填内容，并就地补充该选项对应的判据解析结果（`《问xx》…` 按题匹配），做到「每一问出选项、再补充该选项有可能的结果」
+- 抽公共题库 [tenAspectsQuestions.ts](file:///home/debian/tcm-doctor/frontend/src/utils/tenAspectsQuestions.ts)，供十问面板与详情展示共用，避免题干 / 选项重复维护
+- [TenAspectsPanel.vue](file:///home/debian/tcm-doctor/frontend/src/components/TenAspectsPanel.vue) 新增 `initial` 属性（回填 answers / notes / result）：编辑**已有就诊**的十问时，自动恢复上一次所选选项与辨证结论，不必从头重选
+- 后端 `get_inquiries` 增加 `visit_id` 过滤，供编辑页按就诊精确取回该次十问记录用于回填
+- [VisitRecord.vue](file:///home/debian/tcm-doctor/frontend/src/views/patient/VisitRecord.vue) 编辑既有就诊时拉取该 visit 的十问记录传入面板
+
+## 2026-10-30 — 图片手势缩放 + 移动端/开发服务器网络适配
+
+### 1. 图片预览改用手势缩放组件
+- 新增 [PinchImage.vue](file:///home/debian/tcm-doctor/frontend/src/components/PinchImage.vue) 与 [image.ts](file:///home/debian/tcm-doctor/frontend/src/utils/image.ts)，支持触屏双指缩放 / 拖拽查看大图，替代原 `el-image` 预览
+- 覆盖就诊卡片（舌苔 / 面色 / 化验单）[VisitCard.vue](file:///home/debian/tcm-doctor/frontend/src/components/VisitCard.vue)、问诊对话 [DiagnosisChat.vue](file:///home/debian/tcm-doctor/frontend/src/views/diagnosis/DiagnosisChat.vue)、患者列表图片等处的图片预览
+
+### 2. 开发服务器网络可访问 + 移动端导航微调
+- [vite.config.ts](file:///home/debian/tcm-doctor/frontend/vite.config.ts) `server.host = true`；[package.json](file:///home/debian/tcm-doctor/package.json) `dev:backend` 加 `--host 0.0.0.0`，便于手机 / 局域网真机调试
+- [MainLayout.vue](file:///home/debian/tcm-doctor/frontend/src/layouts/MainLayout.vue) 移动端隐藏「首页」面包屑、header 左区 `min-width:0` 防溢出
+
 ## 2026-10-28 — 登录页现代化改版
 
 - [Login.vue](file:///home/debian/tcm-doctor/frontend/src/views/auth/Login.vue) 由旧单卡片升级为单栏现代居中式：

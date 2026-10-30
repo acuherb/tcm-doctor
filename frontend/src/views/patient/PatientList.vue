@@ -56,20 +56,7 @@
         <el-table-column label="年龄" width="60">
           <template #default="{ row }">{{ ageOf(row) }}</template>
         </el-table-column>
-        <el-table-column prop="height" label="身高" width="80">
-          <template #default="{ row }">{{ row.height != null ? row.height + 'cm' : '-' }}</template>
-        </el-table-column>
-        <el-table-column prop="weight" label="体重" width="80">
-          <template #default="{ row }">{{ row.weight != null ? row.weight + 'kg' : '-' }}</template>
-        </el-table-column>
-        <el-table-column label="身型" width="80">
-          <template #default="{ row }">
-            <el-tag v-if="bodyOf(row)" size="small" :style="tagStyle(bodyOf(row)!.color)">{{ bodyOf(row)!.label }}</el-tag>
-            <span v-else class="text-muted">-</span>
-          </template>
-        </el-table-column>
         <el-table-column prop="phone" label="电话" width="130" />
-        <el-table-column prop="birth_date" label="出生日期" width="110" />
         <el-table-column prop="constitution_type" label="体质" width="100">
           <template #default="{ row }">
             <el-tag v-if="row.constitution_type" size="small" type="warning">{{ row.constitution_type }}</el-tag>
@@ -77,13 +64,12 @@
           </template>
         </el-table-column>
         <el-table-column prop="notes" label="备注" show-overflow-tooltip />
-        <el-table-column label="最近就诊" width="120">
-          <template #default="{ row }">{{ row.last_visit_date || '—' }}</template>
-        </el-table-column>
-        <el-table-column label="距今天数" width="100" align="center">
+        <el-table-column label="最近就诊" width="150">
           <template #default="{ row }">
-            <span v-if="row.days_since_visit == null">—</span>
-            <span v-else :class="{ overdue: row.days_since_visit > 30 }">{{ row.days_since_visit }} 天</span>
+            <template v-if="row.last_visit_date">{{ row.last_visit_date }}
+              <el-tag v-if="row.days_since_visit != null" size="small" :type="row.days_since_visit > 30 ? 'danger' : 'info'">{{ row.days_since_visit }}天前</el-tag>
+            </template>
+            <span v-else class="text-muted">—</span>
           </template>
         </el-table-column>
         <el-table-column label="最近改善" width="100">
@@ -499,8 +485,9 @@ onMounted(async () => {
 }
 .pt-card .card-row .label {
   flex-shrink: 0;
-  width: 48px;
+  width: 60px;
   color: #8a7563;
+  white-space: nowrap;
 }
 .pt-card .card-row .value {
   flex: 1;

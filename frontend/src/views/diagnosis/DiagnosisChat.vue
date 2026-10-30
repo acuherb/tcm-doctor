@@ -47,8 +47,7 @@
               <div class="message-content">
                 <div class="message-text" v-html="renderMarkdown(msg.content)"></div>
                 <div v-if="msg.images?.length" class="message-images">
-                  <el-image v-for="(img, i) in msg.images" :key="i" :src="img" fit="cover"
-                    class="msg-img" :preview-src-list="msg.images" :initial-index="i" />
+                  <PinchImage v-for="(img, i) in msg.images" :key="i" :src="img" :list="msg.images" :index="i" thumb-class="msg-img" />
                 </div>
                 <div v-if="msg.warnings?.length" class="message-warnings">
                   <el-alert v-for="w in msg.warnings" :key="w" :title="w" type="warning" :closable="false"
@@ -142,8 +141,7 @@
             <el-form-item label="舌象照片">
               <div class="analyze-upload">
                 <el-button size="small" @click="triggerAnalyzeImage('tongue')">📷 上传</el-button>
-                <el-image v-if="analyzeImages.tongue" :src="analyzeImages.tongue" fit="cover" class="analyze-thumb"
-                  :preview-src-list="[analyzeImages.tongue]" />
+                <PinchImage v-if="analyzeImages.tongue" :src="analyzeImages.tongue" thumb-class="analyze-thumb" />
                 <el-icon v-if="analyzeImages.tongue" class="remove-analyze-img" @click="analyzeImages.tongue = ''"><Close /></el-icon>
               </div>
             </el-form-item>
@@ -152,8 +150,7 @@
             <el-form-item label="面色照片">
               <div class="analyze-upload">
                 <el-button size="small" @click="triggerAnalyzeImage('face')">📷 上传</el-button>
-                <el-image v-if="analyzeImages.face" :src="analyzeImages.face" fit="cover" class="analyze-thumb"
-                  :preview-src-list="[analyzeImages.face]" />
+                <PinchImage v-if="analyzeImages.face" :src="analyzeImages.face" thumb-class="analyze-thumb" />
                 <el-icon v-if="analyzeImages.face" class="remove-analyze-img" @click="analyzeImages.face = ''"><Close /></el-icon>
               </div>
             </el-form-item>
@@ -199,6 +196,8 @@ import { Close } from '@element-plus/icons-vue'
 import api from '@/utils/api'
 import { useAuthStore } from '@/store/auth'
 import { renderMarkdown } from '@/utils/markdown'
+import { compressImageFile } from '@/utils/image'
+import PinchImage from '@/components/PinchImage.vue'
 
 // 游客只读：隐藏所有写操作
 const auth = useAuthStore()
@@ -366,10 +365,14 @@ async function onImageSelect(event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
   if (!file) return
-  if (file.size > 5 * 1024 * 1024) { ElMessage.warning('图片不能超过5MB'); return }
+  let f = file
+  try {
+    f = await compressImageFile(file)
+  } catch { /* 压缩失败则使用原图 */ }
+  if (f.size > 5 * 1024 * 1024) { ElMessage.warning('图片不能超过5MB'); return }
   try {
     const formData = new FormData()
-    formData.append('file', file)
+    formData.append('file', f)
     const res = await api.post('/diagnosis/upload-image', formData) as any
     pendingImages.value.push(res.data_url)
   } catch { ElMessage.error('图片上传失败') }
@@ -385,10 +388,14 @@ async function onAnalyzeImageSelect(event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
   if (!file) return
-  if (file.size > 5 * 1024 * 1024) { ElMessage.warning('图片不能超过5MB'); return }
+  let f = file
+  try {
+    f = await compressImageFile(file)
+  } catch { /* 压缩失败则使用原图 */ }
+  if (f.size > 5 * 1024 * 1024) { ElMessage.warning('图片不能超过5MB'); return }
   try {
     const formData = new FormData()
-    formData.append('file', file)
+    formData.append('file', f)
     const res = await api.post('/diagnosis/upload-image', formData) as any
     const target = analyzeImageTarget.value
     if (target === 'lab') analyzeImages.value.lab.push(res.data_url)
@@ -711,7 +718,7 @@ function scrollBottom() {
     .message-images {
       margin-top: 8px;
       display: flex; gap: 6px; flex-wrap: wrap;
-      .msg-img { width: 80px; height: 80px; border-radius: 6px; cursor: pointer; }
+      .msg-img { width: 80px; height: 80px; border-radius: 6px; cursor: pointer; overflow: hidden; }
     }
   }
 }
@@ -771,7 +778,7 @@ function scrollBottom() {
 
 .analyze-upload {
   display: flex; align-items: center; gap: 8px; position: relative;
-  .analyze-thumb { width: 40px; height: 40px; border-radius: 4px; border: 1px solid #e8e0d8; }
+  .analyze-thumb { width: 40px; height: 40px; border-radius: 4px; border: 1px solid #e8e0d8; overflow: hidden; }
   .remove-analyze-img {
     position: absolute; top: -4px; left: 52px;
     background: #f56c6c; color: #fff; border-radius: 50%;

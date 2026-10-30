@@ -21,15 +21,15 @@
       <div class="visit-imgs">
         <div v-if="visit.tongue_image" class="visit-img-item">
           <span class="img-label">舌苔</span>
-          <el-image :src="visit.tongue_image" fit="cover" class="visit-thumb" :preview-src-list="[visit.tongue_image]" />
+          <PinchImage :src="visit.tongue_image" thumb-class="visit-thumb" />
         </div>
         <div v-if="visit.face_image" class="visit-img-item">
           <span class="img-label">面色</span>
-          <el-image :src="visit.face_image" fit="cover" class="visit-thumb" :preview-src-list="[visit.face_image]" />
+          <PinchImage :src="visit.face_image" thumb-class="visit-thumb" />
         </div>
         <div v-for="(img, i) in (visit.lab_report_images || [])" :key="i" class="visit-img-item">
           <span class="img-label">化验单{{ (visit.lab_report_images || []).length > 1 ? i + 1 : '' }}</span>
-          <el-image :src="img" fit="cover" class="visit-thumb" :preview-src-list="visit.lab_report_images || []" :initial-index="i" />
+          <PinchImage :src="img" :list="visit.lab_report_images || []" :index="i" thumb-class="visit-thumb" />
         </div>
       </div>
     </div>
@@ -127,6 +127,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { renderMarkdown } from '@/utils/markdown'
+import PinchImage from '@/components/PinchImage.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -177,7 +178,7 @@ function improvementTag(s?: string) {
 .visit-imgs { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 6px; }
 .visit-img-item { text-align: center; }
 .visit-img-item .img-label { display: block; font-size: 12px; color: #999; margin-bottom: 4px; }
-.visit-thumb { width: 96px; height: 96px; border-radius: 6px; border: 1px solid #eee; cursor: zoom-in; }
+.visit-thumb { width: 96px; height: 96px; border-radius: 6px; border: 1px solid #eee; cursor: zoom-in; overflow: hidden; }
 .iq-findings { margin: 4px 0; padding-left: 16px; font-size: 12.5px; color: #666; line-height: 1.8; }
 .iq-suggestion { margin-top: 6px; font-size: 12.5px; color: #8B4513; }
 .view-ai-analysis {
