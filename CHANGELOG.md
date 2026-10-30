@@ -1,5 +1,16 @@
 # 开发日志 CHANGELOG
 
+## 2026-10-30 — AI 辨证经方约束 + 推荐方解析清洗（修 bug）
+
+### 1. AI 辨证严格按倪海厦经方体系
+- `TCM_SYSTEM_PROMPT` 第 3 条强化为「只用《伤寒论》《金匮要略》经方、方证对应」，明确**严禁温病/时方**（杏苏散、止嗽散、桑菊饮、银翘散、荆防败毒散、参苏饮、二陈汤、三子养亲汤等），并给出常见证型的对应经方示例（如太阳表证兼太阴痰湿咳喘→小青龙汤、太阳中风咳→桂枝加厚朴杏子汤、痰气互结→半夏厚朴汤、寒饮咳逆→苓甘五味姜辛汤/射干麻黄汤、太少两感→麻黄附子细辛汤、阳虚水泛→真武汤）
+- 分析 prompt 末尾 JSON 输出要求追加约束：推荐方剂必须为经方、每个元素只一组 name/composition/modification/indication 键、**严禁重复键名或把多个方子塞进一个对象的字符串里**（之前模型把主方+备选方塞进同一对象导致解析串味）
+
+### 2. 推荐方解析/导入清洗（修「英文乱码当成一味药」）
+- 后端 `ai_diagnosis_service._clean_herb_string`：去除 JSON 键名（composition/modification/name…）、引号、括号与英文，仅保留含中文的「药名+剂量」片段，应用于 `recommended_formulas` 的 name/composition/modification/indication
+- 前端 [VisitCard.vue](file:///home/debian/tcm-doctor/frontend/src/components/VisitCard.vue) 新增 `cleanComposition`，并在 `parseAiFormulas` 三个分支（JSON / 主方兜底 /【推荐方剂】）对组成、加减、方名统一清洗，详情与「带入开方」预览不再出现英文键名
+- 前端 [PrescriptionEditor.vue](file:///home/debian/tcm-doctor/frontend/src/views/prescription/PrescriptionEditor.vue) `applyAiFormula` 带入开方时仅保留含中文的药名 token，杜绝 `composition:`/`modification:` 等英文被当成一味药导入
+
 ## 2026-10-30 — 患者模块决策辅助升级 + 随访提醒
 
 ### 1. 患者列表多维筛选 + 聚合信号（不动 schema）

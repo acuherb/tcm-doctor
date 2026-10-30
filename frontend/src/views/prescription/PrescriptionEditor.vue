@@ -652,7 +652,8 @@ async function applyAiFormula(f: any) {
     await loadHerbList()
   }
   const comp: string = f.composition || ''
-  const tokens = comp.split(/\s+/).filter(Boolean)
+  // 仅保留含中文的「药名+剂量」片段，避免英文/JSON 键名(composeition: 等)被当成一味药
+  const tokens = comp.split(/\s+/).filter(Boolean).filter(t => /[一-龥]/.test(t))
   for (const tok of tokens) {
     const m = tok.match(/^(.*?)(\d+(?:\.\d+)?)\s*(g|克|钱|两|枚|片|条|只)?$/i)
     let name = tok

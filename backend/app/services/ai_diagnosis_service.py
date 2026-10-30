@@ -23,7 +23,7 @@ TCM_SYSTEM_PROMPT = """你是一位以「倪海厦经方体系」为根基的中
 
 1. **六经辨证为纲**：先判病在何经——太阳（表证、恶寒发热、脉浮）、阳明（里热实、高热汗出、便秘）、少阳（半表半里、往来寒热、胸胁苦满、口苦咽干）、太阴（里虚寒、腹满便溏）、少阴（心肾虚衰、但欲寐、手足逆冷、脉微细）、厥阴（寒热错杂、消渴、气上撞心、久病肝系）。
 2. **问诊十问定六经**：结合患者已填的问诊十问定经——睡眠 1–3 点易醒→肝(厥阴)热扰；3–5 点易醒→肺(太阴)；手脚冰冷→心阳/少阴不足；小便清长→里寒/少阴；并综合寒热、汗出、口渴、饮食、情志等。请给出六经归属，不要凭空臆断。
-3. **经方优先、原方原量**：优先推荐《伤寒论》《金匮要略》经方，给出方名、原方剂量构成与加减；剂量可参考经方原量思路（如柴胡常用重剂以畅少阳枢机），并说明现代换算与因人制宜。
+3. **只用《伤寒论》《金匮要略》经方，方证对应**：严禁使用温病学派方与后世时方——杏苏散、止嗽散、桑菊饮、银翘散、荆防败毒散、参苏饮、二陈汤、三子养亲汤等一律不可用。先定六经，再据「方证对应」选取对应经方原方或其加减，例如：太阳表证兼太阴痰湿咳喘→小青龙汤；太阳中风咳→桂枝加厚朴杏子汤；痰气互结咽中如有物阻→半夏厚朴汤；寒饮咳逆→苓甘五味姜辛汤/射干麻黄汤；少阳→小柴胡汤类；太少两感→麻黄附子细辛汤；阳虚水泛→真武汤。给出方名、原方剂量构成与加减；剂量参考经方原量思路（如柴胡常用重剂以畅少阳枢机），并说明现代换算与因人制宜。
 4. **理法方药闭环**：病机→治法→方剂→药味剂量，条理清晰，并引用经典原文支撑。
 5. **安全性**：必须排查十八反十九畏、毒性药剂量上限、孕妇禁忌；出现禁忌须明确警示。
 6. **术语规范**：使用规范中医名词术语。
@@ -222,6 +222,9 @@ class DiagnosisService:
             "\n\n请在回答末尾额外输出一个 ```json 代码块，键名为 recommended_formulas，"
             "内容为方剂数组；每个元素包含：name(方名)、composition(药物与剂量，示例 "
             "'桂枝9g 芍药9g 生姜9g 大枣4枚 炙甘草6g')、modification(随证加减)、indication(方解/适应症)。"
+            "推荐方剂必须为《伤寒论》《金匮要略》经方（严禁温病/时方），并按上述 JSON 格式输出。"
+            "注意：composition 和 modification 必须是纯文本字符串，不要包含 JSON 或引号包裹的键名，"
+            "每个元素只能有一组 name/composition/modification/indication 键，严禁重复键名或把多个方子塞进一个对象的字符串里。"
             "不要在该代码块之外再解释它。"
         )
 
@@ -373,6 +376,28 @@ class DiagnosisService:
             "treatment_method": _pick(False, False, True),
         }
 
+    def _clean_herb_string(self, s: str) -> str:
+        """清洗方剂组成/加减/方解文本：去掉 JSON 键名(composition/modification/name…)、引号、
+        括号与英文，仅保留含中文的「药名+剂量」片段，避免英文被当成一味药带入开方。"""
+        import re
+
+        if not s:
+            return ""
+        v = s
+        v = v.replace("```", " ")
+        v = re.sub(r"[*{}\[\]]", " ", v)
+        v = re.sub(r'"\s*[:：]\s*"', " ", v)
+        v = re.sub(r'"[A-Za-z_]+"\s*[:：]?', " ", v)
+        v = v.replace('"', " ")
+        v = re.sub(
+            r"\b(composition|modification|name|indication|组成|药物|加减|方解|适应症)\b\s*[:：]?",
+            " ",
+            v,
+            flags=re.IGNORECASE,
+        )
+        toks = [t for t in re.split(r"\s+", v) if t and re.search(r"[\u4e00-\u9fff]", t)]
+        return " ".join(toks).strip()
+
     def _parse_formulas(self, reply: str) -> list[dict]:
         """从辨证分析文本中解析推荐方剂（期望文末 ```json 代码块，键 recommended_formulas）"""
         import json as _json
@@ -401,14 +426,123 @@ class DiagnosisService:
             if not isinstance(item, dict):
                 continue
             name = (item.get("name") or item.get("方剂") or "").strip()
-            comp = item.get("composition") or item.get("组成") or item.get("药物") or ""
+            # composition/modification/indication 可能是嵌套 JSON 字符串（AI 把对象又序列化进字段），递归提取真实文本
+            comp = self._extract_text_field(item, ("composition", "组成", "药物"))
+            modifier = self._extract_text_field(item, ("modification", "加减"))
+            indication = self._extract_text_field(item, ("indication", "方解", "适应症"))
             if isinstance(comp, list):
                 comp = " ".join(str(c) for c in comp)
+            if isinstance(modifier, list):
+                modifier = " ".join(str(c) for c in modifier)
+            if isinstance(indication, list):
+                indication = " ".join(str(c) for c in indication)
             out.append({
-                "name": name,
-                "composition": str(comp or "").strip(),
-                "modification": str(item.get("modification") or item.get("加减") or "").strip(),
-                "indication": str(item.get("indication") or item.get("方解") or item.get("适应症") or "").strip(),
+                "name": self._clean_herb_string(name),
+                "composition": self._clean_herb_string(str(comp or "")),
+                "modification": self._clean_herb_string(str(modifier or "")),
+                "indication": self._clean_herb_string(str(indication or "")),
+            })
+        return out
+
+    def _extract_text_field(self, item: dict, keys: tuple[str, ...]) -> str:
+        """从方剂元素中提取指定字段。若字段值是嵌套 JSON 字符串（含 \"composition\": 之类键名），
+        递归解析并提取其中真正的中文药物/加减文本；避免英文键名和引号被带入开方。"""
+        import json as _json
+        import re
+
+        val = None
+        for k in keys:
+            if item.get(k):
+                val = item[k]
+                break
+        if val is None:
+            # 顶层无此键：可能加减等被 AI 并进了 composition 的嵌套 JSON 字符串里，回落到其中提取
+            for k in ("composition", "组成", "药物"):
+                raw = item.get(k)
+                if isinstance(raw, str) and ('"' + keys[0] + '"' in raw or "加减" in raw or "modification" in raw):
+                    s = raw
+                    for key in keys:
+                        import json as _json2
+                        import re as _re2
+                        m = _re2.search(r'"' + _re2.escape(key) + r'"\s*:\s*("(?:[^"\\]|\\.)*")', s)
+                        if m:
+                            try:
+                                parsed = _json2.loads(m.group(1))
+                            except Exception:
+                                parsed = m.group(1).strip('"')
+                            if _re2.search(r'[\u4e00-\u9fff]', str(parsed)):
+                                return str(parsed).strip()
+            return ""
+        if isinstance(val, list):
+            return " ".join(str(x) for x in val)
+        if isinstance(val, dict):
+            # 嵌套对象：优先取其中文键，否则取第一个 args
+            for k in ("composition", "组成", "药物", "modification", "加减", "处方"):
+                if val.get(k):
+                    return str(val[k])
+            vals = [str(v) for v in val.values() if str(v)]
+            return ", ".join(vals) if vals else ""
+        s = str(val).strip()
+        if not s:
+            return ""
+        # 形如 **"composition": "紫苏叶9g ...", "modification": "..."** 的嵌套 JSON 文本
+        if '"composition"' in s or '"modification"' in s or '"name"' in s:
+            # 提取本字段对应值（中文键名优先）
+            for key in keys:
+                m = re.search(r'"' + re.escape(key) + r'"\s*:\s*("(?:[^"\\]|\\.)*")', s)
+                if m:
+                    try:
+                        parsed = _json.loads(m.group(1))
+                    except Exception:
+                        parsed = m.group(1).strip('"')
+                    # 只保留含中文的文本，避免英文键被带进来
+                    if re.search(r'[\u4e00-\u9fff]', str(parsed)):
+                        return str(parsed).strip()
+            # 兜底：抓第一个中文 JSON 字符串值
+            m = re.search(r':\s*("(?:[^"\\]|\\.)*")', s)
+            if m:
+                try:
+                    parsed = _json.loads(m.group(1))
+                except Exception:
+                    parsed = m.group(1).strip('"')
+                if re.search(r'[\u4e00-\u9fff]', str(parsed)):
+                    return str(parsed).strip()
+        return s
+
+    def _parse_acupoints(self, reply: str) -> list[dict]:
+        """从辨证分析文本中解析推荐针灸配穴（期望文末第二个 ```json 代码块，键 recommended_acupoints）"""
+        import json as _json
+        import re
+
+        if not reply:
+            return []
+        # 定位 recommended_acupoints 键对应的数组（优先找该键后的 fenced 数组，其次任何数组块）
+        key_idx = reply.find("recommended_acupoints")
+        if key_idx == -1:
+            return []
+        tail = reply[key_idx:]
+        m = re.search(r"\[(.*)\]", tail, re.DOTALL)
+        if not m:
+            return []
+        raw = m.group(0)
+        try:
+            data = _json.loads(raw)
+        except Exception:
+            return []
+        if not isinstance(data, list):
+            return []
+        out: list[dict] = []
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            pt = item.get("point") or item.get("穴位") or item.get("name") or item.get("配穴") or ""
+            if not pt:
+                continue
+            out.append({
+                "point": str(pt).strip(),
+                "meridian": str(item.get("meridian") or item.get("经脉") or item.get("归经") or "").strip(),
+                "technique": str(item.get("technique") or item.get("针法") or "").strip(),
+                "indication": str(item.get("indication") or item.get("主治") or item.get("取穴依据") or "").strip(),
             })
         return out
 
@@ -817,6 +951,53 @@ def _infer_method_from_meridian(primary_meridians: list[str]) -> str | None:
         return None
     methods = [_MERIDIAN_METHODS[m] for m in primary_meridians if m in _MERIDIAN_METHODS]
     return "；".join(methods) if methods else None
+
+
+# 六经→针灸配穴（倪海厦"针药并施"的降级方案；仅本地规则辨证无 API Key 时使用）
+_MERIDIAN_ACUPOINTS: dict[str, list[dict]] = {
+    "太阳": [
+        {"point": "风池", "meridian": "足少阳胆经", "technique": "毫针泻法", "indication": "疏风解表，治项强头痛"},
+        {"point": "大椎", "meridian": "督脉", "technique": "毫针平补平泻/拔罐放血", "indication": "解表退热，宣发太阳之邪"},
+        {"point": "合谷", "meridian": "手阳明大肠经", "technique": "毫针泻法", "indication": "疏风解表，位居表证要穴"},
+    ],
+    "阳明": [
+        {"point": "曲池", "meridian": "手阳明大肠经", "technique": "毫针泻法", "indication": "清泻阳明里热"},
+        {"point": "内庭", "meridian": "足阳明胃经", "technique": "毫针泻法", "indication": "清胃热，荥穴泻火"},
+        {"point": "合谷", "meridian": "手阳明大肠经", "technique": "毫针泻法", "indication": "清阳明实热，通腑气"},
+    ],
+    "少阳": [
+        {"point": "外关", "meridian": "手少阳三焦经", "technique": "毫针平补平泻", "indication": "和解少阳，疏利枢机"},
+        {"point": "阳陵泉", "meridian": "足少阳胆经", "technique": "毫针平补平泻", "indication": "疏利少阳气机，合穴调枢"},
+        {"point": "支沟", "meridian": "手少阳三焦经", "technique": "毫针平补平泻", "indication": "调少阳枢机，通利三焦"},
+    ],
+    "太阴": [
+        {"point": "足三里", "meridian": "足阳明胃经", "technique": "毫针补法/艾灸", "indication": "健脾和胃，益太阴之生化"},
+        {"point": "中脘", "meridian": "任脉", "technique": "艾灸/温针灸", "indication": "温中散寒，化痰湿"},
+        {"point": "阴陵泉", "meridian": "足太阴脾经", "technique": "毫针平补平泻", "indication": "健脾渗湿，太阴湿浊之要穴"},
+    ],
+    "少阴": [
+        {"point": "关元", "meridian": "任脉", "technique": "艾灸/温针灸", "indication": "温补少阴，回阳固本"},
+        {"point": "神门", "meridian": "手少阴心经", "technique": "毫针补法", "indication": "宁心安神，少阴心气之源"},
+        {"point": "太溪", "meridian": "足少阴肾经", "technique": "毫针补法", "indication": "补肾填精，少阴肾之原穴"},
+    ],
+    "厥阴": [
+        {"point": "太冲", "meridian": "足厥阴肝经", "technique": "毫针平补平泻", "indication": "调厥阴枢机，息肝风平肝火"},
+        {"point": "期门", "meridian": "足厥阴肝经", "technique": "毫针平补平泻", "indication": "疏肝理气，厥阴募穴调寒热"},
+        {"point": "内关", "meridian": "手厥阴心包经", "technique": "毫针平补平泻", "indication": "宽胸理气，调手厥阴枢机"},
+    ],
+}
+
+def _infer_acupoints_by_meridian(primary_meridians: list[str]) -> list[dict]:
+    """由六经主证推导针灸配穴（本地规则辨证降级用），多个经去重合并"""
+    out: list[dict] = []
+    seen: set[str] = set()
+    for m in primary_meridians:
+        for acu in _MERIDIAN_ACUPOINTS.get(m, []):
+            if acu["point"] in seen:
+                continue
+            seen.add(acu["point"])
+            out.append(dict(acu))
+    return out
 
 
 def _infer_disease_from_complaint(chief_complaint: str | None) -> str | None:
