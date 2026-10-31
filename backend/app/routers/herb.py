@@ -18,11 +18,18 @@ router = APIRouter(prefix="/herbs", tags=["药品管理"])
 
 # ── 药材字典 CRUD ──
 
-@router.get("", response_model=list[HerbResponse], summary="药材列表")
+@router.get("", response_model=list[HerbResponse], summary="药材列表（多维标签筛选）")
 def list_herbs(
-    category: str | None = Query(None, description="分类筛选"),
-    search: str | None = Query(None, description="搜索(正名/异名)"),
+    category: str | None = Query(None, description="（旧）单一分类筛选"),
+    search: str | None = Query(None, description="搜索(正名/异名/功效)"),
     is_active: bool | None = Query(None, description="是否启用"),
+    grade: str | None = Query(None, description="三品: 上品/中品/下品"),
+    nature: str | None = Query(None, description="四气"),
+    flavors: list[str] | None = Query(None, description="五味(多值, 命中任一)"),
+    meridians: list[str] | None = Query(None, description="归经(多值, 命中任一)"),
+    directions: list[str] | None = Query(None, description="升降浮沉(多值, 命中任一)"),
+    tags: list[str] | None = Query(None, description="通用标签(多值, 命中任一)"),
+    pregnancy_contraindicated: bool | None = Query(None, description="仅看孕妇禁忌药"),
     db: Session = Depends(get_db),
 ):
     query = db.query(Herb)
@@ -30,15 +37,35 @@ def list_herbs(
         query = query.filter(Herb.category == category)
     if is_active is not None:
         query = query.filter(Herb.is_active == is_active)
-    herbs = query.order_by(Herb.category, Herb.name).all()
-    # 同时搜索正名与异名(JSON)
-    if search:
-        q = search.lower()
-        herbs = [
-            h for h in herbs
-            if q in (h.name or "").lower()
-            or any(q in (a or "").lower() for a in (h.aliases or []))
-        ]
+    herbs = query.all()
+
+    def matches(h: Herb) -> bool:
+        if grade and h.grade != grade:
+            return False
+        if nature and h.nature != nature:
+            return False
+        if flavors and not (set(h.flavors or []) & set(flavors)):
+            return False
+        if meridians and not (set(h.meridians or []) & set(meridians)):
+            return False
+        if directions and not (set(h.directions or []) & set(directions)):
+            return False
+        if tags and not (set(h.tags or []) & set(tags)):
+            return False
+        if pregnancy_contraindicated is not None and h.pregnancy_contraindicated != pregnancy_contraindicated:
+            return False
+        if search:
+            q = search.lower()
+            if not (
+                q in (h.name or "").lower()
+                or any(q in (a or "").lower() for a in (h.aliases or []))
+                or (h.efficacy and q in h.efficacy.lower())
+            ):
+                return False
+        return True
+
+    herbs = [h for h in herbs if matches(h)]
+    herbs.sort(key=lambda h: (h.category or "zzz", h.name or ""))
     return herbs
 
 
