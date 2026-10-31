@@ -103,12 +103,18 @@ def _run_light_migrations() -> None:
                     "ALTER TABLE visits ADD COLUMN parent_visit_id INTEGER REFERENCES visits(id)"
                 ))
 
-    # herbs.price（参考单价，用于处方总价估算 M5）
+    # herbs：price 为早期新增；aliases / flavors 为药材字典重构新增的 JSON 列，旧库可能缺失
     if "herbs" in inspector.get_table_names():
         hcols = {c["name"] for c in inspector.get_columns("herbs")}
         if "price" not in hcols:
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE herbs ADD COLUMN price NUMERIC(8,2)"))
+        if "aliases" not in hcols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE herbs ADD COLUMN aliases JSON"))
+        if "flavors" not in hcols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE herbs ADD COLUMN flavors JSON"))
 
     # visits.ai_analysis（AI 辅助辨证完整分析，供病历参考）
     if "visits" in inspector.get_table_names():

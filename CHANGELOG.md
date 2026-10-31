@@ -276,3 +276,8 @@
 - 手机端编辑对话框「孕妇禁忌 / 状态」回到同一行（`:xs="12"`）。
 - 手机端卡片补充「储存 / 孕妇 / 状态」信息。
 - 导入 JSON 请求加 `{ silent: true }`，失败时报错提示不再重复弹出。
+
+### 12. 修复 Docker 启动失败（旧库缺 herbs 新列）
+- 症状：容器复用卷内旧 schema 的 `tcm_doctor.db` 时，`create_all` 不会为已存在表 ALTER 加列，启动 `seed_herbs` 报 `no such column: herbs.flavors` 而退出。
+- 修复：`_run_light_migrations()` 的 `herbs` 迁移段补上 `aliases` / `flavors`（JSON 列，按存在性判断幂等 ALTER），旧库可平滑升级；其余表的新增列此前已覆盖。
+- 验证：模拟缺 `flavors` 的旧 herbs 表，迁移后 ORM 查询 `Herb` 不再报错。
