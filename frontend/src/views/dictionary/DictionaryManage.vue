@@ -31,7 +31,7 @@
         <el-table-column v-if="activeType === 'pulse'" prop="pulse_type" label="脉类" width="110" />
         <el-table-column v-if="activeType === 'herb_tag'" prop="category" label="维度" width="100" />
         <el-table-column prop="description" label="释义" min-width="220" show-overflow-tooltip />
-        <el-table-column label="颜色" width="70" align="center">
+        <el-table-column v-if="activeType === 'tag' || activeType === 'herb_tag'" label="颜色" width="70" align="center">
           <template #default="{ row }">
             <span v-if="row.color" class="color-dot" :style="{ backgroundColor: row.color }"></span>
             <span v-else class="text-muted">-</span>
@@ -83,7 +83,7 @@
           <div class="card-row" v-if="row.description">
             <span class="label">释义</span><span class="value">{{ row.description }}</span>
           </div>
-          <div class="card-row" v-if="row.color">
+          <div class="card-row" v-if="activeType === 'tag' && row.color">
             <span class="label">颜色</span><span class="value"><span class="color-dot" :style="{ backgroundColor: row.color }"></span></span>
           </div>
 
@@ -148,9 +148,9 @@
         <el-form-item label="释义">
           <el-input v-model="form.description" type="textarea" :rows="2" />
         </el-form-item>
-        <el-form-item label="颜色">
+        <el-form-item v-if="activeType === 'tag' || activeType === 'herb_tag'" label="颜色">
           <el-color-picker v-model="form.color" />
-          <span style="font-size:12px;color:#999;margin-left:8px;">自定义颜色，用于标签/词条着色（如患者标签红/橙区分）</span>
+          <span style="font-size:12px;color:#999;margin-left:8px;">自定义颜色，仅患者标签会按此色着色（红/橙区分过敏、重点人群等）</span>
         </el-form-item>
         <el-form-item label="启用">
           <el-switch v-model="form.is_active" />

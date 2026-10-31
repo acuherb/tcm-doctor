@@ -78,11 +78,19 @@ PULSE = [
 # 受控维度候选项由数据字典接管，可在「字典管理」页增删；此处为初始种子。
 from app.constants.herb_tags import HERB_TAG_DIMENSIONS
 
+# 五行本色：酸(木/青) 苦(火/赤) 甘(土/黄) 辛(金/白) 咸(水/黑)；四气按寒→温 蓝→橙红梯度
+DEFAULT_HERB_TAG_COLORS = {
+    # 五味
+    "酸": "#2e9e5b", "苦": "#d9434e", "甘": "#e0a82e", "辛": "#9fb3c8", "咸": "#2f3b47", "淡": "#b0a0c0",
+    # 四气
+    "寒": "#2f80b5", "微寒": "#5aa0cf", "平": "#7f9a6e", "微温": "#e08a3c", "温": "#d9642c", "热": "#c0392b",
+}
+
 HERB_TAG_SEED = []
 for _key, _spec in HERB_TAG_DIMENSIONS.items():
     _label = _spec["label"]
     for _opt in _spec.get("options", []):
-        HERB_TAG_SEED.append((_label, _opt, f"{_label}·{_opt}"))
+        HERB_TAG_SEED.append((_label, _opt, f"{_label}·{_opt}", DEFAULT_HERB_TAG_COLORS.get(_opt)))
 
 
 # ── 证候 (term_type=syndrome)，按六经辨证 + 八纲分类
@@ -144,11 +152,20 @@ def seed_dictionaries(db):
         else:
             skipped += 1
 
-    for label, name, desc in HERB_TAG_SEED:
-        if _add(db, "herb_tag", name, category=label, description=desc):
+    for label, name, desc, color in HERB_TAG_SEED:
+        if _add(db, "herb_tag", name, category=label, description=desc, color=color):
             added += 1
         else:
             skipped += 1
+
+    # 回填：已存在的药材性味词条若未设颜色，按五行本色补齐（幂等，仅补 null）
+    for t in db.query(DictionaryTerm).filter(
+        DictionaryTerm.term_type == "herb_tag",
+        DictionaryTerm.color.is_(None),
+    ).all():
+        c = DEFAULT_HERB_TAG_COLORS.get(t.name)
+        if c:
+            t.color = c
 
     return added, skipped
 

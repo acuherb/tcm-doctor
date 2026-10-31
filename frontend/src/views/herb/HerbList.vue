@@ -28,12 +28,16 @@
         </el-form-item>
         <el-form-item label="四气">
           <el-select v-model="natureFilter" placeholder="全部" clearable @change="loadHerbs" style="width:110px">
-            <el-option v-for="o in dimOptions('nature')" :key="o" :label="o" :value="o" />
+            <el-option v-for="o in dimOptions('nature')" :key="o" :label="o" :value="o">
+              <span class="opt-dot" :style="{ backgroundColor: xwColor(o) }"></span>{{ o }}
+            </el-option>
           </el-select>
         </el-form-item>
         <el-form-item label="五味">
           <el-select v-model="flavorFilters" multiple collapse-tags clearable placeholder="多选" @change="loadHerbs" style="width:150px">
-            <el-option v-for="o in dimOptions('flavors')" :key="o" :label="o" :value="o" />
+            <el-option v-for="o in dimOptions('flavors')" :key="o" :label="o" :value="o">
+              <span class="opt-dot" :style="{ backgroundColor: xwColor(o) }"></span>{{ o }}
+            </el-option>
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -53,9 +57,13 @@
             <span v-else class="text-muted">-</span>
           </template>
         </el-table-column>
-        <el-table-column label="性味" width="120">
+        <el-table-column label="性味" width="160">
           <template #default="{ row }">
-            <span v-if="xingwei(row)">{{ xingwei(row) }}</span>
+            <span v-if="row.nature || (row.flavors && row.flavors.length) || (row.toxicity && row.toxicity !== '无毒')">
+              <span v-if="row.nature" class="xw-tag" :style="xwTagStyle(row.nature)">{{ row.nature }}</span>
+              <span v-for="f in (row.flavors || [])" :key="f" class="xw-tag" :style="xwTagStyle(f)">{{ f }}</span>
+              <span v-if="row.toxicity && row.toxicity !== '无毒'" class="xw-tag" :style="xwTagStyle(row.toxicity)">{{ row.toxicity }}</span>
+            </span>
             <span v-else class="text-muted">-</span>
           </template>
         </el-table-column>
@@ -89,7 +97,13 @@
               <span class="label">异名</span><span class="value">{{ row.aliases.join('、') }}</span>
             </div>
             <div class="card-row">
-              <span class="label">性味</span><span class="value">{{ xingwei(row) || '-' }}</span>
+              <span class="label">性味</span>
+              <span class="value xw-tags">
+                <span v-if="row.nature" class="xw-tag" :style="xwTagStyle(row.nature)">{{ row.nature }}</span>
+                <span v-for="f in (row.flavors || [])" :key="f" class="xw-tag" :style="xwTagStyle(f)">{{ f }}</span>
+                <span v-if="row.toxicity && row.toxicity !== '无毒'" class="xw-tag" :style="xwTagStyle(row.toxicity)">{{ row.toxicity }}</span>
+                <template v-if="!row.nature && !(row.flavors && row.flavors.length) && (!row.toxicity || row.toxicity === '无毒')">-</template>
+              </span>
             </div>
             <div class="card-row" v-if="row.efficacy">
               <span class="label">主治</span><span class="value">{{ row.efficacy }}</span>
@@ -132,12 +146,16 @@
         <el-row :gutter="12">
           <el-col :span="12" :xs="24"><el-form-item label="四气">
             <el-select v-model="form.nature" clearable placeholder="选填" style="width:100%">
-              <el-option v-for="o in dimOptions('nature')" :key="o" :label="o" :value="o" />
+              <el-option v-for="o in dimOptions('nature')" :key="o" :label="o" :value="o">
+                <span class="opt-dot" :style="{ backgroundColor: xwColor(o) }"></span>{{ o }}
+              </el-option>
             </el-select>
           </el-form-item></el-col>
           <el-col :span="12" :xs="24"><el-form-item label="五味">
             <el-select v-model="form.flavors" multiple clearable style="width:100%" placeholder="多选">
-              <el-option v-for="o in dimOptions('flavors')" :key="o" :label="o" :value="o" />
+              <el-option v-for="o in dimOptions('flavors')" :key="o" :label="o" :value="o">
+                <span class="opt-dot" :style="{ backgroundColor: xwColor(o) }"></span>{{ o }}
+              </el-option>
             </el-select>
           </el-form-item></el-col>
         </el-row>
@@ -223,13 +241,27 @@ function defaultForm() {
 }
 const form = ref(defaultForm())
 
-// 性味合并展示：性 · 味 · 毒性（毒性仅在非"无毒"时显示）
-function xingwei(row: any): string {
-  const parts: string[] = []
-  if (row?.nature) parts.push(row.nature)
-  if (row?.flavors && row.flavors.length) parts.push(row.flavors.join(''))
-  if (row?.toxicity && row.toxicity !== '无毒') parts.push(row.toxicity)
-  return parts.join(' · ')
+// 药材性味颜色：优先用字典自定义色，回退五行本色（酸木青/苦火赤/甘土黄/辛金白/咸水黑；四气寒→温 蓝→橙红）
+const herbTagColor = ref<Record<string, string>>({})
+const DEFAULT_XW_COLOR: Record<string, string> = {
+  '酸': '#2e9e5b', '苦': '#d9434e', '甘': '#e0a82e', '辛': '#9fb3c8', '咸': '#2f3b47', '淡': '#b0a0c0',
+  '寒': '#2f80b5', '微寒': '#5aa0cf', '平': '#7f9a6e', '微温': '#e08a3c', '温': '#d9642c',
+  '有毒': '#c0392b', '有小毒': '#e67e22', '有大毒': '#8e1b1b',
+}
+function xwColor(name: string): string {
+  return herbTagColor.value[name] || DEFAULT_XW_COLOR[name] || '#909399'
+}
+function xwTagStyle(name: string): Record<string, string> {
+  const c = xwColor(name)
+  return { color: c, borderColor: c, backgroundColor: c + '1a' }
+}
+async function loadHerbTagColors() {
+  try {
+    const list = (await api.get('/dictionaries', { params: { term_type: 'herb_tag' } })) as any[]
+    const m: Record<string, string> = {}
+    for (const t of (list || [])) if (t.name && t.color) m[t.name] = t.color
+    herbTagColor.value = m
+  } catch {}
 }
 
 async function loadMeta() {
@@ -364,6 +396,7 @@ onMounted(async () => {
   updateViewport()
   window.addEventListener('resize', updateViewport)
   await loadMeta()
+  await loadHerbTagColors()
   await loadHerbs()
 })
 onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
@@ -373,6 +406,27 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
 .text-muted { color: #c0c4cc; }
 .unit { margin-left: 2px; color: #909399; font-size: 12px; }
 .tag-cell { margin: 1px 2px; }
+
+/* 药材性味五行本色标签 */
+.xw-tag {
+  display: inline-block;
+  padding: 0 8px;
+  margin: 1px 4px 1px 0;
+  font-size: 12px;
+  line-height: 20px;
+  border: 1px solid;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+.xw-tags { display: flex; flex-wrap: wrap; align-items: center; }
+.opt-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
+}
 
 /* ---- 新增/编辑弹窗美化 ---- */
 .dlg-title {
