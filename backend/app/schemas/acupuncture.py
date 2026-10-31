@@ -11,6 +11,10 @@ class AcupointCreate(BaseModel):
     efficacy: str | None = None
     point_type: str | None = None
     notes: str | None = None
+    source: str | None = None
+    region: str | None = None
+    indications: str | None = None
+    needling_method: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -22,6 +26,10 @@ class AcupointUpdate(BaseModel):
     efficacy: str | None = None
     point_type: str | None = None
     notes: str | None = None
+    source: str | None = None
+    region: str | None = None
+    indications: str | None = None
+    needling_method: str | None = None
 
 
 class AcupointResponse(BaseModel):
@@ -32,6 +40,10 @@ class AcupointResponse(BaseModel):
     efficacy: str | None
     point_type: str | None
     notes: str | None
+    source: str | None
+    region: str | None
+    indications: str | None
+    needling_method: str | None
     is_active: bool
     created_at: datetime | None
 

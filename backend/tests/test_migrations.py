@@ -45,13 +45,13 @@ def test_migrations_add_missing_columns_and_idempotent():
 
         with eng.begin() as c:
             versions = [r[0] for r in c.execute(text("SELECT version FROM schema_migrations")).fetchall()]
-        assert sorted(versions) == ["0001", "0002", "0003", "0004"]
+        assert sorted(versions) == ["0001", "0002", "0003", "0004", "0005"]
 
         # 幂等：重复运行版本数不变
         run_migrations()
         with eng.begin() as c:
             versions2 = [r[0] for r in c.execute(text("SELECT version FROM schema_migrations")).fetchall()]
-        assert len(versions2) == 4
+        assert len(versions2) == 5
     finally:
         dbmod.engine, migmod.engine = old_db, old_mig
         dbmod.SessionLocal = old_session

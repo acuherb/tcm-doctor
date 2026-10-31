@@ -4,9 +4,11 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.acupuncture import Acupoint
+from app.models.dictionaries import DictionaryTerm
 from app.models.user import User
 from app.routers.auth import get_current_user
 from app.schemas.acupuncture import AcupointCreate, AcupointUpdate, AcupointResponse
+from app.constants.acupoint_tags import ACUPOINT_TAG_DIMENSIONS
 
 router = APIRouter(prefix="/acupoints", tags=["针灸"])
 
@@ -14,15 +16,42 @@ router = APIRouter(prefix="/acupoints", tags=["针灸"])
 @router.get("", response_model=list[AcupointResponse], summary="腧穴列表")
 def list_acupoints(
     meridian: str | None = None,
+    region: str | None = None,
+    source: str | None = None,
+    point_type: str | None = None,
     search: str | None = None,
     db: Session = Depends(get_db),
 ):
     query = db.query(Acupoint)
     if meridian:
         query = query.filter(Acupoint.meridian == meridian)
+    if region:
+        query = query.filter(Acupoint.region == region)
+    if source:
+        query = query.filter(Acupoint.source == source)
+    if point_type:
+        query = query.filter(Acupoint.point_type == point_type)
     if search:
         query = query.filter(Acupoint.name.like(f"%{search}%"))
     return query.order_by(Acupoint.meridian, Acupoint.id).all()
+
+
+@router.get("/tags/meta", summary="穴位属性维度与受控词表（来自数据字典）")
+def acupoint_tag_meta(db: Session = Depends(get_db)):
+    """参照 /herbs/tags/meta：返回 来源/归经/部位/类型 四个维度的受控词表，
+    词项由 DictionaryTerm(term_type='acupoint_tag') 提供，字典为空时回退常量默认词表。"""
+    terms = db.query(DictionaryTerm).filter(
+        DictionaryTerm.term_type == "acupoint_tag", DictionaryTerm.is_active == True
+    ).all()
+    by_label: dict[str, list] = {}
+    for t in terms:
+        by_label.setdefault(t.category or "", []).append(t.name)
+    dimensions: dict[str, dict] = {}
+    for key, spec in ACUPOINT_TAG_DIMENSIONS.items():
+        label = spec["label"]
+        opts = by_label.get(label) or spec.get("options", [])
+        dimensions[key] = {"label": label, "multi": spec["multi"], "options": opts}
+    return {"dimensions": dimensions, "tag_suggestions": []}
 
 
 @router.post("", response_model=AcupointResponse, summary="新增腧穴")

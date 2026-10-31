@@ -14,6 +14,7 @@
         <el-radio-button value="pulse">脉象</el-radio-button>
         <el-radio-button value="tag">患者标签</el-radio-button>
         <el-radio-button value="herb_tag">药材性味</el-radio-button>
+        <el-radio-button value="acupoint_tag">穴位属性</el-radio-button>
       </el-radio-group>
 
       <el-table v-if="!isMobile" :data="terms" border stripe>
@@ -29,7 +30,7 @@
         <el-table-column v-if="activeType === 'syndrome'" prop="category" label="分类" width="100" />
         <el-table-column v-if="activeType === 'tongue'" prop="aspect" label="舌象维度" width="100" />
         <el-table-column v-if="activeType === 'pulse'" prop="pulse_type" label="脉类" width="110" />
-        <el-table-column v-if="activeType === 'herb_tag'" prop="category" label="维度" width="100" />
+        <el-table-column v-if="activeType === 'herb_tag' || activeType === 'acupoint_tag'" prop="category" label="维度" width="100" />
         <el-table-column prop="description" label="释义" min-width="220" show-overflow-tooltip />
         <el-table-column label="颜色" width="120" align="center">
           <template #default="{ row }">
@@ -75,7 +76,7 @@
           <div class="card-row" v-if="activeType === 'pulse' && row.pulse_type">
             <span class="label">脉类</span><span class="value">{{ row.pulse_type }}</span>
           </div>
-          <div class="card-row" v-if="activeType === 'herb_tag' && row.category">
+          <div class="card-row" v-if="(activeType === 'herb_tag' || activeType === 'acupoint_tag') && row.category">
             <span class="label">维度</span><span class="value">{{ row.category }}</span>
           </div>
 
@@ -137,10 +138,10 @@
           </el-form-item>
         </template>
 
-        <template v-else-if="activeType === 'herb_tag'">
+        <template v-else-if="activeType === 'herb_tag' || activeType === 'acupoint_tag'">
           <el-form-item label="所属维度" required>
             <el-select v-model="form.category" clearable placeholder="选择维度" style="width:100%">
-              <el-option v-for="d in herbTagDimensions" :key="d" :label="d" :value="d" />
+              <el-option v-for="d in tagDimensions" :key="d" :label="d" :value="d" />
             </el-select>
           </el-form-item>
         </template>
@@ -204,7 +205,7 @@ interface DictTerm {
   is_active: boolean
 }
 
-const activeType = ref<'syndrome' | 'tongue' | 'pulse' | 'tag' | 'herb_tag'>('syndrome')
+const activeType = ref<'syndrome' | 'tongue' | 'pulse' | 'tag' | 'herb_tag' | 'acupoint_tag'>('syndrome')
 const terms = ref<DictTerm[]>([])
 const meridians = ['太阳', '阳明', '少阳', '太阴', '少阴', '厥阴']
 const pulseTypes = ['浮脉类', '沉脉类', '迟脉类', '数脉类', '虚脉类', '实脉类']
@@ -224,6 +225,25 @@ function sortHerbTag(list: any[]): any[] {
     return oa - ob
   })
 }
+const acupointTagDimensions = ['来源', '归经', '部位', '类型']
+const ACUPOINT_TAG_ORDER: Record<string, string[]> = {
+  '来源': ['针灸大成', '董氏奇穴', '倪海厦·针灸', '通用'],
+  '归经': ['手太阴肺经', '手阳明大肠经', '足阳明胃经', '足太阴脾经', '手少阴心经', '手太阳小肠经', '足太阳膀胱经', '足少阴肾经', '手厥阴心包经', '手少阳三焦经', '足少阳胆经', '足厥阴肝经', '任脉', '督脉', '经外奇穴', '董氏奇穴'],
+  '部位': ['头面', '上肢', '下肢', '前胸', '后背', '腰骶', '一一部位', '二二部位', '三三部位', '四四部位', '五五部位', '六六部位', '七七部位', '八八部位', '九九部位', '十十部位', '胸腹部位', '后背部位'],
+  '类型': ['井穴', '荥穴', '输穴', '经穴', '合穴', '原穴', '络穴', '郄穴', '募穴', '背俞穴', '八会穴', '八脉交会穴', '下合穴', '经外奇穴', '特效穴', '常用要穴'],
+}
+function sortAcupointTag(list: any[]): any[] {
+  return [...list].sort((a, b) => {
+    const ca = acupointTagDimensions.indexOf(a.category)
+    const cb = acupointTagDimensions.indexOf(b.category)
+    if (ca !== cb) return ca - cb
+    const oa = ACUPOINT_TAG_ORDER[a.category]?.indexOf(a.name) ?? 999
+    const ob = ACUPOINT_TAG_ORDER[b.category]?.indexOf(b.name) ?? 999
+    return oa - ob
+  })
+}
+// 药材性味 / 穴位属性 共用「所属维度」下拉，按当前词类切换词表
+const tagDimensions = computed(() => (activeType.value === 'acupoint_tag' ? acupointTagDimensions : herbTagDimensions))
 
 // 默认色（无自定义色时回退，让本色直接亮出来）：
 // 证型=六经五色(太阳寒水黑蓝/阳明燥金白/少阳相火红/太阴湿土黄/少阴君火紫/厥阴风木青)
@@ -304,6 +324,7 @@ async function loadTerms() {
     const res = await api.get('/dictionaries', { params: { term_type: activeType.value } }) as any
     let data = Array.isArray(res) ? res : []
     if (activeType.value === 'herb_tag') data = sortHerbTag(data)
+    if (activeType.value === 'acupoint_tag') data = sortAcupointTag(data)
     terms.value = data
   } catch {
     ElMessage.error('加载字典失败')
@@ -367,7 +388,7 @@ async function save() {
     } else if (form.term_type === 'syndrome') {
       payload.meridian = form.meridian.length ? form.meridian.join(',') : null
       payload.category = form.category || null
-    } else if (form.term_type === 'herb_tag') {
+    } else if (form.term_type === 'herb_tag' || form.term_type === 'acupoint_tag') {
       payload.category = form.category || null
     } else {
       payload.pulse_type = form.pulse_type || null

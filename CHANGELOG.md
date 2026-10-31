@@ -1,5 +1,26 @@
 # 开发日志 CHANGELOG
 
+## 2026-10-31 — 针灸穴位字典化重构（复用 herb_tag 受控词表模式，支持三体系混排）
+
+### 背景
+原 `Acupoint` 只有 `meridian/point_type` 两个维度，无法表达「针灸大成 / 董氏奇穴 / 倪海厦·针灸」多体系混排，也无法按「来源 / 部位」检索。改为复用已建好的 herb_tag 字典驱动模式：维度（来源 / 归经 / 部位 / 类型）由数据字典 `DictionaryTerm(term_type='acupoint_tag', category=维度中文名)` 托管，未来新增任何针灸流派只需在字典里加词项、在穴位编辑里选填，无需改代码。
+
+### 1. 后端
+- [constants/acupoint_tags.py](file:///home/debian/tcm-doctor/backend/app/constants/acupoint_tags.py)：4 维度（来源 / 归经 / 部位 / 类型）默认受控词表 + `ACUPOINT_TAG_DIMENSION_BY_LABEL` 映射（字典为空时回退）。
+- [seed_dictionaries.py](file:///home/debian/tcm-doctor/backend/seed_dictionaries.py)：新增 54 条 `acupoint_tag` 词条种子（来源 4 / 归经 16 / 部位 18 / 类型 16，无预设色），被 `seed_all()` 调用，全新库自动带；词条可在「字典管理」页增删。
+- [schemas/dictionaries.py](file:///home/debian/tcm-doctor/backend/app/schemas/dictionaries.py) + [routers/dictionaries.py](file:///home/debian/tcm-doctor/backend/app/routers/dictionaries.py)：`term_type` 白名单放开 `acupoint_tag`。
+- [migrations.py](file:///home/debian/tcm-doctor/backend/app/migrations.py)：新增 `m0005`，幂等 ALTER `acupoints` 加 `source`(VARCHAR100) / `region`(VARCHAR50) / `indications`(TEXT) / `needling_method`(TEXT) 四列。
+- [models/acupuncture.py](file:///home/debian/tcm-doctor/backend/app/models/acupuncture.py) + [schemas/acupuncture.py](file:///home/debian/tcm-doctor/backend/app/schemas/acupuncture.py)：`Acupoint` 模型与 `AcupointCreate/Update/Response` 增加上述四字段。
+- [routers/acupuncture.py](file:///home/debian/tcm-doctor/backend/app/routers/acupuncture.py)：`GET /acupoints` 新增 `source/region/point_type` 筛选参数；新增 `GET /acupoints/tags/meta` 聚合 4 维度词表（字典优先、回退常量），供前端下拉与筛选项驱动。
+
+### 2. 前端
+- [AcupointList.vue](file:///home/debian/tcm-doctor/frontend/src/views/acupoint/AcupointList.vue)：桌面 7 列表格（穴名 / 来源 / 分部(归经·部位) / 类型 / 定位 / 功效 / 操作）+ 来源 / 分部筛选；编辑弹窗 4 个字典驱动下拉（来源 / 归经 / 部位 / 类型，filterable allow-create）+ 定位 / 功效 / 主治 / 刺法 / 备注；移动端卡片同步。
+- [DictionaryManage.vue](file:///home/debian/tcm-doctor/frontend/src/views/dictionary/DictionaryManage.vue)：新增「穴位属性」页签，按 来源 / 归经 / 部位 / 类型 维度归类管理词条。
+
+### 3. 数据说明（按用户澄清）
+- 原有 48 条穴位数据**原样保留**，新字段（来源 / 部位 / 主治 / 刺法）**留空**，后续在界面里补充即可，不预置编造值。
+- 董氏奇穴 / 倪海厦·针灸 等示例流派**未预置数据**；其维度词项已进数据字典（来源含「董氏奇穴 / 倪海厦·针灸」），需要时直接在字典管理加词项、在穴位编辑选填即可。
+
 ## 2026-10-31 — 药材库重构：多维标签化（按《本经》三品 + 倪师思路）
 
 ### 背景

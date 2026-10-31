@@ -216,6 +216,18 @@ def m0004() -> None:
     _backfill_herb_tags()
 
 
+@migration(
+    "0005",
+    "腧穴字典扩展列：出处/部位/主治/刺法（接入 acupoint_tag 字典驱动，支持三体系混排）",
+)
+def m0005() -> None:
+    # 受控、版本追踪的补列；acupoints 模型同步声明，保证 ORM 与库一致
+    _add_column("acupoints", "source", "VARCHAR(100)")       # 来源/出处（针灸大成/董氏奇穴/倪海厦·针灸/通用）
+    _add_column("acupoints", "region", "VARCHAR(50)")        # 部位（头面/上肢/下肢…及董氏分区）
+    _add_column("acupoints", "indications", "TEXT")           # 主治病症
+    _add_column("acupoints", "needling_method", "TEXT")       # 针刺方法/操作要点
+
+
 def run_migrations() -> None:
     """应用所有未执行过的迁移（幂等：以 schema_migrations 表记录为准）"""
     with engine.begin() as conn:

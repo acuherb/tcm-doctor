@@ -17,6 +17,10 @@ class Acupoint(Base):
     efficacy: Mapped[str | None] = mapped_column(Text, comment="功效")
     point_type: Mapped[str | None] = mapped_column(String(20), comment="类型: 井穴/荥穴/输穴/原穴...")
     notes: Mapped[str | None] = mapped_column(Text, comment="备注")
+    source: Mapped[str | None] = mapped_column(String(100), comment="来源/出处: 针灸大成/董氏奇穴/倪海厦·针灸/通用")
+    region: Mapped[str | None] = mapped_column(String(50), comment="部位: 头面/上肢/下肢/前胸/后背…及董氏分区")
+    indications: Mapped[str | None] = mapped_column(Text, comment="主治病症")
+    needling_method: Mapped[str | None] = mapped_column(Text, comment="针刺方法/操作要点")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, comment="是否启用")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
 

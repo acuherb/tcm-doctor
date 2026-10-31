@@ -36,6 +36,10 @@ def seed_acupoints(db) -> int:
             efficacy=p.get("efficacy"),
             point_type=p.get("point_type"),
             notes=p.get("notes"),
+            source=p.get("source"),
+            region=p.get("region"),
+            indications=p.get("indications"),
+            needling_method=p.get("needling_method"),
         ))
         existing.add(name)
         added += 1
