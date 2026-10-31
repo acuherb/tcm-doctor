@@ -36,15 +36,6 @@ export const useAuthStore = defineStore('auth', () => {
     return res.user
   }
 
-  // 游客一键登录：免密码进入只读浏览
-  async function guestLogin() {
-    const res = (await api.post('/auth/guest')) as any
-    authorize(res.token)
-    user.value = res.user
-    localStorage.setItem(USER_KEY, JSON.stringify(res.user))
-    return res.user
-  }
-
   // 页面刷新后恢复登录态（校验 token 是否仍有效）
   async function restore() {
     if (!token.value) return false
@@ -79,5 +70,5 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
   })
 
-  return { token, user, isLoggedIn, login, guestLogin, logout, restore }
+  return { token, user, isLoggedIn, login, logout, restore }
 })

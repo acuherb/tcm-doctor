@@ -460,13 +460,25 @@ def dispense_prescription(prescription_id: int, current_user: User = Depends(get
     ).first()
     if not prescription:
         raise HTTPException(status_code=404, detail="处方不存在")
-    if prescription.status != "已审核":
-        raise HTTPException(status_code=400, detail="处方未审核，不可发药")
 
-    # 扣减库存（进程内锁 + 行锁，避免并发超卖）
+    # 扣减库存（进程内锁 + 行锁，避免并发超卖）。
+    # 关键：状态校验必须在【锁内】以当前 DB 状态重做——否则两个并发的“已审核”请求会
+    # 先后通过锁外检查、串行进锁后各扣一次库存，造成重复发药/超卖。
     with inventory_lock:
-        for item in prescription.items:
-            total_qty = float(item.dose) * prescription.doses
+        fresh = (
+            db.query(Prescription)
+            .options(joinedload(Prescription.items))
+            .filter(Prescription.id == prescription_id)
+            .with_for_update()
+            .first()
+        )
+        if not fresh:
+            raise HTTPException(status_code=404, detail="处方不存在")
+        if fresh.status != "已审核":
+            raise HTTPException(status_code=400, detail="处方未审核或已发药，不可重复发药")
+
+        for item in fresh.items:
+            total_qty = float(item.dose) * fresh.doses
             available = db.query(HerbInventory).filter(
                 HerbInventory.herb_id == item.herb_id,
                 HerbInventory.status == "正常",
@@ -494,13 +506,13 @@ def dispense_prescription(prescription_id: int, current_user: User = Depends(get
                 quantity=total_qty,
                 before_quantity=avail_total,
                 after_quantity=avail_total - total_qty,
-                reference_id=prescription.id,
-                note=f"处方#{prescription.id}发药",
+                reference_id=fresh.id,
+                note=f"处方#{fresh.id}发药",
             )
             db.add(txn)
 
-        prescription.total_price = _compute_total_price(db, prescription.items, prescription.doses, prescription.acupuncture_fee)
-        prescription.status = "已发药"
+        fresh.total_price = _compute_total_price(db, fresh.items, fresh.doses, fresh.acupuncture_fee)
+        fresh.status = "已发药"
         db.commit()
     db.refresh(prescription)
     return prescription

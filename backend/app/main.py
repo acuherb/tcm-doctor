@@ -258,16 +258,26 @@ def _extract_token(request: Request) -> str:
     return ""
 
 
+def _is_password_change_path(path: str) -> bool:
+    """强制改密期间仍允许访问的接口（改密 / 登出 / 当前用户）"""
+    return path in ("/api/v1/auth/password", "/api/v1/auth/logout", "/api/v1/auth/me")
+
+
 @app.middleware("http")
 async def require_admin_for_writes(request: Request, call_next):
-    """只读保护：所有写操作（增/删/改）必须由管理员发出；游客只能浏览"""
+    """统一鉴权中间件：
+    - /api/v1 下除 /api/v1/auth 外，所有请求都必须携带有效 token（不再允许游客匿名访问）；
+    - 写操作（POST/PUT/DELETE/PATCH）额外要求管理员权限；
+    - 用户处于“必须改密”状态时，除改密/登出/当前用户外一律拒绝（403）；
+    - 游客登录关闭后，任何遗留 guest 令牌一并拒绝。
+    """
     path = request.url.path
     method = request.method
     is_write = method in WRITE_METHODS
     is_api = path.startswith("/api/v1")
     is_auth = path.startswith("/api/v1/auth")
 
-    if is_api and is_write and not is_auth:
+    if is_api and not is_auth:
         token = _extract_token(request)
         if not token:
             return JSONResponse({"detail": "未登录"}, status_code=401)
@@ -279,8 +289,15 @@ async def require_admin_for_writes(request: Request, call_next):
             user = db.query(User).filter(User.id == record.user_id).first()
             if not user:
                 return JSONResponse({"detail": "用户不存在"}, status_code=401)
-            if not user.is_admin:
-                return JSONResponse({"detail": "游客账户仅可浏览，如需修改请用管理员登录"}, status_code=403)
+            # 游客登录已关闭：拒绝任何遗留 guest 令牌
+            if not settings.allow_guest_login and user.username == "guest":
+                return JSONResponse({"detail": "游客登录已禁用"}, status_code=403)
+            # 强制改密：除改密/登出/当前用户信息外一律拦截
+            if user.must_change_password and not _is_password_change_path(path):
+                return JSONResponse({"detail": "请先修改初始密码后再使用系统"}, status_code=403)
+            # 写操作需管理员
+            if is_write and not user.is_admin:
+                return JSONResponse({"detail": "权限不足，仅管理员可修改数据"}, status_code=403)
         finally:
             db.close()
 

@@ -47,20 +47,6 @@
         </el-button>
       </el-form>
 
-      <el-divider class="or-divider"><span>或</span></el-divider>
-
-      <div class="guest-row">
-        <el-button
-          size="large"
-          class="guest-btn"
-          plain
-          :loading="guestLoading"
-          @click="onGuestLogin"
-        >
-          游客登录（仅可浏览）
-        </el-button>
-      </div>
-
       <p class="form-foot">未注册账号？请联系管理员开通</p>
     </div>
 
@@ -105,7 +91,6 @@ onMounted(async () => {
 
 const formRef = ref<FormInstance>()
 const loading = ref(false)
-const guestLoading = ref(false)
 const form = reactive({ username: '', password: '' })
 
 const rules: FormRules = {
@@ -135,19 +120,6 @@ async function onSubmit() {
   })
 }
 
-async function onGuestLogin() {
-  if (guestLoading.value) return
-  guestLoading.value = true
-  try {
-    await auth.guestLogin()
-    ElMessage.info('已进入游客模式，仅可浏览')
-    router.replace('/dashboard')
-  } catch {
-    /* 错误提示由拦截器处理 */
-  } finally {
-    guestLoading.value = false
-  }
-}
 </script>
 
 <style scoped lang="scss">
@@ -223,29 +195,6 @@ async function onGuestLogin() {
     font-size: 16px;
     letter-spacing: 6px;
     border-radius: 8px;
-  }
-
-  .or-divider {
-    margin: 26px 0 20px;
-
-    :deep(.el-divider__text) {
-      color: #b8a99c;
-      font-size: 13px;
-    }
-  }
-
-  .guest-btn {
-    width: 100%;
-    height: 44px;
-    color: #4a2c1a;
-    border-color: #d4c3b3;
-    border-radius: 8px;
-
-    &:hover {
-      border-color: #2C1810;
-      color: #2C1810;
-      background: #f5f0eb;
-    }
   }
 
   .form-foot {

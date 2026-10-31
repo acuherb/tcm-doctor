@@ -281,3 +281,10 @@
 - 症状：容器复用卷内旧 schema 的 `tcm_doctor.db` 时，`create_all` 不会为已存在表 ALTER 加列，启动 `seed_herbs` 报 `no such column: herbs.flavors` 而退出。
 - 修复：`_run_light_migrations()` 的 `herbs` 迁移段补上 `aliases` / `flavors`（JSON 列，按存在性判断幂等 ALTER），旧库可平滑升级；其余表的新增列此前已覆盖。
 - 验证：模拟缺 `flavors` 的旧 herbs 表，迁移后 ORM 查询 `Herb` 不再报错。
+
+### 13. 安全加固（P0）：只读接口鉴权 + 关闭游客 + 强制改密 + 修复发药并发超卖
+- **只读接口统一鉴权**：原全局中间件 `require_admin_for_writes` 仅拦截写操作，导致患者档案/处方/统计等 GET 接口对游客匿名开放（患者隐私泄露风险）。改为 `/api/v1` 下除 `/api/v1/auth` 外所有请求都必须携带有效 token，写操作额外要求管理员。
+- **关闭游客登录**：`config.allow_guest_login` 默认改为 `False`，`docker-compose.yml` 显式设为 `false`；中间件在游客关闭后拒绝任何遗留 guest 令牌。前端登录页移除"游客登录"按钮及相关死代码。
+- **强制改密**：用户 `must_change_password=True` 时（seed 创建的默认 admin 即为此状态），除改密/登出/当前用户外一律返回 403，倒逼首次登录即设置强口令；生产环境不再以 `admin/admin123` 裸奔。
+- **修复发药并发双扣库存**：`dispense_prescription` 原在锁外校验 `status`，两并发"已审核"请求会先后通过检查、串行进锁后各扣一次 → 超卖。改为锁内重新查询处方最新状态（带行锁）再扣减。
+- 验证：TestClient 端到端 8 项断言全过（匿名 401、游客 403、强制改密 403、改密后 200、普通用户读 200 / 写 403）。
