@@ -14,7 +14,7 @@ router = APIRouter(prefix="/dictionaries", tags=["数据字典"])
 
 @router.get("", response_model=list[DictTermResponse], summary="词条列表")
 def list_terms(
-    term_type: str | None = Query(None, pattern="^(syndrome|tongue|pulse|tag)$"),
+    term_type: str | None = Query(None, pattern="^(syndrome|tongue|pulse|tag|herb_tag)$"),
     meridian: str | None = Query(None),
     aspect: str | None = Query(None),
     search: str | None = Query(None),

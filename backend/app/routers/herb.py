@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
 from app.models.herb import Herb, HerbInventory, InventoryTransaction
+from app.models.dictionaries import DictionaryTerm
 from app.models.prescription import PrescriptionItem
 from app.models.user import User
 from app.routers.auth import get_current_user
@@ -69,12 +70,39 @@ def list_herbs(
     return herbs
 
 
-@router.get("/tags/meta", summary="药材标签维度与受控词表")
-def herb_tag_meta():
-    """返回标签维度（三品/四气/五味/归经/升降浮沉）的受控词表与通用标签建议，供前端渲染多选器/筛选器。"""
-    from app.constants.herb_tags import HERB_TAG_DIMENSIONS, HERB_COMMON_TAG_SUGGESTIONS
+@router.get("/tags/meta", summary="药材标签维度与受控词表（来自数据字典）")
+def herb_tag_meta(db: Session = Depends(get_db)):
+    """返回标签维度（三品/四气/五味/归经/升降浮沉）的受控词表，词表来源为数据字典
+    DictionaryTerm(term_type='herb_tag', category=维度中文名)；字典为空时回退到常量默认词表。
+    通用标签(tags)为自由标注，不再提供受控建议。"""
+    from app.constants.herb_tags import HERB_TAG_DIMENSIONS
 
-    return {"dimensions": HERB_TAG_DIMENSIONS, "tag_suggestions": HERB_COMMON_TAG_SUGGESTIONS}
+    terms = db.query(DictionaryTerm).filter(
+        DictionaryTerm.term_type == "herb_tag", DictionaryTerm.is_active == True
+    ).all()
+    by_label: dict[str, list] = {}
+    for t in terms:
+        by_label.setdefault(t.category or "", []).append(t.name)
+
+    dimensions = {}
+    for key, spec in HERB_TAG_DIMENSIONS.items():
+        label = spec["label"]
+        opts = by_label.get(label) or spec.get("options", [])
+        dimensions[key] = {"label": label, "multi": spec["multi"], "options": opts}
+    return {"dimensions": dimensions, "tag_suggestions": []}
+
+
+def _herb_tag_allowed(db: Session) -> dict:
+    """从数据字典读取 herb_tag 各维度的受控词表（按中文维度名归类），供写入校验使用。"""
+    from app.constants.herb_tags import HERB_TAG_DIMENSION_BY_LABEL
+
+    terms = db.query(DictionaryTerm).filter(
+        DictionaryTerm.term_type == "herb_tag", DictionaryTerm.is_active == True
+    ).all()
+    by_label: dict[str, set] = {}
+    for t in terms:
+        by_label.setdefault(t.category or "", set()).add(t.name)
+    return {dim_key: by_label.get(label, set()) for label, dim_key in HERB_TAG_DIMENSION_BY_LABEL.items()}
 
 
 @router.post("", response_model=HerbResponse, summary="新增药材")
@@ -82,7 +110,7 @@ def create_herb(data: HerbCreate, current_user: User = Depends(get_current_user)
     existing = db.query(Herb).filter(Herb.name == data.name).first()
     if existing:
         raise HTTPException(status_code=400, detail=f"药材'{data.name}'已存在")
-    payload = sanitize_herb_tags(data.model_dump())
+    payload = sanitize_herb_tags(data.model_dump(), _herb_tag_allowed(db))
     herb = Herb(**payload)
     db.add(herb)
     db.commit()
@@ -102,9 +130,10 @@ def export_herbs(db: Session = Depends(get_db)):
 def import_herbs(data: list[HerbCreate] = Body(...), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """按正名 upsert：已存在则更新字段，不存在则新增"""
     imported = updated = 0
+    allowed = _herb_tag_allowed(db)
     for item in data:
         existing = db.query(Herb).filter(Herb.name == item.name).first()
-        payload = sanitize_herb_tags(item.model_dump())
+        payload = sanitize_herb_tags(item.model_dump(), allowed)
         if existing:
             for key, value in payload.items():
                 if value is not None:
@@ -302,7 +331,7 @@ def update_herb(herb_id: int, data: HerbUpdate, current_user: User = Depends(get
     herb = db.query(Herb).filter(Herb.id == herb_id).first()
     if not herb:
         raise HTTPException(status_code=404, detail="药材不存在")
-    payload = sanitize_herb_tags(data.model_dump(exclude_unset=True))
+    payload = sanitize_herb_tags(data.model_dump(exclude_unset=True), _herb_tag_allowed(db))
     for key, value in payload.items():
         setattr(herb, key, value)
     db.commit()

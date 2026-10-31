@@ -17,6 +17,12 @@
 ### 3. 前端（本次）
 - [HerbList.vue](file:///home/debian/tcm-doctor/frontend/src/views/herb/HerbList.vue)：筛选区/编辑弹窗/表格/移动端卡片全面改为多维标签（多选器驱动于 `/herbs/tags/meta`）；旧的"单一分类下拉 + 味/归经自由文本框"下线，表格新增三品徽标与五味/归经/升降浮沉/标签标签列。
 
+### 4. 数据字典接管标签词表（本次）
+- 受控维度候选项（三品/四气/五味/归经/升降浮沉）由**数据字典**托管：`DictionaryTerm(term_type='herb_tag', category=维度中文名)` 存储，**不再写死在 `constants/herb_tags.py`**；`GET /herbs/tags/meta` 改读 DB（字典为空回退常量），写入校验 `sanitize_herb_tags(allowed)` 以字典为权威——在「字典管理」页即可增删候选项，无需改代码。
+- [seed_dictionaries.py](file:///home/debian/tcm-doctor/backend/seed_dictionaries.py)：把 5 个维度的 35 个候选项作为 `herb_tag` 词条种子（被 `seed_all()` 调用，全新库自动带）；`routers/dictionaries.py` 的 `term_type` 白名单加入 `herb_tag`。
+- [DictionaryManage.vue](file:///home/debian/tcm-doctor/frontend/src/views/dictionary/DictionaryManage.vue)：新增「药材标签」页签，按维度（三品/四气/五味/归经/升降浮沉）归类管理词条。
+- **功效分类概念彻底移除**：搜索栏与编辑弹窗的"功效分类/标签"框下线；`tags` 仅作为**自由标注**（主治/经方/产地/炮制），`/herbs/tags/meta` 不再返回 `tag_suggestions`；迁移写入的 261 味旧 `category` 保留为普通自由标签不强制。
+
 ## 2026-10-30 — AI 推荐方结构化带入开方（主方/副方 + 加减勾选 + 字典校验）
 
 ### 背景

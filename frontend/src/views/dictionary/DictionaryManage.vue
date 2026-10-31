@@ -13,6 +13,7 @@
         <el-radio-button value="tongue">舌象</el-radio-button>
         <el-radio-button value="pulse">脉象</el-radio-button>
         <el-radio-button value="tag">患者标签</el-radio-button>
+        <el-radio-button value="herb_tag">药材标签</el-radio-button>
       </el-radio-group>
 
       <el-table v-if="!isMobile" :data="terms" border stripe>
@@ -28,6 +29,7 @@
         <el-table-column v-if="activeType === 'syndrome'" prop="category" label="分类" width="100" />
         <el-table-column v-if="activeType === 'tongue'" prop="aspect" label="舌象维度" width="100" />
         <el-table-column v-if="activeType === 'pulse'" prop="pulse_type" label="脉类" width="110" />
+        <el-table-column v-if="activeType === 'herb_tag'" prop="category" label="维度" width="100" />
         <el-table-column prop="description" label="释义" min-width="220" show-overflow-tooltip />
         <el-table-column label="颜色" width="70" align="center">
           <template #default="{ row }">
@@ -73,6 +75,9 @@
           </div>
           <div class="card-row" v-if="activeType === 'pulse' && row.pulse_type">
             <span class="label">脉类</span><span class="value">{{ row.pulse_type }}</span>
+          </div>
+          <div class="card-row" v-if="activeType === 'herb_tag' && row.category">
+            <span class="label">维度</span><span class="value">{{ row.category }}</span>
           </div>
 
           <div class="card-row" v-if="row.description">
@@ -132,6 +137,14 @@
           </el-form-item>
         </template>
 
+        <template v-else-if="activeType === 'herb_tag'">
+          <el-form-item label="所属维度" required>
+            <el-select v-model="form.category" clearable placeholder="选择维度" style="width:100%">
+              <el-option v-for="d in herbTagDimensions" :key="d" :label="d" :value="d" />
+            </el-select>
+          </el-form-item>
+        </template>
+
         <el-form-item label="释义">
           <el-input v-model="form.description" type="textarea" :rows="2" />
         </el-form-item>
@@ -187,10 +200,11 @@ interface DictTerm {
   is_active: boolean
 }
 
-const activeType = ref<'syndrome' | 'tongue' | 'pulse' | 'tag'>('syndrome')
+const activeType = ref<'syndrome' | 'tongue' | 'pulse' | 'tag' | 'herb_tag'>('syndrome')
 const terms = ref<DictTerm[]>([])
 const meridians = ['太阳', '阳明', '少阳', '太阴', '少阴', '厥阴']
 const pulseTypes = ['浮脉类', '沉脉类', '迟脉类', '数脉类', '虚脉类', '实脉类']
+const herbTagDimensions = ['三品', '四气', '五味', '归经', '升降浮沉']
 
 const dialogVisible = ref(false)
 const editingId = ref<number | null>(null)
@@ -267,6 +281,8 @@ async function save() {
         : null
     } else if (form.term_type === 'syndrome') {
       payload.meridian = form.meridian.length ? form.meridian.join(',') : null
+      payload.category = form.category || null
+    } else if (form.term_type === 'herb_tag') {
       payload.category = form.category || null
     } else {
       payload.pulse_type = form.pulse_type || null

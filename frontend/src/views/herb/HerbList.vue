@@ -51,11 +51,6 @@
             <el-option v-for="o in dimOptions('directions')" :key="o" :label="o" :value="o" />
           </el-select>
         </el-form-item>
-        <el-form-item label="功效分类/标签">
-          <el-select v-model="tagFilters" multiple filterable allow-create default-first-option collapse-tags clearable placeholder="多选/自定义" @change="loadHerbs" style="width:200px">
-            <el-option v-for="t in (meta.tag_suggestions || [])" :key="t" :label="t" :value="t" />
-          </el-select>
-        </el-form-item>
         <el-form-item>
           <el-checkbox v-model="pregOnly" @change="loadHerbs">仅看孕妇禁忌</el-checkbox>
         </el-form-item>
@@ -98,7 +93,7 @@
             <span v-if="!(row.directions && row.directions.length)" class="text-muted">-</span>
           </template>
         </el-table-column>
-        <el-table-column label="功效分类/标签" min-width="180" show-overflow-tooltip>
+        <el-table-column label="通用标签" min-width="180" show-overflow-tooltip>
           <template #default="{ row }">
             <el-tag v-for="t in (row.tags || [])" :key="t" size="small" class="tag-cell">{{ t }}</el-tag>
             <span v-if="!(row.tags && row.tags.length)" class="text-muted">-</span>
@@ -204,10 +199,8 @@
             <el-option v-for="o in dimOptions('directions')" :key="o" :label="o" :value="o" />
           </el-select>
         </el-form-item>
-        <el-form-item label="功效分类/标签">
-          <el-select v-model="form.tags" multiple filterable allow-create default-first-option clearable style="width:100%" placeholder="选择或自定义">
-            <el-option v-for="t in (meta.tag_suggestions || [])" :key="t" :label="t" :value="t" />
-          </el-select>
+        <el-form-item label="通用标签">
+          <el-select v-model="form.tags" multiple filterable allow-create default-first-option clearable style="width:100%" placeholder="自由标注：主治/经方/产地…" />
         </el-form-item>
         <el-form-item label="功效"><el-input v-model="form.efficacy" type="textarea" :rows="2" /></el-form-item>
         <el-row :gutter="12">
@@ -258,7 +251,6 @@ const natureFilter = ref('')
 const flavorFilters = ref<string[]>([])
 const meridianFilters = ref<string[]>([])
 const directionFilters = ref<string[]>([])
-const tagFilters = ref<string[]>([])
 const pregOnly = ref(false)
 
 // 标签维度与受控词表（来自后端 /herbs/tags/meta）
@@ -315,7 +307,6 @@ async function loadHerbs() {
     flavorFilters.value.forEach((v) => p.append('flavors', v))
     meridianFilters.value.forEach((v) => p.append('meridians', v))
     directionFilters.value.forEach((v) => p.append('directions', v))
-    tagFilters.value.forEach((v) => p.append('tags', v))
     const qs = p.toString()
     herbs.value = (await api.get('/herbs' + (qs ? '?' + qs : ''))) as any
   } catch {}
@@ -328,7 +319,6 @@ function resetFilters() {
   flavorFilters.value = []
   meridianFilters.value = []
   directionFilters.value = []
-  tagFilters.value = []
   pregOnly.value = false
   loadHerbs()
 }

@@ -74,6 +74,17 @@ PULSE = [
     ("微浮", "微脉类", "厥阴欲愈，正气来复"),
 ]
 
+# ── 药材标签维度词表 (term_type=herb_tag)，category=维度中文名
+# 受控维度候选项由数据字典接管，可在「字典管理」页增删；此处为初始种子。
+from app.constants.herb_tags import HERB_TAG_DIMENSIONS
+
+HERB_TAG_SEED = []
+for _key, _spec in HERB_TAG_DIMENSIONS.items():
+    _label = _spec["label"]
+    for _opt in _spec.get("options", []):
+        HERB_TAG_SEED.append((_label, _opt, f"{_label}·{_opt}"))
+
+
 # ── 证候 (term_type=syndrome)，按六经辨证 + 八纲分类
 SYNDROME = [
     ("太阳中風", "太阳", "表虚", "发热汗出恶风脉浮缓，桂枝汤主之"),
@@ -129,6 +140,12 @@ def seed_dictionaries(db):
 
     for name, meridian, category, desc in SYNDROME:
         if _add(db, "syndrome", name, meridian=meridian, category=category, description=desc):
+            added += 1
+        else:
+            skipped += 1
+
+    for label, name, desc in HERB_TAG_SEED:
+        if _add(db, "herb_tag", name, category=label, description=desc):
             added += 1
         else:
             skipped += 1
