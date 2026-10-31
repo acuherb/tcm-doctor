@@ -6,13 +6,13 @@
     </div>
     <div v-if="visit.tcm_disease || visit.tcm_syndrome" class="visit-diagnosis">
       <el-tag type="primary" size="small">{{ visit.tcm_disease }}</el-tag>
-      <el-tag type="warning" size="small">{{ visit.tcm_syndrome }}</el-tag>
+      <span v-if="visit.tcm_syndrome" class="xw-tag" :style="chipStyle(visit.tcm_syndrome, 'syndrome')">{{ visit.tcm_syndrome }}</span>
       <el-tag type="info" size="small">{{ visit.treatment_method }}</el-tag>
     </div>
     <div v-if="visit.tongue_body || visit.tongue_coat || visit.pulse" class="visit-sizhen">
-      <span v-if="visit.tongue_body">舌质: {{ visit.tongue_body }}</span>
-      <span v-if="visit.tongue_coat">舌苔: {{ visit.tongue_coat }}</span>
-      <span v-if="visit.pulse">脉象: {{ visit.pulse }}</span>
+      <span v-if="visit.tongue_body" class="xw-tag" :style="chipStyle(visit.tongue_body, 'tongue')">舌质: {{ visit.tongue_body }}</span>
+      <span v-if="visit.tongue_coat" class="xw-tag" :style="chipStyle(visit.tongue_coat, 'tongue')">舌苔: {{ visit.tongue_coat }}</span>
+      <span v-for="(p, i) in pulseList" :key="i" class="xw-tag" :style="chipStyle(p, 'pulse')">脉象: {{ p }}</span>
     </div>
 
     <!-- 影像资料（舌苔/面色/化验单，点击可放大） -->
@@ -155,11 +155,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { renderMarkdown } from '@/utils/markdown'
 import PinchImage from '@/components/PinchImage.vue'
 import { TEN_QUESTIONS } from '@/utils/tenAspectsQuestions'
+import { useDictColors, readableInk } from '@/utils/dictColors'
 
 const router = useRouter()
 
@@ -189,6 +190,21 @@ defineEmits<{
 // 卡片内 问诊十问 / AI 诊断库 默认折叠
 const iqExpanded = ref(false)
 const aiExpanded = ref(false)
+
+// 字典色标签：证型/舌象/脉象按字典色着色（缺失回退默认色），文字按亮度自适应
+const { termColor } = useDictColors()
+function chipStyle(name: string, type: 'tongue' | 'pulse' | 'syndrome'): Record<string, string> {
+  const c = termColor(name, type)
+  const ink = readableInk(c)
+  return { color: ink, backgroundColor: c, borderColor: ink }
+}
+// 脉象可能存为「弦数、沉细」等多值，按顿号/逗号拆分逐个着色
+const pulseList = computed(() =>
+  String(props.visit?.pulse || '')
+    .split(/[、,，/]/)
+    .map((s) => s.trim())
+    .filter(Boolean),
+)
 
 function statusTag(s?: string) {
   if (!s) return 'info'
@@ -458,8 +474,17 @@ function goPrescribeWithFormula(f: any) {
 .visit-card { margin-bottom: 4px; }
 .visit-card--child { margin-left: 28px; border-left: 3px solid #d9c9a3; }
 .visit-header { font-size: 14px; }
-.visit-diagnosis { margin-top: 8px; display: flex; gap: 6px; }
-.visit-sizhen { margin-top: 8px; font-size: 13px; color: #666; display: flex; gap: 12px; }
+.visit-diagnosis { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.visit-sizhen { margin-top: 8px; font-size: 13px; color: #666; display: flex; gap: 8px; flex-wrap: wrap; }
+.xw-tag {
+  display: inline-block;
+  padding: 0 8px;
+  font-size: 12px;
+  line-height: 20px;
+  border: 1px solid;
+  border-radius: 10px;
+  white-space: nowrap;
+}
 .visit-imgs { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 6px; }
 .visit-img-item { text-align: center; }
 .visit-img-item .img-label { display: block; font-size: 12px; color: #999; margin-bottom: 4px; }

@@ -340,10 +340,17 @@
         <el-descriptions-item v-if="viewVisit.auscultation" label="闻诊">{{ viewVisit.auscultation }}</el-descriptions-item>
         <el-descriptions-item v-if="viewVisit.inquiry" label="问诊">{{ viewVisit.inquiry }}</el-descriptions-item>
         <el-descriptions-item v-if="viewVisit.palpation" label="切诊">{{ viewVisit.palpation }}</el-descriptions-item>
-        <el-descriptions-item v-if="viewVisit.tongue_body || viewVisit.tongue_coat" label="舌象">{{ viewVisit.tongue_body }}{{ viewVisit.tongue_coat ? ' / ' + viewVisit.tongue_coat : '' }}</el-descriptions-item>
-        <el-descriptions-item v-if="viewVisit.pulse" label="脉象">{{ viewVisit.pulse }}</el-descriptions-item>
+        <el-descriptions-item v-if="viewVisit.tongue_body || viewVisit.tongue_coat" label="舌象">
+          <span v-if="viewVisit.tongue_body" class="xw-tag" :style="chipStyle(viewVisit.tongue_body, 'tongue')">舌质: {{ viewVisit.tongue_body }}</span>
+          <span v-if="viewVisit.tongue_coat" class="xw-tag" :style="chipStyle(viewVisit.tongue_coat, 'tongue')" style="margin-left:6px;">舌苔: {{ viewVisit.tongue_coat }}</span>
+        </el-descriptions-item>
+        <el-descriptions-item v-if="viewVisit.pulse" label="脉象">
+          <span v-for="(p, i) in (viewVisit.pulse || '').split(/[、,，/]/).map((s:string)=>s.trim()).filter(Boolean)" :key="i" class="xw-tag" :style="chipStyle(p, 'pulse')" style="margin-right:6px;">{{ p }}</span>
+        </el-descriptions-item>
         <el-descriptions-item v-if="viewVisit.tcm_disease" label="中医病名">{{ viewVisit.tcm_disease }}</el-descriptions-item>
-        <el-descriptions-item v-if="viewVisit.tcm_syndrome" label="证型">{{ viewVisit.tcm_syndrome }}</el-descriptions-item>
+        <el-descriptions-item v-if="viewVisit.tcm_syndrome" label="证型">
+          <span class="xw-tag" :style="chipStyle(viewVisit.tcm_syndrome, 'syndrome')">{{ viewVisit.tcm_syndrome }}</span>
+        </el-descriptions-item>
         <el-descriptions-item v-if="viewVisit.treatment_method" label="治法">{{ viewVisit.treatment_method }}</el-descriptions-item>
       </el-descriptions>
       <div v-if="viewVisit.tongue_image || viewVisit.face_image || (viewVisit.lab_report_images && viewVisit.lab_report_images.length)" class="sub-block" style="margin-top: 14px;">
@@ -550,10 +557,19 @@ import { TEN_QUESTIONS } from '@/utils/tenAspectsQuestions'
 import VisitRecord from '@/views/patient/VisitRecord.vue'
 import VisitCard from '@/components/VisitCard.vue'
 import PinchImage from '@/components/PinchImage.vue'
+import { useDictColors, readableInk } from '@/utils/dictColors'
 
 // 游客只读：隐藏所有写操作
 const auth = useAuthStore()
 const editable = computed(() => !!auth.user?.is_admin)
+
+// 字典色标签：证型/舌象/脉象按字典色着色（缺失回退默认色），文字按亮度自适应
+const { termColor } = useDictColors()
+function chipStyle(name: string, type: 'tongue' | 'pulse' | 'syndrome'): Record<string, string> {
+  const c = termColor(name, type)
+  const ink = readableInk(c)
+  return { color: ink, backgroundColor: c, borderColor: ink }
+}
 
 const route = useRoute()
 const patientId = Number(route.params.id)
@@ -970,6 +986,15 @@ function fmtTime(iso?: string): string {
 
 <style scoped>
 .text-muted { color: #c0c4cc; }
+.xw-tag {
+  display: inline-block;
+  padding: 0 8px;
+  font-size: 12px;
+  line-height: 20px;
+  border: 1px solid;
+  border-radius: 10px;
+  white-space: nowrap;
+}
 .tag-picker { display: flex; flex-wrap: wrap; gap: 8px; }
 .tag-option { cursor: pointer; user-select: none; transition: all .15s; }
 .tag-option:hover { opacity: .85; }

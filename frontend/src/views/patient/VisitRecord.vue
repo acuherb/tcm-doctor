@@ -62,7 +62,7 @@
                   <el-select v-model="form.tongue_body" clearable filterable placeholder="选择舌质" style="width:100%"
                     @change="form.tongue_body_term_id = findId('tongue', form.tongue_body, '舌质')">
                     <el-option v-for="t in tongueBodyTerms" :key="t.id" :label="t.name" :value="t.name">
-                      <div class="term-opt"><span class="term-name">{{ t.name }}</span><span v-if="t.description" class="term-desc">{{ t.description }}</span></div>
+                      <span class="opt-dot" :style="{ backgroundColor: dotColor(t) }"></span><div class="term-opt"><span class="term-name">{{ t.name }}</span><span v-if="t.description" class="term-desc">{{ t.description }}</span></div>
                     </el-option>
                   </el-select>
                 </el-form-item>
@@ -72,7 +72,7 @@
                   <el-select v-model="form.tongue_coat" clearable filterable placeholder="选择舌苔" style="width:100%"
                     @change="form.tongue_coat_term_id = findId('tongue', form.tongue_coat, '舌苔')">
                     <el-option v-for="t in tongueCoatTerms" :key="t.id" :label="t.name" :value="t.name">
-                      <div class="term-opt"><span class="term-name">{{ t.name }}</span><span v-if="t.description" class="term-desc">{{ t.description }}</span></div>
+                      <span class="opt-dot" :style="{ backgroundColor: dotColor(t) }"></span><div class="term-opt"><span class="term-name">{{ t.name }}</span><span v-if="t.description" class="term-desc">{{ t.description }}</span></div>
                     </el-option>
                   </el-select>
                 </el-form-item>
@@ -121,7 +121,7 @@
               <el-select v-model="form.pulse" multiple clearable filterable placeholder="选择脉象" style="width:100%"
                 @change="onPulseChange">
                 <el-option v-for="t in pulseTerms" :key="t.id" :label="t.name" :value="t.name">
-                  <div class="term-opt"><span class="term-name">{{ t.name }}</span><span v-if="t.description" class="term-desc">{{ t.description }}</span></div>
+                  <span class="opt-dot" :style="{ backgroundColor: dotColor(t) }"></span><div class="term-opt"><span class="term-name">{{ t.name }}</span><span v-if="t.description" class="term-desc">{{ t.description }}</span></div>
                 </el-option>
               </el-select>
             </el-form-item>
@@ -149,7 +149,7 @@
                 placeholder="选证书型或输入" style="width:100%"
                 @change="form.syndrome_term_id = findId('syndrome', form.tcm_syndrome)">
                 <el-option v-for="t in syndromeTerms" :key="t.id" :label="t.name" :value="t.name">
-                  <div class="term-opt"><span class="term-name">{{ t.name }}</span><span v-if="t.description" class="term-desc">{{ t.description }}</span></div>
+                  <span class="opt-dot" :style="{ backgroundColor: dotColor(t) }"></span><div class="term-opt"><span class="term-name">{{ t.name }}</span><span v-if="t.description" class="term-desc">{{ t.description }}</span></div>
                 </el-option>
               </el-select>
             </el-form-item>
@@ -250,7 +250,9 @@
         <div class="ai-section-title">🩺 辨证论治（理法方药）</div>
         <el-descriptions :column="1" border size="small">
           <el-descriptions-item label="中医病名" v-if="form.tcm_disease">{{ form.tcm_disease }}</el-descriptions-item>
-          <el-descriptions-item label="证型" v-if="form.tcm_syndrome">{{ form.tcm_syndrome }}</el-descriptions-item>
+          <el-descriptions-item label="证型" v-if="form.tcm_syndrome">
+            <span class="xw-tag" :style="chipStyle(form.tcm_syndrome, 'syndrome')">{{ form.tcm_syndrome }}</span>
+          </el-descriptions-item>
           <el-descriptions-item label="治法" v-if="form.treatment_method">{{ form.treatment_method }}</el-descriptions-item>
         </el-descriptions>
       </div>
@@ -293,6 +295,7 @@ import { TEN_QUESTIONS } from '@/utils/tenAspectsQuestions'
 import { calcAge } from '@/utils/health'
 import TenAspectsPanel from '@/components/TenAspectsPanel.vue'
 import PinchImage from '@/components/PinchImage.vue'
+import { useDictColors, readableInk } from '@/utils/dictColors'
 
 const tenAspectsRef = ref<{ getAspectSummary: () => string; getAspectAnswers?: () => { answers: Record<string, string>; notes: Record<string, string> } } | null>(null)
 
@@ -360,6 +363,17 @@ const tongueBodyTerms = computed(() => dictTerms.value.filter(t => t.term_type =
 const tongueCoatTerms = computed(() => dictTerms.value.filter(t => t.term_type === 'tongue' && t.aspect === '舌苔'))
 const pulseTerms = computed(() => dictTerms.value.filter(t => t.term_type === 'pulse'))
 const syndromeTerms = computed(() => dictTerms.value.filter(t => t.term_type === 'syndrome'))
+
+// 字典色：下拉色点 / 摘要证型标签（字典色优先，缺失回退默认色）
+const { termColor } = useDictColors()
+function dotColor(t: any): string {
+  return termColor(t.name, t.term_type, t)
+}
+function chipStyle(name: string, type: 'tongue' | 'pulse' | 'syndrome'): Record<string, string> {
+  const c = termColor(name, type)
+  const ink = readableInk(c)
+  return { color: ink, backgroundColor: c, borderColor: ink }
+}
 
 function findId(termType: string, name: string, aspect?: string): number | null {
   if (!name) return null
@@ -1043,6 +1057,24 @@ async function loadExistingVisit(visitId: number) {
 }
 
 /* 词条下拉释义提示 */
+.opt-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
+  flex: none;
+}
+.xw-tag {
+  display: inline-block;
+  padding: 0 8px;
+  font-size: 12px;
+  line-height: 20px;
+  border: 1px solid;
+  border-radius: 10px;
+  white-space: nowrap;
+}
 .term-opt {
   display: flex;
   flex-direction: column;
