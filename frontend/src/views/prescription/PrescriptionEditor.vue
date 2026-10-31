@@ -186,10 +186,26 @@
               <el-select v-model="acp.technique" placeholder="针法" clearable style="width:116px;">
                 <el-option v-for="t in techniques" :key="t" :label="t" :value="t" />
               </el-select>
-              <el-input v-model="acp.retention" placeholder="分钟" style="width:80px;" title="留针时间(分钟)">
-                <template #prepend>留针</template>
-              </el-input>
-              <el-input-number v-model="acp.sequence" :min="1" :max="30" placeholder="顺序" style="width:80px;" />
+              <el-input-number
+                :model-value="retentionNum(acp.retention)"
+                @update:model-value="(n: any) => (acp.retention = n == null ? '' : Math.round(n) + '分钟')"
+                :min="0" :max="180"
+                controls-position="right"
+                style="width:150px;"
+                title="留针时间(分钟)"
+              >
+                <template #prefix>留针</template>
+                <template #suffix>分</template>
+              </el-input-number>
+              <el-input-number
+                v-model="acp.sequence"
+                :min="1" :max="30"
+                controls-position="right"
+                style="width:96px;"
+                title="施针顺序：数字越小越先施针"
+              >
+                <template #prefix>顺序</template>
+              </el-input-number>
               <el-input v-model="acp.note" placeholder="备注" style="width:120px;" size="small" />
             </div>
             <div class="herb-item-actions">
@@ -453,6 +469,11 @@ function addItem() {
 function removeItem(idx: number) {
   form.value.items.splice(idx, 1)
   runSafetyCheck()
+}
+
+function retentionNum(v: string | null | undefined): number | null {
+  const m = String(v ?? '').match(/\d+/)
+  return m ? Number(m[0]) : null
 }
 
 function addAcupoint() {
