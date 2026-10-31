@@ -17,3 +17,8 @@ venv
 electron
 resources
 *.log
+
+# 数据生成脚本：仅构建期使用，运行时只需其产出的 JSON，镜像中剔除以瘦身
+backend/app/data/generate_herbs.py
+backend/app/data/generate_knowledge.py
+backend/app/data/books/gen_*.py

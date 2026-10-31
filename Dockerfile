@@ -6,8 +6,8 @@ WORKDIR /app/frontend
 COPY frontend/package*.json ./
 RUN npm install
 COPY frontend/ ./
-# 直接调用 vite 构建（跳过 vue-tsc 类型检查，避免类型问题阻塞镜像构建）
-RUN npx vite build
+# 通过 npm run build 构建：先 vue-tsc 类型检查（已确认 0 错误），再 vite 打包
+RUN npm run build
 
 # ---------- 后端运行阶段 ----------
 FROM python:3.12-slim AS runtime

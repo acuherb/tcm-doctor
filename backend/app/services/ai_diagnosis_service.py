@@ -1,5 +1,6 @@
 """AI 智能辨证服务 — DeepSeek API + RAG"""
 import json
+import logging
 import uuid
 from datetime import datetime
 from typing import AsyncGenerator
@@ -10,6 +11,8 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.models.herb import Herb
 from app.models.knowledge import KnowledgeEntry
+
+logger = logging.getLogger(__name__)
 
 
 # ── System Prompt ──
@@ -220,8 +223,8 @@ class DiagnosisService:
                 try:
                     bmi = round(patient_weight_kg / ((patient_height_cm / 100) ** 2), 1)
                     patient_info += f"（BMI≈{bmi}）"
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("BMI 计算失败（非关键字段，已忽略）: %s", e)
         if is_pregnant:
             patient_info += "⚠️患者为孕妇，需注意孕妇禁忌。"
 
@@ -437,7 +440,8 @@ class DiagnosisService:
         for c in candidates:
             try:
                 return _json.loads(c)
-            except Exception:
+            except Exception as e:
+                logger.debug("解析候选 JSON 块失败，跳过: %s", e)
                 continue
         return None
 
@@ -655,7 +659,8 @@ class DiagnosisService:
         raw = m.group(0)
         try:
             data = _json.loads(raw)
-        except Exception:
+        except Exception as e:
+            logger.warning("解析推荐针灸配穴 JSON 失败: %s", e)
             return []
         if not isinstance(data, list):
             return []
@@ -751,8 +756,8 @@ class DiagnosisService:
                 try:
                     bmi = round(patient_weight_kg / ((patient_height_cm / 100) ** 2), 1)
                     patient_info += f"（BMI≈{bmi}）"
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("BMI 计算失败（非关键字段，已忽略）: %s", e)
         if is_pregnant:
             patient_info += "⚠️患者为孕妇，需注意孕妇禁忌。"
 
@@ -824,8 +829,8 @@ class DiagnosisService:
             ).limit(top_k).all()
             for e in entries:
                 contexts.append(f"[{e.category}] {e.title}\n{e.content[:500]}")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("关键词检索知识库失败，跳过: %s", e)
 
         # 2. 语义检索 (ChromaDB) — 如果可用
         try:
@@ -835,8 +840,8 @@ class DiagnosisService:
                 contexts.append(f"[{r.get('category', '知识库')}] {r.get('title', '')}\n{r.get('content', '')[:500]}")
         except ImportError:
             pass  # ChromaDB 未安装
-        except Exception:
-            pass  # 向量检索失败，降级到关键词
+        except Exception as e:
+            logger.warning("向量检索失败，降级到关键词检索: %s", e)
 
         if not contexts:
             return ""

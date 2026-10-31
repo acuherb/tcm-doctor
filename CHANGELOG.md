@@ -301,3 +301,15 @@
 - 新增 `.github/workflows/ci.yml`：push/PR 触发，后端跑 `pytest`、前端跑 `npm ci && npm run build`。
 - `requirements.txt`：移除未使用的 `alembic`（自研版本化迁移已替代），新增 `pytest`。
 - 验证：`pytest -q` 全量 6 项通过。
+
+### 16. 类型与错误统一（P2-6）
+- **前端构建启用类型检查**：`frontend/package.json` 的 `build` 由 `vite build` 改为 `vue-tsc --noEmit && vite build`（已确认 `vue-tsc` 0 错误，构建零风险）；`Dockerfile` 前端阶段同步改用 `npm run build`，不再跳过 tsc。CI 的 `npm run build` 现会真正拦住类型回归。
+- **收敛 AI 服务静默 except**：`app/services/ai_diagnosis_service.py` 新增模块级 `logger`；原 13 处裸 `except Exception: pass` / 静默 `return []` 改为 `logger.debug/warning` 记录异常（BMI 计算、RAG 关键词/向量检索、配穴 JSON 解析、候选 JSON 块解析等），失败不再无声吞掉，便于线上排查。
+- **统一错误响应**：`app/main.py` 注册统一异常处理器——`HTTPException` 与 `RequestValidationError` 均返回 `{"detail": ...}`（与原鉴权中间件形状一致），并新增兜底 `Exception` 处理器：返回 `{"detail": "服务器内部错误，请联系管理员"}` 且 `logger.exception` 记录堆栈，避免 500 泄漏堆栈、前端解析一致。
+
+### 17. 镜像瘦身 + 健康检查 + 清理误导配置（P2-7）
+- **镜像瘦身**：`.dockerignore` 新增排除 `backend/app/data/generate_herbs.py`、`backend/app/data/generate_knowledge.py`、`backend/app/data/books/gen_*.py`——这些为数据生成脚本，运行时只需其产出的 JSON（`seed.py` 只读 JSON），剔除后减小镜像体积。
+- **健康检查**：`docker-compose.yml` 新增 `healthcheck`，命中既有 `/health`（`main.py` 已实现，返回 `{"status":"ok","version":...}`）；因 `python:3.12-slim` 不含 curl/wget，改用标准库 `urllib.request` 探测，避免引入额外依赖。
+- **清理误导配置**：移除 `docker-compose.yml` 中 `SECRET_KEY=please-change-this-secret`（`config.py` 根本不读取该变量，属误导性死配置，易让人误以为已设密钥）。
+
+- 验证：`python3 -m pytest -q` 6 项通过；`npm run build` 通过（vue-tsc 0 错误 + vite 打包成功，仅第三方依赖告警）。

@@ -10,11 +10,17 @@ services:
       - PORT=8765
       # 数据库落在挂载卷 /data 中，容器重建不丢数据
       - DATABASE_URL=sqlite:////data/tcm_doctor.db
-      - SECRET_KEY=please-change-this-secret
       - ALLOW_GUEST_LOGIN=false
       - ENABLE_SEMANTIC_SEARCH=false
       # 如需 AI 智能辨证，取消下行注释并填入 DeepSeek API Key
       # - DEEPSEEK_API_KEY=sk-xxxxxxxx
+    healthcheck:
+      # python:3.12-slim 不含 curl/wget，用标准库做存活探测；命中 /health 即就绪
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8765/health').status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     volumes:
       - tcm_data:/data
     restart: unless-stopped
