@@ -18,7 +18,8 @@ class HerbCreate(BaseModel):
     meridians: list[str] | None = Field(None, description="归经标签(多值): 十二经等")
     directions: list[str] | None = Field(None, description="升降浮沉(多值): 升/降/浮/沉")
     tags: list[str] | None = Field(None, description="通用标签: 功效分类/主治证型/经方常用/产地/炮制")
-    efficacy: str | None = Field(None, description="功效")
+    efficacy: str | None = Field(None, description="功效/主治")
+    contraindication: str | None = Field(None, description="禁忌")
     dosage_min: float | None = Field(None, description="最小剂量(g)")
     dosage_max: float | None = Field(None, description="最大剂量(g)")
     toxicity: str = Field("无毒", description="毒性")
@@ -41,6 +42,7 @@ class HerbUpdate(BaseModel):
     directions: list[str] | None = None
     tags: list[str] | None = None
     efficacy: str | None = None
+    contraindication: str | None = None
     dosage_min: float | None = None
     dosage_max: float | None = None
     toxicity: str | None = None
@@ -65,6 +67,7 @@ class HerbResponse(BaseModel):
     directions: list[str] | None
     tags: list[str] | None
     efficacy: str | None
+    contraindication: str | None
     dosage_min: float | None
     dosage_max: float | None
     toxicity: str | None

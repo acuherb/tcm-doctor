@@ -68,45 +68,22 @@
             <span v-else class="text-muted">-</span>
           </template>
         </el-table-column>
-        <el-table-column label="三品" width="72">
+        <el-table-column label="性味" min-width="150">
           <template #default="{ row }">
-            <el-tag v-if="row.grade" :type="gradeTag(row.grade)" size="small">{{ row.grade }}</el-tag>
+            <span v-if="xingwei(row)">{{ xingwei(row) }}</span>
             <span v-else class="text-muted">-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="nature" label="性" width="50" />
-        <el-table-column label="味" width="110">
-          <template #default="{ row }">
-            <el-tag v-for="f in (row.flavors || [])" :key="f" size="small" type="success" class="tag-cell">{{ f }}</el-tag>
-            <span v-if="!(row.flavors && row.flavors.length)" class="text-muted">-</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="归经" width="160" show-overflow-tooltip>
-          <template #default="{ row }">
-            <el-tag v-for="m in (row.meridians || [])" :key="m" size="small" type="warning" class="tag-cell">{{ m }}</el-tag>
-            <span v-if="!(row.meridians && row.meridians.length)" class="text-muted">-</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="升降浮沉" width="110">
-          <template #default="{ row }">
-            <el-tag v-for="d in (row.directions || [])" :key="d" size="small" type="info" class="tag-cell">{{ d }}</el-tag>
-            <span v-if="!(row.directions && row.directions.length)" class="text-muted">-</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="通用标签" min-width="180" show-overflow-tooltip>
+        <el-table-column label="通用标签" min-width="160" show-overflow-tooltip>
           <template #default="{ row }">
             <el-tag v-for="t in (row.tags || [])" :key="t" size="small" class="tag-cell">{{ t }}</el-tag>
             <span v-if="!(row.tags && row.tags.length)" class="text-muted">-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="efficacy" label="功效" show-overflow-tooltip />
+        <el-table-column prop="efficacy" label="主治" show-overflow-tooltip />
+        <el-table-column prop="contraindication" label="禁忌" min-width="160" show-overflow-tooltip />
         <el-table-column label="剂量(g)" width="90">
           <template #default="{ row }">{{ row.dosage_min }}~{{ row.dosage_max }}<span class="unit">g</span></template>
-        </el-table-column>
-        <el-table-column prop="toxicity" label="毒性" width="70">
-          <template #default="{ row }">
-            <el-tag :type="toxicityTag(row.toxicity)" size="small">{{ row.toxicity }}</el-tag>
-          </template>
         </el-table-column>
         <el-table-column label="状态" width="70">
           <template #default="{ row }">
@@ -133,30 +110,19 @@
               <span class="label">异名</span><span class="value">{{ row.aliases.join('、') }}</span>
             </div>
             <div class="card-row">
-              <span class="label">三品</span>
-              <span class="value"><el-tag v-if="row.grade" :type="gradeTag(row.grade)" size="small">{{ row.grade }}</el-tag><template v-else>-</template></span>
-            </div>
-            <div class="card-row">
-              <span class="label">性味</span><span class="value">{{ row.nature || '-' }} / <template v-for="f in (row.flavors||[])">{{ f }} </template><template v-if="!(row.flavors&&row.flavors.length)">-</template></span>
-            </div>
-            <div class="card-row">
-              <span class="label">归经</span><span class="value"><template v-for="m in (row.meridians||[])">{{ m }} </template><template v-if="!(row.meridians&&row.meridians.length)">-</template></span>
-            </div>
-            <div class="card-row" v-if="row.directions && row.directions.length">
-              <span class="label">升降</span><span class="value"><template v-for="d in row.directions">{{ d }} </template></span>
+              <span class="label">性味</span><span class="value">{{ xingwei(row) || '-' }}</span>
             </div>
             <div class="card-row" v-if="row.tags && row.tags.length">
               <span class="label">标签</span><span class="value"><template v-for="t in row.tags">{{ t }} </template></span>
             </div>
+            <div class="card-row" v-if="row.efficacy">
+              <span class="label">主治</span><span class="value">{{ row.efficacy }}</span>
+            </div>
+            <div class="card-row" v-if="row.contraindication">
+              <span class="label">禁忌</span><span class="value">{{ row.contraindication }}</span>
+            </div>
             <div class="card-row">
               <span class="label">剂量</span><span class="value">{{ row.dosage_min }}~{{ row.dosage_max }} g</span>
-            </div>
-            <div class="card-row">
-              <span class="label">毒性</span>
-              <span class="value"><el-tag :type="toxicityTag(row.toxicity)" size="small">{{ row.toxicity || '无毒' }}</el-tag></span>
-            </div>
-            <div class="card-row" v-if="row.efficacy">
-              <span class="label">功效</span><span class="value">{{ row.efficacy }}</span>
             </div>
           </div>
           <div v-if="editable" class="card-actions">
@@ -173,20 +139,45 @@
         <el-form-item label="正名" required><el-input v-model="form.name" placeholder="请输入药名（如 桂枝）"/></el-form-item>
         <el-form-item label="异名"><el-input v-model="form.aliasesStr" placeholder="逗号分隔，如 官桂、桂心" /></el-form-item>
         <el-row :gutter="12">
-          <el-col :span="8"><el-form-item label="三品">
-            <el-select v-model="form.grade" clearable placeholder="选填" style="width:100%">
-              <el-option v-for="o in dimOptions('grade')" :key="o" :label="o" :value="o" />
-            </el-select>
-          </el-form-item></el-col>
-          <el-col :span="8"><el-form-item label="四气">
+          <el-col :span="12"><el-form-item label="四气">
             <el-select v-model="form.nature" clearable placeholder="选填" style="width:100%">
               <el-option v-for="o in dimOptions('nature')" :key="o" :label="o" :value="o" />
             </el-select>
+          </el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="毒性">
+            <el-radio-group v-model="form.toxicity">
+              <el-radio-button v-for="t in ['无毒','有小毒','有毒','有大毒']" :key="t" :label="t">{{ t }}</el-radio-button>
+            </el-radio-group>
           </el-form-item></el-col>
         </el-row>
         <el-form-item label="五味">
           <el-select v-model="form.flavors" multiple clearable style="width:100%" placeholder="多选">
             <el-option v-for="o in dimOptions('flavors')" :key="o" :label="o" :value="o" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="主治"><el-input v-model="form.efficacy" type="textarea" :rows="2" placeholder="如 发汗解肌，温通经脉，助阳化气" /></el-form-item>
+        <el-form-item label="禁忌"><el-input v-model="form.contraindication" type="textarea" :rows="2" placeholder="如 阴虚火旺者忌用；孕妇慎用" /></el-form-item>
+        <el-row :gutter="12">
+          <el-col :span="12"><el-form-item label="最小剂量">
+            <el-input-number v-model="form.dosage_min" :min="0" :max="1000" :precision="1" :step="1" controls-position="right" style="width:100%">
+              <template #suffix><span class="unit">g</span></template>
+            </el-input-number>
+          </el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="最大剂量">
+            <el-input-number v-model="form.dosage_max" :min="0" :max="1000" :precision="1" :step="1" controls-position="right" style="width:100%">
+              <template #suffix><span class="unit">g</span></template>
+            </el-input-number>
+          </el-form-item></el-col>
+        </el-row>
+        <el-form-item label="孕妇禁忌">
+          <el-switch v-model="form.pregnancy_contraindicated" active-text="是" inactive-text="否" />
+        </el-form-item>
+        <el-form-item label="储存条件"><el-input v-model="form.storage_condition" placeholder="如 置阴凉干燥处" /></el-form-item>
+
+        <el-divider>其它标签（可选）</el-divider>
+        <el-form-item label="三品">
+          <el-select v-model="form.grade" clearable placeholder="选填" style="width:100%">
+            <el-option v-for="o in dimOptions('grade')" :key="o" :label="o" :value="o" />
           </el-select>
         </el-form-item>
         <el-form-item label="归经">
@@ -201,28 +192,6 @@
         </el-form-item>
         <el-form-item label="通用标签">
           <el-select v-model="form.tags" multiple filterable allow-create default-first-option clearable style="width:100%" placeholder="自由标注：主治/经方/产地…" />
-        </el-form-item>
-        <el-form-item label="功效"><el-input v-model="form.efficacy" type="textarea" :rows="2" /></el-form-item>
-        <el-row :gutter="12">
-          <el-col :span="12"><el-form-item label="最小剂量">
-            <el-input-number v-model="form.dosage_min" :min="0" :max="1000" :precision="1" :step="1" controls-position="right" style="width:100%">
-              <template #suffix><span class="unit">g</span></template>
-            </el-input-number>
-          </el-form-item></el-col>
-          <el-col :span="12"><el-form-item label="最大剂量">
-            <el-input-number v-model="form.dosage_max" :min="0" :max="1000" :precision="1" :step="1" controls-position="right" style="width:100%">
-              <template #suffix><span class="unit">g</span></template>
-            </el-input-number>
-          </el-form-item></el-col>
-        </el-row>
-        <el-form-item label="毒性">
-          <el-radio-group v-model="form.toxicity">
-            <el-radio-button v-for="t in ['无毒','有小毒','有毒','有大毒']" :key="t" :label="t">{{ t }}</el-radio-button>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item label="储存条件"><el-input v-model="form.storage_condition" placeholder="如 置阴凉干燥处" /></el-form-item>
-        <el-form-item label="孕妇禁忌">
-          <el-switch v-model="form.pregnancy_contraindicated" active-text="是" inactive-text="否" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -273,7 +242,7 @@ function defaultForm() {
   return {
     name: '', aliasesStr: '', grade: '', nature: '平',
     flavors: [] as string[], meridians: [] as string[], directions: [] as string[], tags: [] as string[],
-    efficacy: '', dosage_min: 3, dosage_max: 10, toxicity: '无毒',
+    efficacy: '', contraindication: '', dosage_min: 3, dosage_max: 10, toxicity: '无毒',
     storage_condition: '', pregnancy_contraindicated: false,
   }
 }
@@ -289,6 +258,14 @@ function gradeTag(g: string) {
   if (g === '上品') return 'success'
   if (g === '中品') return 'warning'
   return 'danger' // 下品
+}
+// 性味合并展示：性 · 味 · 毒性（毒性仅在非"无毒"时显示）
+function xingwei(row: any): string {
+  const parts: string[] = []
+  if (row?.nature) parts.push(row.nature)
+  if (row?.flavors && row.flavors.length) parts.push(row.flavors.join(''))
+  if (row?.toxicity && row.toxicity !== '无毒') parts.push(row.toxicity)
+  return parts.join(' · ')
 }
 
 async function loadMeta() {
@@ -343,6 +320,7 @@ function openEdit(row: any) {
     directions: row.directions || [],
     tags: row.tags || [],
     efficacy: row.efficacy || '',
+    contraindication: row.contraindication || '',
     dosage_min: row.dosage_min ?? 3,
     dosage_max: row.dosage_max ?? 10,
     toxicity: row.toxicity || '无毒',
@@ -366,6 +344,7 @@ async function submitForm() {
       directions: f.directions.length ? f.directions : null,
       tags: f.tags.length ? f.tags : null,
       efficacy: f.efficacy || null,
+      contraindication: f.contraindication || null,
       dosage_min: f.dosage_min,
       dosage_max: f.dosage_max,
       toxicity: f.toxicity || '无毒',

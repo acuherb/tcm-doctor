@@ -23,6 +23,7 @@ NEW_COLUMNS = {
     "meridians": "TEXT",
     "directions": "TEXT",
     "tags": "TEXT",
+    "contraindication": "TEXT",
 }
 
 FLAVOR_CHARS = set("辛甘酸苦咸淡涩")

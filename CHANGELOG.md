@@ -23,6 +23,13 @@
 - [DictionaryManage.vue](file:///home/debian/tcm-doctor/frontend/src/views/dictionary/DictionaryManage.vue)：新增「药材标签」页签，按维度（三品/四气/五味/归经/升降浮沉）归类管理词条。
 - **功效分类概念彻底移除**：搜索栏与编辑弹窗的"功效分类/标签"框下线；`tags` 仅作为**自由标注**（主治/经方/产地/炮制），`/herbs/tags/meta` 不再返回 `tag_suggestions`；迁移写入的 261 味旧 `category` 保留为普通自由标签不强制。
 
+### 5. 本草经式表头（本次）
+- 用户（翻《神农本草经》）重新定义药材字典表头为传统本草经式：**正名 | 异名 | 性味(性·味·毒性) | 主治 | 禁忌 | 剂量 | 状态 | 操作**。
+- 列表「性/味/毒性」三列合并为一列「性味」（展示如 `温 · 辛甘 · 有小毒`，毒性仅在非"无毒"时出现）；`功效` 列改名 `主治`；新增 `禁忌` 自由文本列。移动端卡片同步。
+- 按用户决定，**表格移除三品/归经/升降浮沉独立列**（性/味之外的维度仍可在编辑弹窗的"其它标签（可选）"分隔区填写，数据不丢）。
+- 后端 `Herb` 模型 + `HerbCreate/HerbUpdate/HerbResponse` 新增 `contraindication`(禁忌) 文本字段；[migrate_herb_tags.py](file:///home/debian/tcm-doctor/backend/scripts/migrate_herb_tags.py) 幂等 ALTER 新增 `herbs.contraindication` 列（老库已执行，`create_all` 覆盖全新库）。
+- 编辑弹窗重排：四气+五味+毒性(性味)、主治、禁忌 前置；三品/归经/升降浮沉/通用标签 归入"其它标签（可选）"分隔区。
+
 ## 2026-10-30 — AI 推荐方结构化带入开方（主方/副方 + 加减勾选 + 字典校验）
 
 ### 背景
