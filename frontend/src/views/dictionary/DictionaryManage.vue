@@ -31,10 +31,9 @@
         <el-table-column v-if="activeType === 'pulse'" prop="pulse_type" label="脉类" width="110" />
         <el-table-column v-if="activeType === 'herb_tag'" prop="category" label="维度" width="100" />
         <el-table-column prop="description" label="释义" min-width="220" show-overflow-tooltip />
-        <el-table-column v-if="activeType === 'tag' || activeType === 'herb_tag'" label="颜色" width="70" align="center">
+        <el-table-column v-if="activeType === 'tag' || activeType === 'herb_tag'" label="颜色" width="110" align="center">
           <template #default="{ row }">
-            <span v-if="row.color" class="color-dot" :style="{ backgroundColor: row.color }"></span>
-            <span v-else class="text-muted">-</span>
+            <span class="xw-tag" :style="tagChipStyle(row.name, row.color)">{{ row.name }}</span>
           </template>
         </el-table-column>
         <el-table-column label="启用" width="80" align="center">
@@ -83,8 +82,9 @@
           <div class="card-row" v-if="row.description">
             <span class="label">释义</span><span class="value">{{ row.description }}</span>
           </div>
-          <div class="card-row" v-if="activeType === 'tag' && row.color">
-            <span class="label">颜色</span><span class="value"><span class="color-dot" :style="{ backgroundColor: row.color }"></span></span>
+          <div class="card-row" v-if="activeType === 'tag' || activeType === 'herb_tag'">
+            <span class="label">颜色</span>
+            <span class="value"><span class="xw-tag" :style="tagChipStyle(row.name, row.color)">{{ row.name }}</span></span>
           </div>
 
           <div class="card-actions" v-if="editable">
@@ -150,7 +150,11 @@
         </el-form-item>
         <el-form-item v-if="activeType === 'tag' || activeType === 'herb_tag'" label="颜色">
           <el-color-picker v-model="form.color" />
-          <span style="font-size:12px;color:#999;margin-left:8px;">自定义颜色，仅患者标签会按此色着色（红/橙区分过敏、重点人群等）</span>
+          <span style="font-size:12px;color:#999;margin-left:8px;">自定义颜色；药材性味默认按五行/温度本色（寒蓝→温红、酸青苦赤…），留空则用默认色</span>
+          <div style="margin-top:10px;display:flex;align-items:center;gap:8px;">
+            <span class="xw-tag" :style="{ color: previewColor, borderColor: previewColor, backgroundColor: previewColor + '1a' }">{{ form.name || '预览' }}</span>
+            <span v-if="!form.color" style="font-size:12px;color:#999;">（当前为默认色，保存后按此色着色）</span>
+          </div>
         </el-form-item>
         <el-form-item label="启用">
           <el-switch v-model="form.is_active" />
@@ -220,6 +224,23 @@ function sortHerbTag(list: any[]): any[] {
     return oa - ob
   })
 }
+
+// 药材性味默认色：四气按寒→温 蓝→橙红梯度；五味按五行本色（酸青/苦赤/甘黄/辛白/咸黑）
+// 字典页用于「无自定义色时回退」，让温度/味性对应的本色直接亮出来
+const HERB_TAG_DEFAULT_COLOR: Record<string, string> = {
+  '酸': '#2e9e5b', '苦': '#d9434e', '甘': '#e0a82e', '辛': '#9fb3c8', '咸': '#2f3b47', '淡': '#b0a0c0',
+  '寒': '#2f80b5', '微寒': '#5aa0cf', '平': '#7f9a6e', '微温': '#e08a3c', '温': '#d9642c', '热': '#c0392b',
+}
+function tagChipStyle(name: string, color?: string | null): Record<string, string> {
+  const c = color || (activeType.value === 'herb_tag' ? (HERB_TAG_DEFAULT_COLOR[name] || '#909399') : '') || '#909399'
+  return { color: c, borderColor: c, backgroundColor: c + '1a' }
+}
+// 编辑弹窗实时预览色：自定义色优先；药材性味回退五行/温度本色
+const previewColor = computed(() => {
+  if (form.color) return form.color
+  if (activeType.value === 'herb_tag') return HERB_TAG_DEFAULT_COLOR[form.name] || '#909399'
+  return '#909399'
+})
 
 const dialogVisible = ref(false)
 const editingId = ref<number | null>(null)
@@ -374,6 +395,15 @@ onMounted(loadTerms)
   border-radius: 50%;
   border: 1px solid #dcdfe6;
   vertical-align: middle;
+}
+.xw-tag {
+  display: inline-block;
+  padding: 0 8px;
+  font-size: 12px;
+  line-height: 20px;
+  border: 1px solid;
+  border-radius: 10px;
+  white-space: nowrap;
 }
 .dict-card .card-actions {
   display: flex;
