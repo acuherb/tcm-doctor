@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from app.config import settings, build_display_version
 from app.database import engine, Base, SessionLocal
+from app.migrations import run_migrations
 from app.models.user import User, AuthToken
 from app.routers import patient, herb, prescription, knowledge, diagnosis, dictionaries, acupuncture
 from app.routers import acupoint_formula
@@ -29,7 +30,7 @@ async def lifespan(app: FastAPI):
     import app.models  # noqa: F401
     Base.metadata.create_all(bind=engine)
 
-    _run_light_migrations()
+    run_migrations()
 
     # 首次启动时导入药材、经典方剂数据
     from app.seed import seed_all
@@ -52,186 +53,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-def _run_light_migrations() -> None:
-    """轻量迁移：为既有表补充新增列（SQLite 下 create_all 不会为已存在表加列）"""
-    from sqlalchemy import inspect, text
 
-    inspector = inspect(engine)
-    # prescriptions.prescription_type
-    if "prescriptions" in inspector.get_table_names():
-        cols = {c["name"] for c in inspector.get_columns("prescriptions")}
-        if "prescription_type" not in cols:
-            with engine.begin() as conn:
-                conn.execute(text(
-                    "ALTER TABLE prescriptions ADD COLUMN prescription_type VARCHAR(20) NOT NULL DEFAULT '药方'"
-                ))
-        if "acupoint_formula_name" not in cols:
-            with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE prescriptions ADD COLUMN acupoint_formula_name VARCHAR(100)"))
-        if "acupoint_technique" not in cols:
-            with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE prescriptions ADD COLUMN acupoint_technique VARCHAR(50)"))
-        if "treatment_frequency" not in cols:
-            with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE prescriptions ADD COLUMN treatment_frequency VARCHAR(20)"))
-        if "treatment_days" not in cols:
-            with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE prescriptions ADD COLUMN treatment_days INTEGER"))
-        if "acupoint_formula_id" not in cols:
-            with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE prescriptions ADD COLUMN acupoint_formula_id INTEGER"))
-
-    # users.must_change_password（升级已有库时默认为 1，即要求改密）
-    if "users" in inspector.get_table_names():
-        ucols = {c["name"] for c in inspector.get_columns("users")}
-        if "must_change_password" not in ucols:
-            with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE users ADD COLUMN must_change_password BOOLEAN NOT NULL DEFAULT 1"))
-    # inquiry_records.visit_id（关联就诊，可为空，向后兼容旧记录）
-    if "inquiry_records" in inspector.get_table_names():
-        icols = {c["name"] for c in inspector.get_columns("inquiry_records")}
-        if "visit_id" not in icols:
-            with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE inquiry_records ADD COLUMN visit_id INTEGER"))
-
-    # visits.parent_visit_id（复诊指向其初诊，构成一次完整就诊）
-    if "visits" in inspector.get_table_names():
-        vcols = {c["name"] for c in inspector.get_columns("visits")}
-        if "parent_visit_id" not in vcols:
-            with engine.begin() as conn:
-                conn.execute(text(
-                    "ALTER TABLE visits ADD COLUMN parent_visit_id INTEGER REFERENCES visits(id)"
-                ))
-
-    # herbs：price 为早期新增；aliases / flavors 为药材字典重构新增的 JSON 列，旧库可能缺失
-    if "herbs" in inspector.get_table_names():
-        hcols = {c["name"] for c in inspector.get_columns("herbs")}
-        if "price" not in hcols:
-            with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE herbs ADD COLUMN price NUMERIC(8,2)"))
-        if "aliases" not in hcols:
-            with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE herbs ADD COLUMN aliases JSON"))
-        if "flavors" not in hcols:
-            with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE herbs ADD COLUMN flavors JSON"))
-
-    # visits.ai_analysis（AI 辅助辨证完整分析，供病历参考）
-    if "visits" in inspector.get_table_names():
-        vcols = {c["name"] for c in inspector.get_columns("visits")}
-        if "ai_analysis" not in vcols:
-            with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE visits ADD COLUMN ai_analysis TEXT"))
-        if "pulse_term_ids" not in vcols:
-            with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE visits ADD COLUMN pulse_term_ids TEXT"))
-        # visits.visit_type（初诊/复诊；历史记录默认按初诊处理）
-        if "visit_type" not in vcols:
-            with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE visits ADD COLUMN visit_type VARCHAR(10) DEFAULT '初诊'"))
-        # visits 影像资料（舌苔/面色照片 + 化验单列表）
-        for col, ctype in (
-            ("tongue_image", "TEXT"),
-            ("face_image", "TEXT"),
-            ("lab_report_images", "TEXT"),
-        ):
-            if col not in vcols:
-                with engine.begin() as conn:
-                    conn.execute(text(f"ALTER TABLE visits ADD COLUMN {col} {ctype}"))
-
-    # patients.tags（患者标签，如'不遵医瞩'）
-    if "patients" in inspector.get_table_names():
-        pcols = {c["name"] for c in inspector.get_columns("patients")}
-        if "tags" not in pcols:
-            with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE patients ADD COLUMN tags TEXT"))
-        for col, ctype in (("height", "INTEGER"), ("weight", "REAL")):
-            if col not in pcols:
-                with engine.begin() as conn:
-                    conn.execute(text(f"ALTER TABLE patients ADD COLUMN {col} {ctype}"))
-
-    # dictionary_terms.color（词条自定义颜色，用于标签着色）
-    if "dictionary_terms" in inspector.get_table_names():
-        dcols = {c["name"] for c in inspector.get_columns("dictionary_terms")}
-        if "color" not in dcols:
-            with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE dictionary_terms ADD COLUMN color VARCHAR(20)"))
-
-    # herb_inventory.sale_price（售价，开方计价用；unit_price 视为进价）
-    if "herb_inventory" in inspector.get_table_names():
-        icols = {c["name"] for c in inspector.get_columns("herb_inventory")}
-        if "sale_price" not in icols:
-            with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE herb_inventory ADD COLUMN sale_price NUMERIC(8,2)"))
-
-    # prescriptions.acupuncture_fee（针灸费用，计入处方总价）
-    if "prescriptions" in inspector.get_table_names():
-        pcols = {c["name"] for c in inspector.get_columns("prescriptions")}
-        if "acupuncture_fee" not in pcols:
-            with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE prescriptions ADD COLUMN acupuncture_fee NUMERIC(8,2)"))
-
-    # 其它表的新增列可在下方照此扩展
-
-    # 默认患者标签词（字典 tag 类型）：存量库首次启动注入，管理员可在字典页继续自定义
-    if "dictionary_terms" in inspector.get_table_names():
-        try:
-            from app.models.dictionaries import DictionaryTerm
-            db = SessionLocal()
-            try:
-                if db.query(DictionaryTerm).filter(DictionaryTerm.term_type == "tag").count() == 0:
-                    default_tags = {
-                        "不遵医瞩": "#F56C6C",
-                        "过敏体质": "#E6A23C",
-                        "慢性病": "#409EFF",
-                        "孕妇": "#9B59B6",
-                        "儿童": "#67C23A",
-                        "老年": "#909399",
-                    }
-                    for name, color in default_tags.items():
-                        db.add(DictionaryTerm(term_type="tag", name=name, is_active=True, color=color))
-                    db.commit()
-                    logger.info("已注入默认患者标签词(字典 tag 类型)")
-            finally:
-                db.close()
-        except Exception as e:
-            logger.warning(f"注入默认患者标签词失败: {e}")
-
-    # 数据清洗：剂量超限提醒去重（历史重复叠加）
-    try:
-        _dedupe_dosage_reminders()
-    except Exception as e:
-        logger.warning(f"清洗剂量超限提醒失败: {e}")
-
-
-def _dedupe_dosage_reminders() -> None:
-    """一次性清洗：将 prescription_items.note 中重复的剂量超限提醒片段合并为一条"""
-    from app.models.prescription import PrescriptionItem
-    db = SessionLocal()
-    try:
-        items = db.query(PrescriptionItem).filter(
-            PrescriptionItem.note.like("%剂量超限提醒%")
-        ).all()
-        changed = 0
-        for it in items:
-            if not it.note:
-                continue
-            notes = [s.strip() for s in it.note.split("；")]
-            seen = set()
-            for n in notes:
-                if n.startswith("⚠️ 剂量超限提醒"):
-                    seen.add(n)
-            if len(seen) > 1:
-                # 只保留一条剂量超限提醒，与其它非提醒内容合并
-                keep_reminder = sorted(seen, key=len, reverse=True)[0]
-                others = [n for n in notes if n and not n.startswith("⚠️ 剂量超限提醒")]
-                it.note = "；".join([keep_reminder] + others) if others else keep_reminder
-                changed += 1
-        if changed:
-            db.commit()
-            logger.info(f"已清洗 {changed} 条重复的剂量超限提醒")
-    finally:
-        db.close()
 
 
 app = FastAPI(
