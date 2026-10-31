@@ -31,9 +31,9 @@
         <el-table-column v-if="activeType === 'pulse'" prop="pulse_type" label="脉类" width="110" />
         <el-table-column v-if="activeType === 'herb_tag'" prop="category" label="维度" width="100" />
         <el-table-column prop="description" label="释义" min-width="220" show-overflow-tooltip />
-        <el-table-column v-if="activeType === 'tag' || activeType === 'herb_tag'" label="颜色" width="110" align="center">
+        <el-table-column label="颜色" width="120" align="center">
           <template #default="{ row }">
-            <span class="xw-tag" :style="tagChipStyle(row.name, row.color)">{{ row.name }}</span>
+            <span class="xw-tag" :style="tagChipStyle(row)">{{ row.name }}</span>
           </template>
         </el-table-column>
         <el-table-column label="启用" width="80" align="center">
@@ -82,9 +82,9 @@
           <div class="card-row" v-if="row.description">
             <span class="label">释义</span><span class="value">{{ row.description }}</span>
           </div>
-          <div class="card-row" v-if="activeType === 'tag' || activeType === 'herb_tag'">
+          <div class="card-row">
             <span class="label">颜色</span>
-            <span class="value"><span class="xw-tag" :style="tagChipStyle(row.name, row.color)">{{ row.name }}</span></span>
+            <span class="value"><span class="xw-tag" :style="tagChipStyle(row)">{{ row.name }}</span></span>
           </div>
 
           <div class="card-actions" v-if="editable">
@@ -148,9 +148,9 @@
         <el-form-item label="释义">
           <el-input v-model="form.description" type="textarea" :rows="2" />
         </el-form-item>
-        <el-form-item v-if="activeType === 'tag' || activeType === 'herb_tag'" label="颜色">
+        <el-form-item label="颜色">
           <el-color-picker v-model="form.color" />
-          <span style="font-size:12px;color:#999;margin-left:8px;">自定义颜色；药材性味默认按五行/温度本色（寒蓝→温红、酸青苦赤…），留空则用默认色</span>
+          <span style="font-size:12px;color:#999;margin-left:8px;">自定义颜色：证型按六经本色、脉象按脉类、舌象按色/苔、药材性味按五行本色，留空则用对应默认色</span>
           <div style="margin-top:10px;display:flex;align-items:center;gap:8px;">
             <span class="xw-tag" :style="{ color: readableInk(previewColor), backgroundColor: previewColor, borderColor: readableInk(previewColor) }">{{ form.name || '预览' }}</span>
             <span v-if="!form.color" style="font-size:12px;color:#999;">（当前为默认色，保存后按此色着色）</span>
@@ -225,11 +225,33 @@ function sortHerbTag(list: any[]): any[] {
   })
 }
 
-// 药材性味默认色：四气按寒→温 蓝→橙红梯度；五味按五行本色（酸青/苦赤/甘黄/辛白/咸黑）
-// 字典页用于「无自定义色时回退」，让温度/味性对应的本色直接亮出来
+// 默认色（无自定义色时回退，让本色直接亮出来）：
+// 证型=六经五色(太阳寒水黑蓝/阳明燥金白/少阳相火红/太阴湿土黄/少阴君火紫/厥阴风木青)
+// 脉象=脉类(浮表青蓝/沉里黑/迟寒蓝/数热红/虚灰/实棕红/滑痰饮黄/涩血瘀紫/弦肝胆青绿/洪热盛橙/细血虚淡粉/缓湿黄褐/微浅灰/紧寒束深蓝)
+// 舌象=色/苔关键词(绛深红/紫青紫/青木青/红赤/淡蓝灰/白/黄/灰/黑/少无花灰/滑浅蓝)
+// 药材性味=五行本色(酸青苦赤甘黄辛白咸黑；四气寒蓝→温红)
+const SYNDROME_MERIDIAN_COLOR: Record<string, string> = {
+  '太阳': '#2c3e50', '阳明': '#cfd8dc', '少阳': '#d9434e',
+  '太阴': '#e0a82e', '少阴': '#8e44ad', '厥阴': '#2e9e5b',
+}
+const PULSE_TYPE_COLOR: Record<string, string> = {
+  '浮脉类': '#3498db', '沉脉类': '#2c3e50', '迟脉类': '#2980b9', '数脉类': '#d9434e',
+  '虚脉类': '#95a5a6', '实脉类': '#a93226', '滑脉类': '#e0a82e', '涩脉类': '#8e44ad',
+  '弦脉类': '#16a085', '洪脉类': '#e67e22', '细脉类': '#d988a0', '缓脉类': '#b9770e',
+  '微脉类': '#bdc3c7', '紧脉类': '#1f618d',
+}
+const TONGUE_KEYWORD_COLOR: [string, string][] = [
+  ['绛', '#a93226'], ['紫', '#8e44ad'], ['青', '#2e9e5b'], ['红', '#d9434e'],
+  ['淡', '#aebfd0'], ['白', '#cfd8dc'], ['黄', '#e0a82e'], ['灰', '#7f8c8d'],
+  ['黑', '#2c3e50'], ['少', '#95a5a6'], ['无', '#95a5a6'], ['花', '#95a5a6'], ['滑', '#aed6f1'],
+]
 const HERB_TAG_DEFAULT_COLOR: Record<string, string> = {
   '酸': '#2e9e5b', '苦': '#d9434e', '甘': '#e0a82e', '辛': '#9fb3c8', '咸': '#2f3b47', '淡': '#b0a0c0',
   '寒': '#2f80b5', '微寒': '#5aa0cf', '平': '#7f9a6e', '微温': '#e08a3c', '温': '#d9642c', '热': '#c0392b',
+}
+function tongueColor(name: string): string {
+  for (const [kw, col] of TONGUE_KEYWORD_COLOR) if (name.includes(kw)) return col
+  return '#909399'
 }
 // 依据颜色亮度返回可读前景色（浅色用深字/深边框，深色用浅字），避免白色等浅色导致标签不可见
 function readableInk(hex: string): string {
@@ -241,15 +263,29 @@ function readableInk(hex: string): string {
   const L = (0.299 * r + 0.587 * g + 0.114 * b) / 255
   return L > 0.6 ? '#333333' : '#ffffff'
 }
-function tagChipStyle(name: string, color?: string | null): Record<string, string> {
-  const c = color || (activeType.value === 'herb_tag' ? (HERB_TAG_DEFAULT_COLOR[name] || '#909399') : '') || '#909399'
+function defaultColorForTerm(term: any): string {
+  const t = term?.term_type || activeType.value
+  if (t === 'herb_tag') return HERB_TAG_DEFAULT_COLOR[term?.name] || '#909399'
+  if (t === 'syndrome') {
+    const m = (term?.meridian || '').split(',')[0]?.trim()
+    return SYNDROME_MERIDIAN_COLOR[m] || '#7f8c8d'
+  }
+  if (t === 'pulse') return PULSE_TYPE_COLOR[term?.pulse_type] || '#7f8c8d'
+  if (t === 'tongue') return tongueColor(term?.name || '')
+  return '#909399'
+}
+function tagChipStyle(term: any): Record<string, string> {
+  const c = term?.color || defaultColorForTerm(term)
   const ink = readableInk(c)
   return { color: ink, backgroundColor: c, borderColor: ink }
 }
-// 编辑弹窗实时预览色：自定义色优先；药材性味回退五行/温度本色
+// 编辑弹窗实时预览色：自定义色优先，否则按类型回退默认色
 const previewColor = computed(() => {
   if (form.color) return form.color
   if (activeType.value === 'herb_tag') return HERB_TAG_DEFAULT_COLOR[form.name] || '#909399'
+  if (activeType.value === 'syndrome') return SYNDROME_MERIDIAN_COLOR[(form.meridian || [])[0]] || '#7f8c8d'
+  if (activeType.value === 'pulse') return PULSE_TYPE_COLOR[form.pulse_type] || '#7f8c8d'
+  if (activeType.value === 'tongue') return tongueColor(form.name)
   return '#909399'
 })
 

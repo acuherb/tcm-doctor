@@ -117,21 +117,27 @@
           <el-col :xs="24" :span="8">
             <el-form-item label="舌质">
               <el-select v-model="analyzeForm.tongue_body" placeholder="选择" clearable filterable>
-                <el-option v-for="t in tongueOptionsFinal" :key="t" :label="t" :value="t" />
+                <el-option v-for="t in tongueOptionsFinal" :key="t" :label="t" :value="t">
+                  <span class="opt-dot" :style="{ backgroundColor: dotColor('tongue', t) }"></span>{{ t }}
+                </el-option>
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :xs="24" :span="8">
             <el-form-item label="舌苔">
               <el-select v-model="analyzeForm.tongue_coat" placeholder="选择" clearable filterable>
-                <el-option v-for="t in coatOptionsFinal" :key="t" :label="t" :value="t" />
+                <el-option v-for="t in coatOptionsFinal" :key="t" :label="t" :value="t">
+                  <span class="opt-dot" :style="{ backgroundColor: dotColor('tongue', t) }"></span>{{ t }}
+                </el-option>
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :xs="24" :span="8">
             <el-form-item label="脉象">
               <el-select v-model="analyzeForm.pulse" placeholder="选择" clearable filterable>
-                <el-option v-for="p in pulseOptionsFinal" :key="p" :label="p" :value="p" />
+                <el-option v-for="p in pulseOptionsFinal" :key="p" :label="p" :value="p">
+                  <span class="opt-dot" :style="{ backgroundColor: dotColor('pulse', p) }"></span>{{ p }}
+                </el-option>
               </el-select>
             </el-form-item>
           </el-col>
@@ -263,7 +269,7 @@ const coatOptions = ['薄白苔', '薄黄苔', '白腻苔', '黄腻苔', '黄燥
 const pulseOptions = ['浮脉', '沉脉', '迟脉', '数脉', '虚脉', '实脉', '滑脉', '涩脉', '弦脉', '紧脉', '缓脉', '细脉', '洪脉', '濡脉', '弱脉', '弦滑', '弦数', '沉细', '沉弦']
 
 // 受控词条选项：从字典 API 动态加载(优先), 失败时回退到上方硬编码兜底
-interface DictTerm { id: number; term_type: string; name: string; aspect?: string | null }
+interface DictTerm { id: number; term_type: string; name: string; aspect?: string | null; color?: string | null }
 const dictTerms = ref<DictTerm[]>([])
 const tongueOptionsFromDict = computed(() => dictTerms.value.filter(t => t.term_type === 'tongue' && t.aspect === '舌质').map(t => t.name))
 const coatOptionsFromDict = computed(() => dictTerms.value.filter(t => t.term_type === 'tongue' && t.aspect === '舌苔').map(t => t.name))
@@ -271,6 +277,45 @@ const pulseOptionsFromDict = computed(() => dictTerms.value.filter(t => t.term_t
 const tongueOptionsFinal = computed(() => tongueOptionsFromDict.value.length ? tongueOptionsFromDict.value : tongueOptions)
 const coatOptionsFinal = computed(() => coatOptionsFromDict.value.length ? coatOptionsFromDict.value : coatOptions)
 const pulseOptionsFinal = computed(() => pulseOptionsFromDict.value.length ? pulseOptionsFromDict.value : pulseOptions)
+
+// 四诊下拉色点：与字典默认色一致（证型六经/脉象脉类/舌象色苔）
+const SYNDROME_MERIDIAN_COLOR: Record<string, string> = {
+  '太阳': '#2c3e50', '阳明': '#cfd8dc', '少阳': '#d9434e',
+  '太阴': '#e0a82e', '少阴': '#8e44ad', '厥阴': '#2e9e5b',
+}
+const PULSE_TYPE_COLOR: Record<string, string> = {
+  '浮脉类': '#3498db', '沉脉类': '#2c3e50', '迟脉类': '#2980b9', '数脉类': '#d9434e',
+  '虚脉类': '#95a5a6', '实脉类': '#a93226', '滑脉类': '#e0a82e', '涩脉类': '#8e44ad',
+  '弦脉类': '#16a085', '洪脉类': '#e67e22', '细脉类': '#d988a0', '缓脉类': '#b9770e',
+  '微脉类': '#bdc3c7', '紧脉类': '#1f618d',
+}
+const TONGUE_KEYWORD_COLOR: [string, string][] = [
+  ['绛', '#a93226'], ['紫', '#8e44ad'], ['青', '#2e9e5b'], ['红', '#d9434e'],
+  ['淡', '#aebfd0'], ['白', '#cfd8dc'], ['黄', '#e0a82e'], ['灰', '#7f8c8d'],
+  ['黑', '#2c3e50'], ['少', '#95a5a6'], ['无', '#95a5a6'], ['花', '#95a5a6'], ['滑', '#aed6f1'],
+]
+function tongueColor(name: string): string {
+  for (const [kw, col] of TONGUE_KEYWORD_COLOR) if (name.includes(kw)) return col
+  return '#909399'
+}
+function defaultColorForTerm(t: any): string {
+  if (t.term_type === 'tongue') return tongueColor(t.name || '')
+  if (t.term_type === 'pulse') return PULSE_TYPE_COLOR[t.pulse_type] || '#7f8c8d'
+  if (t.term_type === 'syndrome') {
+    const mer = (t.meridian || '').split(',')[0]?.trim()
+    return SYNDROME_MERIDIAN_COLOR[mer] || '#7f8c8d'
+  }
+  return '#909399'
+}
+// 名称→颜色映射（字典色优先，缺失按默认色回退）
+const termColorMap = computed<Record<string, string>>(() => {
+  const m: Record<string, string> = {}
+  for (const t of dictTerms.value) if (t.name) m[t.name] = t.color || defaultColorForTerm(t)
+  return m
+})
+function dotColor(type: 'tongue' | 'pulse', name: string): string {
+  return termColorMap.value[name] || (type === 'tongue' ? tongueColor(name) : '#909399')
+}
 
 async function loadDictionary() {
   try {
@@ -774,6 +819,15 @@ function scrollBottom() {
     border: 1px solid #dcdfe6; border-right: none; border-radius: 4px 0 0 4px;
     background: #f5f7fa; cursor: pointer;
   }
+}
+
+.opt-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
 }
 
 .analyze-upload {

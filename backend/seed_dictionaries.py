@@ -113,6 +113,44 @@ SYNDROME = [
 ]
 
 
+# ── 证型/脉象/舌象 默认色（用于播种与历史回填）──
+# 证型：六经配五色（太阳寒水=黑蓝 / 阳明燥金=白 / 少阳相火=红 / 太阴湿土=黄 / 少阴君火=紫 / 厥阴风木=青）
+SYNDROME_MERIDIAN_COLOR = {
+    "太阳": "#2c3e50", "阳明": "#cfd8dc", "少阳": "#d9434e",
+    "太阴": "#e0a82e", "少阴": "#8e44ad", "厥阴": "#2e9e5b",
+}
+# 脉象：按脉类/阴阳寒热（浮表=青蓝 / 沉里=黑 / 迟寒=蓝 / 数热=红 / 虚=灰 / 实=棕红 / 滑痰饮=黄 / 涩血瘀=紫 / 弦肝胆=青绿 / 洪热盛=橙 / 细血虚=淡粉 / 缓湿=黄褐 / 微=浅灰 / 紧寒束=深蓝）
+PULSE_TYPE_COLOR = {
+    "浮脉类": "#3498db", "沉脉类": "#2c3e50", "迟脉类": "#2980b9", "数脉类": "#d9434e",
+    "虚脉类": "#95a5a6", "实脉类": "#a93226", "滑脉类": "#e0a82e", "涩脉类": "#8e44ad",
+    "弦脉类": "#16a085", "洪脉类": "#e67e22", "细脉类": "#d988a0", "缓脉类": "#b9770e",
+    "微脉类": "#bdc3c7", "紧脉类": "#1f618d",
+}
+# 舌象：按色/苔关键词（有序：紫先于青、绛先于红，避免误匹配）
+TONGUE_KEYWORD_COLOR = [
+    ("绛", "#a93226"), ("紫", "#8e44ad"), ("青", "#2e9e5b"), ("红", "#d9434e"),
+    ("淡", "#aebfd0"), ("白", "#cfd8dc"), ("黄", "#e0a82e"), ("灰", "#7f8c8d"),
+    ("黑", "#2c3e50"), ("少", "#95a5a6"), ("无", "#95a5a6"), ("花", "#95a5a6"),
+    ("滑", "#aed6f1"),
+]
+
+
+def syndrome_color(meridian):
+    first = (meridian or "").split(",")[0].strip()
+    return SYNDROME_MERIDIAN_COLOR.get(first, "#7f8c8d")
+
+
+def pulse_color(ptype):
+    return PULSE_TYPE_COLOR.get(ptype, "#7f8c8d")
+
+
+def tongue_color(name):
+    for kw, col in TONGUE_KEYWORD_COLOR:
+        if kw in (name or ""):
+            return col
+    return "#909399"
+
+
 def _add(db, term_type, name, **fields):
     exists = db.query(DictionaryTerm).filter(
         DictionaryTerm.term_type == term_type,
@@ -129,25 +167,25 @@ def seed_dictionaries(db):
     added = skipped = 0
 
     for name, desc, attrs in TONGUE_QUALITY:
-        if _add(db, "tongue", name, aspect="舌质", description=desc, attributes=attrs):
+        if _add(db, "tongue", name, aspect="舌质", description=desc, attributes=attrs, color=tongue_color(name)):
             added += 1
         else:
             skipped += 1
 
     for name, desc in TONGUE_COAT:
-        if _add(db, "tongue", name, aspect="舌苔", description=desc):
+        if _add(db, "tongue", name, aspect="舌苔", description=desc, color=tongue_color(name)):
             added += 1
         else:
             skipped += 1
 
     for name, ptype, meaning in PULSE:
-        if _add(db, "pulse", name, pulse_type=ptype, clinical_meaning=meaning):
+        if _add(db, "pulse", name, pulse_type=ptype, clinical_meaning=meaning, color=pulse_color(ptype)):
             added += 1
         else:
             skipped += 1
 
     for name, meridian, category, desc in SYNDROME:
-        if _add(db, "syndrome", name, meridian=meridian, category=category, description=desc):
+        if _add(db, "syndrome", name, meridian=meridian, category=category, description=desc, color=syndrome_color(meridian)):
             added += 1
         else:
             skipped += 1
@@ -158,7 +196,7 @@ def seed_dictionaries(db):
         else:
             skipped += 1
 
-    # 回填：已存在的药材性味词条若未设颜色，按五行本色补齐（幂等，仅补 null）
+    # 回填：已存在的词条若未设颜色，按各自默认色补齐（幂等，仅补 null）
     for t in db.query(DictionaryTerm).filter(
         DictionaryTerm.term_type == "herb_tag",
         DictionaryTerm.color.is_(None),
@@ -166,6 +204,12 @@ def seed_dictionaries(db):
         c = DEFAULT_HERB_TAG_COLORS.get(t.name)
         if c:
             t.color = c
+    for t in db.query(DictionaryTerm).filter(DictionaryTerm.term_type == "tongue", DictionaryTerm.color.is_(None)).all():
+        t.color = tongue_color(t.name)
+    for t in db.query(DictionaryTerm).filter(DictionaryTerm.term_type == "pulse", DictionaryTerm.color.is_(None)).all():
+        t.color = pulse_color(t.pulse_type)
+    for t in db.query(DictionaryTerm).filter(DictionaryTerm.term_type == "syndrome", DictionaryTerm.color.is_(None)).all():
+        t.color = syndrome_color(t.meridian)
 
     return added, skipped
 
