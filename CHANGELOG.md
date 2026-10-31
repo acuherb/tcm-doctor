@@ -356,3 +356,12 @@
   - `VisitRecord.vue`（辨证论治摘要）：证型改用字典色标签。
 - **录入表单一致**：`VisitRecord.vue` 的舌质/舌苔/脉象/证型四处下拉选项前均加**本色色点**（与 `DiagnosisChat` 一致），录入时也能看到字典色。
 - 验证：`python3 -m py_compile` 通过；`npm run build` 通过（vue-tsc 0 错误）。注：字典页已可手动设色或靠种子/回填写库，前端均会如实采用。
+
+### 23. P1-4 迁移规范化：版本表追踪替代游离裸写 ALTER
+- **现状梳理**：版本追踪机制（`schema_migrations` 表 + `@migration` 装饰器 + 幂等重放）早已存在于 `app/migrations.py`；真正「游离、未被追踪」的裸 ALTER 只剩 `scripts/migrate_herb_tags.py`（给 `herbs` 加 `grade/flavors/meridians/directions/tags/contraindication`），且它基于**旧 schema 的 `flavor/meridian_tropism/category` 源列**、`flavors` 类型(TEXT) 与模型/m0001(JSON) 冲突、4 列未声明在 `Herb` 模型 → ORM 与库不一致。
+- **吸收游离脚本到版本化迁移**：新增 `m0004`，通过受控、带版本号的 `_add_column` 补齐 `herbs` 的 `grade/meridians/directions/tags/contraindication`（`flavors` 已由 m0001 以 JSON 形式补齐，不再重复）；并把原脚本的遗留数据回填逻辑抽成 `_backfill_herb_tags()`，**用源列存在性做硬守卫**（当前模型已无这些源列，现网库为空操作，且杜绝对不存在的列 SELECT 报错）。
+- **ORM 与库对齐**：`app/models/herb.py` 补声明 `grade/meridians/directions/tags`（JSON/文本），使 `create_all` 与迁移产物一致，消除「库有列、模型无声明」的漂移。
+- **删除游离脚本** `scripts/migrate_herb_tags.py`（职责已并入 m0004，且确认无代码引用）。
+- **测试隔离修复（必要前置）**：原 `tests/test_migrations.py` 只替换 `engine` 未替换 `SessionLocal`，导致 `m0002/m0003` 打到共享 `tcm_doctor.db` 而缺表；改为一并替换 `SessionLocal` 指向临时引擎，并扩充断言覆盖 m0004 新增列与版本号 `["0001".."0004"]`、幂等计数=4。
+- 验证：`python3 -m pytest tests/ -q` 全绿（6 passed）；`py_compile` 通过。
+- 备注：`pyproject.toml` 仍声明未使用的 `alembic`（项目刻意用自研轻量迁移替代其 SQLite batch 繁琐）；本次未改动，留作后续清理项。
