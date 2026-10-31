@@ -14,9 +14,9 @@ HERB_TAG_DIMENSIONS: dict[str, dict[str, Any]] = {
     "nature": {
         "label": "四气",
         "multi": False,
-        "options": ["大寒", "寒", "微寒", "凉", "平", "微温", "温", "热", "大热"],
+        "options": ["寒", "微寒", "平", "微温", "温"],
     },
-    "flavors": {"label": "五味", "multi": True, "options": ["辛", "甘", "酸", "苦", "咸", "淡", "涩"]},
+    "flavors": {"label": "五味", "multi": True, "options": ["酸", "苦", "甘", "辛", "咸", "淡"]},
 }
 
 # 维度中文名 -> key（用于把数据字典按 category 归类回维度）

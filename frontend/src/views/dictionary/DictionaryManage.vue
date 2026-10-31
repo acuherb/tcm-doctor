@@ -205,6 +205,21 @@ const terms = ref<DictTerm[]>([])
 const meridians = ['太阳', '阳明', '少阳', '太阴', '少阴', '厥阴']
 const pulseTypes = ['浮脉类', '沉脉类', '迟脉类', '数脉类', '虚脉类', '实脉类']
 const herbTagDimensions = ['四气', '五味']
+// 药材性味固定显示顺序：先四气后五味，组内按本草经梯度
+const HERB_TAG_ORDER: Record<string, string[]> = {
+  '四气': ['寒', '微寒', '平', '微温', '温'],
+  '五味': ['酸', '苦', '甘', '辛', '咸', '淡'],
+}
+function sortHerbTag(list: any[]): any[] {
+  return [...list].sort((a, b) => {
+    const ca = herbTagDimensions.indexOf(a.category)
+    const cb = herbTagDimensions.indexOf(b.category)
+    if (ca !== cb) return ca - cb
+    const oa = HERB_TAG_ORDER[a.category]?.indexOf(a.name) ?? 999
+    const ob = HERB_TAG_ORDER[b.category]?.indexOf(b.name) ?? 999
+    return oa - ob
+  })
+}
 
 const dialogVisible = ref(false)
 const editingId = ref<number | null>(null)
@@ -219,7 +234,9 @@ const attributesText = ref('')
 async function loadTerms() {
   try {
     const res = await api.get('/dictionaries', { params: { term_type: activeType.value } }) as any
-    terms.value = Array.isArray(res) ? res : []
+    let data = Array.isArray(res) ? res : []
+    if (activeType.value === 'herb_tag') data = sortHerbTag(data)
+    terms.value = data
   } catch {
     ElMessage.error('加载字典失败')
   }
