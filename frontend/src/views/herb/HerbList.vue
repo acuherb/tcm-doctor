@@ -53,14 +53,14 @@
             <span v-else class="text-muted">-</span>
           </template>
         </el-table-column>
-        <el-table-column label="性味" min-width="150">
+        <el-table-column label="性味" width="120">
           <template #default="{ row }">
             <span v-if="xingwei(row)">{{ xingwei(row) }}</span>
             <span v-else class="text-muted">-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="efficacy" label="主治" show-overflow-tooltip />
-        <el-table-column prop="contraindication" label="禁忌" min-width="160" show-overflow-tooltip />
+        <el-table-column prop="efficacy" label="主治" min-width="220" show-overflow-tooltip />
+        <el-table-column prop="contraindication" label="禁忌" min-width="180" show-overflow-tooltip />
         <el-table-column label="剂量(g)" width="90">
           <template #default="{ row }">{{ row.dosage_min }}~{{ row.dosage_max }}<span class="unit">g</span></template>
         </el-table-column>
@@ -110,36 +110,36 @@
       </div>
     </el-card>
 
-    <el-dialog v-model="showDialog" :title="isEdit ? '编辑药材' : '新增药材'" width="680px" destroy-on-close>
+    <el-dialog v-model="showDialog" :title="isEdit ? '编辑药材' : '新增药材'" width="680px" class="herb-dialog" destroy-on-close>
       <el-form :model="form" label-width="96px">
         <el-form-item label="正名" required><el-input v-model="form.name" placeholder="请输入药名（如 桂枝）"/></el-form-item>
         <el-form-item label="异名"><el-input v-model="form.aliasesStr" placeholder="逗号分隔，如 官桂、桂心" /></el-form-item>
         <el-row :gutter="12">
-          <el-col :span="12"><el-form-item label="四气">
+          <el-col :span="12" :xs="24"><el-form-item label="四气">
             <el-select v-model="form.nature" clearable placeholder="选填" style="width:100%">
               <el-option v-for="o in dimOptions('nature')" :key="o" :label="o" :value="o" />
             </el-select>
           </el-form-item></el-col>
-          <el-col :span="12"><el-form-item label="毒性">
-            <el-radio-group v-model="form.toxicity">
-              <el-radio-button v-for="t in ['无毒','有小毒','有毒','有大毒']" :key="t" :label="t">{{ t }}</el-radio-button>
-            </el-radio-group>
+          <el-col :span="12" :xs="24"><el-form-item label="五味">
+            <el-select v-model="form.flavors" multiple clearable style="width:100%" placeholder="多选">
+              <el-option v-for="o in dimOptions('flavors')" :key="o" :label="o" :value="o" />
+            </el-select>
           </el-form-item></el-col>
         </el-row>
-        <el-form-item label="五味">
-          <el-select v-model="form.flavors" multiple clearable style="width:100%" placeholder="多选">
-            <el-option v-for="o in dimOptions('flavors')" :key="o" :label="o" :value="o" />
-          </el-select>
+        <el-form-item label="毒性">
+          <el-radio-group v-model="form.toxicity">
+            <el-radio-button v-for="t in ['无毒','有小毒','有毒','有大毒']" :key="t" :label="t">{{ t }}</el-radio-button>
+          </el-radio-group>
         </el-form-item>
         <el-form-item label="主治"><el-input v-model="form.efficacy" type="textarea" :rows="2" placeholder="如 发汗解肌，温通经脉，助阳化气" /></el-form-item>
         <el-form-item label="禁忌"><el-input v-model="form.contraindication" type="textarea" :rows="2" placeholder="如 阴虚火旺者忌用；孕妇慎用" /></el-form-item>
         <el-row :gutter="12">
-          <el-col :span="12"><el-form-item label="最小剂量">
+          <el-col :span="12" :xs="24"><el-form-item label="最小剂量">
             <el-input-number v-model="form.dosage_min" :min="0" :max="1000" :precision="1" :step="1" controls-position="right" style="width:100%">
               <template #suffix><span class="unit">g</span></template>
             </el-input-number>
           </el-form-item></el-col>
-          <el-col :span="12"><el-form-item label="最大剂量">
+          <el-col :span="12" :xs="24"><el-form-item label="最大剂量">
             <el-input-number v-model="form.dosage_max" :min="0" :max="1000" :precision="1" :step="1" controls-position="right" style="width:100%">
               <template #suffix><span class="unit">g</span></template>
             </el-input-number>
@@ -147,6 +147,9 @@
         </el-row>
         <el-form-item label="孕妇禁忌">
           <el-switch v-model="form.pregnancy_contraindicated" active-text="是" inactive-text="否" />
+        </el-form-item>
+        <el-form-item label="状态">
+          <el-switch v-model="form.is_active" active-text="启用" inactive-text="停用" />
         </el-form-item>
         <el-form-item label="储存条件"><el-input v-model="form.storage_condition" placeholder="如 置阴凉干燥处" /></el-form-item>
       </el-form>
@@ -196,7 +199,7 @@ function defaultForm() {
     name: '', aliasesStr: '', grade: '', nature: '平',
     flavors: [] as string[], meridians: [] as string[], directions: [] as string[], tags: [] as string[],
     efficacy: '', contraindication: '', dosage_min: 3, dosage_max: 10, toxicity: '无毒',
-    storage_condition: '', pregnancy_contraindicated: false,
+    storage_condition: '', pregnancy_contraindicated: false, is_active: true,
   }
 }
 const form = ref(defaultForm())
@@ -262,6 +265,7 @@ function openEdit(row: any) {
     toxicity: row.toxicity || '无毒',
     storage_condition: row.storage_condition || '',
     pregnancy_contraindicated: !!row.pregnancy_contraindicated,
+    is_active: row.is_active ?? true,
   }
   showDialog.value = true
 }
@@ -286,6 +290,7 @@ async function submitForm() {
       toxicity: f.toxicity || '无毒',
       storage_condition: f.storage_condition || null,
       pregnancy_contraindicated: f.pregnancy_contraindicated,
+      is_active: f.is_active,
     }
     if (isEdit.value) {
       await api.put(`/herbs/${editingId.value}`, payload)
@@ -429,6 +434,23 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
   }
   :deep(.el-card__header) {
     padding: 12px;
+  }
+  /* 新增/编辑弹窗：移动端限宽 + 标签上置，避免窄屏挤成一团 */
+  :deep(.herb-dialog) {
+    width: 92% !important;
+  }
+  :deep(.herb-dialog .el-form-item) {
+    display: flex;
+    flex-direction: column;
+  }
+  :deep(.herb-dialog .el-form-item__label) {
+    text-align: left;
+    padding: 0 0 4px;
+    line-height: 1.4;
+    color: #606266;
+  }
+  :deep(.herb-dialog .el-form-item__content) {
+    margin-left: 0 !important;
   }
 }
 </style>

@@ -26,6 +26,7 @@ class HerbCreate(BaseModel):
     pregnancy_contraindicated: bool = Field(False, description="孕妇禁忌")
     storage_condition: str | None = Field(None, description="储存条件")
     price: float | None = Field(None, description="参考单价(元/g)")
+    is_active: bool = Field(True, description="是否启用（停用则在字典中隐藏）")
 
 
 class HerbUpdate(BaseModel):

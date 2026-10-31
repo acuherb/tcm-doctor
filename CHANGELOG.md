@@ -38,6 +38,10 @@
 - 搜索框现仅剩：关键词、四气、五味、仅看孕妇禁忌。`HerbList.vue` 清理掉 `gradeTag`/`toxicityTag` 死函数与对应筛选 ref。
 - 说明：`herbs` 表的 `grade/meridians/directions/tags` 列仍保留（数据不丢、向后兼容），仅不再出现在 UI；如需彻底废弃可后续 DROP。
 
+### 7. 编辑弹窗补上「状态」开关（本次）
+- 表格一直有「状态」（启用/停用），但编辑弹窗漏了。现已在编辑框加入 `状态` 开关（启用/停用），与表格一致；新增药材默认启用。
+- 后端 `HerbCreate` 补全 `is_active`（默认 `True`），`HerbUpdate` 本已支持；`submitForm` 正常回写 `is_active`。
+
 ## 2026-10-30 — AI 推荐方结构化带入开方（主方/副方 + 加减勾选 + 字典校验）
 
 ### 背景
