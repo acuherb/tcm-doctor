@@ -82,7 +82,7 @@ def import_acupoint_formulas(data: list[AcupointFormulaCreate] = Body(...), curr
 
 
 @router.get("/export", summary="导出全部针灸方(JSON)")
-def export_acupoint_formulas(db: Session = Depends(get_db)):
+def export_acupoint_formulas(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     formulas = db.query(AcupointFormula).order_by(AcupointFormula.source, AcupointFormula.name).all()
     return [{
         "name": f.name,

@@ -192,6 +192,7 @@ def delete_entry(
 
 @router.get("/export", summary="导出知识库 JSON")
 def export_knowledge(
+    current_user: User = Depends(get_current_user),
     category: str | None = Query(None, description="按分类导出"),
     source: str | None = Query(None, description="按出处导出"),
     db: Session = Depends(get_db),

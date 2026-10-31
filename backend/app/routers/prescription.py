@@ -128,7 +128,7 @@ def import_classic_formulas(data: list[ClassicFormulaCreate] = Body(...), curren
 
 
 @router.get("/classic-formulas/export", summary="导出全部经典方(JSON)")
-def export_classic_formulas(db: Session = Depends(get_db)):
+def export_classic_formulas(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     formulas = db.query(ClassicFormula).order_by(ClassicFormula.source, ClassicFormula.name).all()
     return [{
         "name": f.name,

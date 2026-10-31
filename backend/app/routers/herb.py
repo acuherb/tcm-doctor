@@ -106,7 +106,7 @@ def create_herb(data: HerbCreate, current_user: User = Depends(get_current_user)
 # ── 药材字典 导入/导出（固定路径必须先于 /{herb_id} 定义）──
 
 @router.get("/export", response_model=list[HerbResponse], summary="导出药材字典(JSON)")
-def export_herbs(db: Session = Depends(get_db)):
+def export_herbs(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """导出全量药材字典，用于迁移/备份/手工批量预置"""
     return db.query(Herb).order_by(Herb.name).all()
 

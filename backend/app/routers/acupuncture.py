@@ -60,7 +60,7 @@ def delete_acupoint(acupoint_id: int, current_user: User = Depends(get_current_u
 
 
 @router.get("/export", response_model=list[AcupointResponse], summary="导出全量腧穴")
-def export_acupoints(db: Session = Depends(get_db)):
+def export_acupoints(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     return db.query(Acupoint).order_by(Acupoint.meridian, Acupoint.id).all()
 
 
