@@ -18,19 +18,50 @@
           </div>
         </div>
       </template>
-      <el-form :inline="true" @submit.prevent="loadHerbs">
+
+      <!-- 多维标签筛选 -->
+      <el-form :inline="true" @submit.prevent="loadHerbs" class="filter-form">
         <el-form-item>
-          <el-input v-model="searchText" placeholder="搜索药名/异名" clearable @clear="loadHerbs" style="width:200px">
+          <el-input v-model="searchText" placeholder="搜索药名/异名/功效" clearable @clear="loadHerbs" style="width:200px">
             <template #prefix><el-icon><Search /></el-icon></template>
           </el-input>
         </el-form-item>
-        <el-form-item>
-          <el-select v-model="categoryFilter" placeholder="分类筛选" clearable @change="loadHerbs" style="width:140px">
-            <el-option v-for="c in categories" :key="c" :label="c" :value="c" />
+        <el-form-item label="三品">
+          <el-select v-model="gradeFilter" placeholder="全部" clearable @change="loadHerbs" style="width:110px">
+            <el-option v-for="o in dimOptions('grade')" :key="o" :label="o" :value="o" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="四气">
+          <el-select v-model="natureFilter" placeholder="全部" clearable @change="loadHerbs" style="width:110px">
+            <el-option v-for="o in dimOptions('nature')" :key="o" :label="o" :value="o" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="五味">
+          <el-select v-model="flavorFilters" multiple collapse-tags clearable placeholder="多选" @change="loadHerbs" style="width:150px">
+            <el-option v-for="o in dimOptions('flavors')" :key="o" :label="o" :value="o" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="归经">
+          <el-select v-model="meridianFilters" multiple collapse-tags clearable placeholder="多选" @change="loadHerbs" style="width:170px">
+            <el-option v-for="o in dimOptions('meridians')" :key="o" :label="o" :value="o" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="升降浮沉">
+          <el-select v-model="directionFilters" multiple collapse-tags clearable placeholder="多选" @change="loadHerbs" style="width:150px">
+            <el-option v-for="o in dimOptions('directions')" :key="o" :label="o" :value="o" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="功效分类/标签">
+          <el-select v-model="tagFilters" multiple filterable allow-create default-first-option collapse-tags clearable placeholder="多选/自定义" @change="loadHerbs" style="width:200px">
+            <el-option v-for="t in (meta.tag_suggestions || [])" :key="t" :label="t" :value="t" />
           </el-select>
         </el-form-item>
         <el-form-item>
+          <el-checkbox v-model="pregOnly" @change="loadHerbs">仅看孕妇禁忌</el-checkbox>
+        </el-form-item>
+        <el-form-item>
           <el-button type="primary" @click="loadHerbs">查询</el-button>
+          <el-button @click="resetFilters">重置</el-button>
         </el-form-item>
       </el-form>
 
@@ -42,10 +73,37 @@
             <span v-else class="text-muted">-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="category" label="分类" width="100" />
+        <el-table-column label="三品" width="72">
+          <template #default="{ row }">
+            <el-tag v-if="row.grade" :type="gradeTag(row.grade)" size="small">{{ row.grade }}</el-tag>
+            <span v-else class="text-muted">-</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="nature" label="性" width="50" />
-        <el-table-column prop="flavor" label="味" width="80" />
-        <el-table-column prop="meridian_tropism" label="归经" width="100" show-overflow-tooltip />
+        <el-table-column label="味" width="110">
+          <template #default="{ row }">
+            <el-tag v-for="f in (row.flavors || [])" :key="f" size="small" type="success" class="tag-cell">{{ f }}</el-tag>
+            <span v-if="!(row.flavors && row.flavors.length)" class="text-muted">-</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="归经" width="160" show-overflow-tooltip>
+          <template #default="{ row }">
+            <el-tag v-for="m in (row.meridians || [])" :key="m" size="small" type="warning" class="tag-cell">{{ m }}</el-tag>
+            <span v-if="!(row.meridians && row.meridians.length)" class="text-muted">-</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="升降浮沉" width="110">
+          <template #default="{ row }">
+            <el-tag v-for="d in (row.directions || [])" :key="d" size="small" type="info" class="tag-cell">{{ d }}</el-tag>
+            <span v-if="!(row.directions && row.directions.length)" class="text-muted">-</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="功效分类/标签" min-width="180" show-overflow-tooltip>
+          <template #default="{ row }">
+            <el-tag v-for="t in (row.tags || [])" :key="t" size="small" class="tag-cell">{{ t }}</el-tag>
+            <span v-if="!(row.tags && row.tags.length)" class="text-muted">-</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="efficacy" label="功效" show-overflow-tooltip />
         <el-table-column label="剂量(g)" width="90">
           <template #default="{ row }">{{ row.dosage_min }}~{{ row.dosage_max }}<span class="unit">g</span></template>
@@ -80,13 +138,20 @@
               <span class="label">异名</span><span class="value">{{ row.aliases.join('、') }}</span>
             </div>
             <div class="card-row">
-              <span class="label">分类</span><span class="value">{{ row.category || '-' }}</span>
+              <span class="label">三品</span>
+              <span class="value"><el-tag v-if="row.grade" :type="gradeTag(row.grade)" size="small">{{ row.grade }}</el-tag><template v-else>-</template></span>
             </div>
             <div class="card-row">
-              <span class="label">性味</span><span class="value">{{ row.nature || '-' }} / {{ row.flavor || '-' }}</span>
+              <span class="label">性味</span><span class="value">{{ row.nature || '-' }} / <template v-for="f in (row.flavors||[])">{{ f }} </template><template v-if="!(row.flavors&&row.flavors.length)">-</template></span>
             </div>
             <div class="card-row">
-              <span class="label">归经</span><span class="value">{{ row.meridian_tropism || '-' }}</span>
+              <span class="label">归经</span><span class="value"><template v-for="m in (row.meridians||[])">{{ m }} </template><template v-if="!(row.meridians&&row.meridians.length)">-</template></span>
+            </div>
+            <div class="card-row" v-if="row.directions && row.directions.length">
+              <span class="label">升降</span><span class="value"><template v-for="d in row.directions">{{ d }} </template></span>
+            </div>
+            <div class="card-row" v-if="row.tags && row.tags.length">
+              <span class="label">标签</span><span class="value"><template v-for="t in row.tags">{{ t }} </template></span>
             </div>
             <div class="card-row">
               <span class="label">剂量</span><span class="value">{{ row.dosage_min }}~{{ row.dosage_max }} g</span>
@@ -108,24 +173,42 @@
       </div>
     </el-card>
 
-    <el-dialog v-model="showDialog" :title="isEdit ? '编辑药材' : '新增药材'" width="620px" destroy-on-close>
-      <el-form :model="form" label-width="90px">
+    <el-dialog v-model="showDialog" :title="isEdit ? '编辑药材' : '新增药材'" width="680px" destroy-on-close>
+      <el-form :model="form" label-width="96px">
         <el-form-item label="正名" required><el-input v-model="form.name" placeholder="请输入药名（如 桂枝）"/></el-form-item>
         <el-form-item label="异名"><el-input v-model="form.aliasesStr" placeholder="逗号分隔，如 官桂、桂心" /></el-form-item>
-        <el-form-item label="分类">
-          <el-select v-model="form.category" filterable allow-create default-first-option clearable style="width:100%" placeholder="选择或输入分类">
-            <el-option v-for="c in categories" :key="c" :label="c" :value="c" />
-          </el-select>
-        </el-form-item>
         <el-row :gutter="12">
-          <el-col :span="8"><el-form-item label="药性">
-            <el-select v-model="form.nature" style="width:100%">
-              <el-option v-for="n in ['寒','热','温','凉','平']" :key="n" :label="n" :value="n" />
+          <el-col :span="8"><el-form-item label="三品">
+            <el-select v-model="form.grade" clearable placeholder="选填" style="width:100%">
+              <el-option v-for="o in dimOptions('grade')" :key="o" :label="o" :value="o" />
             </el-select>
           </el-form-item></el-col>
-          <el-col :span="16"><el-form-item label="药味"><el-input v-model="form.flavor" placeholder="如 辛、甘" /></el-form-item></el-col>
+          <el-col :span="8"><el-form-item label="四气">
+            <el-select v-model="form.nature" clearable placeholder="选填" style="width:100%">
+              <el-option v-for="o in dimOptions('nature')" :key="o" :label="o" :value="o" />
+            </el-select>
+          </el-form-item></el-col>
         </el-row>
-        <el-form-item label="归经"><el-input v-model="form.meridian_tropism" placeholder="如 心、肺、膀胱" /></el-form-item>
+        <el-form-item label="五味">
+          <el-select v-model="form.flavors" multiple clearable style="width:100%" placeholder="多选">
+            <el-option v-for="o in dimOptions('flavors')" :key="o" :label="o" :value="o" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="归经">
+          <el-select v-model="form.meridians" multiple clearable style="width:100%" placeholder="多选">
+            <el-option v-for="o in dimOptions('meridians')" :key="o" :label="o" :value="o" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="升降浮沉">
+          <el-select v-model="form.directions" multiple clearable style="width:100%" placeholder="多选">
+            <el-option v-for="o in dimOptions('directions')" :key="o" :label="o" :value="o" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="功效分类/标签">
+          <el-select v-model="form.tags" multiple filterable allow-create default-first-option clearable style="width:100%" placeholder="选择或自定义">
+            <el-option v-for="t in (meta.tag_suggestions || [])" :key="t" :label="t" :value="t" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="功效"><el-input v-model="form.efficacy" type="textarea" :rows="2" /></el-form-item>
         <el-row :gutter="12">
           <el-col :span="12"><el-form-item label="最小剂量">
@@ -170,8 +253,19 @@ const editable = computed(() => !!auth.user?.is_admin)
 
 const herbs = ref<any[]>([])
 const searchText = ref('')
-const categoryFilter = ref('')
-const categories = ['解表药', '清热药', '泻下药', '祛风湿药', '化湿药', '利水渗湿药', '温里药', '理气药', '消食药', '止血药', '活血化瘀药', '化痰止咳平喘药', '安神药', '平肝息风药', '开窍药', '补虚药', '收涩药', '涌吐药']
+const gradeFilter = ref('')
+const natureFilter = ref('')
+const flavorFilters = ref<string[]>([])
+const meridianFilters = ref<string[]>([])
+const directionFilters = ref<string[]>([])
+const tagFilters = ref<string[]>([])
+const pregOnly = ref(false)
+
+// 标签维度与受控词表（来自后端 /herbs/tags/meta）
+const meta = ref<any>({ dimensions: {}, tag_suggestions: [] })
+function dimOptions(dim: string): string[] {
+  return meta.value?.dimensions?.[dim]?.options || []
+}
 
 const showDialog = ref(false)
 const isEdit = ref(false)
@@ -182,14 +276,14 @@ const isMobile = ref(false)
 function updateViewport() {
   isMobile.value = window.innerWidth < 768
 }
-onMounted(() => {
-  updateViewport()
-  window.addEventListener('resize', updateViewport)
-})
-onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
 
 function defaultForm() {
-  return { name: '', aliasesStr: '', category: '', nature: '平', flavor: '', meridian_tropism: '', efficacy: '', dosage_min: 3, dosage_max: 10, toxicity: '无毒', storage_condition: '', pregnancy_contraindicated: false }
+  return {
+    name: '', aliasesStr: '', grade: '', nature: '平',
+    flavors: [] as string[], meridians: [] as string[], directions: [] as string[], tags: [] as string[],
+    efficacy: '', dosage_min: 3, dosage_max: 10, toxicity: '无毒',
+    storage_condition: '', pregnancy_contraindicated: false,
+  }
 }
 const form = ref(defaultForm())
 
@@ -199,14 +293,44 @@ function toxicityTag(t: string) {
   if (t === '有小毒') return 'info'
   return 'success'
 }
+function gradeTag(g: string) {
+  if (g === '上品') return 'success'
+  if (g === '中品') return 'warning'
+  return 'danger' // 下品
+}
+
+async function loadMeta() {
+  try {
+    meta.value = await api.get('/herbs/tags/meta')
+  } catch {}
+}
 
 async function loadHerbs() {
   try {
-    const params: any = {}
-    if (searchText.value) params.search = searchText.value
-    if (categoryFilter.value) params.category = categoryFilter.value
-    herbs.value = (await api.get('/herbs', { params })) as any
+    const p = new URLSearchParams()
+    if (searchText.value) p.set('search', searchText.value)
+    if (gradeFilter.value) p.set('grade', gradeFilter.value)
+    if (natureFilter.value) p.set('nature', natureFilter.value)
+    if (pregOnly.value) p.set('pregnancy_contraindicated', 'true')
+    flavorFilters.value.forEach((v) => p.append('flavors', v))
+    meridianFilters.value.forEach((v) => p.append('meridians', v))
+    directionFilters.value.forEach((v) => p.append('directions', v))
+    tagFilters.value.forEach((v) => p.append('tags', v))
+    const qs = p.toString()
+    herbs.value = (await api.get('/herbs' + (qs ? '?' + qs : ''))) as any
   } catch {}
+}
+
+function resetFilters() {
+  searchText.value = ''
+  gradeFilter.value = ''
+  natureFilter.value = ''
+  flavorFilters.value = []
+  meridianFilters.value = []
+  directionFilters.value = []
+  tagFilters.value = []
+  pregOnly.value = false
+  loadHerbs()
 }
 
 function openAdd() {
@@ -222,10 +346,12 @@ function openEdit(row: any) {
   form.value = {
     name: row.name || '',
     aliasesStr: row.aliases ? row.aliases.join('、') : '',
-    category: row.category || '',
+    grade: row.grade || '',
     nature: row.nature || '平',
-    flavor: row.flavor || '',
-    meridian_tropism: row.meridian_tropism || '',
+    flavors: row.flavors || [],
+    meridians: row.meridians || [],
+    directions: row.directions || [],
+    tags: row.tags || [],
     efficacy: row.efficacy || '',
     dosage_min: row.dosage_min ?? 3,
     dosage_max: row.dosage_max ?? 10,
@@ -239,9 +365,23 @@ function openEdit(row: any) {
 async function submitForm() {
   if (!form.value.name.trim()) { ElMessage.warning('请输入药名'); return }
   try {
-    const payload: any = { ...form.value }
-    payload.aliases = form.value.aliasesStr ? form.value.aliasesStr.split(/[,，、]/).map((s: string) => s.trim()).filter(Boolean) : null
-    delete payload.aliasesStr
+    const f = form.value
+    const payload: any = {
+      name: f.name,
+      aliases: f.aliasesStr ? f.aliasesStr.split(/[,，、]/).map((s: string) => s.trim()).filter(Boolean) : null,
+      grade: f.grade || null,
+      nature: f.nature || null,
+      flavors: f.flavors.length ? f.flavors : null,
+      meridians: f.meridians.length ? f.meridians : null,
+      directions: f.directions.length ? f.directions : null,
+      tags: f.tags.length ? f.tags : null,
+      efficacy: f.efficacy || null,
+      dosage_min: f.dosage_min,
+      dosage_max: f.dosage_max,
+      toxicity: f.toxicity || '无毒',
+      storage_condition: f.storage_condition || null,
+      pregnancy_contraindicated: f.pregnancy_contraindicated,
+    }
     if (isEdit.value) {
       await api.put(`/herbs/${editingId.value}`, payload)
       ElMessage.success('药材更新成功')
@@ -299,12 +439,19 @@ async function exportHerbs() {
   } catch {}
 }
 
-onMounted(loadHerbs)
+onMounted(async () => {
+  updateViewport()
+  window.addEventListener('resize', updateViewport)
+  await loadMeta()
+  await loadHerbs()
+})
+onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
 </script>
 
 <style scoped>
 .text-muted { color: #c0c4cc; }
 .unit { margin-left: 2px; color: #909399; font-size: 12px; }
+.tag-cell { margin: 1px 2px; }
 
 /* ---- 移动端卡片视图 ---- */
 .herb-cards {

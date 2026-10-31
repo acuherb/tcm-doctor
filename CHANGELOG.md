@@ -1,5 +1,22 @@
 # 开发日志 CHANGELOG
 
+## 2026-10-31 — 药材库重构：多维标签化（按《本经》三品 + 倪师思路）
+
+### 背景
+原 `Herb` 的 `category`/`nature`/`flavor`/`meridian_tropism` 都是单值（味与归经挤在一根字符串里），一味药只能挂一个分类，药材多了无法按维度检索。改为**多维属性标签**：三品 / 四气 / 五味 / 归经 / 升降浮沉 / 通用标签（功效分类·主治证型·经方常用…），契合《本经》"药对证、不对病"思想；单一 `category` 树下线，并入 `tags`。
+
+### 1. 后端地基（ddddbc7）
+- `models/herb.py`：`Herb` 新增 `grade`(三品) / `flavors`(五味) / `meridians`(归经) / `directions`(升降浮沉) / `tags`(通用标签) 多维标签列。
+- `constants/herb_tags.py`：受控词表（三品/四气/五味/归经/升降浮沉）+ `sanitize_herb_tags` 写入清洗；`GET /herbs/tags/meta` 返回维度词表与标签建议。
+- `scripts/migrate_herb_tags.py`：幂等迁移，新增列并从旧 `flavor`/`meridian_tropism`/`category` 回填（已对 261 味执行）。
+- 安全校验改为**仅超剂量 / 毒性 / 孕妇禁忌**（《本经》三品标注），移除十八反·十九畏死数据/组件。
+
+### 2. 多维筛选（0fa9147）
+- `GET /herbs` 新增 `grade/nature/flavors/meridians/directions/tags/pregnancy_contraindicated` 参数；多值维度命中任一（集合交集）。
+
+### 3. 前端（本次）
+- [HerbList.vue](file:///home/debian/tcm-doctor/frontend/src/views/herb/HerbList.vue)：筛选区/编辑弹窗/表格/移动端卡片全面改为多维标签（多选器驱动于 `/herbs/tags/meta`）；旧的"单一分类下拉 + 味/归经自由文本框"下线，表格新增三品徽标与五味/归经/升降浮沉/标签标签列。
+
 ## 2026-10-30 — AI 推荐方结构化带入开方（主方/副方 + 加减勾选 + 字典校验）
 
 ### 背景
