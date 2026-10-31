@@ -189,7 +189,7 @@ const form = reactive({
 
 async function loadMeta() {
   try {
-    const { data } = await api.get('/acupoints/tags/meta')
+    const data = await api.get('/acupoints/tags/meta')
     if (data?.dimensions) meta.value = data
   } catch (e) { /* 回退到默认空词表 */ }
 }
@@ -202,7 +202,7 @@ async function loadAcupoints() {
     if (filter.source) params.source = filter.source
     if (filter.meridian) params.meridian = filter.meridian
     if (filter.region) params.region = filter.region
-    const { data } = await api.get('/acupoints', { params })
+    const data = await api.get('/acupoints', { params })
     acupoints.value = data
   } catch (e) {
     ElMessage.error('加载穴位失败')
