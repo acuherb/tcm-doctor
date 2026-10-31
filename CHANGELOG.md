@@ -294,3 +294,10 @@
 - 将原 `main.py` 中 179 行散落硬编码 `ALTER`（按表逐列判断）移植为 `0001`(补列) / `0002`(注入默认患者标签) / `0003`(剂量超限提醒去重) 三条版本化迁移；`main.py` 启动改为调用 `run_migrations()`，删除旧函数。
 - 新增表/列只需追加一条 `@migration` 即可，不再手动维护散落代码；具备版本回放与可重放能力（解决原方案无版本、无回滚、维护成本高的问题）。
 - 验证：TestClient 全量启动正常；模拟旧库缺 `flavors/aliases/price` 清空版本表后重跑迁移，三列被正确补齐；重复运行版本号稳定为 3（幂等）。
+
+### 15. 自动化测试与 CI（P1-5）
+- 新增 `backend/tests/` 测试套件（pytest）：`test_auth`（匿名读 401 / 游客禁用 403 / 强制改密拦截与放行 / 普通用户读放行写拒绝）、`test_dispense`（发药扣减 剂量×剂数、重复发药 400 且库存不双扣，对应 P0-2）、`test_migrations`（版本化迁移旧库缺列补齐 + 幂等）。
+- 新增 `backend/pytest.ini`（`pythonpath=.`，测试库使用临时 SQLite，不污染开发库）。
+- 新增 `.github/workflows/ci.yml`：push/PR 触发，后端跑 `pytest`、前端跑 `npm ci && npm run build`。
+- `requirements.txt`：移除未使用的 `alembic`（自研版本化迁移已替代），新增 `pytest`。
+- 验证：`pytest -q` 全量 6 项通过。
