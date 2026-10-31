@@ -88,8 +88,6 @@ function searchHerbs(query: string) {
     if (h.aliases?.some((a: string) => a.toLowerCase().includes(q))) return true
     // 搜索功效
     if (h.efficacy?.toLowerCase().includes(q)) return true
-    // 搜索分类
-    if (h.category?.toLowerCase().includes(q)) return true
     return false
   })
 }

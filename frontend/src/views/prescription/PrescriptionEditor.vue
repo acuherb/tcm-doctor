@@ -3,9 +3,9 @@
     <!-- 左侧：处方表单 -->
     <el-card shadow="hover">
       <template #header>
-        <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div class="editor-header" style="display:flex;justify-content:space-between;align-items:center;">
           <span>📝 {{ prescriptionId ? '编辑处方' : '开具处方' }}</span>
-          <div style="display:flex;gap:8px;align-items:center;">
+          <div class="editor-actions" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
             <span v-if="estimatedTotal > 0" title="中药售价×剂量×剂数 + 针灸费用（预估）" style="font-size:14px;font-weight:600;color:#8B4513;">
               预估合计 ¥{{ estimatedTotal }}
             </span>
@@ -198,12 +198,6 @@
               </el-button>
             </div>
           </div>
-        </div>
-        <div class="add-herb-row acp-filter-row" v-if="meridians.length">
-          <el-select v-model="meridianFilter" placeholder="按归经筛选，快速定位" clearable filterable style="width:220px;">
-            <el-option v-for="m in meridians" :key="m" :label="m" :value="m" />
-          </el-select>
-          <span class="acp-count" v-if="filteredAcupoints.length">匹配合穴 {{ filteredAcupoints.length }} 个</span>
         </div>
         <div class="add-herb-row">
           <el-button v-if="editable" type="primary" plain style="width:100%;" @click="addAcupoint">
@@ -990,6 +984,43 @@ function applyStructuredFormula(f: any) {
       &.danger { background: #fef0f0; }
       &.warning { background: #fdf6ec; }
     }
+  }
+}
+
+/* ---- 移动端适配 ---- */
+@media (max-width: 767px) {
+  .prescription-editor {
+    :deep(.el-card__header) { padding: 12px; }
+    :deep(.editor-header) {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 10px;
+    }
+    :deep(.editor-header .editor-actions) {
+      width: 100%;
+      justify-content: flex-end;
+    }
+    /* 所有 el-col 在窄屏强制占满整行，自动单列堆叠 */
+    :deep(.el-col) {
+      flex: 0 0 100% !important;
+      max-width: 100% !important;
+    }
+    :deep(.el-form-item) { margin-bottom: 14px; }
+    :deep(.el-form-item__label) { padding-bottom: 4px; }
+    /* 药味/配穴明细：控件在窄屏铺满整行、纵向堆叠 */
+    :deep(.herb-item-fields) {
+      align-items: stretch;
+      gap: 6px;
+    }
+    :deep(.herb-item-fields > *) {
+      width: 100% !important;
+      min-width: 0 !important;
+    }
+    :deep(.herb-item-fields .el-checkbox) {
+      align-items: center;
+      margin-right: 0;
+    }
+    :deep(.el-divider) { margin: 20px 0; }
   }
 }
 </style>

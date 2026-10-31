@@ -2,11 +2,11 @@
 from datetime import datetime
 from pydantic import BaseModel, Field
 
-TERM_TYPES = ("syndrome", "tongue", "pulse", "tag")
+TERM_TYPES = ("syndrome", "tongue", "pulse", "tag", "herb_tag")
 
 
 class DictTermCreate(BaseModel):
-    term_type: str = Field(..., pattern="^(syndrome|tongue|pulse|tag)$", description="词类: syndrome/舌象 tongue/脉象 pulse/tag 患者标签")
+    term_type: str = Field(..., pattern="^(syndrome|tongue|pulse|tag|herb_tag)$", description="词类: syndrome/舌象 tongue/脉象 pulse/tag 患者标签/herb_tag 药材性味")
     name: str = Field(..., min_length=1, max_length=60, description="词项正名")
     aliases: list[str] | None = Field(None, description="同义词")
     description: str | None = Field(None, description="释义")
@@ -31,7 +31,7 @@ class DictTermUpdate(BaseModel):
     clinical_meaning: str | None = None
     color: str | None = None
     is_active: bool | None = None
-    term_type: str | None = Field(None, pattern="^(syndrome|tongue|pulse|tag)$")
+    term_type: str | None = Field(None, pattern="^(syndrome|tongue|pulse|tag|herb_tag)$")
 
 
 class DictTermResponse(BaseModel):

@@ -18,12 +18,12 @@
           </el-input>
         </el-form-item>
         <el-form-item label="体质">
-          <el-select v-model="filterConstitution" placeholder="全部" clearable filterable style="width: 140px;" @change="onFilterChange">
+          <el-select v-model="filterConstitution" placeholder="全部" clearable style="width: 140px;" @change="onFilterChange">
             <el-option v-for="c in constitutionOptions" :key="c" :label="c" :value="c" />
           </el-select>
         </el-form-item>
         <el-form-item label="标签">
-          <el-select v-model="filterTag" placeholder="全部" clearable filterable style="width: 150px;" @change="onFilterChange">
+          <el-select v-model="filterTag" placeholder="全部" clearable style="width: 150px;" @change="onFilterChange">
             <el-option v-for="t in tagOptions" :key="t.name" :label="t.name" :value="t.name" />
           </el-select>
         </el-form-item>
@@ -517,8 +517,16 @@ onMounted(async () => {
   :deep(.el-form--inline .el-input) {
     width: 100% !important;
   }
+  :deep(.el-form--inline .el-select) {
+    width: 100% !important;
+  }
   .pagination-wrapper {
     justify-content: center;
+  }
+  .patient-form-dialog {
+    width: 94% !important;
+    border-radius: 14px;
+    margin-top: 6vh !important;
   }
 }
 /* 患者表单弹窗：顶部对齐，内容区内滚动，保证一屏内显示全 */

@@ -100,6 +100,15 @@
             <div class="card-row">
               <span class="label">剂量</span><span class="value">{{ row.dosage_min }}~{{ row.dosage_max }} g</span>
             </div>
+            <div class="card-row" v-if="row.storage_condition">
+              <span class="label">储存</span><span class="value">{{ row.storage_condition }}</span>
+            </div>
+            <div class="card-row" v-if="row.pregnancy_contraindicated">
+              <span class="label">孕妇</span><span class="value">慎用</span>
+            </div>
+            <div class="card-row">
+              <span class="label">状态</span><span class="value">{{ row.is_active === false ? '停用' : '启用' }}</span>
+            </div>
           </div>
           <div v-if="editable" class="card-actions">
             <el-button link type="primary" size="small" @click="openEdit(row)">编辑</el-button>
@@ -110,8 +119,14 @@
       </div>
     </el-card>
 
-    <el-dialog v-model="showDialog" :title="isEdit ? '编辑药材' : '新增药材'" width="680px" class="herb-dialog" destroy-on-close>
-      <el-form :model="form" label-width="96px">
+    <el-dialog v-model="showDialog" width="680px" class="herb-dialog" destroy-on-close :close-on-click-modal="false" align-center>
+      <template #header>
+        <div class="dlg-title">
+          <span class="dlg-dot"></span>
+          {{ isEdit ? '编辑药材' : '新增药材' }}
+        </div>
+      </template>
+      <el-form :model="form" label-position="top" class="herb-form">
         <el-form-item label="正名" required><el-input v-model="form.name" placeholder="请输入药名（如 桂枝）"/></el-form-item>
         <el-form-item label="异名"><el-input v-model="form.aliasesStr" placeholder="逗号分隔，如 官桂、桂心" /></el-form-item>
         <el-row :gutter="12">
@@ -145,17 +160,21 @@
             </el-input-number>
           </el-form-item></el-col>
         </el-row>
-        <el-form-item label="孕妇禁忌">
-          <el-switch v-model="form.pregnancy_contraindicated" active-text="是" inactive-text="否" />
-        </el-form-item>
-        <el-form-item label="状态">
-          <el-switch v-model="form.is_active" active-text="启用" inactive-text="停用" />
-        </el-form-item>
         <el-form-item label="储存条件"><el-input v-model="form.storage_condition" placeholder="如 置阴凉干燥处" /></el-form-item>
+        <el-row :gutter="12">
+          <el-col :span="12" :xs="12"><el-form-item label="孕妇禁忌">
+            <el-switch v-model="form.pregnancy_contraindicated" active-text="是" inactive-text="否" />
+          </el-form-item></el-col>
+          <el-col :span="12" :xs="12"><el-form-item label="状态">
+            <el-switch v-model="form.is_active" active-text="启用" inactive-text="停用" />
+          </el-form-item></el-col>
+        </el-row>
       </el-form>
       <template #footer>
-        <el-button @click="showDialog = false">取消</el-button>
-        <el-button type="primary" @click="submitForm">确定</el-button>
+        <div class="dlg-footer">
+          <el-button @click="showDialog = false">取消</el-button>
+          <el-button type="primary" @click="submitForm">确 定</el-button>
+        </div>
       </template>
     </el-dialog>
   </div>
@@ -196,8 +215,8 @@ function updateViewport() {
 
 function defaultForm() {
   return {
-    name: '', aliasesStr: '', grade: '', nature: '平',
-    flavors: [] as string[], meridians: [] as string[], directions: [] as string[], tags: [] as string[],
+    name: '', aliasesStr: '', nature: '平',
+    flavors: [] as string[],
     efficacy: '', contraindication: '', dosage_min: 3, dosage_max: 10, toxicity: '无毒',
     storage_condition: '', pregnancy_contraindicated: false, is_active: true,
   }
@@ -252,12 +271,8 @@ function openEdit(row: any) {
   form.value = {
     name: row.name || '',
     aliasesStr: row.aliases ? row.aliases.join('、') : '',
-    grade: row.grade || '',
     nature: row.nature || '平',
     flavors: row.flavors || [],
-    meridians: row.meridians || [],
-    directions: row.directions || [],
-    tags: row.tags || [],
     efficacy: row.efficacy || '',
     contraindication: row.contraindication || '',
     dosage_min: row.dosage_min ?? 3,
@@ -277,12 +292,8 @@ async function submitForm() {
     const payload: any = {
       name: f.name,
       aliases: f.aliasesStr ? f.aliasesStr.split(/[,，、]/).map((s: string) => s.trim()).filter(Boolean) : null,
-      grade: f.grade || null,
       nature: f.nature || null,
       flavors: f.flavors.length ? f.flavors : null,
-      meridians: f.meridians.length ? f.meridians : null,
-      directions: f.directions.length ? f.directions : null,
-      tags: f.tags.length ? f.tags : null,
       efficacy: f.efficacy || null,
       contraindication: f.contraindication || null,
       dosage_min: f.dosage_min,
@@ -363,6 +374,50 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
 .unit { margin-left: 2px; color: #909399; font-size: 12px; }
 .tag-cell { margin: 1px 2px; }
 
+/* ---- 新增/编辑弹窗美化 ---- */
+.dlg-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 16px;
+  color: #2C1810;
+}
+.dlg-dot {
+  width: 6px;
+  height: 16px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #c8a07a, #a9784f);
+}
+.dlg-footer { display: flex; gap: 10px; justify-content: flex-end; }
+.dlg-footer .el-button { margin-left: 0; }
+:deep(.herb-dialog) {
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 12px 32px rgba(44, 24, 16, 0.18);
+}
+:deep(.herb-dialog .el-dialog__header) {
+  margin: 0;
+  padding: 18px 22px 12px;
+  border-bottom: 1px solid #f0ebe5;
+  background: #fbf8f4;
+}
+:deep(.herb-dialog .el-dialog__body) {
+  padding: 20px 22px 6px;
+}
+:deep(.herb-dialog .el-dialog__footer) {
+  padding: 14px 22px 18px;
+  border-top: 1px solid #f0ebe5;
+  background: #faf7f3;
+}
+:deep(.herb-form .el-form-item) { margin-bottom: 16px; }
+:deep(.herb-form .el-form-item__label) {
+  font-weight: 500;
+  color: #5a4636;
+}
+:deep(.herb-form .el-switch) { display: flex; }
+:deep(.herb-form .el-input-number) { width: 100% !important; }
+
 /* ---- 移动端卡片视图 ---- */
 .herb-cards {
   display: flex;
@@ -437,20 +492,26 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
   }
   /* 新增/编辑弹窗：移动端限宽 + 标签上置，避免窄屏挤成一团 */
   :deep(.herb-dialog) {
-    width: 92% !important;
+    width: 94% !important;
+    border-radius: 14px;
   }
-  :deep(.herb-dialog .el-form-item) {
+  :deep(.herb-dialog .el-dialog__header) { padding: 16px 16px 10px; }
+  :deep(.herb-dialog .el-dialog__body) { padding: 16px 16px 4px; }
+  :deep(.herb-dialog .el-dialog__footer) { padding: 12px 16px 16px; }
+  .dlg-footer {
     display: flex;
-    flex-direction: column;
+    gap: 10px;
+    justify-content: flex-end;
   }
-  :deep(.herb-dialog .el-form-item__label) {
-    text-align: left;
-    padding: 0 0 4px;
-    line-height: 1.4;
-    color: #606266;
+  .dlg-footer .el-button {
+    flex: 1;
+    margin-left: 0;
+    height: 42px;
+    border-radius: 8px;
+    font-size: 15px;
   }
-  :deep(.herb-dialog .el-form-item__content) {
-    margin-left: 0 !important;
-  }
+  :deep(.herb-dialog .el-form-item) { margin-bottom: 16px; }
+  :deep(.herb-dialog .el-textarea__inner) { min-height: 76px; }
+  :deep(.herb-dialog .el-switch__label) { white-space: nowrap; }
 }
 </style>

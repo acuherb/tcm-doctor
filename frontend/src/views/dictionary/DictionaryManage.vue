@@ -13,7 +13,7 @@
         <el-radio-button value="tongue">舌象</el-radio-button>
         <el-radio-button value="pulse">脉象</el-radio-button>
         <el-radio-button value="tag">患者标签</el-radio-button>
-        <el-radio-button value="herb_tag">药材标签</el-radio-button>
+        <el-radio-button value="herb_tag">药材性味</el-radio-button>
       </el-radio-group>
 
       <el-table v-if="!isMobile" :data="terms" border stripe>

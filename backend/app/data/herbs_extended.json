@@ -5,10 +5,11 @@
       "龙沙",
       "卑相"
     ],
-    "category": "解表药",
     "nature": "温",
-    "flavor": "辛、微苦",
-    "meridian_tropism": "归肺、膀胱经",
+    "flavors": [
+      "辛",
+      "苦"
+    ],
     "efficacy": "发汗解表，宣肺平喘，利水消肿",
     "dosage_min": 2,
     "dosage_max": 9,
@@ -21,10 +22,11 @@
       "柳桂",
       "嫩桂枝"
     ],
-    "category": "解表药",
     "nature": "温",
-    "flavor": "辛、甘",
-    "meridian_tropism": "归心、肺、膀胱经",
+    "flavors": [
+      "辛",
+      "甘"
+    ],
     "efficacy": "发汗解肌，温通经脉，助阳化气，平冲降逆",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -35,13 +37,12 @@
     "name": "紫苏",
     "aliases": [
       "苏叶",
-      "赤苏",
-      "紫苏叶"
+      "赤苏"
     ],
-    "category": "解表药",
     "nature": "温",
-    "flavor": "辛",
-    "meridian_tropism": "归肺、脾经",
+    "flavors": [
+      "辛"
+    ],
     "efficacy": "解表散寒，行气和胃，解鱼蟹毒",
     "dosage_min": 5,
     "dosage_max": 9,
@@ -54,10 +55,10 @@
       "假苏",
       "姜芥"
     ],
-    "category": "解表药",
     "nature": "微温",
-    "flavor": "辛",
-    "meridian_tropism": "归肺、肝经",
+    "flavors": [
+      "辛"
+    ],
     "efficacy": "解表散风，透疹消疮，炒炭止血",
     "dosage_min": 5,
     "dosage_max": 10,
@@ -70,10 +71,11 @@
       "屏风",
       "铜芸"
     ],
-    "category": "解表药",
     "nature": "微温",
-    "flavor": "辛、甘",
-    "meridian_tropism": "归膀胱、肝、脾经",
+    "flavors": [
+      "辛",
+      "甘"
+    ],
     "efficacy": "祛风解表，胜湿止痛，止痉",
     "dosage_min": 5,
     "dosage_max": 10,
@@ -86,10 +88,11 @@
       "羌青",
       "护羌使者"
     ],
-    "category": "解表药",
     "nature": "温",
-    "flavor": "辛、苦",
-    "meridian_tropism": "归膀胱、肾经",
+    "flavors": [
+      "辛",
+      "苦"
+    ],
     "efficacy": "解表散寒，祛风胜湿，止痛",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -102,10 +105,10 @@
       "芳香",
       "泽芬"
     ],
-    "category": "解表药",
     "nature": "温",
-    "flavor": "辛",
-    "meridian_tropism": "归肺、胃、大肠经",
+    "flavors": [
+      "辛"
+    ],
     "efficacy": "解表散寒，祛风止痛，通鼻窍，燥湿止带，消肿排脓",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -118,10 +121,10 @@
       "小辛",
       "少辛"
     ],
-    "category": "解表药",
     "nature": "温",
-    "flavor": "辛",
-    "meridian_tropism": "归肺、肾经",
+    "flavors": [
+      "辛"
+    ],
     "efficacy": "解表散寒，祛风止痛，通窍，温肺化饮",
     "dosage_min": 1,
     "dosage_max": 3,
@@ -133,10 +136,10 @@
     "aliases": [
       "藁茇"
     ],
-    "category": "解表药",
     "nature": "温",
-    "flavor": "辛",
-    "meridian_tropism": "归膀胱经",
+    "flavors": [
+      "辛"
+    ],
     "efficacy": "祛风散寒，除湿止痛",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -149,10 +152,11 @@
       "苍耳",
       "虱麻头"
     ],
-    "category": "解表药",
     "nature": "温",
-    "flavor": "辛、苦",
-    "meridian_tropism": "归肺经",
+    "flavors": [
+      "辛",
+      "苦"
+    ],
     "efficacy": "散风寒，通鼻窍，祛风湿",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -165,10 +169,10 @@
       "木笔花",
       "望春花"
     ],
-    "category": "解表药",
     "nature": "温",
-    "flavor": "辛",
-    "meridian_tropism": "归肺、胃经",
+    "flavors": [
+      "辛"
+    ],
     "efficacy": "散风寒，通鼻窍",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -181,10 +185,10 @@
       "银丹草",
       "苏薄荷"
     ],
-    "category": "解表药",
     "nature": "凉",
-    "flavor": "辛",
-    "meridian_tropism": "归肺、肝经",
+    "flavors": [
+      "辛"
+    ],
     "efficacy": "疏散风热，清利头目，利咽透疹，疏肝行气",
     "dosage_min": 3,
     "dosage_max": 6,
@@ -197,10 +201,11 @@
       "恶实",
       "鼠粘子"
     ],
-    "category": "解表药",
     "nature": "寒",
-    "flavor": "辛、苦",
-    "meridian_tropism": "归肺、胃经",
+    "flavors": [
+      "辛",
+      "苦"
+    ],
     "efficacy": "疏散风热，宣肺透疹，解毒利咽",
     "dosage_min": 6,
     "dosage_max": 12,
@@ -213,10 +218,10 @@
       "蝉退",
       "蝉衣"
     ],
-    "category": "解表药",
     "nature": "寒",
-    "flavor": "甘",
-    "meridian_tropism": "归肺、肝经",
+    "flavors": [
+      "甘"
+    ],
     "efficacy": "疏散风热，利咽透疹，明目退翳，解痉",
     "dosage_min": 3,
     "dosage_max": 6,
@@ -229,10 +234,11 @@
       "冬桑叶",
       "霜桑叶"
     ],
-    "category": "解表药",
     "nature": "寒",
-    "flavor": "甘、苦",
-    "meridian_tropism": "归肺、肝经",
+    "flavors": [
+      "甘",
+      "苦"
+    ],
     "efficacy": "疏散风热，清肺润燥，平肝明目",
     "dosage_min": 5,
     "dosage_max": 9,
@@ -245,10 +251,11 @@
       "甘菊",
       "杭菊"
     ],
-    "category": "解表药",
     "nature": "微寒",
-    "flavor": "甘、苦",
-    "meridian_tropism": "归肺、肝经",
+    "flavors": [
+      "甘",
+      "苦"
+    ],
     "efficacy": "疏散风热，平肝明目，清热解毒",
     "dosage_min": 5,
     "dosage_max": 9,
@@ -261,10 +268,11 @@
       "荆子",
       "万荆子"
     ],
-    "category": "解表药",
     "nature": "微寒",
-    "flavor": "辛、苦",
-    "meridian_tropism": "归膀胱、肝、胃经",
+    "flavors": [
+      "辛",
+      "苦"
+    ],
     "efficacy": "疏散风热，清利头目",
     "dosage_min": 5,
     "dosage_max": 9,
@@ -277,10 +285,11 @@
       "地熏",
       "茹草"
     ],
-    "category": "解表药",
     "nature": "微寒",
-    "flavor": "辛、苦",
-    "meridian_tropism": "归肝、胆、肺经",
+    "flavors": [
+      "辛",
+      "苦"
+    ],
     "efficacy": "和解表里，疏肝升阳",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -293,10 +302,11 @@
       "周升麻",
       "鸡骨升麻"
     ],
-    "category": "解表药",
     "nature": "微寒",
-    "flavor": "辛、微甘",
-    "meridian_tropism": "归肺、脾、胃、大肠经",
+    "flavors": [
+      "辛",
+      "甘"
+    ],
     "efficacy": "发表透疹，清热解毒，升举阳气",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -309,10 +319,11 @@
       "干葛",
       "甘葛"
     ],
-    "category": "解表药",
     "nature": "凉",
-    "flavor": "甘、辛",
-    "meridian_tropism": "归脾、胃经",
+    "flavors": [
+      "甘",
+      "辛"
+    ],
     "efficacy": "解肌退热，生津止渴，透疹，升阳止泻，通经活络，解酒毒",
     "dosage_min": 10,
     "dosage_max": 15,
@@ -325,10 +336,11 @@
       "豆豉",
       "香豉"
     ],
-    "category": "解表药",
     "nature": "凉",
-    "flavor": "苦、辛",
-    "meridian_tropism": "归肺、胃经",
+    "flavors": [
+      "苦",
+      "辛"
+    ],
     "efficacy": "解表除烦，宣发郁热",
     "dosage_min": 6,
     "dosage_max": 12,
@@ -341,10 +353,10 @@
       "水萍",
       "田萍"
     ],
-    "category": "解表药",
     "nature": "寒",
-    "flavor": "辛",
-    "meridian_tropism": "归肺、膀胱经",
+    "flavors": [
+      "辛"
+    ],
     "efficacy": "宣散风热，透疹利水",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -357,10 +369,11 @@
       "白虎",
       "细理石"
     ],
-    "category": "清热药",
     "nature": "大寒",
-    "flavor": "甘、辛",
-    "meridian_tropism": "归肺、胃经",
+    "flavors": [
+      "甘",
+      "辛"
+    ],
     "efficacy": "清热泻火，除烦止渴",
     "dosage_min": 15,
     "dosage_max": 60,
@@ -373,10 +386,11 @@
       "蚔母",
       "连母"
     ],
-    "category": "清热药",
     "nature": "寒",
-    "flavor": "苦、甘",
-    "meridian_tropism": "归肺、胃、肾经",
+    "flavors": [
+      "苦",
+      "甘"
+    ],
     "efficacy": "清热泻火，滋阴润燥",
     "dosage_min": 6,
     "dosage_max": 12,
@@ -389,10 +403,10 @@
       "山栀",
       "黄栀子"
     ],
-    "category": "清热药",
     "nature": "寒",
-    "flavor": "苦",
-    "meridian_tropism": "归心、肺、三焦经",
+    "flavors": [
+      "苦"
+    ],
     "efficacy": "泻火除烦，清热利湿，凉血解毒",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -405,10 +419,10 @@
       "腐肠",
       "经芩"
     ],
-    "category": "清热药",
     "nature": "寒",
-    "flavor": "苦",
-    "meridian_tropism": "归肺、胆、脾、大肠、小肠经",
+    "flavors": [
+      "苦"
+    ],
     "efficacy": "清热燥湿，泻火解毒，止血安胎",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -421,10 +435,10 @@
       "王连",
       "支连"
     ],
-    "category": "清热药",
     "nature": "寒",
-    "flavor": "苦",
-    "meridian_tropism": "归心、脾、胃、肝、胆、大肠经",
+    "flavors": [
+      "苦"
+    ],
     "efficacy": "清热燥湿，泻火解毒",
     "dosage_min": 2,
     "dosage_max": 5,
@@ -437,10 +451,10 @@
       "檗木",
       "檗皮"
     ],
-    "category": "清热药",
     "nature": "寒",
-    "flavor": "苦",
-    "meridian_tropism": "归肾、膀胱经",
+    "flavors": [
+      "苦"
+    ],
     "efficacy": "清热燥湿，泻火除蒸，解毒疗疮",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -453,10 +467,10 @@
       "龙胆草",
       "胆草"
     ],
-    "category": "清热药",
     "nature": "寒",
-    "flavor": "苦",
-    "meridian_tropism": "归肝、胆经",
+    "flavors": [
+      "苦"
+    ],
     "efficacy": "清热燥湿，泻肝胆火",
     "dosage_min": 3,
     "dosage_max": 6,
@@ -469,10 +483,10 @@
       "苦骨",
       "地槐"
     ],
-    "category": "清热药",
     "nature": "寒",
-    "flavor": "苦",
-    "meridian_tropism": "归心、肝、胃、大肠、膀胱经",
+    "flavors": [
+      "苦"
+    ],
     "efficacy": "清热燥湿，杀虫利尿",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -485,10 +499,10 @@
       "忍冬花",
       "双花"
     ],
-    "category": "清热药",
     "nature": "寒",
-    "flavor": "甘",
-    "meridian_tropism": "归肺、心、胃经",
+    "flavors": [
+      "甘"
+    ],
     "efficacy": "清热解毒，疏散风热",
     "dosage_min": 6,
     "dosage_max": 15,
@@ -499,13 +513,12 @@
     "name": "连翘",
     "aliases": [
       "旱连子",
-      "大翘",
-      "连轺"
+      "大翘"
     ],
-    "category": "清热药",
     "nature": "微寒",
-    "flavor": "苦",
-    "meridian_tropism": "归肺、心、小肠经",
+    "flavors": [
+      "苦"
+    ],
     "efficacy": "清热解毒，消肿散结，疏散风热",
     "dosage_min": 6,
     "dosage_max": 15,
@@ -518,10 +531,11 @@
       "黄花地丁",
       "婆婆丁"
     ],
-    "category": "清热药",
     "nature": "寒",
-    "flavor": "苦、甘",
-    "meridian_tropism": "归肝、胃经",
+    "flavors": [
+      "苦",
+      "甘"
+    ],
     "efficacy": "清热解毒，消肿散结，利湿通淋",
     "dosage_min": 10,
     "dosage_max": 30,
@@ -534,10 +548,11 @@
       "地丁",
       "苦地丁"
     ],
-    "category": "清热药",
     "nature": "寒",
-    "flavor": "苦、辛",
-    "meridian_tropism": "归心、肝经",
+    "flavors": [
+      "苦",
+      "辛"
+    ],
     "efficacy": "清热解毒，凉血消肿",
     "dosage_min": 10,
     "dosage_max": 30,
@@ -550,10 +565,10 @@
       "蓝叶",
       "靛青叶"
     ],
-    "category": "清热药",
     "nature": "寒",
-    "flavor": "苦",
-    "meridian_tropism": "归心、胃经",
+    "flavors": [
+      "苦"
+    ],
     "efficacy": "清热解毒，凉血消斑",
     "dosage_min": 9,
     "dosage_max": 15,
@@ -566,10 +581,10 @@
       "靛青根",
       "蓝靛根"
     ],
-    "category": "清热药",
     "nature": "寒",
-    "flavor": "苦",
-    "meridian_tropism": "归心、胃经",
+    "flavors": [
+      "苦"
+    ],
     "efficacy": "清热解毒，凉血利咽",
     "dosage_min": 9,
     "dosage_max": 15,
@@ -582,10 +597,10 @@
       "靛花",
       "蓝露"
     ],
-    "category": "清热药",
     "nature": "寒",
-    "flavor": "咸",
-    "meridian_tropism": "归肝经",
+    "flavors": [
+      "咸"
+    ],
     "efficacy": "清热解毒，凉血消斑，泻火定惊",
     "dosage_min": 1.5,
     "dosage_max": 3,
@@ -598,10 +613,10 @@
       "乌扇",
       "鬼扇"
     ],
-    "category": "清热药",
     "nature": "寒",
-    "flavor": "苦",
-    "meridian_tropism": "归肺经",
+    "flavors": [
+      "苦"
+    ],
     "efficacy": "清热解毒，消痰利咽",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -614,10 +629,10 @@
       "广豆根",
       "苦豆根"
     ],
-    "category": "清热药",
     "nature": "寒",
-    "flavor": "苦",
-    "meridian_tropism": "归肺、胃经",
+    "flavors": [
+      "苦"
+    ],
     "efficacy": "清热解毒，利咽消肿",
     "dosage_min": 3,
     "dosage_max": 6,
@@ -630,10 +645,10 @@
       "野丈人",
       "胡王使者"
     ],
-    "category": "清热药",
     "nature": "寒",
-    "flavor": "苦",
-    "meridian_tropism": "归胃、大肠经",
+    "flavors": [
+      "苦"
+    ],
     "efficacy": "清热解毒，凉血止痢",
     "dosage_min": 6,
     "dosage_max": 15,
@@ -646,10 +661,10 @@
       "马齿草",
       "五行草"
     ],
-    "category": "清热药",
     "nature": "寒",
-    "flavor": "酸",
-    "meridian_tropism": "归肝、大肠经",
+    "flavors": [
+      "酸"
+    ],
     "efficacy": "清热解毒，凉血止血，止痢",
     "dosage_min": 9,
     "dosage_max": 15,
@@ -662,10 +677,10 @@
       "老鸦胆",
       "苦榛子"
     ],
-    "category": "清热药",
     "nature": "寒",
-    "flavor": "苦",
-    "meridian_tropism": "归大肠、肝经",
+    "flavors": [
+      "苦"
+    ],
     "efficacy": "清热解毒，截疟止痢，腐蚀赘疣",
     "dosage_min": 0.5,
     "dosage_max": 2,
@@ -678,10 +693,11 @@
       "生地",
       "干地黄"
     ],
-    "category": "清热药",
     "nature": "寒",
-    "flavor": "甘、苦",
-    "meridian_tropism": "归心、肝、肾经",
+    "flavors": [
+      "甘",
+      "苦"
+    ],
     "efficacy": "清热凉血，养阴生津",
     "dosage_min": 10,
     "dosage_max": 15,
@@ -694,10 +710,12 @@
       "元参",
       "黑参"
     ],
-    "category": "清热药",
     "nature": "微寒",
-    "flavor": "甘、苦、咸",
-    "meridian_tropism": "归肺、胃、肾经",
+    "flavors": [
+      "甘",
+      "苦",
+      "咸"
+    ],
     "efficacy": "清热凉血，滋阴降火，解毒散结",
     "dosage_min": 9,
     "dosage_max": 15,
@@ -710,10 +728,11 @@
       "丹皮",
       "粉丹皮"
     ],
-    "category": "清热药",
     "nature": "微寒",
-    "flavor": "苦、辛",
-    "meridian_tropism": "归心、肝、肾经",
+    "flavors": [
+      "苦",
+      "辛"
+    ],
     "efficacy": "清热凉血，活血化瘀",
     "dosage_min": 6,
     "dosage_max": 12,
@@ -726,10 +745,10 @@
       "赤芍药",
       "红芍药"
     ],
-    "category": "清热药",
     "nature": "微寒",
-    "flavor": "苦",
-    "meridian_tropism": "归肝经",
+    "flavors": [
+      "苦"
+    ],
     "efficacy": "清热凉血，散瘀止痛",
     "dosage_min": 6,
     "dosage_max": 12,
@@ -742,10 +761,11 @@
       "紫丹",
       "地血"
     ],
-    "category": "清热药",
     "nature": "寒",
-    "flavor": "甘、咸",
-    "meridian_tropism": "归心、肝经",
+    "flavors": [
+      "甘",
+      "咸"
+    ],
     "efficacy": "清热凉血，活血解毒，透疹消斑",
     "dosage_min": 5,
     "dosage_max": 9,
@@ -757,10 +777,10 @@
     "aliases": [
       "牛角"
     ],
-    "category": "清热药",
     "nature": "寒",
-    "flavor": "苦",
-    "meridian_tropism": "归心、肝经",
+    "flavors": [
+      "苦"
+    ],
     "efficacy": "清热凉血，解毒定惊",
     "dosage_min": 15,
     "dosage_max": 30,
@@ -773,10 +793,11 @@
       "草蒿",
       "香蒿"
     ],
-    "category": "清热药",
     "nature": "寒",
-    "flavor": "苦、辛",
-    "meridian_tropism": "归肝、胆经",
+    "flavors": [
+      "苦",
+      "辛"
+    ],
     "efficacy": "清透虚热，凉血除蒸，解暑截疟",
     "dosage_min": 6,
     "dosage_max": 12,
@@ -788,10 +809,10 @@
     "aliases": [
       "枸杞根皮"
     ],
-    "category": "清热药",
     "nature": "寒",
-    "flavor": "甘",
-    "meridian_tropism": "归肺、肝、肾经",
+    "flavors": [
+      "甘"
+    ],
     "efficacy": "凉血除蒸，清肺降火",
     "dosage_min": 9,
     "dosage_max": 15,
@@ -804,10 +825,10 @@
       "银胡",
       "牛肚根"
     ],
-    "category": "清热药",
     "nature": "微寒",
-    "flavor": "甘",
-    "meridian_tropism": "归肝、胃经",
+    "flavors": [
+      "甘"
+    ],
     "efficacy": "清虚热，除疳热",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -819,10 +840,10 @@
     "aliases": [
       "假黄连"
     ],
-    "category": "清热药",
     "nature": "寒",
-    "flavor": "苦",
-    "meridian_tropism": "归肝、胃、大肠经",
+    "flavors": [
+      "苦"
+    ],
     "efficacy": "退虚热，除疳热，清湿热",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -836,10 +857,10 @@
       "锦纹",
       "川军"
     ],
-    "category": "泻下药",
     "nature": "寒",
-    "flavor": "苦",
-    "meridian_tropism": "归脾、胃、大肠、肝、心包经",
+    "flavors": [
+      "苦"
+    ],
     "efficacy": "泻下攻积，清热泻火，凉血解毒，逐瘀通经",
     "dosage_min": 3,
     "dosage_max": 15,
@@ -852,10 +873,11 @@
       "朴硝",
       "皮硝"
     ],
-    "category": "泻下药",
     "nature": "寒",
-    "flavor": "咸、苦",
-    "meridian_tropism": "归胃、大肠经",
+    "flavors": [
+      "咸",
+      "苦"
+    ],
     "efficacy": "泻下通便，润燥软坚，清火消肿",
     "dosage_min": 6,
     "dosage_max": 12,
@@ -867,10 +889,11 @@
     "aliases": [
       "泻叶"
     ],
-    "category": "泻下药",
     "nature": "寒",
-    "flavor": "甘、苦",
-    "meridian_tropism": "归大肠经",
+    "flavors": [
+      "甘",
+      "苦"
+    ],
     "efficacy": "泻热行滞，通便利水",
     "dosage_min": 2,
     "dosage_max": 6,
@@ -883,10 +906,10 @@
       "麻子仁",
       "大麻仁"
     ],
-    "category": "泻下药",
     "nature": "平",
-    "flavor": "甘",
-    "meridian_tropism": "归脾、胃、大肠经",
+    "flavors": [
+      "甘"
+    ],
     "efficacy": "润肠通便",
     "dosage_min": 10,
     "dosage_max": 15,
@@ -899,10 +922,12 @@
       "李仁",
       "郁子"
     ],
-    "category": "泻下药",
     "nature": "平",
-    "flavor": "辛、苦、甘",
-    "meridian_tropism": "归脾、大肠、小肠经",
+    "flavors": [
+      "辛",
+      "苦",
+      "甘"
+    ],
     "efficacy": "润肠通便，下气利水",
     "dosage_min": 6,
     "dosage_max": 9,
@@ -915,10 +940,10 @@
       "甘泽",
       "陵蒿"
     ],
-    "category": "泻下药",
     "nature": "寒",
-    "flavor": "苦",
-    "meridian_tropism": "归肺、肾、大肠经",
+    "flavors": [
+      "苦"
+    ],
     "efficacy": "泻水逐饮，消肿散结",
     "dosage_min": 0.5,
     "dosage_max": 1.5,
@@ -931,10 +956,11 @@
       "京大戟",
       "红芽大戟"
     ],
-    "category": "泻下药",
     "nature": "寒",
-    "flavor": "苦、辛",
-    "meridian_tropism": "归肺、脾、肾经",
+    "flavors": [
+      "苦",
+      "辛"
+    ],
     "efficacy": "泻水逐饮，消肿散结",
     "dosage_min": 1.5,
     "dosage_max": 3,
@@ -947,10 +973,11 @@
       "赤芫",
       "杜芫"
     ],
-    "category": "泻下药",
     "nature": "温",
-    "flavor": "苦、辛",
-    "meridian_tropism": "归肺、脾、肾经",
+    "flavors": [
+      "苦",
+      "辛"
+    ],
     "efficacy": "泻水逐饮，祛痰止咳，杀虫疗疮",
     "dosage_min": 1.5,
     "dosage_max": 3,
@@ -963,10 +990,11 @@
       "独摇草",
       "长生草"
     ],
-    "category": "祛风湿药",
     "nature": "微温",
-    "flavor": "辛、苦",
-    "meridian_tropism": "归肾、膀胱经",
+    "flavors": [
+      "辛",
+      "苦"
+    ],
     "efficacy": "祛风除湿，通痹止痛",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -979,10 +1007,11 @@
       "铁脚威灵仙",
       "灵仙"
     ],
-    "category": "祛风湿药",
     "nature": "温",
-    "flavor": "辛、咸",
-    "meridian_tropism": "归膀胱经",
+    "flavors": [
+      "辛",
+      "咸"
+    ],
     "efficacy": "祛风湿，通经络，消骨鲠",
     "dosage_min": 6,
     "dosage_max": 9,
@@ -994,10 +1023,11 @@
     "aliases": [
       "川乌头"
     ],
-    "category": "祛风湿药",
     "nature": "热",
-    "flavor": "辛、苦",
-    "meridian_tropism": "归心、肝、肾、脾经",
+    "flavors": [
+      "辛",
+      "苦"
+    ],
     "efficacy": "祛风除湿，温经止痛",
     "dosage_min": 1.5,
     "dosage_max": 3,
@@ -1009,10 +1039,11 @@
     "aliases": [
       "草乌头"
     ],
-    "category": "祛风湿药",
     "nature": "热",
-    "flavor": "辛、苦",
-    "meridian_tropism": "归心、肝、肾、脾经",
+    "flavors": [
+      "辛",
+      "苦"
+    ],
     "efficacy": "祛风除湿，温经止痛",
     "dosage_min": 1.5,
     "dosage_max": 3,
@@ -1025,10 +1056,11 @@
       "白花蛇",
       "百步蛇"
     ],
-    "category": "祛风湿药",
     "nature": "温",
-    "flavor": "甘、咸",
-    "meridian_tropism": "归肝经",
+    "flavors": [
+      "甘",
+      "咸"
+    ],
     "efficacy": "祛风通络，止痉",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -1041,10 +1073,10 @@
       "贴梗海棠",
       "铁脚梨"
     ],
-    "category": "祛风湿药",
     "nature": "温",
-    "flavor": "酸",
-    "meridian_tropism": "归肝、脾经",
+    "flavors": [
+      "酸"
+    ],
     "efficacy": "舒筋活络，和胃化湿",
     "dosage_min": 6,
     "dosage_max": 9,
@@ -1057,10 +1089,11 @@
       "秦纠",
       "大艽"
     ],
-    "category": "祛风湿药",
     "nature": "平",
-    "flavor": "辛、苦",
-    "meridian_tropism": "归胃、肝、胆经",
+    "flavors": [
+      "辛",
+      "苦"
+    ],
     "efficacy": "祛风湿，清湿热，止痹痛，退虚热",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -1073,10 +1106,11 @@
       "寄生",
       "广寄生"
     ],
-    "category": "祛风湿药",
     "nature": "平",
-    "flavor": "苦、甘",
-    "meridian_tropism": "归肝、肾经",
+    "flavors": [
+      "苦",
+      "甘"
+    ],
     "efficacy": "祛风湿，补肝肾，强筋骨，安胎元",
     "dosage_min": 9,
     "dosage_max": 15,
@@ -1088,10 +1122,11 @@
     "aliases": [
       "南五加皮"
     ],
-    "category": "祛风湿药",
     "nature": "温",
-    "flavor": "辛、苦",
-    "meridian_tropism": "归肝、肾经",
+    "flavors": [
+      "辛",
+      "苦"
+    ],
     "efficacy": "祛风除湿，补益肝肾，强筋壮骨，利水消肿",
     "dosage_min": 5,
     "dosage_max": 9,
@@ -1104,10 +1139,11 @@
       "赤术",
       "青术"
     ],
-    "category": "化湿药",
     "nature": "温",
-    "flavor": "辛、苦",
-    "meridian_tropism": "归脾、胃、肝经",
+    "flavors": [
+      "辛",
+      "苦"
+    ],
     "efficacy": "燥湿健脾，祛风散寒，明目",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -1120,10 +1156,11 @@
       "赤朴",
       "烈朴"
     ],
-    "category": "化湿药",
     "nature": "温",
-    "flavor": "苦、辛",
-    "meridian_tropism": "归脾、胃、肺、大肠经",
+    "flavors": [
+      "苦",
+      "辛"
+    ],
     "efficacy": "燥湿消痰，下气除满",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -1136,10 +1173,10 @@
       "土藿香",
       "排香草"
     ],
-    "category": "化湿药",
     "nature": "微温",
-    "flavor": "辛",
-    "meridian_tropism": "归脾、胃、肺经",
+    "flavors": [
+      "辛"
+    ],
     "efficacy": "化湿醒脾，辟秽和中，解暑发表",
     "dosage_min": 5,
     "dosage_max": 9,
@@ -1152,10 +1189,10 @@
       "兰草",
       "水香"
     ],
-    "category": "化湿药",
     "nature": "平",
-    "flavor": "辛",
-    "meridian_tropism": "归脾、胃、肺经",
+    "flavors": [
+      "辛"
+    ],
     "efficacy": "化湿醒脾，解暑",
     "dosage_min": 5,
     "dosage_max": 9,
@@ -1168,10 +1205,10 @@
       "春砂仁",
       "缩砂仁"
     ],
-    "category": "化湿药",
     "nature": "温",
-    "flavor": "辛",
-    "meridian_tropism": "归脾、胃、肾经",
+    "flavors": [
+      "辛"
+    ],
     "efficacy": "化湿开胃，温脾止泻，理气安胎",
     "dosage_min": 3,
     "dosage_max": 6,
@@ -1184,10 +1221,10 @@
       "豆蔻",
       "白蔻"
     ],
-    "category": "化湿药",
     "nature": "温",
-    "flavor": "辛",
-    "meridian_tropism": "归肺、脾、胃经",
+    "flavors": [
+      "辛"
+    ],
     "efficacy": "化湿行气，温中止呕",
     "dosage_min": 3,
     "dosage_max": 6,
@@ -1200,10 +1237,10 @@
       "草蔻",
       "豆蔻"
     ],
-    "category": "化湿药",
     "nature": "温",
-    "flavor": "辛",
-    "meridian_tropism": "归脾、胃经",
+    "flavors": [
+      "辛"
+    ],
     "efficacy": "燥湿行气，温中止呕",
     "dosage_min": 3,
     "dosage_max": 6,
@@ -1216,10 +1253,11 @@
       "云苓",
       "松苓"
     ],
-    "category": "利水渗湿药",
     "nature": "平",
-    "flavor": "甘、淡",
-    "meridian_tropism": "归心、肺、脾、肾经",
+    "flavors": [
+      "甘",
+      "淡"
+    ],
     "efficacy": "利水渗湿，健脾宁心",
     "dosage_min": 9,
     "dosage_max": 15,
@@ -1232,10 +1270,11 @@
       "水泻",
       "芒芋"
     ],
-    "category": "利水渗湿药",
     "nature": "寒",
-    "flavor": "甘、淡",
-    "meridian_tropism": "归肾、膀胱经",
+    "flavors": [
+      "甘",
+      "淡"
+    ],
     "efficacy": "利水渗湿，泄热化浊",
     "dosage_min": 6,
     "dosage_max": 9,
@@ -1248,10 +1287,11 @@
       "薏米",
       "苡仁"
     ],
-    "category": "利水渗湿药",
     "nature": "凉",
-    "flavor": "甘、淡",
-    "meridian_tropism": "归脾、胃、肺经",
+    "flavors": [
+      "甘",
+      "淡"
+    ],
     "efficacy": "利水渗湿，健脾止泻，解毒散结",
     "dosage_min": 9,
     "dosage_max": 30,
@@ -1264,10 +1304,10 @@
       "车前实",
       "凤眼前仁"
     ],
-    "category": "利水渗湿药",
     "nature": "寒",
-    "flavor": "甘",
-    "meridian_tropism": "归肝、肾、肺、小肠经",
+    "flavors": [
+      "甘"
+    ],
     "efficacy": "清热利尿，渗湿通淋，明目祛痰",
     "dosage_min": 9,
     "dosage_max": 15,
@@ -1280,10 +1320,11 @@
       "画石",
       "液石"
     ],
-    "category": "利水渗湿药",
     "nature": "寒",
-    "flavor": "甘、淡",
-    "meridian_tropism": "归膀胱、肺经",
+    "flavors": [
+      "甘",
+      "淡"
+    ],
     "efficacy": "利尿通淋，清热解暑，收湿敛疮",
     "dosage_min": 10,
     "dosage_max": 15,
@@ -1296,10 +1337,10 @@
       "关木通",
       "川木通"
     ],
-    "category": "利水渗湿药",
     "nature": "寒",
-    "flavor": "苦",
-    "meridian_tropism": "归心、小肠、膀胱经",
+    "flavors": [
+      "苦"
+    ],
     "efficacy": "利尿通淋，清心除烦，通经下乳",
     "dosage_min": 3,
     "dosage_max": 6,
@@ -1312,10 +1353,11 @@
       "葱草",
       "白通草"
     ],
-    "category": "利水渗湿药",
     "nature": "微寒",
-    "flavor": "甘、淡",
-    "meridian_tropism": "归肺、胃经",
+    "flavors": [
+      "甘",
+      "淡"
+    ],
     "efficacy": "清热利尿，通气下乳",
     "dosage_min": 3,
     "dosage_max": 5,
@@ -1328,10 +1370,10 @@
       "巨麦",
       "大菊"
     ],
-    "category": "利水渗湿药",
     "nature": "寒",
-    "flavor": "苦",
-    "meridian_tropism": "归心、小肠经",
+    "flavors": [
+      "苦"
+    ],
     "efficacy": "利尿通淋，破血通经",
     "dosage_min": 9,
     "dosage_max": 15,
@@ -1344,10 +1386,11 @@
       "茵陈蒿",
       "绵茵陈"
     ],
-    "category": "利水渗湿药",
     "nature": "微寒",
-    "flavor": "苦、辛",
-    "meridian_tropism": "归脾、胃、肝、胆经",
+    "flavors": [
+      "苦",
+      "辛"
+    ],
     "efficacy": "清利湿热，利胆退黄",
     "dosage_min": 6,
     "dosage_max": 15,
@@ -1360,10 +1403,11 @@
       "过路黄",
       "铜钱草"
     ],
-    "category": "利水渗湿药",
     "nature": "微寒",
-    "flavor": "甘、咸",
-    "meridian_tropism": "归肝、胆、肾、膀胱经",
+    "flavors": [
+      "甘",
+      "咸"
+    ],
     "efficacy": "利湿退黄，利尿通淋，解毒消肿",
     "dosage_min": 15,
     "dosage_max": 30,
@@ -1375,10 +1419,11 @@
     "aliases": [
       "竹园荽"
     ],
-    "category": "利水渗湿药",
     "nature": "寒",
-    "flavor": "甘、咸",
-    "meridian_tropism": "归膀胱、小肠经",
+    "flavors": [
+      "甘",
+      "咸"
+    ],
     "efficacy": "清利湿热，通淋止痛",
     "dosage_min": 6,
     "dosage_max": 15,
@@ -1389,14 +1434,13 @@
     "name": "附子",
     "aliases": [
       "附片",
-      "黑顺片",
-      "制附子",
-      "炮附子"
+      "黑顺片"
     ],
-    "category": "温里药",
     "nature": "大热",
-    "flavor": "辛、甘",
-    "meridian_tropism": "归心、肾、脾经",
+    "flavors": [
+      "辛",
+      "甘"
+    ],
     "efficacy": "回阳救逆，补火助阳，散寒止痛",
     "dosage_min": 3,
     "dosage_max": 15,
@@ -1409,10 +1453,10 @@
       "白姜",
       "均姜"
     ],
-    "category": "温里药",
     "nature": "热",
-    "flavor": "辛",
-    "meridian_tropism": "归脾、胃、肾、心、肺经",
+    "flavors": [
+      "辛"
+    ],
     "efficacy": "温中散寒，回阳通脉，温肺化饮",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -1425,10 +1469,11 @@
       "官桂",
       "桂皮"
     ],
-    "category": "温里药",
     "nature": "大热",
-    "flavor": "辛、甘",
-    "meridian_tropism": "归肾、脾、心、肝经",
+    "flavors": [
+      "辛",
+      "甘"
+    ],
     "efficacy": "补火助阳，引火归元，散寒止痛，温通经脉",
     "dosage_min": 1,
     "dosage_max": 5,
@@ -1441,10 +1486,11 @@
       "吴萸",
       "左力"
     ],
-    "category": "温里药",
     "nature": "热",
-    "flavor": "辛、苦",
-    "meridian_tropism": "归肝、脾、胃、肾经",
+    "flavors": [
+      "辛",
+      "苦"
+    ],
     "efficacy": "散寒止痛，降逆止呕，助阳止泻",
     "dosage_min": 2,
     "dosage_max": 5,
@@ -1457,10 +1503,10 @@
       "茴香",
       "谷茴香"
     ],
-    "category": "温里药",
     "nature": "温",
-    "flavor": "辛",
-    "meridian_tropism": "归肝、肾、脾、胃经",
+    "flavors": [
+      "辛"
+    ],
     "efficacy": "散寒止痛，理气和胃",
     "dosage_min": 3,
     "dosage_max": 6,
@@ -1473,10 +1519,10 @@
       "公丁香",
       "丁子香"
     ],
-    "category": "温里药",
     "nature": "温",
-    "flavor": "辛",
-    "meridian_tropism": "归脾、胃、肺、肾经",
+    "flavors": [
+      "辛"
+    ],
     "efficacy": "温中降逆，补肾助阳",
     "dosage_min": 1,
     "dosage_max": 3,
@@ -1489,10 +1535,10 @@
       "良姜",
       "小良姜"
     ],
-    "category": "温里药",
     "nature": "热",
-    "flavor": "辛",
-    "meridian_tropism": "归脾、胃经",
+    "flavors": [
+      "辛"
+    ],
     "efficacy": "温胃止呕，散寒止痛",
     "dosage_min": 3,
     "dosage_max": 6,
@@ -1505,10 +1551,10 @@
       "蜀椒",
       "川椒"
     ],
-    "category": "温里药",
     "nature": "温",
-    "flavor": "辛",
-    "meridian_tropism": "归脾、胃、肾经",
+    "flavors": [
+      "辛"
+    ],
     "efficacy": "温中止痛，杀虫止痒",
     "dosage_min": 3,
     "dosage_max": 6,
@@ -1521,10 +1567,10 @@
       "白胡椒",
       "黑胡椒"
     ],
-    "category": "温里药",
     "nature": "热",
-    "flavor": "辛",
-    "meridian_tropism": "归胃、大肠经",
+    "flavors": [
+      "辛"
+    ],
     "efficacy": "温中散寒，下气消痰",
     "dosage_min": 1,
     "dosage_max": 3,
@@ -1537,10 +1583,11 @@
       "橘皮",
       "贵老"
     ],
-    "category": "理气药",
     "nature": "温",
-    "flavor": "辛、苦",
-    "meridian_tropism": "归脾、肺经",
+    "flavors": [
+      "辛",
+      "苦"
+    ],
     "efficacy": "理气健脾，燥湿化痰",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -1552,10 +1599,12 @@
     "aliases": [
       "鹅眼枳实"
     ],
-    "category": "理气药",
     "nature": "微寒",
-    "flavor": "苦、辛、酸",
-    "meridian_tropism": "归脾、胃经",
+    "flavors": [
+      "苦",
+      "辛",
+      "酸"
+    ],
     "efficacy": "破气消积，化痰散痞",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -1567,10 +1616,12 @@
     "aliases": [
       "川枳壳"
     ],
-    "category": "理气药",
     "nature": "微寒",
-    "flavor": "苦、辛、酸",
-    "meridian_tropism": "归脾、胃经",
+    "flavors": [
+      "苦",
+      "辛",
+      "酸"
+    ],
     "efficacy": "理气宽中，行滞消胀",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -1583,10 +1634,12 @@
       "莎草根",
       "香附子"
     ],
-    "category": "理气药",
     "nature": "平",
-    "flavor": "辛、微苦、微甘",
-    "meridian_tropism": "归肝、脾、三焦经",
+    "flavors": [
+      "辛",
+      "苦",
+      "甘"
+    ],
     "efficacy": "疏肝解郁，理气宽中，调经止痛",
     "dosage_min": 6,
     "dosage_max": 9,
@@ -1599,10 +1652,11 @@
       "广木香",
       "云木香"
     ],
-    "category": "理气药",
     "nature": "温",
-    "flavor": "辛、苦",
-    "meridian_tropism": "归脾、胃、大肠、三焦、胆经",
+    "flavors": [
+      "辛",
+      "苦"
+    ],
     "efficacy": "行气止痛，健脾消食",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -1615,10 +1669,10 @@
       "台乌药",
       "矮樟"
     ],
-    "category": "理气药",
     "nature": "温",
-    "flavor": "辛",
-    "meridian_tropism": "归肺、脾、肾、膀胱经",
+    "flavors": [
+      "辛"
+    ],
     "efficacy": "行气止痛，温肾散寒",
     "dosage_min": 6,
     "dosage_max": 9,
@@ -1631,10 +1685,11 @@
       "蜜香",
       "沉水香"
     ],
-    "category": "理气药",
     "nature": "微温",
-    "flavor": "辛、苦",
-    "meridian_tropism": "归脾、胃、肾经",
+    "flavors": [
+      "辛",
+      "苦"
+    ],
     "efficacy": "行气止痛，温中止呕，纳气平喘",
     "dosage_min": 1,
     "dosage_max": 5,
@@ -1646,10 +1701,10 @@
     "aliases": [
       "白檀香"
     ],
-    "category": "理气药",
     "nature": "温",
-    "flavor": "辛",
-    "meridian_tropism": "归脾、胃、心、肺经",
+    "flavors": [
+      "辛"
+    ],
     "efficacy": "行气温中，开胃止痛",
     "dosage_min": 1,
     "dosage_max": 3,
@@ -1662,10 +1717,11 @@
       "野蒜",
       "小独蒜"
     ],
-    "category": "理气药",
     "nature": "温",
-    "flavor": "辛、苦",
-    "meridian_tropism": "归心、肺、胃、大肠经",
+    "flavors": [
+      "辛",
+      "苦"
+    ],
     "efficacy": "通阳散结，行气导滞",
     "dosage_min": 5,
     "dosage_max": 9,
@@ -1678,10 +1734,10 @@
       "槟榔皮",
       "大腹毛"
     ],
-    "category": "理气药",
     "nature": "微温",
-    "flavor": "辛",
-    "meridian_tropism": "归脾、胃、大肠、小肠经",
+    "flavors": [
+      "辛"
+    ],
     "efficacy": "行气宽中，行水消肿",
     "dosage_min": 5,
     "dosage_max": 9,
@@ -1694,10 +1750,11 @@
       "青橘皮",
       "小青皮"
     ],
-    "category": "理气药",
     "nature": "温",
-    "flavor": "苦、辛",
-    "meridian_tropism": "归肝、胆、胃经",
+    "flavors": [
+      "苦",
+      "辛"
+    ],
     "efficacy": "疏肝破气，消积化滞",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -1710,10 +1767,12 @@
       "佛手柑",
       "五指柑"
     ],
-    "category": "理气药",
     "nature": "温",
-    "flavor": "辛、苦、酸",
-    "meridian_tropism": "归肝、脾、胃、肺经",
+    "flavors": [
+      "辛",
+      "苦",
+      "酸"
+    ],
     "efficacy": "疏肝解郁，理气和中，燥湿化痰",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -1726,10 +1785,11 @@
       "徘徊花",
       "笔头花"
     ],
-    "category": "理气药",
     "nature": "温",
-    "flavor": "甘、微苦",
-    "meridian_tropism": "归肝、脾经",
+    "flavors": [
+      "甘",
+      "苦"
+    ],
     "efficacy": "行气解郁，和血止痛",
     "dosage_min": 3,
     "dosage_max": 6,
@@ -1742,10 +1802,11 @@
       "酸楂",
       "山里红"
     ],
-    "category": "消食药",
     "nature": "微温",
-    "flavor": "酸、甘",
-    "meridian_tropism": "归脾、胃、肝经",
+    "flavors": [
+      "酸",
+      "甘"
+    ],
     "efficacy": "消食健胃，行气散瘀，化浊降脂",
     "dosage_min": 10,
     "dosage_max": 15,
@@ -1758,10 +1819,11 @@
       "六神曲",
       "建曲"
     ],
-    "category": "消食药",
     "nature": "温",
-    "flavor": "甘、辛",
-    "meridian_tropism": "归脾、胃经",
+    "flavors": [
+      "甘",
+      "辛"
+    ],
     "efficacy": "消食和胃",
     "dosage_min": 6,
     "dosage_max": 15,
@@ -1774,10 +1836,10 @@
       "大麦芽",
       "麦糵"
     ],
-    "category": "消食药",
     "nature": "平",
-    "flavor": "甘",
-    "meridian_tropism": "归脾、胃经",
+    "flavors": [
+      "甘"
+    ],
     "efficacy": "行气消食，健脾开胃，回乳消胀",
     "dosage_min": 10,
     "dosage_max": 15,
@@ -1790,10 +1852,10 @@
       "稻芽",
       "粟芽"
     ],
-    "category": "消食药",
     "nature": "温",
-    "flavor": "甘",
-    "meridian_tropism": "归脾、胃经",
+    "flavors": [
+      "甘"
+    ],
     "efficacy": "消食和中，健脾开胃",
     "dosage_min": 9,
     "dosage_max": 15,
@@ -1806,10 +1868,11 @@
       "萝卜子",
       "芦菔子"
     ],
-    "category": "消食药",
     "nature": "平",
-    "flavor": "辛、甘",
-    "meridian_tropism": "归肺、脾、胃经",
+    "flavors": [
+      "辛",
+      "甘"
+    ],
     "efficacy": "消食除胀，降气化痰",
     "dosage_min": 5,
     "dosage_max": 12,
@@ -1822,10 +1885,10 @@
       "鸡肫皮",
       "鸡黄皮"
     ],
-    "category": "消食药",
     "nature": "平",
-    "flavor": "甘",
-    "meridian_tropism": "归脾、胃、小肠、膀胱经",
+    "flavors": [
+      "甘"
+    ],
     "efficacy": "消食健胃，固精止遗，化结石",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -1838,10 +1901,12 @@
       "白芨",
       "甘根"
     ],
-    "category": "止血药",
     "nature": "微寒",
-    "flavor": "苦、甘、涩",
-    "meridian_tropism": "归肺、肝、胃经",
+    "flavors": [
+      "苦",
+      "甘",
+      "涩"
+    ],
     "efficacy": "收敛止血，消肿生肌",
     "dosage_min": 6,
     "dosage_max": 15,
@@ -1854,10 +1919,11 @@
       "龙芽草",
       "脱力草"
     ],
-    "category": "止血药",
     "nature": "平",
-    "flavor": "苦、涩",
-    "meridian_tropism": "归心、肝经",
+    "flavors": [
+      "苦",
+      "涩"
+    ],
     "efficacy": "收敛止血，截疟止痢，解毒补虚",
     "dosage_min": 6,
     "dosage_max": 12,
@@ -1870,10 +1936,10 @@
       "蒲花",
       "蒲棒粉"
     ],
-    "category": "止血药",
     "nature": "平",
-    "flavor": "甘",
-    "meridian_tropism": "归肝、心包经",
+    "flavors": [
+      "甘"
+    ],
     "efficacy": "止血化瘀，通淋",
     "dosage_min": 5,
     "dosage_max": 9,
@@ -1886,10 +1952,11 @@
       "田七",
       "金不换"
     ],
-    "category": "止血药",
     "nature": "温",
-    "flavor": "甘、微苦",
-    "meridian_tropism": "归肝、胃经",
+    "flavors": [
+      "甘",
+      "苦"
+    ],
     "efficacy": "散瘀止血，消肿定痛",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -1900,13 +1967,12 @@
     "name": "茜草",
     "aliases": [
       "血见愁",
-      "地苏木",
-      "新绛"
+      "地苏木"
     ],
-    "category": "止血药",
     "nature": "寒",
-    "flavor": "苦",
-    "meridian_tropism": "归肝经",
+    "flavors": [
+      "苦"
+    ],
     "efficacy": "凉血止血，祛瘀通经",
     "dosage_min": 6,
     "dosage_max": 9,
@@ -1919,10 +1985,11 @@
       "艾蒿",
       "灸草"
     ],
-    "category": "止血药",
     "nature": "温",
-    "flavor": "辛、苦",
-    "meridian_tropism": "归肝、脾、肾经",
+    "flavors": [
+      "辛",
+      "苦"
+    ],
     "efficacy": "散寒止痛，温经止血",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -1935,10 +2002,12 @@
       "黄爪香",
       "玉豉"
     ],
-    "category": "止血药",
     "nature": "微寒",
-    "flavor": "苦、酸、涩",
-    "meridian_tropism": "归肝、大肠经",
+    "flavors": [
+      "苦",
+      "酸",
+      "涩"
+    ],
     "efficacy": "凉血止血，解毒敛疮",
     "dosage_min": 9,
     "dosage_max": 15,
@@ -1950,10 +2019,10 @@
     "aliases": [
       "槐蕊"
     ],
-    "category": "止血药",
     "nature": "微寒",
-    "flavor": "苦",
-    "meridian_tropism": "归肝、大肠经",
+    "flavors": [
+      "苦"
+    ],
     "efficacy": "凉血止血，清肝泻火",
     "dosage_min": 5,
     "dosage_max": 9,
@@ -1966,10 +2035,10 @@
       "茅根",
       "茅草根"
     ],
-    "category": "止血药",
     "nature": "寒",
-    "flavor": "甘",
-    "meridian_tropism": "归肺、胃、膀胱经",
+    "flavors": [
+      "甘"
+    ],
     "efficacy": "凉血止血，清热利尿",
     "dosage_min": 9,
     "dosage_max": 30,
@@ -1982,10 +2051,10 @@
       "芎藭",
       "小叶川芎"
     ],
-    "category": "活血化瘀药",
     "nature": "温",
-    "flavor": "辛",
-    "meridian_tropism": "归肝、胆、心包经",
+    "flavors": [
+      "辛"
+    ],
     "efficacy": "活血行气，祛风止痛",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -1998,10 +2067,10 @@
       "血参",
       "赤参"
     ],
-    "category": "活血化瘀药",
     "nature": "微寒",
-    "flavor": "苦",
-    "meridian_tropism": "归心、心包、肝经",
+    "flavors": [
+      "苦"
+    ],
     "efficacy": "活血祛瘀，通经止痛，清心除烦，凉血消痈",
     "dosage_min": 9,
     "dosage_max": 15,
@@ -2014,10 +2083,10 @@
       "草红花",
       "红蓝花"
     ],
-    "category": "活血化瘀药",
     "nature": "温",
-    "flavor": "辛",
-    "meridian_tropism": "归心、肝经",
+    "flavors": [
+      "辛"
+    ],
     "efficacy": "活血通经，散瘀止痛",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -2029,10 +2098,11 @@
     "aliases": [
       "桃核仁"
     ],
-    "category": "活血化瘀药",
     "nature": "平",
-    "flavor": "苦、甘",
-    "meridian_tropism": "归心、肝、大肠经",
+    "flavors": [
+      "苦",
+      "甘"
+    ],
     "efficacy": "活血祛瘀，润肠通便，止咳平喘",
     "dosage_min": 5,
     "dosage_max": 9,
@@ -2045,10 +2115,11 @@
       "茺蔚",
       "坤草"
     ],
-    "category": "活血化瘀药",
     "nature": "微寒",
-    "flavor": "辛、苦",
-    "meridian_tropism": "归心、肝、膀胱经",
+    "flavors": [
+      "辛",
+      "苦"
+    ],
     "efficacy": "活血调经，利尿消肿，清热解毒",
     "dosage_min": 9,
     "dosage_max": 30,
@@ -2061,10 +2132,12 @@
       "怀牛膝",
       "川牛膝"
     ],
-    "category": "活血化瘀药",
     "nature": "平",
-    "flavor": "苦、甘、酸",
-    "meridian_tropism": "归肝、肾经",
+    "flavors": [
+      "苦",
+      "甘",
+      "酸"
+    ],
     "efficacy": "补肝肾，强筋骨，逐瘀通经，引血下行",
     "dosage_min": 5,
     "dosage_max": 12,
@@ -2076,10 +2149,11 @@
     "aliases": [
       "血风藤"
     ],
-    "category": "活血化瘀药",
     "nature": "温",
-    "flavor": "苦、甘",
-    "meridian_tropism": "归肝、肾经",
+    "flavors": [
+      "苦",
+      "甘"
+    ],
     "efficacy": "活血补血，调经止痛，舒筋活络",
     "dosage_min": 9,
     "dosage_max": 15,
@@ -2092,10 +2166,11 @@
       "元胡",
       "玄胡索"
     ],
-    "category": "活血化瘀药",
     "nature": "温",
-    "flavor": "辛、苦",
-    "meridian_tropism": "归肝、脾经",
+    "flavors": [
+      "辛",
+      "苦"
+    ],
     "efficacy": "活血行气止痛",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -2108,10 +2183,11 @@
       "玉金",
       "马蒁"
     ],
-    "category": "活血化瘀药",
     "nature": "寒",
-    "flavor": "辛、苦",
-    "meridian_tropism": "归肝、心、肺经",
+    "flavors": [
+      "辛",
+      "苦"
+    ],
     "efficacy": "活血止痛，行气解郁，清心凉血，利胆退黄",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -2124,10 +2200,11 @@
       "黄姜",
       "宝鼎香"
     ],
-    "category": "活血化瘀药",
     "nature": "温",
-    "flavor": "辛、苦",
-    "meridian_tropism": "归肝、脾经",
+    "flavors": [
+      "辛",
+      "苦"
+    ],
     "efficacy": "破血行气，通经止痛",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -2140,10 +2217,11 @@
       "熏陆香",
       "马尾香"
     ],
-    "category": "活血化瘀药",
     "nature": "温",
-    "flavor": "辛、苦",
-    "meridian_tropism": "归心、肝、脾经",
+    "flavors": [
+      "辛",
+      "苦"
+    ],
     "efficacy": "活血行气止痛，消肿生肌",
     "dosage_min": 3,
     "dosage_max": 5,
@@ -2155,10 +2233,11 @@
     "aliases": [
       "末药"
     ],
-    "category": "活血化瘀药",
     "nature": "平",
-    "flavor": "辛、苦",
-    "meridian_tropism": "归心、肝、脾经",
+    "flavors": [
+      "辛",
+      "苦"
+    ],
     "efficacy": "散瘀定痛，消肿生肌",
     "dosage_min": 3,
     "dosage_max": 5,
@@ -2171,10 +2250,11 @@
       "灵脂",
       "寒号虫粪"
     ],
-    "category": "活血化瘀药",
     "nature": "温",
-    "flavor": "苦、甘",
-    "meridian_tropism": "归肝经",
+    "flavors": [
+      "苦",
+      "甘"
+    ],
     "efficacy": "活血止痛，化瘀止血",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -2187,10 +2267,11 @@
       "温莪术",
       "蓬术"
     ],
-    "category": "活血化瘀药",
     "nature": "温",
-    "flavor": "辛、苦",
-    "meridian_tropism": "归肝、脾经",
+    "flavors": [
+      "辛",
+      "苦"
+    ],
     "efficacy": "破血行气，消积止痛",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -2203,10 +2284,11 @@
       "荆三棱",
       "京三棱"
     ],
-    "category": "活血化瘀药",
     "nature": "平",
-    "flavor": "辛、苦",
-    "meridian_tropism": "归肝、脾经",
+    "flavors": [
+      "辛",
+      "苦"
+    ],
     "efficacy": "破血行气，消积止痛",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -2218,10 +2300,11 @@
     "aliases": [
       "蚂蟥"
     ],
-    "category": "活血化瘀药",
     "nature": "平",
-    "flavor": "咸、苦",
-    "meridian_tropism": "归肝经",
+    "flavors": [
+      "咸",
+      "苦"
+    ],
     "efficacy": "破血通经，逐瘀消癥",
     "dosage_min": 1,
     "dosage_max": 3,
@@ -2234,10 +2317,10 @@
       "鲮鲤甲",
       "甲片"
     ],
-    "category": "活血化瘀药",
     "nature": "微寒",
-    "flavor": "咸",
-    "meridian_tropism": "归肝、胃经",
+    "flavors": [
+      "咸"
+    ],
     "efficacy": "活血消癥，通经下乳，消肿排脓",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -2250,10 +2333,10 @@
       "留行子",
       "麦蓝子"
     ],
-    "category": "活血化瘀药",
     "nature": "平",
-    "flavor": "苦",
-    "meridian_tropism": "归肝、胃经",
+    "flavors": [
+      "苦"
+    ],
     "efficacy": "活血通经，下乳消肿，利尿通淋",
     "dosage_min": 5,
     "dosage_max": 9,
@@ -2266,10 +2349,10 @@
       "地文",
       "守田"
     ],
-    "category": "化痰止咳平喘药",
     "nature": "温",
-    "flavor": "辛",
-    "meridian_tropism": "归脾、胃、肺经",
+    "flavors": [
+      "辛"
+    ],
     "efficacy": "燥湿化痰，降逆止呕，消痞散结",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -2282,10 +2365,11 @@
       "南星",
       "虎掌"
     ],
-    "category": "化痰止咳平喘药",
     "nature": "温",
-    "flavor": "苦、辛",
-    "meridian_tropism": "归肺、肝、脾经",
+    "flavors": [
+      "苦",
+      "辛"
+    ],
     "efficacy": "燥湿化痰，祛风止痉，散结消肿",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -2298,10 +2382,10 @@
       "芥子",
       "辣菜子"
     ],
-    "category": "化痰止咳平喘药",
     "nature": "温",
-    "flavor": "辛",
-    "meridian_tropism": "归肺经",
+    "flavors": [
+      "辛"
+    ],
     "efficacy": "温肺豁痰利气，散结通络止痛",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -2314,10 +2398,11 @@
       "符蔰",
       "白药"
     ],
-    "category": "化痰止咳平喘药",
     "nature": "平",
-    "flavor": "苦、辛",
-    "meridian_tropism": "归肺经",
+    "flavors": [
+      "苦",
+      "辛"
+    ],
     "efficacy": "宣肺利咽，祛痰排脓",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -2330,10 +2415,12 @@
       "金佛花",
       "六月菊"
     ],
-    "category": "化痰止咳平喘药",
     "nature": "微温",
-    "flavor": "苦、辛、咸",
-    "meridian_tropism": "归肺、脾、胃、大肠经",
+    "flavors": [
+      "苦",
+      "辛",
+      "咸"
+    ],
     "efficacy": "降气消痰，行水止呕",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -2346,10 +2433,11 @@
       "栝楼",
       "天瓜"
     ],
-    "category": "化痰止咳平喘药",
     "nature": "寒",
-    "flavor": "甘、微苦",
-    "meridian_tropism": "归肺、胃、大肠经",
+    "flavors": [
+      "甘",
+      "苦"
+    ],
     "efficacy": "清热涤痰，宽胸散结，润肠通便",
     "dosage_min": 9,
     "dosage_max": 15,
@@ -2363,10 +2451,10 @@
       "浙贝",
       "土贝"
     ],
-    "category": "化痰止咳平喘药",
     "nature": "微寒",
-    "flavor": "苦",
-    "meridian_tropism": "归肺、心经",
+    "flavors": [
+      "苦"
+    ],
     "efficacy": "清热润肺，化痰止咳，散结消痈",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -2379,10 +2467,10 @@
       "竹皮",
       "青竹茹"
     ],
-    "category": "化痰止咳平喘药",
     "nature": "微寒",
-    "flavor": "甘",
-    "meridian_tropism": "归肺、胃、心、胆经",
+    "flavors": [
+      "甘"
+    ],
     "efficacy": "清热化痰，除烦止呕",
     "dosage_min": 5,
     "dosage_max": 9,
@@ -2395,10 +2483,11 @@
       "姨妈菜",
       "罗鬼菜"
     ],
-    "category": "化痰止咳平喘药",
     "nature": "微寒",
-    "flavor": "苦、辛",
-    "meridian_tropism": "归肺经",
+    "flavors": [
+      "苦",
+      "辛"
+    ],
     "efficacy": "降气化痰，散风清热",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -2411,10 +2500,10 @@
       "苦杏仁",
       "北杏"
     ],
-    "category": "化痰止咳平喘药",
     "nature": "微温",
-    "flavor": "苦",
-    "meridian_tropism": "归肺、大肠经",
+    "flavors": [
+      "苦"
+    ],
     "efficacy": "降气止咳平喘，润肠通便",
     "dosage_min": 5,
     "dosage_max": 9,
@@ -2427,10 +2516,10 @@
       "苏子",
       "黑苏子"
     ],
-    "category": "化痰止咳平喘药",
     "nature": "温",
-    "flavor": "辛",
-    "meridian_tropism": "归肺经",
+    "flavors": [
+      "辛"
+    ],
     "efficacy": "降气消痰，平喘润肠",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -2443,10 +2532,11 @@
       "百条根",
       "九虫根"
     ],
-    "category": "化痰止咳平喘药",
     "nature": "微温",
-    "flavor": "甘、苦",
-    "meridian_tropism": "归肺经",
+    "flavors": [
+      "甘",
+      "苦"
+    ],
     "efficacy": "润肺下气止咳，杀虫灭虱",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -2459,10 +2549,11 @@
       "紫蒨",
       "返魂草"
     ],
-    "category": "化痰止咳平喘药",
     "nature": "温",
-    "flavor": "辛、苦",
-    "meridian_tropism": "归肺经",
+    "flavors": [
+      "辛",
+      "苦"
+    ],
     "efficacy": "润肺下气，消痰止咳",
     "dosage_min": 5,
     "dosage_max": 9,
@@ -2475,10 +2566,11 @@
       "冬花",
       "艾冬花"
     ],
-    "category": "化痰止咳平喘药",
     "nature": "温",
-    "flavor": "辛、微苦",
-    "meridian_tropism": "归肺经",
+    "flavors": [
+      "辛",
+      "苦"
+    ],
     "efficacy": "润肺下气，止咳化痰",
     "dosage_min": 5,
     "dosage_max": 9,
@@ -2491,10 +2583,10 @@
       "巴叶",
       "芦桔叶"
     ],
-    "category": "化痰止咳平喘药",
     "nature": "微寒",
-    "flavor": "苦",
-    "meridian_tropism": "归肺、胃经",
+    "flavors": [
+      "苦"
+    ],
     "efficacy": "清肺止咳，降逆止呕",
     "dosage_min": 6,
     "dosage_max": 9,
@@ -2507,10 +2599,10 @@
       "桑根皮",
       "桑皮"
     ],
-    "category": "化痰止咳平喘药",
     "nature": "寒",
-    "flavor": "甘",
-    "meridian_tropism": "归肺经",
+    "flavors": [
+      "甘"
+    ],
     "efficacy": "泻肺平喘，利水消肿",
     "dosage_min": 6,
     "dosage_max": 12,
@@ -2523,10 +2615,11 @@
       "大适",
       "丁历"
     ],
-    "category": "化痰止咳平喘药",
     "nature": "大寒",
-    "flavor": "辛、苦",
-    "meridian_tropism": "归肺、膀胱经",
+    "flavors": [
+      "辛",
+      "苦"
+    ],
     "efficacy": "泻肺平喘，行水消肿",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -2539,10 +2632,11 @@
       "枣仁",
       "酸枣核"
     ],
-    "category": "安神药",
     "nature": "平",
-    "flavor": "甘、酸",
-    "meridian_tropism": "归心、肝、胆经",
+    "flavors": [
+      "甘",
+      "酸"
+    ],
     "efficacy": "养心补肝，宁心安神，敛汗生津",
     "dosage_min": 9,
     "dosage_max": 15,
@@ -2555,10 +2649,10 @@
       "柏实",
       "侧柏子"
     ],
-    "category": "安神药",
     "nature": "平",
-    "flavor": "甘",
-    "meridian_tropism": "归心、肾、大肠经",
+    "flavors": [
+      "甘"
+    ],
     "efficacy": "养心安神，润肠通便",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -2571,10 +2665,11 @@
       "细草",
       "小草"
     ],
-    "category": "安神药",
     "nature": "温",
-    "flavor": "苦、辛",
-    "meridian_tropism": "归心、肾、肺经",
+    "flavors": [
+      "苦",
+      "辛"
+    ],
     "efficacy": "安神益智，祛痰开窍，消散痈肿",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -2587,10 +2682,10 @@
       "合昏皮",
       "夜合皮"
     ],
-    "category": "安神药",
     "nature": "平",
-    "flavor": "甘",
-    "meridian_tropism": "归心、肝经",
+    "flavors": [
+      "甘"
+    ],
     "efficacy": "解郁安神，活血消肿",
     "dosage_min": 6,
     "dosage_max": 12,
@@ -2603,10 +2698,11 @@
       "白龙骨",
       "五花龙骨"
     ],
-    "category": "安神药",
     "nature": "平",
-    "flavor": "甘、涩",
-    "meridian_tropism": "归心、肝、肾经",
+    "flavors": [
+      "甘",
+      "涩"
+    ],
     "efficacy": "镇惊安神，平肝潜阳，收敛固涩",
     "dosage_min": 15,
     "dosage_max": 30,
@@ -2619,10 +2715,10 @@
       "蛎蛤",
       "蚝壳"
     ],
-    "category": "安神药",
     "nature": "微寒",
-    "flavor": "咸",
-    "meridian_tropism": "归肝、胆、肾经",
+    "flavors": [
+      "咸"
+    ],
     "efficacy": "重镇安神，潜阳补阴，软坚散结",
     "dosage_min": 15,
     "dosage_max": 30,
@@ -2635,10 +2731,10 @@
       "丹砂",
       "辰砂"
     ],
-    "category": "安神药",
     "nature": "微寒",
-    "flavor": "甘",
-    "meridian_tropism": "归心经",
+    "flavors": [
+      "甘"
+    ],
     "efficacy": "清心镇惊，安神解毒",
     "dosage_min": 0.1,
     "dosage_max": 0.5,
@@ -2651,10 +2747,10 @@
       "吸铁石",
       "玄石"
     ],
-    "category": "安神药",
     "nature": "寒",
-    "flavor": "咸",
-    "meridian_tropism": "归肾、肝经",
+    "flavors": [
+      "咸"
+    ],
     "efficacy": "镇惊安神，平肝潜阳，聪耳明目，纳气平喘",
     "dosage_min": 15,
     "dosage_max": 30,
@@ -2667,10 +2763,10 @@
       "赤箭",
       "定风草"
     ],
-    "category": "平肝息风药",
     "nature": "平",
-    "flavor": "甘",
-    "meridian_tropism": "归肝经",
+    "flavors": [
+      "甘"
+    ],
     "efficacy": "息风止痉，平抑肝阳，祛风通络",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -2683,10 +2779,10 @@
       "钩丁",
       "双钩"
     ],
-    "category": "平肝息风药",
     "nature": "凉",
-    "flavor": "甘",
-    "meridian_tropism": "归肝、心包经",
+    "flavors": [
+      "甘"
+    ],
     "efficacy": "息风定惊，清热平肝",
     "dosage_min": 3,
     "dosage_max": 12,
@@ -2699,10 +2795,10 @@
       "鲍鱼壳",
       "九孔螺"
     ],
-    "category": "平肝息风药",
     "nature": "寒",
-    "flavor": "咸",
-    "meridian_tropism": "归肝经",
+    "flavors": [
+      "咸"
+    ],
     "efficacy": "平肝潜阳，清肝明目",
     "dosage_min": 6,
     "dosage_max": 20,
@@ -2715,10 +2811,10 @@
       "珠母",
       "明珠母"
     ],
-    "category": "平肝息风药",
     "nature": "寒",
-    "flavor": "咸",
-    "meridian_tropism": "归肝、心经",
+    "flavors": [
+      "咸"
+    ],
     "efficacy": "平肝潜阳，安神定惊，明目退翳",
     "dosage_min": 10,
     "dosage_max": 25,
@@ -2731,10 +2827,10 @@
       "赭石",
       "钉头赭石"
     ],
-    "category": "平肝息风药",
     "nature": "寒",
-    "flavor": "苦",
-    "meridian_tropism": "归肝、心、肺、胃经",
+    "flavors": [
+      "苦"
+    ],
     "efficacy": "平肝潜阳，重镇降逆，凉血止血",
     "dosage_min": 9,
     "dosage_max": 30,
@@ -2747,10 +2843,10 @@
       "蝎子",
       "全虫"
     ],
-    "category": "平肝息风药",
     "nature": "平",
-    "flavor": "辛",
-    "meridian_tropism": "归肝经",
+    "flavors": [
+      "辛"
+    ],
     "efficacy": "息风镇痉，通络止痛，攻毒散结",
     "dosage_min": 3,
     "dosage_max": 6,
@@ -2763,10 +2859,10 @@
       "百足虫",
       "天龙"
     ],
-    "category": "平肝息风药",
     "nature": "温",
-    "flavor": "辛",
-    "meridian_tropism": "归肝经",
+    "flavors": [
+      "辛"
+    ],
     "efficacy": "息风镇痉，通络止痛，攻毒散结",
     "dosage_min": 3,
     "dosage_max": 5,
@@ -2779,10 +2875,10 @@
       "蚯蚓",
       "土龙"
     ],
-    "category": "平肝息风药",
     "nature": "寒",
-    "flavor": "咸",
-    "meridian_tropism": "归肝、脾、膀胱经",
+    "flavors": [
+      "咸"
+    ],
     "efficacy": "清热定惊，通络平喘，利尿",
     "dosage_min": 5,
     "dosage_max": 15,
@@ -2795,10 +2891,11 @@
       "白僵蚕",
       "天虫"
     ],
-    "category": "平肝息风药",
     "nature": "平",
-    "flavor": "咸、辛",
-    "meridian_tropism": "归肝、肺经",
+    "flavors": [
+      "咸",
+      "辛"
+    ],
     "efficacy": "息风止痉，祛风止痛，化痰散结",
     "dosage_min": 5,
     "dosage_max": 9,
@@ -2811,10 +2908,10 @@
       "遗香",
       "心结香"
     ],
-    "category": "开窍药",
     "nature": "温",
-    "flavor": "辛",
-    "meridian_tropism": "归心、脾经",
+    "flavors": [
+      "辛"
+    ],
     "efficacy": "开窍醒神，活血通经，消肿止痛",
     "dosage_min": 0.03,
     "dosage_max": 0.1,
@@ -2827,10 +2924,11 @@
       "龙脑",
       "梅片"
     ],
-    "category": "开窍药",
     "nature": "微寒",
-    "flavor": "辛、苦",
-    "meridian_tropism": "归心、脾、肺经",
+    "flavors": [
+      "辛",
+      "苦"
+    ],
     "efficacy": "开窍醒神，清热止痛",
     "dosage_min": 0.15,
     "dosage_max": 0.3,
@@ -2843,10 +2941,11 @@
       "菖蒲",
       "昌阳"
     ],
-    "category": "开窍药",
     "nature": "温",
-    "flavor": "辛、苦",
-    "meridian_tropism": "归心、胃经",
+    "flavors": [
+      "辛",
+      "苦"
+    ],
     "efficacy": "开窍豁痰，醒神益智，化湿开胃",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -2859,10 +2958,10 @@
       "帝膏",
       "苏合油"
     ],
-    "category": "开窍药",
     "nature": "温",
-    "flavor": "辛",
-    "meridian_tropism": "归心、脾经",
+    "flavors": [
+      "辛"
+    ],
     "efficacy": "开窍辟秽，止痛",
     "dosage_min": 0.3,
     "dosage_max": 1,
@@ -2877,10 +2976,11 @@
       "园参",
       "红参"
     ],
-    "category": "补虚药",
     "nature": "温",
-    "flavor": "甘、微苦",
-    "meridian_tropism": "归脾、肺、心、肾经",
+    "flavors": [
+      "甘",
+      "苦"
+    ],
     "efficacy": "大补元气，复脉固脱，补脾益肺，生津养血，安神益智",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -2893,10 +2993,10 @@
       "上党人参",
       "黄参"
     ],
-    "category": "补虚药",
     "nature": "平",
-    "flavor": "甘",
-    "meridian_tropism": "归脾、肺经",
+    "flavors": [
+      "甘"
+    ],
     "efficacy": "健脾益肺，养血生津",
     "dosage_min": 9,
     "dosage_max": 30,
@@ -2909,10 +3009,10 @@
       "绵芪",
       "黄耆"
     ],
-    "category": "补虚药",
     "nature": "微温",
-    "flavor": "甘",
-    "meridian_tropism": "归肺、脾经",
+    "flavors": [
+      "甘"
+    ],
     "efficacy": "补气升阳，固表止汗，利水消肿，生津养血，托毒排脓",
     "dosage_min": 9,
     "dosage_max": 30,
@@ -2925,10 +3025,11 @@
       "于术",
       "冬白术"
     ],
-    "category": "补虚药",
     "nature": "温",
-    "flavor": "甘、苦",
-    "meridian_tropism": "归脾、胃经",
+    "flavors": [
+      "甘",
+      "苦"
+    ],
     "efficacy": "健脾益气，燥湿利水，止汗安胎",
     "dosage_min": 6,
     "dosage_max": 12,
@@ -2941,10 +3042,10 @@
       "薯蓣",
       "淮山"
     ],
-    "category": "补虚药",
     "nature": "平",
-    "flavor": "甘",
-    "meridian_tropism": "归脾、肺、肾经",
+    "flavors": [
+      "甘"
+    ],
     "efficacy": "补脾养胃，生津益肺，补肾涩精",
     "dosage_min": 15,
     "dosage_max": 30,
@@ -2956,15 +3057,12 @@
     "aliases": [
       "国老",
       "蜜草",
-      "粉草",
-      "炙甘草",
-      "生甘草",
-      "甘草梢"
+      "粉草"
     ],
-    "category": "补虚药",
     "nature": "平",
-    "flavor": "甘",
-    "meridian_tropism": "归心、肺、脾、胃经",
+    "flavors": [
+      "甘"
+    ],
     "efficacy": "补脾益气，清热解毒，祛痰止咳，缓急止痛，调和诸药",
     "dosage_min": 2,
     "dosage_max": 10,
@@ -2977,10 +3075,10 @@
       "红枣",
       "干枣"
     ],
-    "category": "补虚药",
     "nature": "温",
-    "flavor": "甘",
-    "meridian_tropism": "归脾、胃、心经",
+    "flavors": [
+      "甘"
+    ],
     "efficacy": "补中益气，养血安神",
     "dosage_min": 6,
     "dosage_max": 15,
@@ -2993,10 +3091,11 @@
       "干归",
       "秦归"
     ],
-    "category": "补虚药",
     "nature": "温",
-    "flavor": "甘、辛",
-    "meridian_tropism": "归肝、心、脾经",
+    "flavors": [
+      "甘",
+      "辛"
+    ],
     "efficacy": "补血活血，调经止痛，润肠通便",
     "dosage_min": 6,
     "dosage_max": 12,
@@ -3009,10 +3108,10 @@
       "熟地",
       "大熟地"
     ],
-    "category": "补虚药",
     "nature": "微温",
-    "flavor": "甘",
-    "meridian_tropism": "归肝、肾经",
+    "flavors": [
+      "甘"
+    ],
     "efficacy": "补血滋阴，益精填髓",
     "dosage_min": 9,
     "dosage_max": 15,
@@ -3023,14 +3122,13 @@
     "name": "白芍",
     "aliases": [
       "金芍药",
-      "白芍药",
-      "芍药",
-      "赤芍药"
+      "白芍药"
     ],
-    "category": "补虚药",
     "nature": "微寒",
-    "flavor": "苦、酸",
-    "meridian_tropism": "归肝、脾经",
+    "flavors": [
+      "苦",
+      "酸"
+    ],
     "efficacy": "养血调经，敛阴止汗，柔肝止痛，平抑肝阳",
     "dosage_min": 6,
     "dosage_max": 15,
@@ -3043,10 +3141,10 @@
       "傅致胶",
       "盆覆胶"
     ],
-    "category": "补虚药",
     "nature": "平",
-    "flavor": "甘",
-    "meridian_tropism": "归肺、肝、肾经",
+    "flavors": [
+      "甘"
+    ],
     "efficacy": "补血滋阴，润燥止血",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -3059,10 +3157,12 @@
       "首乌",
       "赤首乌"
     ],
-    "category": "补虚药",
     "nature": "微温",
-    "flavor": "苦、甘、涩",
-    "meridian_tropism": "归肝、心、肾经",
+    "flavors": [
+      "苦",
+      "甘",
+      "涩"
+    ],
     "efficacy": "解毒消痈，润肠通便，补肝肾益精血",
     "dosage_min": 6,
     "dosage_max": 12,
@@ -3075,10 +3175,10 @@
       "桂圆肉",
       "益智"
     ],
-    "category": "补虚药",
     "nature": "温",
-    "flavor": "甘",
-    "meridian_tropism": "归心、脾经",
+    "flavors": [
+      "甘"
+    ],
     "efficacy": "补益心脾，养血安神",
     "dosage_min": 9,
     "dosage_max": 15,
@@ -3090,10 +3190,11 @@
     "aliases": [
       "斑龙珠"
     ],
-    "category": "补虚药",
     "nature": "温",
-    "flavor": "甘、咸",
-    "meridian_tropism": "归肾、肝经",
+    "flavors": [
+      "甘",
+      "咸"
+    ],
     "efficacy": "壮肾阳，益精血，强筋骨，调冲任，托疮毒",
     "dosage_min": 1,
     "dosage_max": 2,
@@ -3106,10 +3207,11 @@
       "仙灵脾",
       "三枝九叶草"
     ],
-    "category": "补虚药",
     "nature": "温",
-    "flavor": "辛、甘",
-    "meridian_tropism": "归肝、肾经",
+    "flavors": [
+      "辛",
+      "甘"
+    ],
     "efficacy": "补肾阳，强筋骨，祛风湿",
     "dosage_min": 6,
     "dosage_max": 9,
@@ -3122,10 +3224,11 @@
       "鸡肠风",
       "兔子肠"
     ],
-    "category": "补虚药",
     "nature": "微温",
-    "flavor": "辛、甘",
-    "meridian_tropism": "归肾、肝经",
+    "flavors": [
+      "辛",
+      "甘"
+    ],
     "efficacy": "补肾阳，强筋骨，祛风除湿",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -3138,10 +3241,11 @@
       "大芸",
       "寸芸"
     ],
-    "category": "补虚药",
     "nature": "温",
-    "flavor": "甘、咸",
-    "meridian_tropism": "归肾、大肠经",
+    "flavors": [
+      "甘",
+      "咸"
+    ],
     "efficacy": "补肾阳，益精血，润肠通便",
     "dosage_min": 6,
     "dosage_max": 9,
@@ -3154,10 +3258,11 @@
       "破故纸",
       "婆固脂"
     ],
-    "category": "补虚药",
     "nature": "温",
-    "flavor": "辛、苦",
-    "meridian_tropism": "归肾、脾经",
+    "flavors": [
+      "辛",
+      "苦"
+    ],
     "efficacy": "补肾助阳，温脾止泻，纳气平喘",
     "dosage_min": 6,
     "dosage_max": 9,
@@ -3170,10 +3275,10 @@
       "丝连皮",
       "玉丝皮"
     ],
-    "category": "补虚药",
     "nature": "温",
-    "flavor": "甘",
-    "meridian_tropism": "归肝、肾经",
+    "flavors": [
+      "甘"
+    ],
     "efficacy": "补肝肾，强筋骨，安胎",
     "dosage_min": 6,
     "dosage_max": 9,
@@ -3186,10 +3291,11 @@
       "川断",
       "接骨草"
     ],
-    "category": "补虚药",
     "nature": "微温",
-    "flavor": "苦、辛",
-    "meridian_tropism": "归肝、肾经",
+    "flavors": [
+      "苦",
+      "辛"
+    ],
     "efficacy": "补肝肾，强筋骨，续折伤，止崩漏",
     "dosage_min": 9,
     "dosage_max": 15,
@@ -3202,10 +3308,10 @@
       "豆寄生",
       "黄丝"
     ],
-    "category": "补虚药",
     "nature": "平",
-    "flavor": "甘",
-    "meridian_tropism": "归肝、肾、脾经",
+    "flavors": [
+      "甘"
+    ],
     "efficacy": "补益肝肾，固精缩尿，安胎明目，止泻",
     "dosage_min": 6,
     "dosage_max": 12,
@@ -3218,10 +3324,10 @@
       "潼蒺藜",
       "沙苑蒺藜"
     ],
-    "category": "补虚药",
     "nature": "温",
-    "flavor": "甘",
-    "meridian_tropism": "归肝、肾经",
+    "flavors": [
+      "甘"
+    ],
     "efficacy": "补肾助阳，固精缩尿，养肝明目",
     "dosage_min": 9,
     "dosage_max": 15,
@@ -3234,10 +3340,10 @@
       "大壁虎",
       "仙蟾"
     ],
-    "category": "补虚药",
     "nature": "平",
-    "flavor": "咸",
-    "meridian_tropism": "归肺、肾经",
+    "flavors": [
+      "咸"
+    ],
     "efficacy": "补肺益肾，纳气平喘，助阳益精",
     "dosage_min": 3,
     "dosage_max": 6,
@@ -3250,10 +3356,10 @@
       "虫草",
       "夏草冬虫"
     ],
-    "category": "补虚药",
     "nature": "平",
-    "flavor": "甘",
-    "meridian_tropism": "归肾、肺经",
+    "flavors": [
+      "甘"
+    ],
     "efficacy": "补肾益肺，止血化痰",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -3266,10 +3372,10 @@
       "沙参",
       "泡参"
     ],
-    "category": "补虚药",
     "nature": "微寒",
-    "flavor": "甘",
-    "meridian_tropism": "归肺、胃经",
+    "flavors": [
+      "甘"
+    ],
     "efficacy": "养阴清肺，益胃生津，化痰益气",
     "dosage_min": 9,
     "dosage_max": 15,
@@ -3282,10 +3388,11 @@
       "海沙参",
       "银沙参"
     ],
-    "category": "补虚药",
     "nature": "微寒",
-    "flavor": "甘、微苦",
-    "meridian_tropism": "归肺、胃经",
+    "flavors": [
+      "甘",
+      "苦"
+    ],
     "efficacy": "养阴清肺，益胃生津",
     "dosage_min": 5,
     "dosage_max": 12,
@@ -3298,10 +3405,11 @@
       "麦门冬",
       "寸冬"
     ],
-    "category": "补虚药",
     "nature": "微寒",
-    "flavor": "甘、微苦",
-    "meridian_tropism": "归心、肺、胃经",
+    "flavors": [
+      "甘",
+      "苦"
+    ],
     "efficacy": "养阴生津，润肺清心",
     "dosage_min": 6,
     "dosage_max": 12,
@@ -3314,10 +3422,11 @@
       "天门冬",
       "明天冬"
     ],
-    "category": "补虚药",
     "nature": "寒",
-    "flavor": "甘、苦",
-    "meridian_tropism": "归肺、肾经",
+    "flavors": [
+      "甘",
+      "苦"
+    ],
     "efficacy": "养阴润燥，清肺生津",
     "dosage_min": 6,
     "dosage_max": 12,
@@ -3330,10 +3439,10 @@
       "金钗石斛",
       "黄草"
     ],
-    "category": "补虚药",
     "nature": "微寒",
-    "flavor": "甘",
-    "meridian_tropism": "归胃、肾经",
+    "flavors": [
+      "甘"
+    ],
     "efficacy": "益胃生津，滋阴清热",
     "dosage_min": 6,
     "dosage_max": 12,
@@ -3346,10 +3455,10 @@
       "白百合",
       "蒜脑薯"
     ],
-    "category": "补虚药",
     "nature": "微寒",
-    "flavor": "甘",
-    "meridian_tropism": "归心、肺经",
+    "flavors": [
+      "甘"
+    ],
     "efficacy": "养阴润肺，清心安神",
     "dosage_min": 6,
     "dosage_max": 12,
@@ -3362,10 +3471,10 @@
       "枸杞红实",
       "甜菜子"
     ],
-    "category": "补虚药",
     "nature": "平",
-    "flavor": "甘",
-    "meridian_tropism": "归肝、肾经",
+    "flavors": [
+      "甘"
+    ],
     "efficacy": "滋补肝肾，益精明目",
     "dosage_min": 6,
     "dosage_max": 12,
@@ -3378,10 +3487,11 @@
       "女贞实",
       "冬青子"
     ],
-    "category": "补虚药",
     "nature": "凉",
-    "flavor": "甘、苦",
-    "meridian_tropism": "归肝、肾经",
+    "flavors": [
+      "甘",
+      "苦"
+    ],
     "efficacy": "滋补肝肾，明目乌发",
     "dosage_min": 6,
     "dosage_max": 12,
@@ -3394,10 +3504,11 @@
       "旱莲草",
       "鳢肠"
     ],
-    "category": "补虚药",
     "nature": "寒",
-    "flavor": "甘、酸",
-    "meridian_tropism": "归肾、肝经",
+    "flavors": [
+      "甘",
+      "酸"
+    ],
     "efficacy": "滋补肝肾，凉血止血",
     "dosage_min": 6,
     "dosage_max": 12,
@@ -3410,10 +3521,11 @@
       "龟板",
       "龟壳"
     ],
-    "category": "补虚药",
     "nature": "寒",
-    "flavor": "甘、咸",
-    "meridian_tropism": "归肝、肾、心经",
+    "flavors": [
+      "甘",
+      "咸"
+    ],
     "efficacy": "滋阴潜阳，益肾强骨，养血补心，固经止崩",
     "dosage_min": 9,
     "dosage_max": 24,
@@ -3426,10 +3538,10 @@
       "上甲",
       "团鱼甲"
     ],
-    "category": "补虚药",
     "nature": "寒",
-    "flavor": "咸",
-    "meridian_tropism": "归肝、肾经",
+    "flavors": [
+      "咸"
+    ],
     "efficacy": "滋阴潜阳，退热除蒸，软坚散结",
     "dosage_min": 9,
     "dosage_max": 24,
@@ -3442,10 +3554,11 @@
       "五梅子",
       "山花椒"
     ],
-    "category": "收涩药",
     "nature": "温",
-    "flavor": "酸、甘",
-    "meridian_tropism": "归肺、心、肾经",
+    "flavors": [
+      "酸",
+      "甘"
+    ],
     "efficacy": "收敛固涩，益气生津，补肾宁心",
     "dosage_min": 2,
     "dosage_max": 6,
@@ -3458,10 +3571,11 @@
       "梅实",
       "熏梅"
     ],
-    "category": "收涩药",
     "nature": "平",
-    "flavor": "酸、涩",
-    "meridian_tropism": "归肝、脾、肺、大肠经",
+    "flavors": [
+      "酸",
+      "涩"
+    ],
     "efficacy": "敛肺涩肠，生津安蛔",
     "dosage_min": 6,
     "dosage_max": 12,
@@ -3474,10 +3588,11 @@
       "山萸肉",
       "枣皮"
     ],
-    "category": "收涩药",
     "nature": "微温",
-    "flavor": "酸、涩",
-    "meridian_tropism": "归肝、肾经",
+    "flavors": [
+      "酸",
+      "涩"
+    ],
     "efficacy": "补益肝肾，收涩固脱",
     "dosage_min": 6,
     "dosage_max": 12,
@@ -3489,10 +3604,11 @@
     "aliases": [
       "小托盘"
     ],
-    "category": "收涩药",
     "nature": "温",
-    "flavor": "甘、酸",
-    "meridian_tropism": "归肝、肾、膀胱经",
+    "flavors": [
+      "甘",
+      "酸"
+    ],
     "efficacy": "益肾固精缩尿，养肝明目",
     "dosage_min": 6,
     "dosage_max": 12,
@@ -3505,10 +3621,12 @@
       "刺梨子",
       "山石榴"
     ],
-    "category": "收涩药",
     "nature": "平",
-    "flavor": "酸、甘、涩",
-    "meridian_tropism": "归肾、膀胱、大肠经",
+    "flavors": [
+      "酸",
+      "甘",
+      "涩"
+    ],
     "efficacy": "固精缩尿，固崩止带，涩肠止泻",
     "dosage_min": 6,
     "dosage_max": 12,
@@ -3521,10 +3639,11 @@
       "莲实",
       "莲肉"
     ],
-    "category": "收涩药",
     "nature": "平",
-    "flavor": "甘、涩",
-    "meridian_tropism": "归脾、肾、心经",
+    "flavors": [
+      "甘",
+      "涩"
+    ],
     "efficacy": "补脾止泻，止带，益肾涩精，养心安神",
     "dosage_min": 6,
     "dosage_max": 15,
@@ -3537,10 +3656,11 @@
       "鸡头米",
       "水鸡头"
     ],
-    "category": "收涩药",
     "nature": "平",
-    "flavor": "甘、涩",
-    "meridian_tropism": "归脾、肾经",
+    "flavors": [
+      "甘",
+      "涩"
+    ],
     "efficacy": "益肾固精，补脾止泻，除湿止带",
     "dosage_min": 9,
     "dosage_max": 15,
@@ -3553,10 +3673,11 @@
       "乌贼骨",
       "墨鱼骨"
     ],
-    "category": "收涩药",
     "nature": "微温",
-    "flavor": "咸、涩",
-    "meridian_tropism": "归脾、肾经",
+    "flavors": [
+      "咸",
+      "涩"
+    ],
     "efficacy": "收敛止血，固精止带，制酸止痛，收湿敛疮",
     "dosage_min": 5,
     "dosage_max": 9,
@@ -3569,10 +3690,11 @@
       "螵蛸",
       "刀螂子"
     ],
-    "category": "收涩药",
     "nature": "平",
-    "flavor": "甘、咸",
-    "meridian_tropism": "归肝、肾经",
+    "flavors": [
+      "甘",
+      "咸"
+    ],
     "efficacy": "固精缩尿，补肾助阳",
     "dosage_min": 5,
     "dosage_max": 9,
@@ -3584,10 +3706,11 @@
     "aliases": [
       "苦椿菜"
     ],
-    "category": "收涩药",
     "nature": "平",
-    "flavor": "甘、涩",
-    "meridian_tropism": "归心、肺经",
+    "flavors": [
+      "甘",
+      "涩"
+    ],
     "efficacy": "固表止汗",
     "dosage_min": 3,
     "dosage_max": 9,
@@ -3599,10 +3722,10 @@
     "aliases": [
       "浮麦"
     ],
-    "category": "收涩药",
     "nature": "凉",
-    "flavor": "甘",
-    "meridian_tropism": "归心经",
+    "flavors": [
+      "甘"
+    ],
     "efficacy": "固表止汗，益气除烦",
     "dosage_min": 15,
     "dosage_max": 30,
@@ -3615,10 +3738,10 @@
       "苦丁香",
       "甜瓜蒂"
     ],
-    "category": "涌吐药",
     "nature": "寒",
-    "flavor": "苦",
-    "meridian_tropism": "归胃经",
+    "flavors": [
+      "苦"
+    ],
     "efficacy": "涌吐痰食，祛湿退黄",
     "dosage_min": 0.6,
     "dosage_max": 1.5,
@@ -3631,10 +3754,11 @@
       "恒山",
       "鸡骨常山"
     ],
-    "category": "涌吐药",
     "nature": "寒",
-    "flavor": "苦、辛",
-    "meridian_tropism": "归肺、肝、心经",
+    "flavors": [
+      "苦",
+      "辛"
+    ],
     "efficacy": "涌吐痰涎，截疟",
     "dosage_min": 5,
     "dosage_max": 9,
@@ -3647,492 +3771,15 @@
       "山葱",
       "七厘丹"
     ],
-    "category": "涌吐药",
     "nature": "寒",
-    "flavor": "辛、苦",
-    "meridian_tropism": "归肺、胃、肝经",
+    "flavors": [
+      "辛",
+      "苦"
+    ],
     "efficacy": "涌吐风痰，杀虫",
     "dosage_min": 0.3,
     "dosage_max": 0.9,
     "toxicity": "有毒",
     "pregnancy_contraindicated": true
-  },
-  {
-    "name": "生姜",
-    "aliases": [
-      "鲜姜"
-    ],
-    "category": "解表药",
-    "nature": "微温",
-    "flavor": "辛",
-    "meridian_tropism": "归肺、脾、胃经",
-    "efficacy": "发汗解表，温中止呕，温肺止咳，解药毒",
-    "dosage_min": 3,
-    "dosage_max": 10,
-    "toxicity": "无毒",
-    "pregnancy_contraindicated": false
-  },
-  {
-    "name": "猪苓",
-    "aliases": [],
-    "category": "利水渗湿药",
-    "nature": "平",
-    "flavor": "甘、淡",
-    "meridian_tropism": "归肾、膀胱经",
-    "efficacy": "利水渗湿",
-    "dosage_min": 6,
-    "dosage_max": 12,
-    "toxicity": "无毒",
-    "pregnancy_contraindicated": false
-  },
-  {
-    "name": "防己",
-    "aliases": [
-      "木防己",
-      "汉防己",
-      "粉防己"
-    ],
-    "category": "祛风湿药",
-    "nature": "寒",
-    "flavor": "苦、辛",
-    "meridian_tropism": "归膀胱、肺经",
-    "efficacy": "祛风除湿，利水消肿，止痛",
-    "dosage_min": 5,
-    "dosage_max": 10,
-    "toxicity": "无毒",
-    "pregnancy_contraindicated": false
-  },
-  {
-    "name": "粳米",
-    "aliases": [
-      "白米"
-    ],
-    "category": "补虚药",
-    "nature": "平",
-    "flavor": "甘",
-    "meridian_tropism": "归脾、胃经",
-    "efficacy": "补中益气，健脾和胃",
-    "dosage_min": 15,
-    "dosage_max": 30,
-    "toxicity": "无毒",
-    "pregnancy_contraindicated": false
-  },
-  {
-    "name": "竹叶",
-    "aliases": [],
-    "category": "清热药",
-    "nature": "寒",
-    "flavor": "甘、淡、辛",
-    "meridian_tropism": "归心、肺、胃经",
-    "efficacy": "清心除烦，生津利尿",
-    "dosage_min": 6,
-    "dosage_max": 12,
-    "toxicity": "无毒",
-    "pregnancy_contraindicated": false
-  },
-  {
-    "name": "败酱草",
-    "aliases": [
-      "苦菜"
-    ],
-    "category": "清热药",
-    "nature": "微寒",
-    "flavor": "辛、苦",
-    "meridian_tropism": "归胃、大肠、肝经",
-    "efficacy": "清热解毒，消痈排脓，祛瘀止痛",
-    "dosage_min": 6,
-    "dosage_max": 15,
-    "toxicity": "无毒",
-    "pregnancy_contraindicated": false
-  },
-  {
-    "name": "赤小豆",
-    "aliases": [
-      "赤豆",
-      "红小豆"
-    ],
-    "category": "利水渗湿药",
-    "nature": "平",
-    "flavor": "甘、酸",
-    "meridian_tropism": "归心、小肠经",
-    "efficacy": "利水消肿，解毒排脓",
-    "dosage_min": 9,
-    "dosage_max": 30,
-    "toxicity": "无毒",
-    "pregnancy_contraindicated": false
-  },
-  {
-    "name": "赤石脂",
-    "aliases": [],
-    "category": "收涩药",
-    "nature": "温",
-    "flavor": "甘、涩",
-    "meridian_tropism": "归大肠、胃经",
-    "efficacy": "涩肠止泻，收敛止血，敛疮生肌",
-    "dosage_min": 9,
-    "dosage_max": 15,
-    "toxicity": "无毒",
-    "pregnancy_contraindicated": false
-  },
-  {
-    "name": "葱白",
-    "aliases": [
-      "葱茎",
-      "小葱"
-    ],
-    "category": "解表药",
-    "nature": "温",
-    "flavor": "辛",
-    "meridian_tropism": "归肺、胃经",
-    "efficacy": "发汗解表，散寒通阳",
-    "dosage_min": 6,
-    "dosage_max": 15,
-    "toxicity": "无毒",
-    "pregnancy_contraindicated": false
-  },
-  {
-    "name": "玉竹",
-    "aliases": [
-      "葳蕤",
-      "肥玉竹"
-    ],
-    "category": "补虚药",
-    "nature": "微寒",
-    "flavor": "甘",
-    "meridian_tropism": "归肺、胃经",
-    "efficacy": "养阴润燥，生津止渴",
-    "dosage_min": 6,
-    "dosage_max": 12,
-    "toxicity": "无毒",
-    "pregnancy_contraindicated": false
-  },
-  {
-    "name": "巴豆",
-    "aliases": [
-      "江巴豆",
-      "巴豆霜"
-    ],
-    "category": "泻下药",
-    "nature": "热",
-    "flavor": "辛",
-    "meridian_tropism": "归胃、大肠经",
-    "efficacy": "峻下冷积，逐水退肿，豁痰利咽",
-    "dosage_min": 1,
-    "dosage_max": 3,
-    "toxicity": "有大毒",
-    "pregnancy_contraindicated": true
-  },
-  {
-    "name": "海藻",
-    "aliases": [
-      "海带片"
-    ],
-    "category": "化痰止咳平喘药",
-    "nature": "寒",
-    "flavor": "苦、咸",
-    "meridian_tropism": "归肝、胃、肾经",
-    "efficacy": "软坚散结，消痰，利水",
-    "dosage_min": 6,
-    "dosage_max": 12,
-    "toxicity": "无毒",
-    "pregnancy_contraindicated": false
-  },
-  {
-    "name": "商陆",
-    "aliases": [
-      "山萝卜"
-    ],
-    "category": "泻下药",
-    "nature": "寒",
-    "flavor": "苦",
-    "meridian_tropism": "归肺、肾、大肠经",
-    "efficacy": "逐水消肿，通利二便，解毒散结",
-    "dosage_min": 3,
-    "dosage_max": 9,
-    "toxicity": "有毒",
-    "pregnancy_contraindicated": true
-  },
-  {
-    "name": "蜀漆",
-    "aliases": [
-      "常山苗"
-    ],
-    "category": "涌吐药",
-    "nature": "温",
-    "flavor": "苦、辛",
-    "meridian_tropism": "归肺、心经",
-    "efficacy": "祛痰截疟，涌吐痰涎",
-    "dosage_min": 3,
-    "dosage_max": 6,
-    "toxicity": "有毒",
-    "pregnancy_contraindicated": true
-  },
-  {
-    "name": "秦皮",
-    "aliases": [
-      "蜡皮"
-    ],
-    "category": "清热药",
-    "nature": "寒",
-    "flavor": "苦、涩",
-    "meridian_tropism": "归肝、胆、大肠经",
-    "efficacy": "清热燥湿，收涩止痢，明目",
-    "dosage_min": 6,
-    "dosage_max": 12,
-    "toxicity": "无毒",
-    "pregnancy_contraindicated": false
-  },
-  {
-    "name": "虻虫",
-    "aliases": [
-      "牛虻"
-    ],
-    "category": "活血化瘀药",
-    "nature": "微寒",
-    "flavor": "苦",
-    "meridian_tropism": "归肝经",
-    "efficacy": "破血逐瘀，通经消癥",
-    "dosage_min": 1,
-    "dosage_max": 3,
-    "toxicity": "有小毒",
-    "pregnancy_contraindicated": true
-  },
-  {
-    "name": "禹余粮",
-    "aliases": [
-      "禹粮石"
-    ],
-    "category": "收涩药",
-    "nature": "平",
-    "flavor": "甘、涩",
-    "meridian_tropism": "归脾、胃、大肠经",
-    "efficacy": "涩肠止泻，收敛止血",
-    "dosage_min": 9,
-    "dosage_max": 15,
-    "toxicity": "无毒",
-    "pregnancy_contraindicated": true
-  },
-  {
-    "name": "羊肉",
-    "aliases": [],
-    "category": "补虚药",
-    "nature": "温",
-    "flavor": "甘",
-    "meridian_tropism": "归脾、肾经",
-    "efficacy": "温补脾胃，温中暖下",
-    "dosage_min": 30,
-    "dosage_max": 60,
-    "toxicity": "无毒",
-    "pregnancy_contraindicated": false
-  },
-  {
-    "name": "小麦",
-    "aliases": [
-      "淮小麦"
-    ],
-    "category": "补虚药",
-    "nature": "平",
-    "flavor": "甘",
-    "meridian_tropism": "归心、脾、肾经",
-    "efficacy": "养心安神，除热止汗",
-    "dosage_min": 15,
-    "dosage_max": 30,
-    "toxicity": "无毒",
-    "pregnancy_contraindicated": false
-  },
-  {
-    "name": "饴糖",
-    "aliases": [
-      "胶饴"
-    ],
-    "category": "补虚药",
-    "nature": "温",
-    "flavor": "甘",
-    "meridian_tropism": "归脾、胃、肺经",
-    "efficacy": "补脾益气，缓急止痛，润肺止咳",
-    "dosage_min": 15,
-    "dosage_max": 30,
-    "toxicity": "无毒",
-    "pregnancy_contraindicated": false
-  },
-  {
-    "name": "蜂蜜",
-    "aliases": [
-      "白蜜",
-      "食蜜",
-      "蜜煎",
-      "生蜜"
-    ],
-    "category": "补虚药",
-    "nature": "平",
-    "flavor": "甘",
-    "meridian_tropism": "归肺、脾、大肠经",
-    "efficacy": "补中，润燥，止痛，解毒",
-    "dosage_min": 15,
-    "dosage_max": 30,
-    "toxicity": "无毒",
-    "pregnancy_contraindicated": false
-  },
-  {
-    "name": "醋",
-    "aliases": [
-      "食醋",
-      "苦酒",
-      "米醋"
-    ],
-    "category": "消食药",
-    "nature": "温",
-    "flavor": "酸、苦",
-    "meridian_tropism": "归肝、胃经",
-    "efficacy": "消食开胃，散瘀解毒",
-    "dosage_min": 5,
-    "dosage_max": 15,
-    "toxicity": "无毒",
-    "pregnancy_contraindicated": false
-  },
-  {
-    "name": "鸡子黄",
-    "aliases": [
-      "蛋黄"
-    ],
-    "category": "补虚药",
-    "nature": "平",
-    "flavor": "甘",
-    "meridian_tropism": "归心、肾经",
-    "efficacy": "滋阴润燥，养血安神",
-    "dosage_min": 5,
-    "dosage_max": 15,
-    "toxicity": "无毒",
-    "pregnancy_contraindicated": false
-  },
-  {
-    "name": "鸡子清",
-    "aliases": [
-      "蛋清"
-    ],
-    "category": "清热药",
-    "nature": "微寒",
-    "flavor": "甘",
-    "meridian_tropism": "归肺、胃经",
-    "efficacy": "润肺利咽，清热解毒",
-    "dosage_min": 5,
-    "dosage_max": 15,
-    "toxicity": "无毒",
-    "pregnancy_contraindicated": false
-  },
-  {
-    "name": "人尿",
-    "aliases": [
-      "童便"
-    ],
-    "category": "清热药",
-    "nature": "寒",
-    "flavor": "咸",
-    "meridian_tropism": "归心、肺、肝、肾经",
-    "efficacy": "滋阴降火，活血散瘀",
-    "dosage_min": 30,
-    "dosage_max": 100,
-    "toxicity": "无毒",
-    "pregnancy_contraindicated": false
-  },
-  {
-    "name": "猪肤",
-    "aliases": [],
-    "category": "补虚药",
-    "nature": "微寒",
-    "flavor": "甘、咸",
-    "meridian_tropism": "归肺、肾经",
-    "efficacy": "滋阴润燥，清热利咽",
-    "dosage_min": 15,
-    "dosage_max": 30,
-    "toxicity": "无毒",
-    "pregnancy_contraindicated": false
-  },
-  {
-    "name": "猪胆汁",
-    "aliases": [],
-    "category": "清热药",
-    "nature": "寒",
-    "flavor": "苦",
-    "meridian_tropism": "归肝、胆、肺、大肠经",
-    "efficacy": "清热润燥，解毒通便",
-    "dosage_min": 3,
-    "dosage_max": 6,
-    "toxicity": "无毒",
-    "pregnancy_contraindicated": false
-  },
-  {
-    "name": "米粉",
-    "aliases": [
-      "白粉"
-    ],
-    "category": "补虚药",
-    "nature": "平",
-    "flavor": "甘",
-    "meridian_tropism": "归脾、胃经",
-    "efficacy": "健脾益气，和中止泻",
-    "dosage_min": 15,
-    "dosage_max": 30,
-    "toxicity": "无毒",
-    "pregnancy_contraindicated": false
-  },
-  {
-    "name": "文蛤",
-    "aliases": [
-      "海蛤"
-    ],
-    "category": "化痰止咳平喘药",
-    "nature": "寒",
-    "flavor": "咸",
-    "meridian_tropism": "归肺、胃、膀胱经",
-    "efficacy": "清热化痰，软坚散结，利水",
-    "dosage_min": 6,
-    "dosage_max": 15,
-    "toxicity": "无毒",
-    "pregnancy_contraindicated": false
-  },
-  {
-    "name": "生梓白皮",
-    "aliases": [],
-    "category": "清热药",
-    "nature": "寒",
-    "flavor": "苦",
-    "meridian_tropism": "归肝、胆经",
-    "efficacy": "清热解毒，利湿退黄",
-    "dosage_min": 6,
-    "dosage_max": 12,
-    "toxicity": "无毒",
-    "pregnancy_contraindicated": false
-  },
-  {
-    "name": "冬瓜仁",
-    "aliases": [
-      "冬瓜子"
-    ],
-    "category": "利水渗湿药",
-    "nature": "微寒",
-    "flavor": "甘",
-    "meridian_tropism": "归肺、大肠经",
-    "efficacy": "清肺化痰，利湿排脓",
-    "dosage_min": 9,
-    "dosage_max": 30,
-    "toxicity": "无毒",
-    "pregnancy_contraindicated": false
-  },
-  {
-    "name": "苇茎",
-    "aliases": [
-      "芦茎",
-      "芦苇茎"
-    ],
-    "category": "清热药",
-    "nature": "寒",
-    "flavor": "甘",
-    "meridian_tropism": "归肺、胃经",
-    "efficacy": "清肺泻热，生津止渴，利尿",
-    "dosage_min": 15,
-    "dosage_max": 30,
-    "toxicity": "无毒",
-    "pregnancy_contraindicated": false
   }
 ]

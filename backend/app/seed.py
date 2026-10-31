@@ -43,16 +43,10 @@ def seed_herbs(db: Session) -> int:
             herb = Herb(
                 name=name,
                 aliases=h.get("aliases"),
-                category=h.get("category"),
                 nature=h.get("nature"),
-                flavor=h.get("flavor"),
-                meridian_tropism=h.get("meridian_tropism"),
-                grade=h.get("grade"),
                 flavors=h.get("flavors") or _split_flavor(h.get("flavor")),
-                meridians=h.get("meridians") or _split_meridian(h.get("meridian_tropism")),
-                directions=h.get("directions"),
-                tags=h.get("tags") or ([h["category"]] if h.get("category") else None),
                 efficacy=h.get("efficacy"),
+                contraindication=h.get("contraindication"),
                 dosage_min=h.get("dosage_min"),
                 dosage_max=h.get("dosage_max"),
                 toxicity=h.get("toxicity", "无毒"),
@@ -71,7 +65,6 @@ def seed_herbs(db: Session) -> int:
 
 
 _FLAVOR_CHARS = set("辛甘酸苦咸淡涩")
-_MERIDIANS = {"心", "肝", "脾", "肺", "肾", "胃", "大肠", "小肠", "膀胱", "三焦", "胆", "心包"}
 
 
 def _split_flavor(s) -> list[str] | None:
@@ -80,15 +73,6 @@ def _split_flavor(s) -> list[str] | None:
         return None
     fl = [c for c in str(s) if c in _FLAVOR_CHARS]
     return fl or None
-
-
-def _split_meridian(s) -> list[str] | None:
-    """旧字段 meridian_tropism 字符串拆分为十二经数组"""
-    if not s:
-        return None
-    parts = [p.strip() for p in str(s).replace("、", ",").replace("，", ",").replace("/", ",").split(",") if p.strip()]
-    md = [m for m in parts if m in _MERIDIANS]
-    return md or None
 
 
 def seed_classic_formulas(db: Session) -> int:

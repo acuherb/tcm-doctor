@@ -21,37 +21,22 @@ router = APIRouter(prefix="/herbs", tags=["药品管理"])
 
 @router.get("", response_model=list[HerbResponse], summary="药材列表（多维标签筛选）")
 def list_herbs(
-    category: str | None = Query(None, description="（旧）单一分类筛选"),
-    search: str | None = Query(None, description="搜索(正名/异名/功效)"),
+    search: str | None = Query(None, description="搜索(正名/异名/主治)"),
     is_active: bool | None = Query(None, description="是否启用"),
-    grade: str | None = Query(None, description="三品: 上品/中品/下品"),
     nature: str | None = Query(None, description="四气"),
     flavors: list[str] | None = Query(None, description="五味(多值, 命中任一)"),
-    meridians: list[str] | None = Query(None, description="归经(多值, 命中任一)"),
-    directions: list[str] | None = Query(None, description="升降浮沉(多值, 命中任一)"),
-    tags: list[str] | None = Query(None, description="通用标签(多值, 命中任一)"),
     pregnancy_contraindicated: bool | None = Query(None, description="仅看孕妇禁忌药"),
     db: Session = Depends(get_db),
 ):
     query = db.query(Herb)
-    if category:
-        query = query.filter(Herb.category == category)
     if is_active is not None:
         query = query.filter(Herb.is_active == is_active)
     herbs = query.all()
 
     def matches(h: Herb) -> bool:
-        if grade and h.grade != grade:
-            return False
         if nature and h.nature != nature:
             return False
         if flavors and not (set(h.flavors or []) & set(flavors)):
-            return False
-        if meridians and not (set(h.meridians or []) & set(meridians)):
-            return False
-        if directions and not (set(h.directions or []) & set(directions)):
-            return False
-        if tags and not (set(h.tags or []) & set(tags)):
             return False
         if pregnancy_contraindicated is not None and h.pregnancy_contraindicated != pregnancy_contraindicated:
             return False
@@ -66,7 +51,7 @@ def list_herbs(
         return True
 
     herbs = [h for h in herbs if matches(h)]
-    herbs.sort(key=lambda h: (h.category or "zzz", h.name or ""))
+    herbs.sort(key=lambda h: h.name or "")
     return herbs
 
 
@@ -123,7 +108,7 @@ def create_herb(data: HerbCreate, current_user: User = Depends(get_current_user)
 @router.get("/export", response_model=list[HerbResponse], summary="导出药材字典(JSON)")
 def export_herbs(db: Session = Depends(get_db)):
     """导出全量药材字典，用于迁移/备份/手工批量预置"""
-    return db.query(Herb).order_by(Herb.category, Herb.name).all()
+    return db.query(Herb).order_by(Herb.name).all()
 
 
 @router.post("/import", summary="导入药材字典(JSON，按正名 upsert)")
