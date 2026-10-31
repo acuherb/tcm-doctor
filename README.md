@@ -136,7 +136,7 @@ npx electron-builder --win --x64
 ### 药品管理
 - 药材字典（229 味，覆盖 18 个分类，支持异名搜索 + 批量导入/导出 JSON）
 - 库存管理（入库/出库/预警/仓位/批次）
-- 配伍禁忌引擎（十八反/十九畏 + 孕妇禁忌 + 毒性药检测）
+- 处方安全检查（仅超剂量 / 毒性 / 孕妇禁忌提醒，按《本经》三品标注；十八反·十九畏已不再做硬性校验）
 
 ### 针灸穴位库
 - 腧穴字典（170 穴，合并倪师穴位索引 + 针灸 164 项，按十四经 / 任督 / 奇穴归类，带定位详情）
@@ -185,7 +185,7 @@ npx electron-builder --win --x64
 | 经典方剂 | 146 首（伤寒论 112 + 金匮要略 + 后世方，0 缺失，六经归档） |
 | 针灸方库 | 6 首（安神定志 / 健脾和胃 / 腰痛 / 疏风解表 / 调经 / 醒脑开窍，来源标注倪海厦·针灸 / 通用） |
 | 穴位 | 170 穴（倪师穴位索引 + 针灸 164 项，按归经/奇穴归类） |
-| 配伍禁忌规则 | 35 条（十八反 + 十九畏） |
+| 处方安全检查 | 超剂量 / 毒性 / 孕妇禁忌（十八反·十九畏已移除） |
 | 知识库条目 | 1313 条 |
 | 知识库来源 | 29 部中医经典 |
 
@@ -233,7 +233,7 @@ tcm-doctor/
 │   │   ├── routers/        # API 路由（患者/药品/处方/针灸方库/针灸/知识/问诊/统计/备份/设置等模块）
 │   │   ├── services/       # 业务逻辑
 │   │   │   ├── ai_diagnosis_service.py  # AI 辨证（DeepSeek + Vision + RAG）
-│   │   │   ├── incompatibility_checker.py # 配伍禁忌检查
+│   │   │   ├── incompatibility_checker.py # 处方安全检查（超剂量/毒性/孕妇禁忌）
 │   │   │   ├── constitution_evaluator.py  # 问诊十问/六经辨证评估
 │   │   │   └── vector_store.py            # ChromaDB 向量检索
 │   │   └── data/           # 种子数据 + 29 部典籍 JSON
@@ -257,7 +257,7 @@ tcm-doctor/
 | 患者 | `/api/v1/patients/{id}/constitution` | 问诊十问 / 体质辨识（支持 `visit_id` 绑定到具体就诊） |
 | 药品 | `/api/v1/herbs` | 药材字典 + 详情 |
 | 药品 | `/api/v1/herbs/inventory/*` | 库存管理（入库/出库/预警/汇总） |
-| 药品 | `/api/v1/herbs/incompatibility-check` | 配伍禁忌检查 |
+| 药品 | `/api/v1/herbs/tags/meta` | 药材标签维度与受控词表 |
 | 处方 | `/api/v1/prescriptions` | 处方 CRUD + 审核 + 发药（含 `acupoint_formula_name` / `acupoint_technique` / `treatment_frequency` / `treatment_days` 四个针灸方顶层字段） |
 | 处方 | `/api/v1/prescriptions/classic-formulas` | 经典方剂库 |
 | 处方 | `/api/v1/acupoint-formulas` | 针灸方库 CRUD（搜索 / 出处筛选 / 导入 / 导出） |

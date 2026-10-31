@@ -7,6 +7,7 @@ from app.models.herb import Herb, HerbInventory, InventoryTransaction
 from app.models.prescription import PrescriptionItem
 from app.models.user import User
 from app.routers.auth import get_current_user
+from app.constants.herb_tags import sanitize_herb_tags
 from app.schemas.herb import (
     HerbCreate, HerbUpdate, HerbResponse,
     InventoryIn, InventoryOut, InventoryResponse, InventoryAlert, InventoryUpdate, InventorySummary,
@@ -41,12 +42,21 @@ def list_herbs(
     return herbs
 
 
+@router.get("/tags/meta", summary="药材标签维度与受控词表")
+def herb_tag_meta():
+    """返回标签维度（三品/四气/五味/归经/升降浮沉）的受控词表与通用标签建议，供前端渲染多选器/筛选器。"""
+    from app.constants.herb_tags import HERB_TAG_DIMENSIONS, HERB_COMMON_TAG_SUGGESTIONS
+
+    return {"dimensions": HERB_TAG_DIMENSIONS, "tag_suggestions": HERB_COMMON_TAG_SUGGESTIONS}
+
+
 @router.post("", response_model=HerbResponse, summary="新增药材")
 def create_herb(data: HerbCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     existing = db.query(Herb).filter(Herb.name == data.name).first()
     if existing:
         raise HTTPException(status_code=400, detail=f"药材'{data.name}'已存在")
-    herb = Herb(**data.model_dump())
+    payload = sanitize_herb_tags(data.model_dump())
+    herb = Herb(**payload)
     db.add(herb)
     db.commit()
     db.refresh(herb)
@@ -67,7 +77,7 @@ def import_herbs(data: list[HerbCreate] = Body(...), current_user: User = Depend
     imported = updated = 0
     for item in data:
         existing = db.query(Herb).filter(Herb.name == item.name).first()
-        payload = item.model_dump()
+        payload = sanitize_herb_tags(item.model_dump())
         if existing:
             for key, value in payload.items():
                 if value is not None:
@@ -265,7 +275,8 @@ def update_herb(herb_id: int, data: HerbUpdate, current_user: User = Depends(get
     herb = db.query(Herb).filter(Herb.id == herb_id).first()
     if not herb:
         raise HTTPException(status_code=404, detail="药材不存在")
-    for key, value in data.model_dump(exclude_unset=True).items():
+    payload = sanitize_herb_tags(data.model_dump(exclude_unset=True))
+    for key, value in payload.items():
         setattr(herb, key, value)
     db.commit()
     db.refresh(herb)

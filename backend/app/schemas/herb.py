@@ -12,7 +12,12 @@ class HerbCreate(BaseModel):
     category: str | None = Field(None, description="分类")
     nature: str | None = Field(None, description="药性")
     flavor: str | None = Field(None, description="药味")
-    meridian_tropism: str | None = Field(None, description="归经")
+    meridian_tropism: str | None = Field(None, description="归经(旧字段, 已并入 meridians)")
+    grade: str | None = Field(None, description="三品: 上品/中品/下品")
+    flavors: list[str] | None = Field(None, description="五味标签(多值): 辛/甘/酸/苦/咸/淡/涩")
+    meridians: list[str] | None = Field(None, description="归经标签(多值): 十二经等")
+    directions: list[str] | None = Field(None, description="升降浮沉(多值): 升/降/浮/沉")
+    tags: list[str] | None = Field(None, description="通用标签: 功效分类/主治证型/经方常用/产地/炮制")
     efficacy: str | None = Field(None, description="功效")
     dosage_min: float | None = Field(None, description="最小剂量(g)")
     dosage_max: float | None = Field(None, description="最大剂量(g)")
@@ -30,6 +35,11 @@ class HerbUpdate(BaseModel):
     nature: str | None = None
     flavor: str | None = None
     meridian_tropism: str | None = None
+    grade: str | None = None
+    flavors: list[str] | None = None
+    meridians: list[str] | None = None
+    directions: list[str] | None = None
+    tags: list[str] | None = None
     efficacy: str | None = None
     dosage_min: float | None = None
     dosage_max: float | None = None
@@ -49,6 +59,11 @@ class HerbResponse(BaseModel):
     nature: str | None
     flavor: str | None
     meridian_tropism: str | None
+    grade: str | None
+    flavors: list[str] | None
+    meridians: list[str] | None
+    directions: list[str] | None
+    tags: list[str] | None
     efficacy: str | None
     dosage_min: float | None
     dosage_max: float | None

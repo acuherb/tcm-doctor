@@ -85,8 +85,8 @@ body {
   border-color: #13C2C2;
 }
 
-/* 配伍禁忌警告样式 */
-.incompatibility-warning {
+/* 处方安全提醒样式（超剂量 / 毒性 / 孕妇） */
+.safety-warning {
   background-color: #FFF2F0;
   border: 1px solid #FFCCC7;
   border-radius: 8px;
@@ -94,7 +94,7 @@ body {
   margin: 8px 0;
 }
 
-.incompatibility-warning .el-icon {
+.safety-warning .el-icon {
   color: #F5222D;
   font-size: 20px;
 }
