@@ -30,6 +30,14 @@
 - 后端 `Herb` 模型 + `HerbCreate/HerbUpdate/HerbResponse` 新增 `contraindication`(禁忌) 文本字段；[migrate_herb_tags.py](file:///home/debian/tcm-doctor/backend/scripts/migrate_herb_tags.py) 幂等 ALTER 新增 `herbs.contraindication` 列（老库已执行，`create_all` 覆盖全新库）。
 - 编辑弹窗重排：四气+五味+毒性(性味)、主治、禁忌 前置；三品/归经/升降浮沉/通用标签 归入"其它标签（可选）"分隔区。
 
+### 6. 三品/归经/升降浮沉 全量移除 + 表头严格对齐（本次）
+- 用户最终决定：**三品 / 归经 / 升降浮沉 一处都不要**。已从表格、搜索框筛选、编辑弹窗、数据字典（维度与词条）**全量移除**。
+- 表头严格对齐用户给的本草经式清单，仅保留 **正名 | 异名 | 性味 | 主治 | 禁忌 | 剂量 | 状态 | 操作**；连之前保留的「通用标签」列也一并去掉（不在用户清单内）。
+- 后端 [constants/herb_tags.py](file:///home/debian/tcm-doctor/backend/app/constants/herb_tags.py)：`HERB_TAG_DIMENSIONS` 仅留 **四气(nature) / 五味(flavors)**，`_CONTROLLED` 同步收敛；`/herbs/tags/meta` 现只返回这两维。
+- 数据字典：删除 19 条 `herb_tag` 孤儿词条（三品 3 + 归经 12 + 升降浮沉 4）；[DictionaryManage.vue](file:///home/debian/tcm-doctor/frontend/src/views/dictionary/DictionaryManage.vue) 药材标签维度下拉仅剩 四气/五味。
+- 搜索框现仅剩：关键词、四气、五味、仅看孕妇禁忌。`HerbList.vue` 清理掉 `gradeTag`/`toxicityTag` 死函数与对应筛选 ref。
+- 说明：`herbs` 表的 `grade/meridians/directions/tags` 列仍保留（数据不丢、向后兼容），仅不再出现在 UI；如需彻底废弃可后续 DROP。
+
 ## 2026-10-30 — AI 推荐方结构化带入开方（主方/副方 + 加减勾选 + 字典校验）
 
 ### 背景

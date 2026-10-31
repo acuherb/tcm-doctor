@@ -204,7 +204,7 @@ const activeType = ref<'syndrome' | 'tongue' | 'pulse' | 'tag' | 'herb_tag'>('sy
 const terms = ref<DictTerm[]>([])
 const meridians = ['太阳', '阳明', '少阳', '太阴', '少阴', '厥阴']
 const pulseTypes = ['浮脉类', '沉脉类', '迟脉类', '数脉类', '虚脉类', '实脉类']
-const herbTagDimensions = ['三品', '四气', '五味', '归经', '升降浮沉']
+const herbTagDimensions = ['四气', '五味']
 
 const dialogVisible = ref(false)
 const editingId = ref<number | null>(null)

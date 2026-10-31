@@ -26,11 +26,6 @@
             <template #prefix><el-icon><Search /></el-icon></template>
           </el-input>
         </el-form-item>
-        <el-form-item label="三品">
-          <el-select v-model="gradeFilter" placeholder="全部" clearable @change="loadHerbs" style="width:110px">
-            <el-option v-for="o in dimOptions('grade')" :key="o" :label="o" :value="o" />
-          </el-select>
-        </el-form-item>
         <el-form-item label="四气">
           <el-select v-model="natureFilter" placeholder="全部" clearable @change="loadHerbs" style="width:110px">
             <el-option v-for="o in dimOptions('nature')" :key="o" :label="o" :value="o" />
@@ -39,16 +34,6 @@
         <el-form-item label="五味">
           <el-select v-model="flavorFilters" multiple collapse-tags clearable placeholder="多选" @change="loadHerbs" style="width:150px">
             <el-option v-for="o in dimOptions('flavors')" :key="o" :label="o" :value="o" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="归经">
-          <el-select v-model="meridianFilters" multiple collapse-tags clearable placeholder="多选" @change="loadHerbs" style="width:170px">
-            <el-option v-for="o in dimOptions('meridians')" :key="o" :label="o" :value="o" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="升降浮沉">
-          <el-select v-model="directionFilters" multiple collapse-tags clearable placeholder="多选" @change="loadHerbs" style="width:150px">
-            <el-option v-for="o in dimOptions('directions')" :key="o" :label="o" :value="o" />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -72,12 +57,6 @@
           <template #default="{ row }">
             <span v-if="xingwei(row)">{{ xingwei(row) }}</span>
             <span v-else class="text-muted">-</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="通用标签" min-width="160" show-overflow-tooltip>
-          <template #default="{ row }">
-            <el-tag v-for="t in (row.tags || [])" :key="t" size="small" class="tag-cell">{{ t }}</el-tag>
-            <span v-if="!(row.tags && row.tags.length)" class="text-muted">-</span>
           </template>
         </el-table-column>
         <el-table-column prop="efficacy" label="主治" show-overflow-tooltip />
@@ -111,9 +90,6 @@
             </div>
             <div class="card-row">
               <span class="label">性味</span><span class="value">{{ xingwei(row) || '-' }}</span>
-            </div>
-            <div class="card-row" v-if="row.tags && row.tags.length">
-              <span class="label">标签</span><span class="value"><template v-for="t in row.tags">{{ t }} </template></span>
             </div>
             <div class="card-row" v-if="row.efficacy">
               <span class="label">主治</span><span class="value">{{ row.efficacy }}</span>
@@ -173,26 +149,6 @@
           <el-switch v-model="form.pregnancy_contraindicated" active-text="是" inactive-text="否" />
         </el-form-item>
         <el-form-item label="储存条件"><el-input v-model="form.storage_condition" placeholder="如 置阴凉干燥处" /></el-form-item>
-
-        <el-divider>其它标签（可选）</el-divider>
-        <el-form-item label="三品">
-          <el-select v-model="form.grade" clearable placeholder="选填" style="width:100%">
-            <el-option v-for="o in dimOptions('grade')" :key="o" :label="o" :value="o" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="归经">
-          <el-select v-model="form.meridians" multiple clearable style="width:100%" placeholder="多选">
-            <el-option v-for="o in dimOptions('meridians')" :key="o" :label="o" :value="o" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="升降浮沉">
-          <el-select v-model="form.directions" multiple clearable style="width:100%" placeholder="多选">
-            <el-option v-for="o in dimOptions('directions')" :key="o" :label="o" :value="o" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="通用标签">
-          <el-select v-model="form.tags" multiple filterable allow-create default-first-option clearable style="width:100%" placeholder="自由标注：主治/经方/产地…" />
-        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="showDialog = false">取消</el-button>
@@ -215,11 +171,8 @@ const editable = computed(() => !!auth.user?.is_admin)
 
 const herbs = ref<any[]>([])
 const searchText = ref('')
-const gradeFilter = ref('')
 const natureFilter = ref('')
 const flavorFilters = ref<string[]>([])
-const meridianFilters = ref<string[]>([])
-const directionFilters = ref<string[]>([])
 const pregOnly = ref(false)
 
 // 标签维度与受控词表（来自后端 /herbs/tags/meta）
@@ -248,17 +201,6 @@ function defaultForm() {
 }
 const form = ref(defaultForm())
 
-function toxicityTag(t: string) {
-  if (t === '有大毒') return 'danger'
-  if (t === '有毒') return 'warning'
-  if (t === '有小毒') return 'info'
-  return 'success'
-}
-function gradeTag(g: string) {
-  if (g === '上品') return 'success'
-  if (g === '中品') return 'warning'
-  return 'danger' // 下品
-}
 // 性味合并展示：性 · 味 · 毒性（毒性仅在非"无毒"时显示）
 function xingwei(row: any): string {
   const parts: string[] = []
@@ -278,12 +220,9 @@ async function loadHerbs() {
   try {
     const p = new URLSearchParams()
     if (searchText.value) p.set('search', searchText.value)
-    if (gradeFilter.value) p.set('grade', gradeFilter.value)
     if (natureFilter.value) p.set('nature', natureFilter.value)
     if (pregOnly.value) p.set('pregnancy_contraindicated', 'true')
     flavorFilters.value.forEach((v) => p.append('flavors', v))
-    meridianFilters.value.forEach((v) => p.append('meridians', v))
-    directionFilters.value.forEach((v) => p.append('directions', v))
     const qs = p.toString()
     herbs.value = (await api.get('/herbs' + (qs ? '?' + qs : ''))) as any
   } catch {}
@@ -291,11 +230,8 @@ async function loadHerbs() {
 
 function resetFilters() {
   searchText.value = ''
-  gradeFilter.value = ''
   natureFilter.value = ''
   flavorFilters.value = []
-  meridianFilters.value = []
-  directionFilters.value = []
   pregOnly.value = false
   loadHerbs()
 }
