@@ -251,9 +251,20 @@ const DEFAULT_XW_COLOR: Record<string, string> = {
 function xwColor(name: string): string {
   return herbTagColor.value[name] || DEFAULT_XW_COLOR[name] || '#909399'
 }
+// 依据颜色亮度返回可读前景色：浅色背景用深字，深色背景用浅字（避免白色等浅色导致文字不可见）
+function readableInk(hex: string): string {
+  const c = (hex || '').replace('#', '')
+  if (c.length < 6) return '#333333'
+  const r = parseInt(c.slice(0, 2), 16)
+  const g = parseInt(c.slice(2, 4), 16)
+  const b = parseInt(c.slice(4, 6), 16)
+  const L = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+  return L > 0.6 ? '#333333' : '#ffffff'
+}
 function xwTagStyle(name: string): Record<string, string> {
   const c = xwColor(name)
-  return { color: c, borderColor: c, backgroundColor: c + '1a' }
+  const ink = readableInk(c)
+  return { color: ink, backgroundColor: c, borderColor: ink }
 }
 async function loadHerbTagColors() {
   try {

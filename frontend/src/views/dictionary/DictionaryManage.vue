@@ -152,7 +152,7 @@
           <el-color-picker v-model="form.color" />
           <span style="font-size:12px;color:#999;margin-left:8px;">自定义颜色；药材性味默认按五行/温度本色（寒蓝→温红、酸青苦赤…），留空则用默认色</span>
           <div style="margin-top:10px;display:flex;align-items:center;gap:8px;">
-            <span class="xw-tag" :style="{ color: previewColor, borderColor: previewColor, backgroundColor: previewColor + '1a' }">{{ form.name || '预览' }}</span>
+            <span class="xw-tag" :style="{ color: readableInk(previewColor), backgroundColor: previewColor, borderColor: readableInk(previewColor) }">{{ form.name || '预览' }}</span>
             <span v-if="!form.color" style="font-size:12px;color:#999;">（当前为默认色，保存后按此色着色）</span>
           </div>
         </el-form-item>
@@ -231,9 +231,20 @@ const HERB_TAG_DEFAULT_COLOR: Record<string, string> = {
   '酸': '#2e9e5b', '苦': '#d9434e', '甘': '#e0a82e', '辛': '#9fb3c8', '咸': '#2f3b47', '淡': '#b0a0c0',
   '寒': '#2f80b5', '微寒': '#5aa0cf', '平': '#7f9a6e', '微温': '#e08a3c', '温': '#d9642c', '热': '#c0392b',
 }
+// 依据颜色亮度返回可读前景色（浅色用深字/深边框，深色用浅字），避免白色等浅色导致标签不可见
+function readableInk(hex: string): string {
+  const c = (hex || '').replace('#', '')
+  if (c.length < 6) return '#333333'
+  const r = parseInt(c.slice(0, 2), 16)
+  const g = parseInt(c.slice(2, 4), 16)
+  const b = parseInt(c.slice(4, 6), 16)
+  const L = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+  return L > 0.6 ? '#333333' : '#ffffff'
+}
 function tagChipStyle(name: string, color?: string | null): Record<string, string> {
   const c = color || (activeType.value === 'herb_tag' ? (HERB_TAG_DEFAULT_COLOR[name] || '#909399') : '') || '#909399'
-  return { color: c, borderColor: c, backgroundColor: c + '1a' }
+  const ink = readableInk(c)
+  return { color: ink, backgroundColor: c, borderColor: ink }
 }
 // 编辑弹窗实时预览色：自定义色优先；药材性味回退五行/温度本色
 const previewColor = computed(() => {
