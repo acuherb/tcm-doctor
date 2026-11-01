@@ -86,6 +86,13 @@ DEFAULT_HERB_TAG_COLORS = {
     "寒": "#2f80b5", "微寒": "#5aa0cf", "平": "#7f9a6e", "微温": "#e08a3c", "温": "#d9642c", "热": "#c0392b",
 }
 
+# ── 患者标签 (term_type=tag)，按风险严重度递进 ──
+# 高危(红/深红) → 中危(橙) → 关注(蓝) → 群体(紫/青)
+PATIENT_TAG_COLOR = {
+    "不遵医瞩": "#c0392b", "过敏体质": "#873d3d", "慢性病": "#2f80b5",
+    "孕妇": "#d68910", "儿童": "#3a9e84", "老年": "#7d5ba6",
+}
+
 HERB_TAG_SEED = []
 for _key, _spec in HERB_TAG_DIMENSIONS.items():
     _label = _spec["label"]
@@ -96,6 +103,40 @@ for _key, _spec in HERB_TAG_DIMENSIONS.items():
 # ── 穴位属性维度词表 (term_type=acupoint_tag)，category=维度中文名 ──
 # 三体系（针灸大成 / 董氏奇穴 / 倪海厦·针灸）混排，四个维度：来源 / 归经 / 部位 / 类型。
 # 不预置颜色（字典页留空显示默认灰），释义取自经穴学常识。
+ACUPOINT_TAG_COLOR = {
+    # 来源：三体系各一色（针灸大成=墨绿 / 董氏奇穴=橙褐 / 倪海厦=朱红 / 通用=灰）
+    "针灸大成": "#2e7d6b",
+    "董氏奇穴": "#b9770e",
+    "倪海厦·针灸": "#c0392b",
+    "通用": "#95a5a6",
+    # 归经：按十二正经五行归色（木=青绿 火=红 土=黄 金=白/银 水=黑蓝 相火=紫）
+    "手太阴肺经": "#c9d1d9", "手阳明大肠经": "#aab8c2",
+    "手少阴心经": "#d9434e", "手太阳小肠经": "#e2707a",
+    "足厥阴肝经": "#2e9e5b", "足少阳胆经": "#4aa36e",
+    "足太阴脾经": "#e0a82e", "足阳明胃经": "#d6922a",
+    "足少阴肾经": "#2c3e50", "足太阳膀胱经": "#34495e",
+    "手厥阴心包经": "#8e44ad", "手少阳三焦经": "#9b59b6",
+    "任脉": "#566573", "督脉": "#1b2631",
+    "经外奇穴": "#7f8c8d", "董氏奇穴": "#b9770e",
+    # 部位：按人体上下（上阳→下阴）渐变；董氏部位按编号灰系递进
+    "头面": "#4a90a4", "上肢": "#3a9e84", "前胸": "#c9a227",
+    "后背": "#b0873e", "腰骶": "#8c6239", "下肢": "#7e5109",
+    "胸腹部位": "#b0873e", "后背部位": "#8c6239",
+    "一一部位": "#cfd6dc", "二二部位": "#bfc8d1", "三三部位": "#aeb9c3",
+    "四四部位": "#9caab6", "五五部位": "#8b9ba8", "六六部位": "#7d8b96",
+    "七七部位": "#6f7d87", "八八部位": "#617078", "九九部位": "#556369",
+    "十十部位": "#4a575c",
+    # 类型：五输穴按井→荥→输→经→合水文流向；其余用功能色
+    "井穴": "#aed6f1", "荥穴": "#5dade2", "输穴": "#2e86c1",
+    "经穴": "#1f618d", "合穴": "#154360",
+    "原穴": "#8e6bb0", "络穴": "#16a085", "郄穴": "#a93226",
+    "募穴": "#d68910", "背俞穴": "#7d6608",
+    "八会穴": "#6c3483", "八脉交会穴": "#5b2c6f",
+    "下合穴": "#21618c", "经外奇穴": "#7f8c8d",
+    "特效穴": "#b9770e", "常用要穴": "#af601a",
+}
+
+
 ACUPOINT_TAG_SEED = [
     # 维度：来源
     ("来源", "针灸大成", "杨继洲《针灸大成》，十四经穴及经外奇穴之集大成"),
@@ -262,25 +303,33 @@ def seed_dictionaries(db):
             skipped += 1
 
     for label, name, desc in ACUPOINT_TAG_SEED:
-        if _add(db, "acupoint_tag", name, category=label, description=desc):
+        if _add(db, "acupoint_tag", name, category=label, description=desc,
+                color=ACUPOINT_TAG_COLOR.get(name)):
             added += 1
         else:
             skipped += 1
 
-    # 回填：已存在的词条若未设颜色，按各自默认色补齐（幂等，仅补 null）
-    for t in db.query(DictionaryTerm).filter(
-        DictionaryTerm.term_type == "herb_tag",
-        DictionaryTerm.color.is_(None),
-    ).all():
+    # 回填：统一按推荐配色表覆盖（含手动调色），保证各类词表配色一致、可读
+    for t in db.query(DictionaryTerm).filter(DictionaryTerm.term_type == "herb_tag").all():
         c = DEFAULT_HERB_TAG_COLORS.get(t.name)
         if c:
             t.color = c
-    for t in db.query(DictionaryTerm).filter(DictionaryTerm.term_type == "tongue", DictionaryTerm.color.is_(None)).all():
+    for t in db.query(DictionaryTerm).filter(DictionaryTerm.term_type == "tag").all():
+        c = PATIENT_TAG_COLOR.get(t.name)
+        if c:
+            t.color = c
+    for t in db.query(DictionaryTerm).filter(DictionaryTerm.term_type == "tongue").all():
         t.color = tongue_color(t.name)
-    for t in db.query(DictionaryTerm).filter(DictionaryTerm.term_type == "pulse", DictionaryTerm.color.is_(None)).all():
+    for t in db.query(DictionaryTerm).filter(DictionaryTerm.term_type == "pulse").all():
         t.color = pulse_color(t.pulse_type)
-    for t in db.query(DictionaryTerm).filter(DictionaryTerm.term_type == "syndrome", DictionaryTerm.color.is_(None)).all():
+    for t in db.query(DictionaryTerm).filter(DictionaryTerm.term_type == "syndrome").all():
         t.color = syndrome_color(t.meridian)
+    for t in db.query(DictionaryTerm).filter(
+        DictionaryTerm.term_type == "acupoint_tag",
+    ).all():
+        c = ACUPOINT_TAG_COLOR.get(t.name)
+        if c:
+            t.color = c
 
     return added, skipped
 

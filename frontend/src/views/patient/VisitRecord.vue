@@ -62,7 +62,7 @@
                   <el-select v-model="form.tongue_body" clearable filterable placeholder="选择舌质" style="width:100%"
                     @change="form.tongue_body_term_id = findId('tongue', form.tongue_body, '舌质')">
                     <el-option v-for="t in tongueBodyTerms" :key="t.id" :label="t.name" :value="t.name">
-                      <span class="opt-dot" :style="{ backgroundColor: dotColor(t) }"></span><div class="term-opt"><span class="term-name">{{ t.name }}</span><span v-if="t.description" class="term-desc">{{ t.description }}</span></div>
+                      <div class="term-opt"><span class="opt-dot" :style="{ backgroundColor: dotColor(t) }"></span><span class="term-name">{{ t.name }}</span><el-tooltip v-if="t.description" :content="t.description" placement="right" :teleported="true"><span class="opt-hint-dot"></span></el-tooltip></div>
                     </el-option>
                   </el-select>
                 </el-form-item>
@@ -72,7 +72,7 @@
                   <el-select v-model="form.tongue_coat" clearable filterable placeholder="选择舌苔" style="width:100%"
                     @change="form.tongue_coat_term_id = findId('tongue', form.tongue_coat, '舌苔')">
                     <el-option v-for="t in tongueCoatTerms" :key="t.id" :label="t.name" :value="t.name">
-                      <span class="opt-dot" :style="{ backgroundColor: dotColor(t) }"></span><div class="term-opt"><span class="term-name">{{ t.name }}</span><span v-if="t.description" class="term-desc">{{ t.description }}</span></div>
+                      <div class="term-opt"><span class="opt-dot" :style="{ backgroundColor: dotColor(t) }"></span><span class="term-name">{{ t.name }}</span><el-tooltip v-if="t.description" :content="t.description" placement="right" :teleported="true"><span class="opt-hint-dot"></span></el-tooltip></div>
                     </el-option>
                   </el-select>
                 </el-form-item>
@@ -121,7 +121,7 @@
               <el-select v-model="form.pulse" multiple clearable filterable placeholder="选择脉象" style="width:100%"
                 @change="onPulseChange">
                 <el-option v-for="t in pulseTerms" :key="t.id" :label="t.name" :value="t.name">
-                  <span class="opt-dot" :style="{ backgroundColor: dotColor(t) }"></span><div class="term-opt"><span class="term-name">{{ t.name }}</span><span v-if="t.description" class="term-desc">{{ t.description }}</span></div>
+                  <div class="term-opt"><span class="opt-dot" :style="{ backgroundColor: dotColor(t) }"></span><span class="term-name">{{ t.name }}</span><el-tooltip v-if="t.description" :content="t.description" placement="right" :teleported="true"><span class="opt-hint-dot"></span></el-tooltip></div>
                 </el-option>
               </el-select>
             </el-form-item>
@@ -149,7 +149,7 @@
                 placeholder="选证书型或输入" style="width:100%"
                 @change="form.syndrome_term_id = findId('syndrome', form.tcm_syndrome)">
                 <el-option v-for="t in syndromeTerms" :key="t.id" :label="t.name" :value="t.name">
-                  <span class="opt-dot" :style="{ backgroundColor: dotColor(t) }"></span><div class="term-opt"><span class="term-name">{{ t.name }}</span><span v-if="t.description" class="term-desc">{{ t.description }}</span></div>
+                  <div class="term-opt"><span class="opt-dot" :style="{ backgroundColor: dotColor(t) }"></span><span class="term-name">{{ t.name }}</span><el-tooltip v-if="t.description" :content="t.description" placement="right" :teleported="true"><span class="opt-hint-dot"></span></el-tooltip></div>
                 </el-option>
               </el-select>
             </el-form-item>
@@ -1062,7 +1062,6 @@ async function loadExistingVisit(visitId: number) {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  margin-right: 6px;
   vertical-align: middle;
   flex: none;
 }
@@ -1077,17 +1076,14 @@ async function loadExistingVisit(visitId: number) {
 }
 .term-opt {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 4px;
   line-height: 1.35;
   padding: 2px 0;
 }
 .term-name {
   font-weight: 500;
   color: var(--el-text-color-primary);
-}
-.term-desc {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
 }
 
 .visit-saved-hint {

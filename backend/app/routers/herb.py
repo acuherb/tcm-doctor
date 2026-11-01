@@ -23,7 +23,7 @@ def list_herbs(
     search: str | None = Query(None, description="搜索(正名/异名/主治)"),
     is_active: bool | None = Query(None, description="是否启用"),
     nature: str | None = Query(None, description="四气"),
-    flavors: list[str] | None = Query(None, description="五味(多值, 命中任一)"),
+    flavors: list[str] | None = Query(None, description="五味(多值, 须全部具备)"),
     pregnancy_contraindicated: bool | None = Query(None, description="仅看孕妇禁忌药"),
     db: Session = Depends(get_db),
 ):
@@ -35,7 +35,7 @@ def list_herbs(
     def matches(h: Herb) -> bool:
         if nature and h.nature != nature:
             return False
-        if flavors and not (set(h.flavors or []) & set(flavors)):
+        if flavors and not set(flavors).issubset(set(h.flavors or [])):
             return False
         if pregnancy_contraindicated is not None and h.pregnancy_contraindicated != pregnancy_contraindicated:
             return False

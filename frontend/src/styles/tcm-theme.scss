@@ -99,6 +99,23 @@ body {
   font-size: 20px;
 }
 
+/* ---------- 下拉选项释义提示点 ---------- */
+.opt-hint-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background-color: var(--el-text-color-placeholder);
+  margin-left: 6px;
+  vertical-align: middle;
+  cursor: help;
+  transition: transform .15s ease, background-color .15s ease;
+}
+.opt-hint-dot:hover {
+  transform: scale(1.4);
+  background-color: var(--el-color-primary);
+}
+
 /* ---------- 移动端通用适配 ---------- */
 @media (max-width: 767px) {
   /* 对话框：窄屏下贴近全宽，避免内容溢出屏幕 */

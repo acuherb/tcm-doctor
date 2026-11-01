@@ -9,7 +9,9 @@
           <el-option v-for="opt in dimOptions('source')" :key="opt.value" :label="opt.label" :value="opt.value">
             <span v-if="opt.color" :style="{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: opt.color, marginRight: '6px', verticalAlign: 'middle' }"></span>
             <span>{{ opt.label }}</span>
-            <span v-if="opt.description" :style="{ fontSize: '12px', color: '#909399', marginLeft: '8px' }">{{ opt.description }}</span>
+            <el-tooltip v-if="opt.description" :content="opt.description" placement="right" :teleported="true">
+              <span class="opt-hint-dot"></span>
+            </el-tooltip>
           </el-option>
         </el-select>
         <el-select v-model="filter.meridian" placeholder="归经" clearable style="width: 160px" @change="loadAcupoints">
@@ -34,15 +36,17 @@
       <el-table :data="acupoints" v-loading="loading" border stripe>
         <el-table-column prop="name" label="穴名" width="110" fixed />
         <el-table-column label="来源" width="130">
-          <template #default="{ row }"><span class="src-pill">{{ row.source || '—' }}</span></template>
+          <template #default="{ row }"><span class="src-pill" :style="tagStyle('source', row.source)">{{ row.source || '—' }}</span></template>
         </el-table-column>
         <el-table-column label="归经" min-width="150">
-          <template #default="{ row }">{{ row.meridian || '—' }}</template>
+          <template #default="{ row }"><span class="src-pill" :style="tagStyle('meridian', row.meridian)">{{ row.meridian || '—' }}</span></template>
         </el-table-column>
         <el-table-column label="部位" min-width="90">
-          <template #default="{ row }">{{ row.region || '—' }}</template>
+          <template #default="{ row }"><span class="src-pill" :style="tagStyle('region', row.region)">{{ row.region || '—' }}</span></template>
         </el-table-column>
-        <el-table-column prop="point_type" label="类型" width="120" />
+        <el-table-column label="类型" width="120">
+          <template #default="{ row }"><span class="src-pill" :style="tagStyle('point_type', row.point_type)">{{ row.point_type || '—' }}</span></template>
+        </el-table-column>
         <el-table-column prop="location" label="定位" min-width="240" show-overflow-tooltip />
         <el-table-column prop="efficacy" label="功效" min-width="220" show-overflow-tooltip />
         <el-table-column label="操作" width="140" fixed="right">
@@ -60,7 +64,7 @@
       <el-card v-for="a in acupoints" :key="a.id" class="m-card" shadow="never">
         <div class="m-head">
           <span class="m-name">{{ a.name }}</span>
-          <span class="src-pill">{{ a.source || '—' }}</span>
+          <span class="src-pill" :style="tagStyle('source', a.source)">{{ a.source || '—' }}</span>
         </div>
         <div class="m-row"><span class="m-label">归经</span><span class="m-val">{{ a.meridian || '—' }}</span></div>
         <div class="m-row"><span class="m-label">部位</span><span class="m-val">{{ a.region || '—' }}</span></div>
@@ -83,7 +87,9 @@
             <el-option v-for="opt in dimOptions('source')" :key="opt.value" :label="opt.label" :value="opt.value">
             <span v-if="opt.color" :style="{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: opt.color, marginRight: '6px', verticalAlign: 'middle' }"></span>
             <span>{{ opt.label }}</span>
-            <span v-if="opt.description" :style="{ fontSize: '12px', color: '#909399', marginLeft: '8px' }">{{ opt.description }}</span>
+            <el-tooltip v-if="opt.description" :content="opt.description" placement="right" :teleported="true">
+              <span class="opt-hint-dot"></span>
+            </el-tooltip>
           </el-option>
           </el-select>
         </el-form-item>
@@ -92,7 +98,9 @@
             <el-option v-for="opt in dimOptions('meridian')" :key="opt.value" :label="opt.label" :value="opt.value">
               <span v-if="opt.color" :style="{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: opt.color, marginRight: '6px', verticalAlign: 'middle' }"></span>
               <span>{{ opt.label }}</span>
-              <span v-if="opt.description" :style="{ fontSize: '12px', color: '#909399', marginLeft: '8px' }">{{ opt.description }}</span>
+              <el-tooltip v-if="opt.description" :content="opt.description" placement="right" :teleported="true">
+                <span class="opt-hint-dot"></span>
+              </el-tooltip>
             </el-option>
           </el-select>
         </el-form-item>
@@ -101,7 +109,9 @@
             <el-option v-for="opt in dimOptions('region')" :key="opt.value" :label="opt.label" :value="opt.value">
               <span v-if="opt.color" :style="{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: opt.color, marginRight: '6px', verticalAlign: 'middle' }"></span>
               <span>{{ opt.label }}</span>
-              <span v-if="opt.description" :style="{ fontSize: '12px', color: '#909399', marginLeft: '8px' }">{{ opt.description }}</span>
+              <el-tooltip v-if="opt.description" :content="opt.description" placement="right" :teleported="true">
+                <span class="opt-hint-dot"></span>
+              </el-tooltip>
             </el-option>
           </el-select>
         </el-form-item>
@@ -110,7 +120,9 @@
             <el-option v-for="opt in dimOptions('point_type')" :key="opt.value" :label="opt.label" :value="opt.value">
               <span v-if="opt.color" :style="{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: opt.color, marginRight: '6px', verticalAlign: 'middle' }"></span>
               <span>{{ opt.label }}</span>
-              <span v-if="opt.description" :style="{ fontSize: '12px', color: '#909399', marginLeft: '8px' }">{{ opt.description }}</span>
+              <el-tooltip v-if="opt.description" :content="opt.description" placement="right" :teleported="true">
+                <span class="opt-hint-dot"></span>
+              </el-tooltip>
             </el-option>
           </el-select>
         </el-form-item>
@@ -191,6 +203,35 @@ const meta = ref<TagMeta>({
 })
 function dimOptions(key: string): TagOption[] {
   return meta.value.dimensions[key]?.options || []
+}
+
+const FALLBACK_TAG_INK = '#606266'
+const FALLBACK_TAG_BG = '#f5f7fa'
+const FALLBACK_TAG_BORDER = '#dcdfe6'
+
+function readableInk(hex: string): string {
+  const c = (hex || '').replace('#', '')
+  if (c.length < 6) return '#333333'
+  const r = parseInt(c.slice(0, 2), 16)
+  const g = parseInt(c.slice(2, 4), 16)
+  const b = parseInt(c.slice(4, 6), 16)
+  const L = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+  return L > 0.6 ? '#333333' : '#ffffff'
+}
+
+function tagColor(dim: string, value: string | null | undefined): string {
+  if (!value) return ''
+  const opt = dimOptions(dim).find((o) => o.value === value)
+  return opt?.color || ''
+}
+
+function tagStyle(dim: string, value: string | null | undefined): Record<string, string> {
+  const color = tagColor(dim, value)
+  if (!color) {
+    return { color: FALLBACK_TAG_INK, backgroundColor: FALLBACK_TAG_BG, borderColor: FALLBACK_TAG_BORDER }
+  }
+  const ink = readableInk(color)
+  return { color: ink, backgroundColor: color, borderColor: ink }
 }
 
 const form = reactive({
@@ -307,7 +348,7 @@ onMounted(() => {
 .toolbar .left { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .table-card { margin-bottom: 12px; }
 .summary { margin-top: 10px; font-size: 12px; color: #909399; }
-.src-pill { display: inline-block; padding: 0 8px; font-size: 12px; line-height: 20px; border: 1px solid #dcdfe6; border-radius: 10px; color: #606266; background: #f5f7fa; white-space: nowrap; }
+.src-pill { display: inline-block; padding: 0 8px; font-size: 12px; line-height: 20px; border: 1px solid transparent; border-radius: 10px; white-space: nowrap; }
 
 /* 移动端卡片 */
 .mobile-cards { display: none; }

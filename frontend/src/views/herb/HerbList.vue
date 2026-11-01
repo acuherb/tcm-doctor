@@ -31,7 +31,9 @@
             <el-option v-for="opt in dimOptions('nature')" :key="opt.value" :label="opt.label" :value="opt.value">
               <span class="opt-dot" :style="{ backgroundColor: xwColor(opt.value) }"></span>
               <span>{{ opt.label }}</span>
-              <span v-if="opt.description" :style="{ fontSize: '12px', color: '#909399', marginLeft: '8px' }">{{ opt.description }}</span>
+              <el-tooltip v-if="opt.description" :content="opt.description" placement="right" :teleported="true">
+                <span class="opt-hint-dot"></span>
+              </el-tooltip>
             </el-option>
           </el-select>
         </el-form-item>
@@ -40,7 +42,9 @@
             <el-option v-for="opt in dimOptions('flavors')" :key="opt.value" :label="opt.label" :value="opt.value">
               <span class="opt-dot" :style="{ backgroundColor: xwColor(opt.value) }"></span>
               <span>{{ opt.label }}</span>
-              <span v-if="opt.description" :style="{ fontSize: '12px', color: '#909399', marginLeft: '8px' }">{{ opt.description }}</span>
+              <el-tooltip v-if="opt.description" :content="opt.description" placement="right" :teleported="true">
+                <span class="opt-hint-dot"></span>
+              </el-tooltip>
             </el-option>
           </el-select>
         </el-form-item>
