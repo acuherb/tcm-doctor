@@ -1,5 +1,18 @@
 # 开发日志 CHANGELOG
 
+## 2026-11-01 — 库存管理入库记录支持编辑纠错（录入字段不再锁死）
+
+### 问题
+入库(`inventory_in`)创建库存批次记录后，前端仅提供"设置预警/仓位"两入口，且 `InventoryUpdate` 只允许改 `min_stock/location/status`——数量、进价、售价、批号、购入日期、有效期、供应商这些录入字段入库后完全无法修改，输错无抢救方案。
+
+### 修复
+- `schemas/herb.py` `InventoryUpdate`：放开可编辑字段（quantity/unit_price/sale_price/batch_number/purchase_date/expiry_date/supplier + 原 min_stock/location/status）。
+- `routers/herb.py` `update_inventory`：售价改动同步药材参考单价 `herb.price`（与入库逻辑一致）；数量被调整时记一条 `调整` 流水(`inventory_transactions`)，纠错可追溯。
+- `frontend/views/herb/InventoryManage.vue`：库存列表/移动端卡片新增"编辑"按钮，弹出对话框可改全部录入字段；复用 `PUT /herbs/inventory/{id}`。
+
+### 验证
+- 临时 token 调 PUT 将数量 100→110 成功，自动生成 `调整` 流水 1 条，还原数据无残留。
+
 ## 2026-11-01 — 修复工作台待办显示已删除患者的回访提醒（bug）
 
 ### 根因

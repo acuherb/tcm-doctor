@@ -299,12 +299,31 @@ def inventory_summary(db: Session = Depends(get_db)):
 
 @router.put("/inventory/{inventory_id}", response_model=InventoryResponse, summary="更新库存记录")
 def update_inventory(inventory_id: int, data: InventoryUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """更新库存记录的预警值、仓位、状态等"""
+    """纠错式更新库存记录：数量/价格/批号/有效期/供应商/预警/仓位/状态均可改。
+    售价改动会同步药材参考单价(元/g)；数量被调整时记一条「调整」流水，便于追溯。"""
     inv = db.query(HerbInventory).filter(HerbInventory.id == inventory_id).first()
     if not inv:
         raise HTTPException(status_code=404, detail="库存记录不存在")
-    for key, value in data.model_dump(exclude_unset=True).items():
+    payload = data.model_dump(exclude_unset=True)
+    old_quantity = float(inv.quantity)
+    for key, value in payload.items():
         setattr(inv, key, value)
+    # 售价改动同步药材参考单价(元/g)，与入库逻辑保持一致
+    if "sale_price" in payload and payload["sale_price"] is not None:
+        herb = inv.herb
+        if herb:
+            herb.price = payload["sale_price"]
+    # 数量被调整时记一条「调整」流水（纠错可追溯）
+    if "quantity" in payload and float(payload["quantity"]) != old_quantity:
+        db.add(InventoryTransaction(
+            herb_id=inv.herb_id,
+            transaction_type="调整",
+            quantity=float(payload["quantity"]) - old_quantity,
+            before_quantity=old_quantity,
+            after_quantity=float(inv.quantity),
+            note="库存纠错调整",
+            operator=current_user.username,
+        ))
     db.commit()
     db.refresh(inv)
     resp = InventoryResponse.model_validate(inv)

@@ -77,8 +77,9 @@
             <el-tag :type="statusTag(row.status)" size="small">{{ row.status }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="160" fixed="right">
+        <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
+            <el-button v-if="editable" link type="warning" size="small" @click="openEdit(row)">编辑</el-button>
             <el-button v-if="editable" link type="primary" size="small" @click="editStock(row)">设置预警</el-button>
             <el-button v-if="editable" link type="danger" size="small" @click="setLocation(row)">仓位</el-button>
           </template>
@@ -124,6 +125,7 @@
             </div>
           </div>
           <div v-if="editable" class="card-actions">
+            <el-button link type="warning" size="small" @click="openEdit(row)">编辑</el-button>
             <el-button link type="primary" size="small" @click="editStock(row)">设置预警</el-button>
             <el-button link type="danger" size="small" @click="setLocation(row)">仓位</el-button>
           </div>
@@ -280,6 +282,72 @@
         <el-button type="primary" @click="saveLocation">保存</el-button>
       </template>
     </el-dialog>
+
+    <!-- 编辑入库记录对话框（录入纠错） -->
+    <el-dialog v-model="editVisible" title="✏️ 编辑入库记录" width="540px" destroy-on-close>
+      <el-form :model="editForm" label-width="92px">
+        <el-form-item label="药材">
+          <span>{{ editForm.herb_name }}</span>
+        </el-form-item>
+        <el-form-item label="入库量(g)">
+          <el-input-number v-model="editForm.quantity" :min="0" :precision="1" style="width:100%" />
+        </el-form-item>
+        <el-row :gutter="12">
+          <el-col :span="12">
+            <el-form-item label="进价(元/g)">
+              <el-input-number v-model="editForm.unit_price" :min="0" :precision="2" style="width:100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="售价(元/g)">
+              <el-input-number v-model="editForm.sale_price" :min="0" :precision="2" style="width:100%" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-form-item label="批号">
+          <el-input v-model="editForm.batch_number" placeholder="批号" />
+        </el-form-item>
+        <el-row :gutter="12">
+          <el-col :span="12">
+            <el-form-item label="购入日期">
+              <el-date-picker v-model="editForm.purchase_date" type="date" value-format="YYYY-MM-DD" placeholder="选择日期" style="width:100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="有效期">
+              <el-date-picker v-model="editForm.expiry_date" type="date" value-format="YYYY-MM-DD" placeholder="选择日期" style="width:100%" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-form-item label="供应商">
+          <el-input v-model="editForm.supplier" placeholder="供应商名称" />
+        </el-form-item>
+        <el-row :gutter="12">
+          <el-col :span="12">
+            <el-form-item label="最低库存(g)">
+              <el-input-number v-model="editForm.min_stock" :min="0" :precision="1" style="width:100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="存放位置">
+              <el-input v-model="editForm.location" placeholder="如：A区3号架" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-form-item label="状态">
+          <el-select v-model="editForm.status" style="width:100%">
+            <el-option label="正常" value="正常" />
+            <el-option label="近效期" value="近效期" />
+            <el-option label="停用" value="停用" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="editVisible = false">取消</el-button>
+        <el-button type="primary" @click="saveEdit" :loading="submitting">保存</el-button>
+      </template>
+    </el-dialog>
+
   </div>
 </template>
 
@@ -529,6 +597,57 @@ async function saveLocation() {
   } catch {
     ElMessage.info('仓位设置已记录')
     locationVisible.value = false
+  }
+}
+
+// ── 编辑入库记录（录入纠错）──
+const editVisible = ref(false)
+const editForm = ref({
+  id: 0, herb_name: '', quantity: 0, unit_price: null as number | null,
+  sale_price: null as number | null, batch_number: '', purchase_date: '',
+  expiry_date: '', supplier: '', min_stock: 0, location: '', status: '正常',
+})
+
+function openEdit(row: any) {
+  editForm.value = {
+    id: row.id,
+    herb_name: row.herb_name || '',
+    quantity: Number(row.quantity) || 0,
+    unit_price: row.unit_price != null ? Number(row.unit_price) : null,
+    sale_price: row.sale_price != null ? Number(row.sale_price) : null,
+    batch_number: row.batch_number || '',
+    purchase_date: row.purchase_date || '',
+    expiry_date: row.expiry_date || '',
+    supplier: row.supplier || '',
+    min_stock: Number(row.min_stock) || 0,
+    location: row.location || '',
+    status: row.status || '正常',
+  }
+  editVisible.value = true
+}
+
+async function saveEdit() {
+  submitting.value = true
+  try {
+    await api.put(`/herbs/inventory/${editForm.value.id}`, {
+      quantity: editForm.value.quantity,
+      unit_price: editForm.value.unit_price,
+      sale_price: editForm.value.sale_price,
+      batch_number: editForm.value.batch_number,
+      purchase_date: editForm.value.purchase_date,
+      expiry_date: editForm.value.expiry_date,
+      supplier: editForm.value.supplier,
+      min_stock: editForm.value.min_stock,
+      location: editForm.value.location,
+      status: editForm.value.status,
+    })
+    ElMessage.success('入库记录已更新')
+    editVisible.value = false
+    loadInventory()
+  } catch (e: any) {
+    ElMessage.error('更新失败：' + (e?.response?.data?.detail || e?.message || '未知错误'))
+  } finally {
+    submitting.value = false
   }
 }
 

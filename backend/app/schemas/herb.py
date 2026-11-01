@@ -111,7 +111,14 @@ class InventoryAlert(BaseModel):
 
 
 class InventoryUpdate(BaseModel):
-    """更新库存记录(预警/仓位等)"""
+    """更新库存记录（支持纠错式编辑：数量/价格/批号/有效期/供应商/预警/仓位/状态）"""
+    quantity: float | None = None
+    unit_price: float | None = None
+    sale_price: float | None = None
+    batch_number: str | None = None
+    purchase_date: str | None = None
+    expiry_date: str | None = None
+    supplier: str | None = None
     min_stock: float | None = None
     location: str | None = None
     status: str | None = None
