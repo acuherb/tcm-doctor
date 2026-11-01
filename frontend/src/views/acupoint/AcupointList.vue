@@ -6,7 +6,11 @@
         <el-input v-model="filter.search" placeholder="搜索穴名" clearable style="width: 200px" @keyup.enter="loadAcupoints" @clear="loadAcupoints" />
         <el-select v-model="filter.source" placeholder="来源" clearable style="width: 150px" @change="loadAcupoints">
           <el-option label="全部来源" value="" />
-          <el-option v-for="s in dimOptions('source')" :key="s" :label="s" :value="s" />
+          <el-option v-for="opt in dimOptions('source')" :key="opt.value" :label="opt.label" :value="opt.value">
+            <span v-if="opt.color" :style="{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: opt.color, marginRight: '6px', verticalAlign: 'middle' }"></span>
+            <span>{{ opt.label }}</span>
+            <span v-if="opt.description" :style="{ fontSize: '12px', color: '#909399', marginLeft: '8px' }">{{ opt.description }}</span>
+          </el-option>
         </el-select>
         <el-select v-model="regionCombo" placeholder="分部" clearable style="width: 200px" @change="onRegionChange">
           <el-option label="全部分部" value="" />
@@ -68,22 +72,38 @@
         <el-form-item label="穴名"><el-input v-model="form.name" /></el-form-item>
         <el-form-item label="来源">
           <el-select v-model="form.source" filterable allow-create default-first-option placeholder="选择或录入" style="width:100%">
-            <el-option v-for="s in dimOptions('source')" :key="s" :label="s" :value="s" />
+            <el-option v-for="opt in dimOptions('source')" :key="opt.value" :label="opt.label" :value="opt.value">
+            <span v-if="opt.color" :style="{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: opt.color, marginRight: '6px', verticalAlign: 'middle' }"></span>
+            <span>{{ opt.label }}</span>
+            <span v-if="opt.description" :style="{ fontSize: '12px', color: '#909399', marginLeft: '8px' }">{{ opt.description }}</span>
+          </el-option>
           </el-select>
         </el-form-item>
         <el-form-item label="归经">
           <el-select v-model="form.meridian" filterable allow-create default-first-option placeholder="选择或录入" style="width:100%">
-            <el-option v-for="m in dimOptions('meridian')" :key="m" :label="m" :value="m" />
+            <el-option v-for="opt in dimOptions('meridian')" :key="opt.value" :label="opt.label" :value="opt.value">
+              <span v-if="opt.color" :style="{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: opt.color, marginRight: '6px', verticalAlign: 'middle' }"></span>
+              <span>{{ opt.label }}</span>
+              <span v-if="opt.description" :style="{ fontSize: '12px', color: '#909399', marginLeft: '8px' }">{{ opt.description }}</span>
+            </el-option>
           </el-select>
         </el-form-item>
         <el-form-item label="部位">
           <el-select v-model="form.region" filterable allow-create default-first-option placeholder="选择或录入" style="width:100%">
-            <el-option v-for="r in dimOptions('region')" :key="r" :label="r" :value="r" />
+            <el-option v-for="opt in dimOptions('region')" :key="opt.value" :label="opt.label" :value="opt.value">
+              <span v-if="opt.color" :style="{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: opt.color, marginRight: '6px', verticalAlign: 'middle' }"></span>
+              <span>{{ opt.label }}</span>
+              <span v-if="opt.description" :style="{ fontSize: '12px', color: '#909399', marginLeft: '8px' }">{{ opt.description }}</span>
+            </el-option>
           </el-select>
         </el-form-item>
         <el-form-item label="类型">
           <el-select v-model="form.point_type" filterable allow-create default-first-option placeholder="选择或录入" style="width:100%">
-            <el-option v-for="t in dimOptions('point_type')" :key="t" :label="t" :value="t" />
+            <el-option v-for="opt in dimOptions('point_type')" :key="opt.value" :label="opt.label" :value="opt.value">
+              <span v-if="opt.color" :style="{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: opt.color, marginRight: '6px', verticalAlign: 'middle' }"></span>
+              <span>{{ opt.label }}</span>
+              <span v-if="opt.description" :style="{ fontSize: '12px', color: '#909399', marginLeft: '8px' }">{{ opt.description }}</span>
+            </el-option>
           </el-select>
         </el-form-item>
         <el-form-item label="定位"><el-input v-model="form.location" type="textarea" :rows="2" /></el-form-item>
@@ -140,10 +160,16 @@ const filter = reactive({ search: '', source: '', meridian: '', region: '' })
 const regionCombo = ref('')
 
 // 字典维度选项（来自 /acupoints/tags/meta）
+interface TagOption {
+  value: string
+  label: string
+  description: string
+  color: string
+}
 interface TagDimension {
   label: string
   multi: boolean
-  options: string[]
+  options: TagOption[]
 }
 interface TagMeta {
   dimensions: { [key: string]: TagDimension }
@@ -156,7 +182,7 @@ const meta = ref<TagMeta>({
     point_type: { label: '类型', multi: false, options: [] },
   },
 })
-function dimOptions(key: string): string[] {
+function dimOptions(key: string): TagOption[] {
   return meta.value.dimensions[key]?.options || []
 }
 

@@ -39,18 +39,30 @@ def list_acupoints(
 @router.get("/tags/meta", summary="穴位属性维度与受控词表（来自数据字典）")
 def acupoint_tag_meta(db: Session = Depends(get_db)):
     """参照 /herbs/tags/meta：返回 来源/归经/部位/类型 四个维度的受控词表，
-    词项由 DictionaryTerm(term_type='acupoint_tag') 提供，字典为空时回退常量默认词表。"""
+    词项由 DictionaryTerm(term_type='acupoint_tag') 提供，字典为空时回退常量默认词表。
+    每个词项附带 description(释义) 与 color(色标)，供前端选择时提示。"""
     terms = db.query(DictionaryTerm).filter(
         DictionaryTerm.term_type == "acupoint_tag", DictionaryTerm.is_active == True
     ).all()
     by_label: dict[str, list] = {}
+    term_info: dict[str, dict] = {}
     for t in terms:
         by_label.setdefault(t.category or "", []).append(t.name)
+        term_info[t.name] = {"description": t.description or "", "color": t.color or ""}
     dimensions: dict[str, dict] = {}
     for key, spec in ACUPOINT_TAG_DIMENSIONS.items():
         label = spec["label"]
-        opts = by_label.get(label) or spec.get("options", [])
-        dimensions[key] = {"label": label, "multi": spec["multi"], "options": opts}
+        names = by_label.get(label) or spec.get("options", [])
+        options = [
+            {
+                "value": n,
+                "label": n,
+                "description": term_info.get(n, {}).get("description", ""),
+                "color": term_info.get(n, {}).get("color", ""),
+            }
+            for n in names
+        ]
+        dimensions[key] = {"label": label, "multi": spec["multi"], "options": options}
     return {"dimensions": dimensions, "tag_suggestions": []}
 
 

@@ -15,10 +15,15 @@ def test_acupoint_tag_meta_dimensions(client, auth_headers):
     dims = r.json()["dimensions"]
     assert set(dims.keys()) == {"source", "meridian", "region", "point_type"}
     assert dims["source"]["label"] == "来源"
-    assert len(dims["source"]["options"]) == 4
-    assert "董氏奇穴" in dims["meridian"]["options"]
-    assert "一一部位" in dims["region"]["options"]
-    assert "特效穴" in dims["point_type"]["options"]
+    opts = dims["source"]["options"]
+    assert len(opts) == 4
+    # options 现为 {value,label,description,color} 对象
+    assert all({"value", "label", "description", "color"} <= set(o.keys()) for o in opts)
+    def has(dimension, name):
+        return any(o["value"] == name for o in dims[dimension]["options"])
+    assert has("meridian", "董氏奇穴")
+    assert has("region", "一一部位")
+    assert has("point_type", "特效穴")
 
 
 def test_acupoint_create_with_new_fields(client, auth_headers, db_session):

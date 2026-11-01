@@ -66,14 +66,25 @@ def herb_tag_meta(db: Session = Depends(get_db)):
         DictionaryTerm.term_type == "herb_tag", DictionaryTerm.is_active == True
     ).all()
     by_label: dict[str, list] = {}
+    term_info: dict[str, dict] = {}
     for t in terms:
         by_label.setdefault(t.category or "", []).append(t.name)
+        term_info[t.name] = {"description": t.description or "", "color": t.color or ""}
 
     dimensions = {}
     for key, spec in HERB_TAG_DIMENSIONS.items():
         label = spec["label"]
-        opts = by_label.get(label) or spec.get("options", [])
-        dimensions[key] = {"label": label, "multi": spec["multi"], "options": opts}
+        names = by_label.get(label) or spec.get("options", [])
+        options = [
+            {
+                "value": n,
+                "label": n,
+                "description": term_info.get(n, {}).get("description", ""),
+                "color": term_info.get(n, {}).get("color", ""),
+            }
+            for n in names
+        ]
+        dimensions[key] = {"label": label, "multi": spec["multi"], "options": options}
     return {"dimensions": dimensions, "tag_suggestions": []}
 
 

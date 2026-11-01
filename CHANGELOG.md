@@ -1,5 +1,19 @@
 # 开发日志 CHANGELOG
 
+## 2026-11-01 — 字典词项释义带入下拉选择提示（acupoint / herb 通用）
+
+### 背景
+数据字典 `DictionaryTerm` 每条词项都带「释义」(description) 与「色标」(color)，但此前 `/acupoints/tags/meta` 与 `/herbs/tags/meta` 只把维度词项返回成纯字符串数组，前端下拉选择时只看得到名字，释义等于白填、失去意义。现把释义与色标一并带到选择时的提醒里。
+
+### 改动
+- 后端 [app/routers/acupuncture.py](file:///home/debian/tcm-doctor/backend/app/routers/acupuncture.py)、[app/routers/herb.py](file:///home/debian/tcm-doctor/backend/app/routers/herb.py) 的 `tags/meta`：每个维度 `options` 由字符串数组升级为对象 `{ value, label, description, color }`，下发释义与色标（字典为空回退常量词表时释义留空）。
+- 前端 [AcupointList.vue](file:///home/debian/tcm-doctor/frontend/src/views/acupoint/AcupointList.vue)：来源筛选 + 编辑弹窗的来源/归经/部位/类型 四个字典驱动下拉，每个选项显示「色点 + 名称 + 释义（灰色小字）」；`dimOptions` 返回类型改为 `TagOption[]`。
+- 前端 [HerbList.vue](file:///home/debian/tcm-doctor/frontend/src/views/herb/HerbList.vue)：四气/五味 筛选与编辑下拉同样显示释义（颜色点沿用原有 `xwColor`）；`dimOptions` 返回类型改为 `any[]`。
+- 测试 [tests/test_acupoints.py](file:///home/debian/tcm-doctor/backend/tests/test_acupoints.py)：meta 断言改为按对象结构校验（`value/label/description/color` 齐备，并按 `value` 判定维度包含关系）。
+
+### 数据
+- 运行库 `acupoint_tag` 字典此前偏旧，缺 `来源` 维度的「倪海厦·针灸 / 通用」两条；已重跑幂等种子补全（现 来源 4 / 归经 16 / 部位 18 / 类型 16，共 54 条，全部带释义）。
+
 ## 2026-10-31 — 针灸穴位字典化重构（复用 herb_tag 受控词表模式，支持三体系混排）
 
 ### 背景

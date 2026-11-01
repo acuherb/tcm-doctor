@@ -28,15 +28,19 @@
         </el-form-item>
         <el-form-item label="四气">
           <el-select v-model="natureFilter" placeholder="全部" clearable @change="loadHerbs" style="width:110px">
-            <el-option v-for="o in dimOptions('nature')" :key="o" :label="o" :value="o">
-              <span class="opt-dot" :style="{ backgroundColor: xwColor(o) }"></span>{{ o }}
+            <el-option v-for="opt in dimOptions('nature')" :key="opt.value" :label="opt.label" :value="opt.value">
+              <span class="opt-dot" :style="{ backgroundColor: xwColor(opt.value) }"></span>
+              <span>{{ opt.label }}</span>
+              <span v-if="opt.description" :style="{ fontSize: '12px', color: '#909399', marginLeft: '8px' }">{{ opt.description }}</span>
             </el-option>
           </el-select>
         </el-form-item>
         <el-form-item label="五味">
           <el-select v-model="flavorFilters" multiple collapse-tags clearable placeholder="多选" @change="loadHerbs" style="width:150px">
-            <el-option v-for="o in dimOptions('flavors')" :key="o" :label="o" :value="o">
-              <span class="opt-dot" :style="{ backgroundColor: xwColor(o) }"></span>{{ o }}
+            <el-option v-for="opt in dimOptions('flavors')" :key="opt.value" :label="opt.label" :value="opt.value">
+              <span class="opt-dot" :style="{ backgroundColor: xwColor(opt.value) }"></span>
+              <span>{{ opt.label }}</span>
+              <span v-if="opt.description" :style="{ fontSize: '12px', color: '#909399', marginLeft: '8px' }">{{ opt.description }}</span>
             </el-option>
           </el-select>
         </el-form-item>
@@ -217,7 +221,7 @@ const pregOnly = ref(false)
 
 // 标签维度与受控词表（来自后端 /herbs/tags/meta）
 const meta = ref<any>({ dimensions: {}, tag_suggestions: [] })
-function dimOptions(dim: string): string[] {
+function dimOptions(dim: string): any[] {
   return meta.value?.dimensions?.[dim]?.options || []
 }
 
