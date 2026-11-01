@@ -81,6 +81,21 @@
                 @select="(h: any) => onHerbSelect(idx, h)"
                 width="180px"
               />
+              <el-select
+                v-if="item.herb_id && batchesForHerb(item.herb_id).length"
+                v-model="item.inventory_id"
+                placeholder="选批次"
+                clearable
+                style="width:200px;"
+                @change="(id: any) => onBatchChange(idx, id)"
+              >
+                <el-option
+                  v-for="b in batchesForHerb(item.herb_id)"
+                  :key="b.id"
+                  :label="`${b.batch_number || '无批号'} 余${b.quantity}g/￥${b.sale_price ?? '—'}`"
+                  :value="b.id"
+                />
+              </el-select>
               <el-input-number v-model="item.dose" :min="0.5" :max="200" :precision="1"
                 placeholder="剂量" style="width:120px;" />
               <span style="font-size:13px;color:#999;">g</span>
@@ -393,6 +408,7 @@ const form = ref({
     is_king_herb: boolean
     note: string
     price?: number | null
+    inventory_id?: number | null
     _warnings?: string[]
   }>,
   acupoints: [] as Array<{
@@ -499,8 +515,16 @@ function onAcupointChange(idx: number, name: string) {
 function onHerbSelect(idx: number, herb: any) {
   if (herb) {
     form.value.items[idx].herb_name = herb.name
-    // 记录单价（参考中药材参考价），用于开方时实时预估金额
-    form.value.items[idx].price = herb.price ?? null
+    // 按批次取价：自动选第一个可用批次，用其售价作为单价；无批次则回退药材参考价
+    const batches = batchesForHerb(herb.id)
+    if (batches.length) {
+      const b = batches[0]
+      form.value.items[idx].inventory_id = b.id
+      form.value.items[idx].price = b.sale_price != null ? Number(b.sale_price) : (herb.price ?? null)
+    } else {
+      form.value.items[idx].inventory_id = null
+      form.value.items[idx].price = herb.price ?? null
+    }
     // 自动填充建议剂量（取中间值）
     const mid = Math.round(((herb.dosage_min || 3) + (herb.dosage_max || 10)) / 2)
     if (!form.value.items[idx].dose || form.value.items[idx].dose === 10) {
@@ -508,6 +532,14 @@ function onHerbSelect(idx: number, herb: any) {
     }
   }
   runSafetyCheck()
+}
+
+// 手动改选批次：用该批次售价更新单价
+function onBatchChange(idx: number, id: any) {
+  const b = inventoryBatches.value.find((x: any) => x.id === id)
+  if (b) {
+    form.value.items[idx].price = b.sale_price != null ? Number(b.sale_price) : null
+  }
 }
 
 function onPatientChange(patientId: number) {
@@ -668,6 +700,21 @@ async function applyAiFormula(f: any) {
 
 const herbCacheList = ref<any[]>([])
 
+// 库存批次（用于开方按批次取价/出货）
+const inventoryBatches = ref<any[]>([])
+async function loadInventoryBatches() {
+  try {
+    inventoryBatches.value = (await api.get('/herbs/inventory') as any) || []
+  } catch {}
+}
+// 某药材的可用批次（正常/近效期，余量>0），供开方选择
+function batchesForHerb(herbId: number | null): any[] {
+  if (!herbId) return []
+  return inventoryBatches.value.filter(
+    (b: any) => b.herb_id === herbId && (b.status === '正常' || b.status === '近效期') && Number(b.quantity) > 0
+  )
+}
+
 // ── 提交处方 ──
 async function submitPrescription() {
   if (!form.value.patient_id) { ElMessage.warning('请选择患者'); return }
@@ -707,6 +754,8 @@ async function doSubmit() {
         special_method: i.special_method,
         is_king_herb: i.is_king_herb,
         note: i.note,
+        inventory_id: i.inventory_id ?? null,
+        price: i.price ?? null,
       })),
       acupoints: form.value.acupoints
         .filter((a: any) => a.acupoint_name)
@@ -752,7 +801,8 @@ function applyPrescription(p: any) {
   f.acupuncture_fee = p.acupuncture_fee ?? null
   f.items = (p.items || []).map((i: any) => ({
     herb_id: i.herb_id, herb_name: i.herb_name, dose: i.dose,
-    special_method: i.special_method, is_king_herb: i.is_king_herb, note: i.note, _warnings: [],
+    special_method: i.special_method, is_king_herb: i.is_king_herb, note: i.note,
+    inventory_id: i.inventory_id ?? null, price: i.price ?? null, _warnings: [],
   }))
   f.acupoints = (p.acupoints || []).map((a: any) => ({
     acupoint_id: a.acupoint_id, acupoint_name: a.acupoint_name,
@@ -834,6 +884,7 @@ onMounted(async () => {
   loadHerbList()
   loadAcupoints()
   loadAcupointFormulas()
+  await loadInventoryBatches()
 
   // 编辑态：从详情接口回显整张处方（含 4 个针灸方字段）
   const q = route.query

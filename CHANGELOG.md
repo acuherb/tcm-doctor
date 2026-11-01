@@ -1,5 +1,19 @@
 # 开发日志 CHANGELOG
 
+## 2026-11-01 — 开方支持按批次取价与按批次出货
+
+### 背景
+入库时填的售价落在 `HerbInventory.sale_price`（批次级）。此前开方计价只取"药材参考价 herb.price"或"第一个正常批次售价"，同一药材多次入库售价不同时取价不准；发药是 FIFO 全局扣，不认批次。
+
+### 改动
+- `PrescriptionItem` 模型新增 `inventory_id`（关联库存批次，可选）与 `price`（记账单价）；数据库已迁移加列（`migrate_prescription_item_batch.py` 幂等脚本）。
+- `PrescriptionItemCreate/Response` 增加 `inventory_id`/`price` 字段。
+- 前端 `PrescriptionEditor`：选药材后自动选第一个可用批次并用其售价取价；药材行新增「批次」下拉可手动改选（显示批号/余量/售价）；提交与编辑回显均带 `inventory_id`/`price`。
+- 后端 `prescription.py`：计价 `_compute_total_price` 优先使用处方项记录的单价（批次售价）；发药 `dispense` 有 `inventory_id` 时按所选批次出货（不足报错），无则 FIFO 回退（兼容旧处方）。
+
+### 验证
+- 端到端：开方选批次(售价9.9/g) → total_price=售价×剂量×剂数 正确；审核→发药后该批次库存精确减少(剂量×剂数)，出库流水 note 标记批次号；测试数据已清理还原。
+
 ## 2026-11-01 — 修复库存出库"没反应"：补全前端错误处理与校验提示
 
 ### 现象

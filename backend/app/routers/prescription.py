@@ -231,13 +231,16 @@ def _compute_total_price(db: Session, items, doses: int, acupuncture_fee: float 
                 else:
                     price_map[inv.herb_id] = None
         for it in items:
-            p = price_map.get(it.herb_id)
+            # 优先使用处方项上记录的单价（开方时按所选批次售价确定）
+            p = getattr(it, "price", None)
             if p is None:
-                h = herbs.get(it.herb_id)
-                if h is not None and h.price is not None:
-                    p = float(h.price)
+                p = price_map.get(it.herb_id)
+                if p is None:
+                    h = herbs.get(it.herb_id)
+                    if h is not None and h.price is not None:
+                        p = float(h.price)
             if p is not None:
-                herb_total += p * float(it.dose) * (doses or 1)
+                herb_total += float(p) * float(getattr(it, "dose", 0)) * (doses or 1)
                 has_price = True
     if not has_price and fee <= 0:
         return None
@@ -288,6 +291,8 @@ def create_prescription(data: PrescriptionCreate, current_user: User = Depends(g
             special_method=item_data.special_method,
             is_king_herb=item_data.is_king_herb,
             note=note,
+            inventory_id=item_data.inventory_id,
+            price=item_data.price,
         )
         db.add(item)
 
@@ -397,6 +402,7 @@ def update_prescription(prescription_id: int, data: PrescriptionCreate, current_
         rebuilt_items.append(PrescriptionItem(
             herb_id=i.herb_id, herb_name=i.herb_name, dose=i.dose,
             special_method=i.special_method, is_king_herb=i.is_king_herb, note=note,
+            inventory_id=i.inventory_id, price=i.price,
         ))
     prescription.items = rebuilt_items
     prescription.acupoints = [
@@ -479,37 +485,60 @@ def dispense_prescription(prescription_id: int, current_user: User = Depends(get
 
         for item in fresh.items:
             total_qty = float(item.dose) * fresh.doses
-            available = db.query(HerbInventory).filter(
-                HerbInventory.herb_id == item.herb_id,
-                HerbInventory.status == "正常",
-            ).with_for_update().all()
-            avail_total = sum(float(inv.quantity) for inv in available)
+            if item.inventory_id:
+                # 按开方所选批次出货：扣对应批次，不足则报错（避免跨批次误扣）
+                inv = db.query(HerbInventory).filter(
+                    HerbInventory.id == item.inventory_id
+                ).with_for_update().first()
+                avail = float(inv.quantity) if inv else 0
+                if not inv or avail < total_qty:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"批次库存不足: {item.herb_name} 需{total_qty}g，所选批次可用{avail}g",
+                    )
+                before = avail
+                inv.quantity = before - total_qty
+                db.add(InventoryTransaction(
+                    herb_id=inv.herb_id,
+                    transaction_type="出库",
+                    quantity=total_qty,
+                    before_quantity=before,
+                    after_quantity=float(inv.quantity),
+                    reference_id=fresh.id,
+                    note=f"处方#{fresh.id}发药(批次#{inv.id})",
+                ))
+            else:
+                # 兼容旧处方（未选批次）：FIFO 全局扣减
+                available = db.query(HerbInventory).filter(
+                    HerbInventory.herb_id == item.herb_id,
+                    HerbInventory.status == "正常",
+                ).with_for_update().all()
+                avail_total = sum(float(inv.quantity) for inv in available)
 
-            if avail_total < total_qty:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"库存不足: {item.herb_name} 需{total_qty}g，可用{avail_total}g",
-                )
+                if avail_total < total_qty:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"库存不足: {item.herb_name} 需{total_qty}g，可用{avail_total}g",
+                    )
 
-            remaining = total_qty
-            for inv in available:
-                if remaining <= 0:
-                    break
-                deduct = min(float(inv.quantity), remaining)
-                inv.quantity = float(inv.quantity) - deduct
-                remaining -= deduct
+                remaining = total_qty
+                for inv in available:
+                    if remaining <= 0:
+                        break
+                    deduct = min(float(inv.quantity), remaining)
+                    inv.quantity = float(inv.quantity) - deduct
+                    remaining -= deduct
 
-            # 记录出库
-            txn = InventoryTransaction(
-                herb_id=item.herb_id,
-                transaction_type="出库",
-                quantity=total_qty,
-                before_quantity=avail_total,
-                after_quantity=avail_total - total_qty,
-                reference_id=fresh.id,
-                note=f"处方#{fresh.id}发药",
-            )
-            db.add(txn)
+                # 记录出库
+                db.add(InventoryTransaction(
+                    herb_id=item.herb_id,
+                    transaction_type="出库",
+                    quantity=total_qty,
+                    before_quantity=avail_total,
+                    after_quantity=avail_total - total_qty,
+                    reference_id=fresh.id,
+                    note=f"处方#{fresh.id}发药",
+                ))
 
         fresh.total_price = _compute_total_price(db, fresh.items, fresh.doses, fresh.acupuncture_fee)
         fresh.status = "已发药"

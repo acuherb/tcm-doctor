@@ -11,6 +11,8 @@ class PrescriptionItemCreate(BaseModel):
     special_method: str | None = Field(None, description="特殊煎法")
     is_king_herb: bool = False
     note: str | None = None
+    inventory_id: int | None = Field(None, description="关联库存批次(可选，按批次取价/出货)")
+    price: float | None = Field(None, description="该味记账单价(元/g)，不传则由后端按批次售价/药材参考价计算")
 
 
 class AcupointPrescriptionCreate(BaseModel):
@@ -73,6 +75,8 @@ class PrescriptionItemResponse(BaseModel):
     special_method: str | None
     is_king_herb: bool
     note: str | None
+    inventory_id: int | None = None
+    price: float | None = None
 
     model_config = {"from_attributes": True}
 
