@@ -96,6 +96,9 @@
                   :value="b.id"
                 />
               </el-select>
+              <span v-if="item.inventory_id && selectedBatch(item)" :style="{ fontSize:'12px', color: batchShort(item) ? '#f56c6c' : '#67c23a', whiteSpace:'nowrap' }">
+                需{{ batchNeed(item) }}g/余{{ selectedBatch(item).quantity }}g
+              </span>
               <el-input-number v-model="item.dose" :min="0.5" :max="200" :precision="1"
                 placeholder="剂量" style="width:120px;" />
               <span style="font-size:13px;color:#999;">g</span>
@@ -540,6 +543,20 @@ function onBatchChange(idx: number, id: any) {
   if (b) {
     form.value.items[idx].price = b.sale_price != null ? Number(b.sale_price) : null
   }
+}
+
+// 批次余量提示：本次需要量 vs 所选批次余量
+function selectedBatch(item: any): any {
+  if (!item.inventory_id) return null
+  return inventoryBatches.value.find((b: any) => b.id === item.inventory_id) || null
+}
+function batchNeed(item: any): number {
+  return Math.round(Number(item.dose || 0) * (Number(form.value.doses) || 1) * 100) / 100
+}
+function batchShort(item: any): boolean {
+  const b = selectedBatch(item)
+  if (!b) return false
+  return Number(b.quantity) < batchNeed(item)
 }
 
 function onPatientChange(patientId: number) {
