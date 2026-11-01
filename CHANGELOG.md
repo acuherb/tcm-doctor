@@ -1,5 +1,16 @@
 # 开发日志 CHANGELOG
 
+## 2026-11-01 — 修复工作台待办显示已删除患者的回访提醒（bug）
+
+### 根因
+- 删除患者时 `delete_patient` 未级联清理 `followup_reminders`（复诊回访提醒）表，且 `Patient` 模型未声明其与 `FollowUpReminder` 的 relationship，导致患者删除后留下孤儿提醒。
+- 工作台 `stats/dashboard` 与 `followup-reminders` 列表查询均未排除已删患者：孤儿提醒仍计入"待回访 N 位"并展示，`patient_name` 为 None、`patient_id` 指向已删患者，点进去 404。
+
+### 修复
+- `patient.py` `delete_patient`：新增 4.6 步显式 `DELETE FROM followup_reminders WHERE patient_id=...`，根因上不再产生孤儿。
+- `stats.py` `dashboard_stats` 与 `followup_reminders.py` `list_reminders`：查完后用 `patient_id ∈ 现有患者集合` 过滤，防御性排除孤儿（历史数据存在也不展示/不计数）。
+- 一次性清理历史孤儿数据：删除 1 条已删患者的回访提醒（即本次反馈的"待回访 1 位 / 已逾期 2026-10-15 复诊"）。
+
 ## 2026-11-01 — 穴位库「归经 / 部位」拆分布局 + 补全部位数据 + 按部位筛选
 
 ### 改动

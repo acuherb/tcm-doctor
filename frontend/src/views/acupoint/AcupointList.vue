@@ -52,7 +52,7 @@
           </template>
         </el-table-column>
       </el-table>
-      <div class="summary">共 {{ acupoints.length }} 个穴位（三体系：针灸大成 / 董氏奇穴 / 倪海厦·针灸 混排，维度均可字典自定义）</div>
+      <div class="summary">共 {{ acupoints.length }} 个穴位（维度均可字典自定义）</div>
     </el-card>
 
     <!-- 移动端卡片 -->

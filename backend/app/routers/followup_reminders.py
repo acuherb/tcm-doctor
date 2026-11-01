@@ -66,6 +66,8 @@ def list_reminders(
 
     pids = {r.patient_id for r in rows}
     pmap = {p.id: p.name for p in db.query(Patient).filter(Patient.id.in_(pids)).all()} if pids else {}
+    # 排除已删除患者的孤儿提醒，避免列表出现无名/失效提醒
+    rows = [r for r in rows if r.patient_id in pmap]
     today = date.today().isoformat()
     return [
         _serialize(r, pmap.get(r.patient_id), r.due_date < today and r.status == "pending")

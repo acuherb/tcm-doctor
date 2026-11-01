@@ -57,9 +57,11 @@ def dashboard_stats(db: Session = Depends(get_db)):
         .filter(FollowUpReminder.status == "pending", FollowUpReminder.due_date <= today.isoformat())
         .all()
     )
-    pending_followups = len(due_reminders)
     rpids = {r.patient_id for r in due_reminders}
     rmap = {p.id: p.name for p in db.query(Patient).filter(Patient.id.in_(rpids)).all()} if rpids else {}
+    # 排除已删除患者的孤儿提醒（历史删除未级联清理的），避免待办计数/展示指向不存在的患者
+    due_reminders = [r for r in due_reminders if r.patient_id in rmap]
+    pending_followups = len(due_reminders)
     followup_reminders = [
         {
             "id": r.id,

@@ -175,6 +175,10 @@ def delete_patient(patient_id: int, current_user: User = Depends(get_current_use
     # 4.5) 病情跟踪
     db.query(FollowUp).filter(FollowUp.patient_id == patient_id).delete(synchronize_session=False)
 
+    # 4.6) 随访提醒（复诊回访：独立于病情跟踪，且 Patient 未声明其 relationship，需显式清理避免孤儿记录）
+    from app.models.followup_reminder import FollowUpReminder
+    db.query(FollowUpReminder).filter(FollowUpReminder.patient_id == patient_id).delete(synchronize_session=False)
+
     # 5) 患者本身
     db.query(Patient).filter(Patient.id == patient_id).delete(synchronize_session=False)
 
