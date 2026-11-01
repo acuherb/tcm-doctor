@@ -13,6 +13,7 @@ from app.config import settings
 from app.database import get_db
 from app.models.user import User, AuthToken
 from app.schemas.auth import LoginRequest, TokenOut, UserOut, ChangePasswordRequest
+from app.utils.operation_log import write_log
 
 # 简单内存登录限流：同一 IP+用户名 在窗口内失败次数过多则拒绝
 _LOGIN_MAX_FAILS = 5
@@ -104,10 +105,16 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
     user = db.query(User).filter(User.username == payload.username).first()
     if not user or not _verify_password(payload.password, user.password_hash):
         _login_fails.setdefault(fail_key, []).append(datetime.now())
+        write_log(level="WARN", username=payload.username, action="登录",
+                  endpoint="/api/v1/auth/login", method="POST", status_code=401,
+                  success=False, message="用户名或密码错误", ip=client_ip)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="用户名或密码错误")
 
     _login_fails.pop(fail_key, None)
     token = _issue_token(db, user)
+    write_log(level="INFO", user_id=user.id, username=user.username, action="登录",
+              endpoint="/api/v1/auth/login", method="POST", status_code=200,
+              success=True, message="登录成功", ip=client_ip)
     return TokenOut(
         token=token.token,
         user=UserOut.model_validate(user),
@@ -133,6 +140,9 @@ def guest_login(request: Request, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="游客账号不存在")
     token = _issue_token(db, user)
+    write_log(level="INFO", user_id=user.id, username=user.username, action="游客登录",
+              endpoint="/api/v1/auth/guest", method="POST", status_code=200,
+              success=True, message="游客一键登录", ip=client_ip)
     return TokenOut(token=token.token, user=UserOut.model_validate(user))
 
 
@@ -144,11 +154,22 @@ def me(current_user: User = Depends(get_current_user)):
 @router.post("/logout", summary="退出登录")
 def logout(
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+    request: Request = None,
     db: Session = Depends(get_db),
 ):
+    uid = username = None
+    ip = request.client.host if request else "unknown"
     if credentials is not None:
+        rec = db.query(AuthToken).filter(AuthToken.token == credentials.credentials).first()
+        if rec:
+            u = db.query(User).filter(User.id == rec.user_id).first()
+            if u:
+                uid, username = u.id, u.username
         db.query(AuthToken).filter(AuthToken.token == credentials.credentials).delete()
         db.commit()
+    write_log(level="INFO", user_id=uid, username=username, action="登出",
+              endpoint="/api/v1/auth/logout", method="POST", status_code=200,
+              success=True, message="退出登录", ip=ip)
     return {"message": "已退出登录"}
 
 

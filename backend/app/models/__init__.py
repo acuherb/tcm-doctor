@@ -9,6 +9,7 @@ from app.models.herb import Herb
 from app.models.stock import (
     StockItem, StockBatch, StockTransaction, Supplier, PurchaseOrder, PurchaseItem,
 )
+from app.models.log import OperationLog
 from app.models.prescription import ClassicFormula, Prescription, PrescriptionItem
 from app.models.knowledge import KnowledgeEntry
 from app.models.conversation import Conversation, Message
@@ -39,4 +40,5 @@ __all__ = [
     "AcupointFormula",
     "User",
     "AuthToken",
+    "OperationLog",
 ]

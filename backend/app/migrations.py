@@ -323,6 +323,71 @@ def m0006() -> None:
 
 
 @migration(
+    "0009",
+    "兜底补齐进销存财务列(条码/供应商/金额)：防止 m0007 版本已登记但补列体未生效导致列缺失",
+)
+def m0009() -> None:
+    """兜底迁移：确保库存三表的财务/条码/供应商列一定存在。
+
+    背景：m0007 负责补这些列，但某些现网库在 m0007 版本号被登记时，
+    实际执行的补列体与该版本号不符（迁移体曾被改写），导致列长期缺失、
+    库存接口在运行时报 'no such column'。此处用全新版本号强制补齐，幂等。
+    """
+    _add_column("stock_items", "barcode", "VARCHAR(40)")
+    _add_column("stock_items", "default_supplier_id", "INTEGER")
+    _add_column("stock_batches", "barcode", "VARCHAR(40)")
+    _add_column("stock_batches", "supplier_id", "INTEGER")
+    _add_column("stock_transactions", "unit_cost", "NUMERIC(10,2)")
+    _add_column("stock_transactions", "unit_price", "NUMERIC(10,2)")
+    _add_column("stock_transactions", "cost_amount", "NUMERIC(14,2)")
+    _add_column("stock_transactions", "revenue_amount", "NUMERIC(14,2)")
+
+    from app.database import SessionLocal
+    from app.models.stock import StockItem, StockBatch, StockTransaction
+
+    db = SessionLocal()
+    try:
+        items = db.query(StockItem).filter(StockItem.barcode.is_(None)).all()
+        for it in items:
+            it.barcode = f"IT{it.id:08d}"
+        batches = db.query(StockBatch).filter(StockBatch.barcode.is_(None)).all()
+        for b in batches:
+            b.barcode = f"BA{b.id:08d}"
+        if items or batches:
+            db.commit()
+
+        txns = db.query(StockTransaction).filter(StockTransaction.cost_amount.is_(None)).all()
+        if txns:
+            item_sell = {
+                i.id: float(i.sell_price)
+                for i in db.query(StockItem).all() if i.sell_price is not None
+            }
+            batch_cost = {
+                b.id: float(b.unit_price)
+                for b in db.query(StockBatch).all() if b.unit_price is not None
+            }
+            for t in txns:
+                uc = batch_cost.get(t.batch_id) if t.batch_id else None
+                q = float(t.quantity)
+                if t.transaction_type == "入库":
+                    t.unit_cost = uc
+                    t.cost_amount = (q * uc) if uc is not None else None
+                    t.revenue_amount = 0.0
+                elif t.transaction_type in ("出库", "损耗", "盘点", "调整"):
+                    t.unit_cost = uc
+                    t.cost_amount = (-q * uc) if uc is not None else None
+                    if t.reference_type == "处方":
+                        sell = item_sell.get(t.item_id)
+                        t.unit_price = sell
+                        t.revenue_amount = (q * sell) if sell is not None else 0.0
+                    else:
+                        t.revenue_amount = 0.0
+            db.commit()
+    finally:
+        db.close()
+
+
+@migration(
     "0007",
     "进销存财务化：为已有表补充金额列/条码列(suppliers/purchase_* 由 create_all 新建)，并回填流水成本收入与生成条码",
 )

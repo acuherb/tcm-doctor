@@ -151,6 +151,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/settings/Settings.vue'),
         meta: { title: '系统设置', icon: 'Setting' },
       },
+      {
+        path: 'system/logs',
+        name: 'OperationLog',
+        component: () => import('@/views/system/OperationLog.vue'),
+        meta: { title: '操作日志', icon: 'Document' },
+      },
     ],
   },
 ]

@@ -95,6 +95,10 @@
           <el-icon><Setting /></el-icon>
           <template #title>系统设置</template>
         </el-menu-item>
+        <el-menu-item index="/system/logs">
+          <el-icon><Document /></el-icon>
+          <template #title>操作日志</template>
+        </el-menu-item>
       </el-menu>
 
       <div class="sidebar-toggle" @click="isCollapsed = !isCollapsed">

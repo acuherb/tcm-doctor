@@ -1,6 +1,8 @@
 """FastAPI 主入口"""
 import logging
 import os
+import time
+import json
 from contextlib import asynccontextmanager
 from datetime import datetime
 
@@ -19,6 +21,7 @@ from app.models.user import User, AuthToken
 from app.routers import patient, herb, prescription, knowledge, diagnosis, dictionaries, acupuncture
 from app.routers import acupoint_formula
 from app.routers import stats, backup, auth, followup_reminders, stock
+from app.routers import system_log
 from app.routers.auth import get_current_user
 
 WRITE_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
@@ -78,6 +81,16 @@ app.add_middleware(
 # 所有异常统一以 {"detail": ...} 形状返回，避免 500 泄漏堆栈，便于前端统一解析。
 @app.exception_handler(HTTPException)
 async def _http_exception_handler(request: Request, exc: HTTPException):
+    if exc.status_code >= 500:
+        try:
+            from app.utils.operation_log import write_log
+            tb = "".join(__import__("traceback").format_exception(type(exc), exc, exc.__traceback__))
+            write_log(level="ERROR", action=request.url.path, endpoint=request.url.path,
+                      method=request.method, status_code=exc.status_code, success=False,
+                      message=str(exc.detail)[:500], error_detail=tb,
+                      ip=request.client.host if request.client else "unknown")
+        except Exception:
+            pass
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
 
@@ -89,6 +102,17 @@ async def _validation_exception_handler(request: Request, exc: RequestValidation
 @app.exception_handler(Exception)
 async def _unhandled_exception_handler(request: Request, exc: Exception):
     logger.exception("未处理的异常: %s %s", request.method, request.url.path)
+    tb = "".join(__import__("traceback").format_exception(type(exc), exc, exc.__traceback__))
+    try:
+        from app.utils.operation_log import write_log
+        uid = getattr(request.state, "user_id", None)
+        uname = getattr(request.state, "username", None)
+        write_log(level="ERROR", user_id=uid, username=uname, action=request.url.path,
+                  endpoint=request.url.path, method=request.method, status_code=500,
+                  success=False, message=str(exc)[:500], error_detail=tb,
+                  ip=request.client.host if request.client else "unknown")
+    except Exception:
+        pass
     return JSONResponse(status_code=500, content={"detail": "服务器内部错误，请联系管理员"})
 
 
@@ -144,6 +168,106 @@ async def require_admin_for_writes(request: Request, call_next):
 
     return await call_next(request)
 
+
+# ── 操作日志自动采集中间件 ──
+# 覆盖所有 /api/v1 请求：记录谁/何时/哪个接口/方法/状态码/耗时/IP；4xx 记 WARN 并捕获 detail，
+# 5xx 记 ERROR；登录/登出/游客登录由 auth 路由显式审计(避免重复)，此处跳过。
+from app.utils.operation_log import write_log
+
+_ACTION_MAP = {
+    "/api/v1/auth/password": "修改密码",
+    "/api/v1/stock/batches/in": "入库",
+    "/api/v1/stock/batches/out": "出库",
+    "/api/v1/stock/batches/writeoff": "报损核销",
+    "/api/v1/stock/purchases": "采购入库",
+    "/api/v1/stock/check": "盘点",
+    "/api/v1/stock/items": "物品管理",
+    "/api/v1/stock/batches": "批次管理",
+    "/api/v1/stock/transactions": "出入库流水",
+    "/api/v1/stock/alerts": "库存预警",
+    "/api/v1/prescriptions": "处方",
+    "/api/v1/backup/export": "数据备份",
+    "/api/v1/backup/import": "数据恢复",
+    "/api/v1/backup/reset": "数据清空",
+}
+_EXPLICIT_AUDIT_PATHS = {
+    "/api/v1/auth/login", "/api/v1/auth/logout", "/api/v1/auth/guest",
+}
+
+
+@app.middleware("http")
+async def operation_log_middleware(request: Request, call_next):
+    path = request.url.path
+    if not path.startswith("/api/v1") or path in _EXPLICIT_AUDIT_PATHS:
+        return await call_next(request)
+
+    method = request.method
+    ip = request.client.host if request.client else "unknown"
+    token = _extract_token(request)
+    user_id = None
+    username = None
+    if token:
+        db = SessionLocal()
+        try:
+            rec = db.query(AuthToken).filter(AuthToken.token == token).first()
+            if rec and rec.expires_at >= datetime.now():
+                u = db.query(User).filter(User.id == rec.user_id).first()
+                if u:
+                    user_id, username = u.id, u.username
+        finally:
+            db.close()
+
+    start = time.perf_counter()
+    status_code = 500
+    message = None
+    error_detail = None
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+        if status_code >= 400 and hasattr(response, "body"):
+            try:
+                body = json.loads(response.body.decode())
+                message = body.get("detail") if isinstance(body, dict) else None
+            except Exception:
+                pass
+    except Exception as exc:  # 未被全局异常处理器捕获的兜底：记 ERROR 并保留堆栈，再原样抛出
+        status_code = 500
+        error_detail = "".join(
+            __import__("traceback").format_exception(type(exc), exc, exc.__traceback__)
+        )
+        message = str(exc)
+        duration = round((time.perf_counter() - start) * 1000, 1)
+        write_log(
+            level="ERROR", user_id=user_id, username=username, action=_ACTION_MAP.get(path, path),
+            endpoint=path, method=method, status_code=500, success=False,
+            message=message, error_detail=error_detail, ip=ip, duration_ms=duration,
+        )
+        raise
+
+    duration = round((time.perf_counter() - start) * 1000, 1)
+    if status_code >= 500:
+        level, success = "ERROR", False
+    elif status_code >= 400:
+        level, success = "WARN", False
+    else:
+        level, success = "INFO", True
+    action = _ACTION_MAP.get(path)
+    if not action:
+        # 取路径末两段作为动作描述（如 /api/v1/prescriptions/123/dispense -> prescriptions/dispense）
+        parts = [p for p in path.split("/") if p and p != "api" and p != "v1"]
+        action = "/".join(parts[-2:]) if len(parts) >= 2 else (parts[0] if parts else path)
+
+    # 5xx 由全局异常处理器统一记 ERROR(含堆栈)，此处不再重复；其余按级别记录。
+    if status_code < 500:
+        write_log(
+            level=level, user_id=user_id, username=username, action=action,
+            endpoint=path, method=method, status_code=status_code, success=success,
+            message=message, error_detail=error_detail, ip=ip, duration_ms=duration,
+        )
+    # 重新取回 response（上方已 await 得到）
+    return response
+
+
 # 注册路由
 app.include_router(patient.router, prefix="/api/v1")
 app.include_router(herb.router, prefix="/api/v1")
@@ -158,6 +282,7 @@ app.include_router(acupuncture.router, prefix="/api/v1")
 app.include_router(acupoint_formula.router, prefix="/api/v1")
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(followup_reminders.router, prefix="/api/v1")
+app.include_router(system_log.router, prefix="/api/v1")
 
 
 @app.get("/health", tags=["系统"])
