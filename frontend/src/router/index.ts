@@ -50,16 +50,34 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '药材字典', icon: 'FirstAidKit' },
       },
       {
-        path: 'herbs/inventory',
-        name: 'InventoryManage',
-        component: () => import('@/views/herb/InventoryManage.vue'),
-        meta: { title: '库存管理', icon: 'Box' },
-      },
-      {
         path: 'acupoints',
         name: 'AcupointList',
         component: () => import('@/views/acupoint/AcupointList.vue'),
         meta: { title: '针灸穴位', icon: 'Aim' },
+      },
+      {
+        path: 'stock/overview',
+        name: 'StockOverview',
+        component: () => import('@/views/inventory/Overview.vue'),
+        meta: { title: '库存总览', icon: 'Box' },
+      },
+      {
+        path: 'stock/items',
+        name: 'StockItems',
+        component: () => import('@/views/inventory/ItemManage.vue'),
+        meta: { title: '物品管理', icon: 'Goods' },
+      },
+      {
+        path: 'stock/transactions',
+        name: 'StockTransactions',
+        component: () => import('@/views/inventory/Transactions.vue'),
+        meta: { title: '出入库流水', icon: 'Tickets' },
+      },
+      {
+        path: 'stock/check',
+        name: 'StockCheck',
+        component: () => import('@/views/inventory/Check.vue'),
+        meta: { title: '库房盘点', icon: 'Checked' },
       },
       {
         path: 'prescriptions',

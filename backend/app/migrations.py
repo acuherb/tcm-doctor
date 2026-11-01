@@ -228,6 +228,100 @@ def m0005() -> None:
     _add_column("acupoints", "needling_method", "TEXT")       # 针刺方法/操作要点
 
 
+@migration(
+    "0006",
+    "库存抽象重构：新增 stock_items/stock_batches/stock_transactions，迁 herb_inventory/inventory_transactions 数据并删除旧表",
+)
+def m0006() -> None:
+    from sqlalchemy import text as _t
+    from datetime import datetime as _dt
+
+    insp = inspect(engine)
+    # 已迁移(旧表不存在)或全新库：跳过
+    if "herb_inventory" not in insp.get_table_names():
+        return
+    from app.database import SessionLocal
+    from app.models.herb import Herb
+    from app.models.stock import StockItem, StockBatch, StockTransaction
+
+    db = SessionLocal()
+    try:
+        # 1) 药材 -> 物品(类型=中药, 单位=g)
+        herb_to_item: dict = {}
+        for h in db.query(Herb).all():
+            si = StockItem(
+                item_type="中药", name=h.name, spec=h.grade, unit="g",
+                sell_price=h.price, herb_id=h.id, min_stock=h.min_stock, is_active=True,
+            )
+            db.add(si)
+            db.flush()
+            herb_to_item[h.id] = si.id
+
+        # 2) 批次 -> 批次
+        inv_to_batch: dict = {}
+        inv_rows = db.execute(_t(
+            "SELECT id, herb_id, batch_number, quantity, unit_price, sale_price, "
+            "purchase_date, expiry_date, supplier, min_stock, location, status "
+            "FROM herb_inventory"
+        )).fetchall()
+        for r in inv_rows:
+            (iid, hid, bn, qty, up, sp, pd, ed, sup, msk, loc, st) = r
+            item_id = herb_to_item.get(hid)
+            if item_id is None:
+                continue
+            sb = StockBatch(
+                item_id=item_id, batch_number=bn, quantity=qty or 0, unit_price=up,
+                sale_price=sp, purchase_date=pd, expiry_date=ed, supplier=sup,
+                min_stock=msk, location=loc, status=st or "正常",
+            )
+            db.add(sb)
+            db.flush()
+            inv_to_batch[iid] = sb.id
+
+        # 3) 处方批次引用重映射
+        for old_id, new_id in inv_to_batch.items():
+            db.execute(
+                _t("UPDATE prescription_items SET inventory_id=:nid WHERE inventory_id=:oid"),
+                {"nid": new_id, "oid": old_id},
+            )
+
+        # 4) 流水 -> 流水
+        txn_rows = db.execute(_t(
+            "SELECT herb_id, transaction_type, quantity, before_quantity, after_quantity, "
+            "reference_id, note, operator, created_at FROM inventory_transactions"
+        )).fetchall()
+        for r in txn_rows:
+            (hid, ttype, qty, before, after, ref, note, operator, created) = r
+            item_id = herb_to_item.get(hid)
+            if item_id is None:
+                continue
+            if ttype == "出库":
+                ref_type = "处方" if ref else "手动"
+            elif ttype == "入库":
+                ref_type = "手动"
+            else:
+                ref_type = ttype  # 损耗
+            if isinstance(created, str):
+                try:
+                    created = _dt.fromisoformat(created.replace(" ", "T"))
+                except Exception:
+                    created = None
+            db.add(StockTransaction(
+                item_id=item_id, batch_id=None, transaction_type=ttype,
+                quantity=qty, before_quantity=before, after_quantity=after,
+                reference_id=ref, reference_type=ref_type, operator=operator,
+                note=note, created_at=created,
+            ))
+        db.commit()
+    finally:
+        db.close()
+
+    # 5) 删除旧表
+    with engine.begin() as conn:
+        conn.execute(_t("DROP TABLE IF EXISTS herb_inventory"))
+        conn.execute(_t("DROP TABLE IF EXISTS inventory_transactions"))
+
+
 def run_migrations() -> None:
     """应用所有未执行过的迁移（幂等：以 schema_migrations 表记录为准）"""
     with engine.begin() as conn:

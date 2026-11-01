@@ -1,9 +1,9 @@
-"""药品管理路由"""
+"""药品管理路由（仅药材字典；库存/批次/流水见 stock 路由）"""
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models.herb import Herb, HerbInventory, InventoryTransaction
+from app.models.herb import Herb
 from app.models.dictionaries import DictionaryTerm
 from app.models.prescription import PrescriptionItem
 from app.models.user import User
@@ -11,7 +11,6 @@ from app.routers.auth import get_current_user
 from app.constants.herb_tags import sanitize_herb_tags
 from app.schemas.herb import (
     HerbCreate, HerbUpdate, HerbResponse,
-    InventoryIn, InventoryOut, InventoryResponse, InventoryAlert, InventoryUpdate, InventorySummary,
 )
 
 router = APIRouter(prefix="/herbs", tags=["药品管理"])
@@ -142,230 +141,6 @@ def import_herbs(data: list[HerbCreate] = Body(...), current_user: User = Depend
     return {"imported": imported, "updated": updated, "total": imported + updated}
 
 
-# ── 库存管理（必须在 /{herb_id} 之前定义，否则 inventory 会被当作 herb_id 匹配）──
-
-@router.get("/inventory", response_model=list[InventoryResponse], summary="库存列表")
-def list_inventory(
-    search: str | None = Query(None),
-    status: str | None = Query(None),
-    db: Session = Depends(get_db),
-):
-    query = db.query(HerbInventory).options(joinedload(HerbInventory.herb))
-    if status:
-        query = query.filter(HerbInventory.status == status)
-    items = query.all()
-    result = []
-    for item in items:
-        resp = InventoryResponse.model_validate(item)
-        resp.herb_name = item.herb.name if item.herb else None
-        result.append(resp)
-    return result
-
-
-@router.post("/inventory/in", response_model=InventoryResponse, summary="入库")
-def inventory_in(data: InventoryIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    herb = db.query(Herb).filter(Herb.id == data.herb_id).first()
-    if not herb:
-        raise HTTPException(status_code=404, detail="药材不存在")
-
-    # 批号：未填写时默认带当天入库日期，便于追溯；也可手填自定义好记名称
-    batch_number = data.batch_number
-    if not batch_number:
-        from datetime import date
-        batch_number = date.today().strftime("%Y%m%d")
-
-    # 查找或创建库存记录
-    inv = HerbInventory(
-        herb_id=data.herb_id,
-        batch_number=batch_number,
-        quantity=data.quantity,
-        unit_price=data.unit_price,
-        sale_price=data.sale_price,
-        purchase_date=data.purchase_date,
-        expiry_date=data.expiry_date,
-        supplier=data.supplier,
-        min_stock=0,
-    )
-    db.add(inv)
-    db.flush()
-
-    # 入库时填的售价同步到药材参考单价(元/g)，供处方计价与编辑器预估单价使用
-    if data.sale_price is not None:
-        herb.price = data.sale_price
-
-    # 记录出入库
-    txn = InventoryTransaction(
-        herb_id=data.herb_id,
-        transaction_type="入库",
-        quantity=data.quantity,
-        before_quantity=0,
-        after_quantity=data.quantity,
-        note=data.note,
-    )
-    db.add(txn)
-    db.commit()
-    db.refresh(inv)
-
-    resp = InventoryResponse.model_validate(inv)
-    resp.herb_name = herb.name
-    return resp
-
-
-@router.post("/inventory/out", summary="出库")
-def inventory_out(data: InventoryOut, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """出库：从库存中扣减指定数量（进程内锁 + 行锁，避免并发超卖）"""
-    from app.database import inventory_lock
-
-    with inventory_lock:
-        # 获取该药材总库存（加行锁，避免并发读-改-写竞态）
-        total = db.query(HerbInventory).filter(
-            HerbInventory.herb_id == data.herb_id,
-            HerbInventory.status == "正常",
-        ).with_for_update().all()
-        available = sum(float(item.quantity) for item in total)
-
-        if available < data.quantity:
-            raise HTTPException(status_code=400, detail=f"库存不足: 可用{available}g，需{data.quantity}g")
-
-        # 按批次先进先出扣减
-        remaining = data.quantity
-        for item in total:
-            if remaining <= 0:
-                break
-            deduct = min(float(item.quantity), remaining)
-            item.quantity = float(item.quantity) - deduct
-            remaining -= deduct
-
-        # 记录出入库
-        txn = InventoryTransaction(
-            herb_id=data.herb_id,
-            transaction_type="出库",
-            quantity=data.quantity,
-            before_quantity=available,
-            after_quantity=available - data.quantity,
-            reference_id=data.reference_id,
-            note=data.note,
-        )
-        db.add(txn)
-        db.commit()
-    return {"message": "出库成功", "quantity": data.quantity, "remaining": available - data.quantity}
-
-
-@router.get("/inventory/alerts", response_model=list[InventoryAlert], summary="库存预警")
-def inventory_alerts(db: Session = Depends(get_db)):
-    """按药材维度聚合预警：该药材所有可用批次总库存低于其最低库存阈值时预警。
-    阈值优先用药材级 Herb.min_stock，历史数据未设药材级时回退各批次 min_stock 最大值。
-    解决'同一药材多批次时，单个批次低于阈值却无视其它批次总库存'的问题。"""
-    from sqlalchemy import func
-    rows = (
-        db.query(
-            HerbInventory.herb_id,
-            func.sum(HerbInventory.quantity).label("total_quantity"),
-        )
-        .filter(HerbInventory.status.in_(["正常", "近效期"]))
-        .group_by(HerbInventory.herb_id)
-        .all()
-    )
-    herb_ids = [r.herb_id for r in rows]
-    herbs = {h.id: h for h in db.query(Herb).filter(Herb.id.in_(herb_ids)).all()} if herb_ids else {}
-    alerts = []
-    for r in rows:
-        herb = herbs.get(r.herb_id)
-        if not herb:
-            continue
-        threshold = herb.min_stock
-        if threshold is None:
-            mx = db.query(func.max(HerbInventory.min_stock)).filter(
-                HerbInventory.herb_id == r.herb_id
-            ).scalar()
-            threshold = mx
-        threshold = float(threshold or 0)
-        total = float(r.total_quantity or 0)
-        if threshold > 0 and total < threshold:
-            alerts.append(InventoryAlert(
-                herb_id=r.herb_id,
-                herb_name=herb.name,
-                current_quantity=total,
-                min_stock=threshold,
-                alert_type="低于最低库存",
-            ))
-    return alerts
-
-
-@router.get("/inventory/summary", response_model=list[InventorySummary], summary="库存汇总")
-def inventory_summary(db: Session = Depends(get_db)):
-    """按药材汇总库存"""
-    from sqlalchemy import func as sqlfunc
-    results = db.query(
-        HerbInventory.herb_id,
-        sqlfunc.sum(HerbInventory.quantity).label("total_quantity"),
-        sqlfunc.count(HerbInventory.id).label("batch_count"),
-    ).filter(
-        HerbInventory.status.in_(["正常", "近效期"]),
-    ).group_by(HerbInventory.herb_id).all()
-
-    herb_ids = [r.herb_id for r in results]
-    herbs_map = {}
-    if herb_ids:
-        herbs_list = db.query(Herb).filter(Herb.id.in_(herb_ids)).all()
-        herbs_map = {h.id: h for h in herbs_list}
-
-    out = []
-    for r in results:
-        herb = herbs_map.get(r.herb_id)
-        threshold = herb.min_stock if herb and herb.min_stock is not None else None
-        if threshold is None:
-            mx = db.query(sqlfunc.max(HerbInventory.min_stock)).filter(
-                HerbInventory.herb_id == r.herb_id
-            ).scalar()
-            threshold = mx
-        threshold = float(threshold or 0)
-        total = float(r.total_quantity or 0)
-        out.append(InventorySummary(
-            herb_id=r.herb_id,
-            herb_name=herb.name if herb else "未知",
-            total_quantity=total,
-            batch_count=r.batch_count,
-            min_stock=threshold if threshold > 0 else None,
-            has_alert=threshold > 0 and total < threshold,
-        ))
-    return out
-
-
-@router.put("/inventory/{inventory_id}", response_model=InventoryResponse, summary="更新库存记录")
-def update_inventory(inventory_id: int, data: InventoryUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """纠错式更新库存记录：数量/价格/批号/有效期/供应商/预警/仓位/状态均可改。
-    售价改动会同步药材参考单价(元/g)；数量被调整时记一条「调整」流水，便于追溯。"""
-    inv = db.query(HerbInventory).filter(HerbInventory.id == inventory_id).first()
-    if not inv:
-        raise HTTPException(status_code=404, detail="库存记录不存在")
-    payload = data.model_dump(exclude_unset=True)
-    old_quantity = float(inv.quantity)
-    for key, value in payload.items():
-        setattr(inv, key, value)
-    # 售价改动同步药材参考单价(元/g)，与入库逻辑保持一致
-    if "sale_price" in payload and payload["sale_price"] is not None:
-        herb = inv.herb
-        if herb:
-            herb.price = payload["sale_price"]
-    # 数量被调整时记一条「调整」流水（纠错可追溯）
-    if "quantity" in payload and float(payload["quantity"]) != old_quantity:
-        db.add(InventoryTransaction(
-            herb_id=inv.herb_id,
-            transaction_type="调整",
-            quantity=float(payload["quantity"]) - old_quantity,
-            before_quantity=old_quantity,
-            after_quantity=float(inv.quantity),
-            note="库存纠错调整",
-            operator=current_user.username,
-        ))
-    db.commit()
-    db.refresh(inv)
-    resp = InventoryResponse.model_validate(inv)
-    resp.herb_name = inv.herb.name if inv.herb else None
-    return resp
-
-
 # ── 药材详情/更新（路径参数路由，必须放在所有固定路径路由之后）──
 
 @router.get("/{herb_id}", response_model=HerbResponse, summary="药材详情")
@@ -395,7 +170,8 @@ def delete_herb(herb_id: int, current_user: User = Depends(get_current_user), db
     herb = db.query(Herb).filter(Herb.id == herb_id).first()
     if not herb:
         raise HTTPException(status_code=404, detail="药材不存在")
-    ref_inv = db.query(HerbInventory).filter(HerbInventory.herb_id == herb_id).first()
+    from app.models.stock import StockItem, StockBatch
+    ref_inv = db.query(StockBatch).join(StockItem).filter(StockItem.herb_id == herb_id).first()
     ref_item = db.query(PrescriptionItem).filter(PrescriptionItem.herb_id == herb_id).first()
     if ref_inv or ref_item:
         herb.is_active = False

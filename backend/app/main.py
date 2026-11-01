@@ -18,7 +18,7 @@ from app.migrations import run_migrations
 from app.models.user import User, AuthToken
 from app.routers import patient, herb, prescription, knowledge, diagnosis, dictionaries, acupuncture
 from app.routers import acupoint_formula
-from app.routers import stats, backup, auth, followup_reminders
+from app.routers import stats, backup, auth, followup_reminders, stock
 from app.routers.auth import get_current_user
 
 WRITE_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
@@ -147,6 +147,7 @@ async def require_admin_for_writes(request: Request, call_next):
 # 注册路由
 app.include_router(patient.router, prefix="/api/v1")
 app.include_router(herb.router, prefix="/api/v1")
+app.include_router(stock.router, prefix="/api/v1")
 app.include_router(prescription.router, prefix="/api/v1")
 app.include_router(knowledge.router, prefix="/api/v1")
 app.include_router(diagnosis.router, prefix="/api/v1")

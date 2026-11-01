@@ -1,15 +1,16 @@
 """发药扣库存测试（对应 P0-2：并发双扣修复 + 不可重复发药）"""
 from app.database import SessionLocal
-from app.models.herb import Herb, HerbInventory
+from app.models.herb import Herb
+from app.models.stock import StockItem, StockBatch
 from app.models.patient import Patient
 from app.models.visit import Visit
 from app.models.prescription import Prescription, PrescriptionItem
 
 
-def _fresh_qty(inv_id):
+def _fresh_qty(batch_id):
     s = SessionLocal()
     try:
-        return s.get(HerbInventory, inv_id).quantity
+        return s.get(StockBatch, batch_id).quantity
     finally:
         s.close()
 
@@ -29,10 +30,12 @@ def _seed_prescription(db_session):
     db_session.add(herb)
     db_session.commit()
 
-    inv = HerbInventory(
-        herb_id=herb.id, status="正常", quantity=100.0, batch_number="B1"
-    )
-    db_session.add(inv)
+    item = StockItem(item_type="中药", name="发药测试药材", unit="g", herb_id=herb.id, is_active=True)
+    db_session.add(item)
+    db_session.commit()
+
+    batch = StockBatch(item_id=item.id, status="正常", quantity=100.0, batch_number="B1")
+    db_session.add(batch)
     db_session.commit()
 
     pres = Prescription(
@@ -46,27 +49,28 @@ def _seed_prescription(db_session):
     db_session.add(pres)
     db_session.commit()
 
-    item = PrescriptionItem(
+    pit = PrescriptionItem(
         prescription_id=pres.id,
         herb_id=herb.id,
         herb_name="发药测试药材",
         dose=10.0,
+        inventory_id=batch.id,
     )
-    db_session.add(item)
+    db_session.add(pit)
     db_session.commit()
-    return pres.id, inv.id
+    return pres.id, batch.id
 
 
 def test_dispense_deducts_and_prevents_double(client, db_session, auth_headers):
-    pres_id, inv_id = _seed_prescription(db_session)
-    before = _fresh_qty(inv_id)
+    pres_id, batch_id = _seed_prescription(db_session)
+    before = _fresh_qty(batch_id)
 
     # 第一次发药：扣减 dose(10) * doses(2) = 20
     r1 = client.put(
         f"/api/v1/prescriptions/{pres_id}/dispense", headers=auth_headers
     )
     assert r1.status_code == 200, r1.text
-    after_first = _fresh_qty(inv_id)
+    after_first = _fresh_qty(batch_id)
     assert float(after_first) == float(before) - 20.0
 
     # 第二次发药（状态已为“已发药”）：应被拒绝，库存不再变化
@@ -74,5 +78,5 @@ def test_dispense_deducts_and_prevents_double(client, db_session, auth_headers):
         f"/api/v1/prescriptions/{pres_id}/dispense", headers=auth_headers
     )
     assert r2.status_code == 400, r2.text
-    after_second = _fresh_qty(inv_id)
+    after_second = _fresh_qty(batch_id)
     assert float(after_second) == float(after_first)

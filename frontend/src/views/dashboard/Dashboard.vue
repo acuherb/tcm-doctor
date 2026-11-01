@@ -37,11 +37,11 @@
           </template>
           <el-empty v-if="alerts.length === 0" description="暂无预警" :image-size="60" />
           <div v-else class="alert-list">
-            <div v-for="alert in alerts" :key="alert.herb_id" class="alert-item">
+            <div v-for="alert in alerts" :key="alert.item_id" class="alert-item">
               <el-tag type="danger" size="small">{{ alert.alert_type }}</el-tag>
-              <span class="alert-herb">{{ alert.herb_name }}</span>
-              <span class="alert-qty">{{ alert.current_quantity }}g / 最低{{ alert.min_stock }}g</span>
-              <el-button link type="primary" size="small" @click="$router.push('/herbs/inventory')">处理</el-button>
+              <span class="alert-herb">{{ alert.item_name }}</span>
+              <span class="alert-qty">{{ alert.current_quantity }}{{ alert.unit }} / 最低{{ alert.min_stock }}{{ alert.unit }}</span>
+              <el-button link type="primary" size="small" @click="$router.push('/stock/overview')">处理</el-button>
             </div>
           </div>
         </el-card>
@@ -79,8 +79,8 @@
             </div>
             <div v-if="alerts.length > 0" class="todo-item">
               <el-tag type="danger" size="small">库存预警</el-tag>
-              <span>{{ alerts.length }} 种药材库存不足</span>
-              <el-button link type="primary" size="small" @click="$router.push('/herbs/inventory')">去处理</el-button>
+              <span>{{ alerts.length }} 种物品库存不足</span>
+              <el-button link type="primary" size="small" @click="$router.push('/stock/overview')">去处理</el-button>
             </div>
             <div v-if="pendingFollowups > 0" class="todo-item">
               <el-tag type="primary" size="small">待回访</el-tag>
@@ -130,7 +130,7 @@ const quickActions = [
   { title: '开具处方', desc: '选方/自拟', route: '/prescriptions/new', icon: 'Document', color: '#1890FF' },
   { title: '智能问诊', desc: 'AI辨证', route: '/diagnosis', icon: 'ChatDotRound', color: '#722ED1' },
   { title: '字典管理', desc: '证候脉象词条', route: '/dictionaries', icon: 'Collection', color: '#13C2C2' },
-  { title: '药材入库', desc: '入库登记', route: '/herbs/inventory', icon: 'Box', color: '#52C41A' },
+  { title: '药材入库', desc: '入库登记', route: '/stock/items', icon: 'Box', color: '#52C41A' },
   { title: '知识检索', desc: '典籍查询', route: '/knowledge', icon: 'Search', color: '#FAAD14' },
   { title: '中药方库', desc: '方剂浏览', route: '/classic-formulas', icon: 'Notebook', color: '#8B4513' },
   { title: '系统设置', desc: '配置管理', route: '/settings', icon: 'Setting', color: '#999' },
@@ -147,7 +147,7 @@ async function loadDashboard() {
   try {
     const [dashData, alertsData] = await Promise.all([
       api.get('/stats/dashboard') as any,
-      api.get('/herbs/inventory/alerts') as any,
+      api.get('/stock/alerts') as any,
     ])
     statCards.value[0].value = dashData.today_visits || 0
     statCards.value[1].value = dashData.total_patients || 0

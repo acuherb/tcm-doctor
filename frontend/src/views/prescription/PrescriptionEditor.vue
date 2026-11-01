@@ -92,12 +92,12 @@
                 <el-option
                   v-for="b in batchesForHerb(item.herb_id)"
                   :key="b.id"
-                  :label="`${b.batch_number || '无批号'} 余${b.quantity}g/￥${b.sale_price ?? '—'}`"
+                  :label="`${b.batch_number || '无批号'} 余${b.quantity}${b.unit}/￥${b.sale_price ?? '—'}`"
                   :value="b.id"
                 />
               </el-select>
               <span v-if="item.inventory_id && selectedBatch(item)" :style="{ fontSize:'12px', color: batchShort(item) ? '#f56c6c' : '#67c23a', whiteSpace:'nowrap' }">
-                需{{ batchNeed(item) }}g/余{{ selectedBatch(item).quantity }}g
+                需{{ batchNeed(item) }}{{ selectedBatch(item).unit }}/余{{ selectedBatch(item).quantity }}{{ selectedBatch(item).unit }}
               </span>
               <el-input-number v-model="item.dose" :min="0.5" :max="200" :precision="1"
                 placeholder="剂量" style="width:120px;" />
@@ -721,7 +721,7 @@ const herbCacheList = ref<any[]>([])
 const inventoryBatches = ref<any[]>([])
 async function loadInventoryBatches() {
   try {
-    inventoryBatches.value = (await api.get('/herbs/inventory') as any) || []
+    inventoryBatches.value = (await api.get('/stock/batches') as any) || []
   } catch {}
 }
 // 某药材的可用批次（正常/近效期，余量>0），供开方选择

@@ -30,9 +30,6 @@ class Herb(Base):
     tags: Mapped[list | None] = mapped_column(JSON, comment="标签数组")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, comment="是否启用")
 
-    # 关系
-    inventory_items: Mapped[list["HerbInventory"]] = relationship(back_populates="herb", cascade="all, delete-orphan")
-
     def __repr__(self):
         return f"<Herb(id={self.id}, name='{self.name}')>"
 
@@ -40,43 +37,3 @@ class Herb(Base):
 
 
 
-class HerbInventory(Base):
-    """中药饮片库存"""
-    __tablename__ = "herb_inventory"
-
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    herb_id: Mapped[int] = mapped_column(Integer, ForeignKey("herbs.id"), nullable=False)
-    batch_number: Mapped[str | None] = mapped_column(String(50), comment="批号")
-    quantity: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, comment="库存量(g)")
-    unit_price: Mapped[float | None] = mapped_column(Numeric(8, 2), comment="进价(元/g)")
-    sale_price: Mapped[float | None] = mapped_column(Numeric(8, 2), comment="售价(元/g)")
-    purchase_date: Mapped[str | None] = mapped_column(String(10), comment="购入日期")
-    expiry_date: Mapped[str | None] = mapped_column(String(10), comment="有效期")
-    supplier: Mapped[str | None] = mapped_column(String(100), comment="供应商")
-    min_stock: Mapped[float | None] = mapped_column(Numeric(10, 2), comment="最低库存预警")
-    location: Mapped[str | None] = mapped_column(String(50), comment="存放位置")
-    status: Mapped[str] = mapped_column(String(20), default="正常", comment="状态")
-
-    herb: Mapped["Herb"] = relationship(back_populates="inventory_items")
-
-    def __repr__(self):
-        return f"<HerbInventory(herb_id={self.herb_id}, qty={self.quantity})>"
-
-
-class InventoryTransaction(Base):
-    """库存出入库记录"""
-    __tablename__ = "inventory_transactions"
-
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    herb_id: Mapped[int] = mapped_column(Integer, ForeignKey("herbs.id"), nullable=False)
-    transaction_type: Mapped[str] = mapped_column(String(10), nullable=False, comment="入库/出库/损耗")
-    quantity: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
-    before_quantity: Mapped[float | None] = mapped_column(Numeric(10, 2))
-    after_quantity: Mapped[float | None] = mapped_column(Numeric(10, 2))
-    reference_id: Mapped[int | None] = mapped_column(Integer, comment="关联处方ID")
-    note: Mapped[str | None] = mapped_column(Text, comment="备注")
-    operator: Mapped[str | None] = mapped_column(String(50), comment="操作人")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
-
-    def __repr__(self):
-        return f"<InventoryTransaction(herb_id={self.herb_id}, type='{self.transaction_type}', qty={self.quantity})>"

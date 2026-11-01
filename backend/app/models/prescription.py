@@ -73,7 +73,7 @@ class PrescriptionItem(Base):
     special_method: Mapped[str | None] = mapped_column(String(20), comment="特殊煎法")
     is_king_herb: Mapped[bool] = mapped_column(Boolean, default=False, comment="是否君药")
     note: Mapped[str | None] = mapped_column(String(100), comment="备注")
-    inventory_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("herb_inventory.id"), comment="关联库存批次(可选，开方选批次取价/发药出货依据)")
+    inventory_id: Mapped[int | None] = mapped_column(Integer, comment="关联库存批次(指向 stock_batches.id，开方选批次取价/发药出货依据)")
     price: Mapped[float | None] = mapped_column(Numeric(8, 2), comment="该味记账单价(元/g)，开方时按批次售价或药材参考价确定")
 
     prescription: Mapped["Prescription"] = relationship(back_populates="items")

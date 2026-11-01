@@ -1,5 +1,37 @@
 # 开发日志 CHANGELOG
 
+## 2026-11-01 — 库存管理重构：中药/耗材统一为物品-批次-流水模型
+
+### 背景
+原库存体系深度绑定中药（`herb_inventory` / `inventory_transactions` 以 `herb_id` 外键直指 `herbs` 表，单位写死"g/元每g"），无法容纳一次性针灸针、艾柱等耗材（计量单位是 盒/支/根/贴），也缺少"入了多少、出了多少、剩余多少"的完整流水视图。
+
+### 重构方案
+新增统一的「物品-批次-流水」三件套，将库存从"中药"抽象为"物品"：
+
+- **`StockItem`**（物品主数据）：`item_type`(中药/针灸针/艾灸耗材/外治耗材/其他)、`name`、`spec`(规格)、`unit`(计量单位 g/盒/支/根/贴/包)、`sell_price`；中药通过可选 `herb_id` 关联 `herbs` 表，兼容原处方计价/发药逻辑。
+- **`StockBatch`**（批次库存）：`item_id`、`batch_no`、`quantity`、`unit_price`、`purchase_date`、`expiry_date`、`supplier`、`min_stock`、`location`、`status`。中药用 g 计，耗材用 盒/支 计，全靠 `StockItem.unit` 跟随。
+- **`StockTransaction`**（出入库流水）：`item_id`、`batch_id`、类型(入库/出库/损耗/盘点)、`quantity`、`before`、`after`、关联来源(处方/就诊)、操作人、备注、时间。完整留痕，支持"入/出/余"查询。
+- 迁移 `m0006`：新建三表；原 `herb_inventory` 保留兼容，中药侧通过 `herb_id` 关联平稳过渡。
+
+### 涉及改动
+- 后端：新建 `models/stock.py`、`routers/stock.py`、`schemas/stock.py`；`dispense` / `_compute_total_price` / `stats.dashboard` 预警口径 / `backup.py` 接线到新模型。
+- 路由：`/stock/*`（`overview` 总览、`items` 物品、`batches` 批次、`transactions` 流水、`check` 盘点、`alerts` 预警）。
+- 前端：
+  - 菜单重构：原【药品管理】改名【诊疗管理】（药材字典/针灸穴位，移出库存项）；新增【库存管理】主菜单（库存总览/物品管理/出入库流水/库房盘点）。
+  - 新建 `views/inventory/` 下 4 个页面：Overview、ItemManage、Transactions、Check。
+  - 处方编辑器 `PrescriptionEditor.vue` 改调 `/stock/batches`，余量单位动态取 `unit`。
+  - 仪表盘 `Dashboard.vue` 预警接口改 `/stock/alerts`，跳转路由指向库存总览。
+  - 删除过期页面 `views/herb/InventoryManage.vue`（引用已删除的旧接口）。
+
+### 修复的 Bug
+- `StockBatchOut` 继承自基类但基类无 `batch_id` 字段，出库端点多处引用 `data.batch_id` 导致 500 → 补充 `batch_id` 字段。
+- 临时调试脚本未带 `Content-Type: application/json`，导致 FastAPI 将原始 bytes 交给校验器、序列化校验错误时二次 500。属脚本问题非 API bug。
+
+### 验证
+- 后端 pytest 全绿（`8 passed`），含迁移、发药、库存各端点。
+- 前端 `vue-tsc` 无类型错误，`vite build` 构建成功。
+- 库存全量验证脚本：迁移、物品、批次、总览、预警、出入库、盘点、流水全部通过。
+
 ## 2026-11-01 — 库存预警改为按药材总库存（多批次不再误报）
 
 ### 问题

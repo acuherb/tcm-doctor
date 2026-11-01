@@ -38,14 +38,24 @@
           <el-menu-item index="/patients">患者列表</el-menu-item>
         </el-sub-menu>
 
-        <el-sub-menu index="herb-group">
+        <el-sub-menu index="treatment-group">
           <template #title>
             <el-icon><FirstAidKit /></el-icon>
-            <span>药品管理</span>
+            <span>诊疗管理</span>
           </template>
           <el-menu-item index="/herbs">药材字典</el-menu-item>
-          <el-menu-item index="/herbs/inventory">库存管理</el-menu-item>
           <el-menu-item index="/acupoints">针灸穴位</el-menu-item>
+        </el-sub-menu>
+
+        <el-sub-menu index="stock-group">
+          <template #title>
+            <el-icon><Box /></el-icon>
+            <span>库存管理</span>
+          </template>
+          <el-menu-item index="/stock/overview">库存总览</el-menu-item>
+          <el-menu-item index="/stock/items">物品管理</el-menu-item>
+          <el-menu-item index="/stock/transactions">出入库流水</el-menu-item>
+          <el-menu-item index="/stock/check">库房盘点</el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu index="prescription-group">
@@ -158,7 +168,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   HomeFilled, User, FirstAidKit, Document, Search,
-  ChatDotRound, Setting, Fold, Expand, TrendCharts, Box, Notebook, DataAnalysis, Reading, Coin,
+  ChatDotRound, Setting, Fold, Expand, TrendCharts, Box, Goods, Tickets, Checked, Notebook, DataAnalysis, Reading, Coin,
   UserFilled, ArrowDown,
 } from '@element-plus/icons-vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'

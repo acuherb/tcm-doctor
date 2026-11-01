@@ -9,7 +9,7 @@ from app.database import get_db
 from app.models.patient import Patient
 from app.models.visit import Visit
 from app.models.prescription import Prescription, PrescriptionItem
-from app.models.herb import Herb, HerbInventory
+from app.models.herb import Herb
 
 router = APIRouter(prefix="/stats", tags=["统计报表"])
 
@@ -42,11 +42,17 @@ def dashboard_stats(db: Session = Depends(get_db)):
         Prescription.status == "已开"
     ).count()
 
-    # 库存预警数
+    # 库存预警数（物品级最低库存）
+    from app.models.stock import StockItem, StockBatch
     low_stock_count = 0
-    inventory_items = db.query(HerbInventory).filter(HerbInventory.min_stock > 0).all()
-    for item in inventory_items:
-        if float(item.quantity) < float(item.min_stock or 0):
+    items = db.query(StockItem).filter(StockItem.is_active == True, StockItem.min_stock > 0).all()
+    for si in items:
+        total = float(
+            db.query(func.sum(StockBatch.quantity)).filter(
+                StockBatch.item_id == si.id, StockBatch.status.in_(["正常", "近效期"])
+            ).scalar() or 0
+        )
+        if total < float(si.min_stock or 0):
             low_stock_count += 1
 
     # 待回访提醒（应回访日期 <= 今天 且未完成的）

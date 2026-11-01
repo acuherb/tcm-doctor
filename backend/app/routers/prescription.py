@@ -6,7 +6,7 @@ from datetime import datetime as _dt, timedelta
 
 from app.database import get_db
 from app.models.prescription import ClassicFormula, Prescription, PrescriptionItem, AcupointPrescription, PrescriptionInjection
-from app.models.herb import Herb, HerbInventory
+from app.models.herb import Herb
 from app.models.patient import Patient
 from app.models.visit import Visit
 from app.models.followup_reminder import FollowUpReminder
@@ -208,37 +208,30 @@ def list_prescriptions(
 def _compute_total_price(db: Session, items, doses: int, acupuncture_fee: float | None = None) -> float | None:
     """处方计价 = 中药售价合计 + 针灸费用。
 
-    官方售价优先级：库存该药材售价(sale_price) → 药材参考单价(herb.price)。
+    售价优先级：处方项上锁定的单价(开方时按所选批次售价确定) → 物品默认售价(stock_item.sell_price) → 药材参考单价(herb.price)。
     无任何中药单价且无针灸费用时返回 None（前端显示—）。
     """
+    from app.models.stock import StockItem
+
     fee = float(acupuncture_fee or 0)
     herb_total = 0.0
     has_price = False
     if items:
         herb_ids = [it.herb_id for it in items]
         herbs = {h.id: h for h in db.query(Herb).filter(Herb.id.in_(herb_ids)).all()}
-        # 每个药材优先取某条正常库存批次的售价，作为本次处方单价；无售价则回退进价
-        price_map: dict[int, float | None] = {}
-        for inv in db.query(HerbInventory).filter(
-            HerbInventory.herb_id.in_(herb_ids),
-            HerbInventory.status == "正常",
-        ):
-            if inv.herb_id not in price_map:
-                if inv.sale_price is not None:
-                    price_map[inv.herb_id] = float(inv.sale_price)
-                elif inv.unit_price is not None:
-                    price_map[inv.herb_id] = float(inv.unit_price)
-                else:
-                    price_map[inv.herb_id] = None
+        stock_map = (
+            {si.herb_id: si for si in db.query(StockItem).filter(StockItem.herb_id.in_(herb_ids)).all()}
+            if herb_ids else {}
+        )
         for it in items:
             # 优先使用处方项上记录的单价（开方时按所选批次售价确定）
             p = getattr(it, "price", None)
             if p is None:
-                p = price_map.get(it.herb_id)
-                if p is None:
-                    h = herbs.get(it.herb_id)
-                    if h is not None and h.price is not None:
-                        p = float(h.price)
+                si = stock_map.get(it.herb_id)
+                if si and si.sell_price is not None:
+                    p = float(si.sell_price)
+                elif (h := herbs.get(it.herb_id)) and h.price is not None:
+                    p = float(h.price)
             if p is not None:
                 herb_total += float(p) * float(getattr(it, "dose", 0)) * (doses or 1)
                 has_price = True
@@ -457,8 +450,9 @@ def review_prescription(prescription_id: int, reviewer_id: int = 1, current_user
 
 @router.put("/{prescription_id}/dispense", response_model=PrescriptionResponse, summary="发药(扣减库存)")
 def dispense_prescription(prescription_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """发药：扣减库存，更新处方状态"""
-    from app.models.herb import HerbInventory, InventoryTransaction
+    """发药：扣减库存（统一 stock 表），更新处方状态。
+    单位跟随物品(stock_item.unit)，中药为 g，耗材可为盒/支等。"""
+    from app.models.stock import StockItem, StockBatch, StockTransaction
     from app.database import inventory_lock
 
     prescription = db.query(Prescription).options(joinedload(Prescription.items), joinedload(Prescription.acupoints)).filter(
@@ -468,8 +462,6 @@ def dispense_prescription(prescription_id: int, current_user: User = Depends(get
         raise HTTPException(status_code=404, detail="处方不存在")
 
     # 扣减库存（进程内锁 + 行锁，避免并发超卖）。
-    # 关键：状态校验必须在【锁内】以当前 DB 状态重做——否则两个并发的“已审核”请求会
-    # 先后通过锁外检查、串行进锁后各扣一次库存，造成重复发药/超卖。
     with inventory_lock:
         fresh = (
             db.query(Prescription)
@@ -485,41 +477,42 @@ def dispense_prescription(prescription_id: int, current_user: User = Depends(get
 
         for item in fresh.items:
             total_qty = float(item.dose) * fresh.doses
+            # 该药材对应的库存物品(中药)
+            stock_item = db.query(StockItem).filter(StockItem.herb_id == item.herb_id).first()
+            if not stock_item:
+                raise HTTPException(status_code=400, detail=f"未找到'{item.herb_name}'对应的库存物品")
+            item_id = stock_item.id
+            unit = stock_item.unit
             if item.inventory_id:
                 # 按开方所选批次出货；所选批次不足时自动从其它可用批次补差（跨批次拆单）
-                inv = db.query(HerbInventory).filter(
-                    HerbInventory.id == item.inventory_id
-                ).with_for_update().first()
-                if not inv:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"所选批次不存在: {item.herb_name}",
-                    )
+                inv = db.query(StockBatch).filter(StockBatch.id == item.inventory_id).with_for_update().first()
+                if not inv or inv.item_id != item_id:
+                    raise HTTPException(status_code=400, detail=f"所选批次不存在: {item.herb_name}")
                 avail = float(inv.quantity)
                 if avail >= total_qty:
-                    # 全部从所选批次出
                     before = avail
                     inv.quantity = before - total_qty
-                    db.add(InventoryTransaction(
-                        herb_id=inv.herb_id, transaction_type="出库", quantity=total_qty,
+                    db.add(StockTransaction(
+                        item_id=item_id, batch_id=inv.id, transaction_type="出库", quantity=total_qty,
                         before_quantity=before, after_quantity=float(inv.quantity),
-                        reference_id=fresh.id, note=f"处方#{fresh.id}发药(批次#{inv.id})",
+                        reference_id=fresh.id, reference_type="处方", operator=current_user.username,
+                        note=f"处方#{fresh.id}发药(批次#{inv.id})",
                     ))
                 else:
-                    # 先出所选批次全部，差额从其它可用批次(正常/近效期)按 FIFO 补
                     remaining = total_qty
                     d0 = min(avail, remaining)
                     inv.quantity = avail - d0
                     remaining -= d0
-                    db.add(InventoryTransaction(
-                        herb_id=inv.herb_id, transaction_type="出库", quantity=d0,
+                    db.add(StockTransaction(
+                        item_id=item_id, batch_id=inv.id, transaction_type="出库", quantity=d0,
                         before_quantity=avail, after_quantity=float(inv.quantity),
-                        reference_id=fresh.id, note=f"处方#{fresh.id}发药(批次#{inv.id})",
+                        reference_id=fresh.id, reference_type="处方", operator=current_user.username,
+                        note=f"处方#{fresh.id}发药(批次#{inv.id})",
                     ))
-                    others = db.query(HerbInventory).filter(
-                        HerbInventory.herb_id == item.herb_id,
-                        HerbInventory.status.in_(["正常", "近效期"]),
-                        HerbInventory.id != item.inventory_id,
+                    others = db.query(StockBatch).filter(
+                        StockBatch.item_id == item_id,
+                        StockBatch.status.in_(["正常", "近效期"]),
+                        StockBatch.id != item.inventory_id,
                     ).with_for_update().all()
                     for o in others:
                         if remaining <= 0:
@@ -528,46 +521,39 @@ def dispense_prescription(prescription_id: int, current_user: User = Depends(get
                         o_before = float(o.quantity)
                         o.quantity = o_before - od
                         remaining -= od
-                        db.add(InventoryTransaction(
-                            herb_id=o.herb_id, transaction_type="出库", quantity=od,
+                        db.add(StockTransaction(
+                            item_id=item_id, batch_id=o.id, transaction_type="出库", quantity=od,
                             before_quantity=o_before, after_quantity=float(o.quantity),
-                            reference_id=fresh.id, note=f"处方#{fresh.id}发药补差(批次#{o.id})",
+                            reference_id=fresh.id, reference_type="处方", operator=current_user.username,
+                            note=f"处方#{fresh.id}发药补差(批次#{o.id})",
                         ))
                     if remaining > 0:
                         raise HTTPException(
                             status_code=400,
-                            detail=f"库存不足: {item.herb_name} 共需{total_qty}g，所选批次及可用批次合计仍缺{remaining}g",
+                            detail=f"库存不足: {item.herb_name} 共需{total_qty}{unit}，所选批次及可用批次合计仍缺{remaining}{unit}",
                         )
             else:
                 # 兼容旧处方（未选批次）：FIFO 全局扣减
-                available = db.query(HerbInventory).filter(
-                    HerbInventory.herb_id == item.herb_id,
-                    HerbInventory.status == "正常",
+                available = db.query(StockBatch).filter(
+                    StockBatch.item_id == item_id, StockBatch.status == "正常"
                 ).with_for_update().all()
-                avail_total = sum(float(inv.quantity) for inv in available)
-
+                avail_total = sum(float(b.quantity) for b in available)
                 if avail_total < total_qty:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"库存不足: {item.herb_name} 需{total_qty}g，可用{avail_total}g",
+                        detail=f"库存不足: {item.herb_name} 需{total_qty}{unit}，可用{avail_total}{unit}",
                     )
-
                 remaining = total_qty
-                for inv in available:
+                for b in available:
                     if remaining <= 0:
                         break
-                    deduct = min(float(inv.quantity), remaining)
-                    inv.quantity = float(inv.quantity) - deduct
+                    deduct = min(float(b.quantity), remaining)
+                    b.quantity = float(b.quantity) - deduct
                     remaining -= deduct
-
-                # 记录出库
-                db.add(InventoryTransaction(
-                    herb_id=item.herb_id,
-                    transaction_type="出库",
-                    quantity=total_qty,
-                    before_quantity=avail_total,
-                    after_quantity=avail_total - total_qty,
-                    reference_id=fresh.id,
+                db.add(StockTransaction(
+                    item_id=item_id, batch_id=None, transaction_type="出库", quantity=total_qty,
+                    before_quantity=avail_total, after_quantity=avail_total - total_qty,
+                    reference_id=fresh.id, reference_type="处方", operator=current_user.username,
                     note=f"处方#{fresh.id}发药",
                 ))
 
