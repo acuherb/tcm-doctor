@@ -483,6 +483,7 @@ def dispense_prescription(prescription_id: int, current_user: User = Depends(get
                 raise HTTPException(status_code=400, detail=f"未找到'{item.herb_name}'对应的库存物品")
             item_id = stock_item.id
             unit = stock_item.unit
+            sell = float(stock_item.sell_price) if stock_item.sell_price is not None else None
             if item.inventory_id:
                 # 按开方所选批次出货；所选批次不足时自动从其它可用批次补差（跨批次拆单）
                 inv = db.query(StockBatch).filter(StockBatch.id == item.inventory_id).with_for_update().first()
@@ -492,9 +493,16 @@ def dispense_prescription(prescription_id: int, current_user: User = Depends(get
                 if avail >= total_qty:
                     before = avail
                     inv.quantity = before - total_qty
+                    if float(inv.quantity) <= 0:
+                        inv.quantity = 0.0
+                        inv.status = "停用"
+                    uc_i = float(inv.unit_price) if inv.unit_price is not None else None
                     db.add(StockTransaction(
                         item_id=item_id, batch_id=inv.id, transaction_type="出库", quantity=total_qty,
                         before_quantity=before, after_quantity=float(inv.quantity),
+                        unit_cost=uc_i, unit_price=sell,
+                        cost_amount=(-total_qty * uc_i) if uc_i is not None else None,
+                        revenue_amount=(total_qty * sell) if sell is not None else 0.0,
                         reference_id=fresh.id, reference_type="处方", operator=current_user.username,
                         note=f"处方#{fresh.id}发药(批次#{inv.id})",
                     ))
@@ -502,10 +510,17 @@ def dispense_prescription(prescription_id: int, current_user: User = Depends(get
                     remaining = total_qty
                     d0 = min(avail, remaining)
                     inv.quantity = avail - d0
+                    if float(inv.quantity) <= 0:
+                        inv.quantity = 0.0
+                        inv.status = "停用"
                     remaining -= d0
+                    uc_i = float(inv.unit_price) if inv.unit_price is not None else None
                     db.add(StockTransaction(
                         item_id=item_id, batch_id=inv.id, transaction_type="出库", quantity=d0,
                         before_quantity=avail, after_quantity=float(inv.quantity),
+                        unit_cost=uc_i, unit_price=sell,
+                        cost_amount=(-d0 * uc_i) if uc_i is not None else None,
+                        revenue_amount=(d0 * sell) if sell is not None else 0.0,
                         reference_id=fresh.id, reference_type="处方", operator=current_user.username,
                         note=f"处方#{fresh.id}发药(批次#{inv.id})",
                     ))
@@ -520,10 +535,17 @@ def dispense_prescription(prescription_id: int, current_user: User = Depends(get
                         od = min(float(o.quantity), remaining)
                         o_before = float(o.quantity)
                         o.quantity = o_before - od
+                        if float(o.quantity) <= 0:
+                            o.quantity = 0.0
+                            o.status = "停用"
                         remaining -= od
+                        uc_o = float(o.unit_price) if o.unit_price is not None else None
                         db.add(StockTransaction(
                             item_id=item_id, batch_id=o.id, transaction_type="出库", quantity=od,
                             before_quantity=o_before, after_quantity=float(o.quantity),
+                            unit_cost=uc_o, unit_price=sell,
+                            cost_amount=(-od * uc_o) if uc_o is not None else None,
+                            revenue_amount=(od * sell) if sell is not None else 0.0,
                             reference_id=fresh.id, reference_type="处方", operator=current_user.username,
                             note=f"处方#{fresh.id}发药补差(批次#{o.id})",
                         ))
@@ -549,10 +571,16 @@ def dispense_prescription(prescription_id: int, current_user: User = Depends(get
                         break
                     deduct = min(float(b.quantity), remaining)
                     b.quantity = float(b.quantity) - deduct
+                    if float(b.quantity) <= 0:
+                        b.quantity = 0.0
+                        b.status = "停用"
                     remaining -= deduct
                 db.add(StockTransaction(
                     item_id=item_id, batch_id=None, transaction_type="出库", quantity=total_qty,
                     before_quantity=avail_total, after_quantity=avail_total - total_qty,
+                    unit_cost=None, unit_price=sell,
+                    cost_amount=None,
+                    revenue_amount=(total_qty * sell) if sell is not None else 0.0,
                     reference_id=fresh.id, reference_type="处方", operator=current_user.username,
                     note=f"处方#{fresh.id}发药",
                 ))

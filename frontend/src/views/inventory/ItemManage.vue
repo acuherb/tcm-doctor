@@ -37,6 +37,9 @@
           <template #default="{ row }"><el-tag size="small">{{ row.item_type }}</el-tag></template>
         </el-table-column>
         <el-table-column prop="name" label="名称" min-width="140" show-overflow-tooltip />
+        <el-table-column prop="barcode" label="条码" width="120" show-overflow-tooltip>
+          <template #default="{ row }"><span class="mono">{{ row.barcode || '-' }}</span></template>
+        </el-table-column>
         <el-table-column prop="spec" label="规格" width="120" show-overflow-tooltip>
           <template #default="{ row }">{{ row.spec || '-' }}</template>
         </el-table-column>
@@ -124,6 +127,14 @@
             <el-option v-for="h in herbs" :key="h.id" :label="h.name" :value="h.id" />
           </el-select>
         </el-form-item>
+        <el-form-item label="默认供应商">
+          <el-select v-model="itemForm.default_supplier_id" filterable clearable placeholder="可选" style="width:100%">
+            <el-option v-for="s in suppliers" :key="s.id" :label="s.name" :value="s.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="条码">
+          <el-input v-model="itemForm.barcode" placeholder="留空自动生成（IT+ID）" />
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="itemVisible = false">取消</el-button>
@@ -145,8 +156,10 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="售价">
-              <el-input-number v-model="stockInForm.sale_price" :min="0" :precision="2" :controls="false" style="width:100%" />
+            <el-form-item label="供应商">
+              <el-select v-model="stockInForm.supplier_id" filterable clearable placeholder="选供应商" style="width:100%">
+                <el-option v-for="s in suppliers" :key="s.id" :label="s.name" :value="s.id" />
+              </el-select>
             </el-form-item>
           </el-col>
         </el-row>
@@ -195,6 +208,7 @@ const editable = computed(() => !!auth.user?.is_admin)
 
 const items = ref<any[]>([])
 const herbs = ref<any[]>([])
+const suppliers = ref<any[]>([])
 const searchText = ref('')
 const typeFilter = ref('')
 const submitting = ref(false)
@@ -229,6 +243,9 @@ async function loadItems() {
 async function loadHerbs() {
   try { herbs.value = (await api.get('/herbs') as any) || [] } catch {}
 }
+async function loadSuppliers() {
+  try { suppliers.value = (await api.get('/stock/suppliers') as any) || [] } catch {}
+}
 
 // ── 新增 / 编辑 物品 ──
 const itemVisible = ref(false)
@@ -238,6 +255,7 @@ const activeItemId = ref<number | null>(null)
 const itemForm = ref({
   item_type: '中药', name: '', spec: '', unit: 'g',
   sell_price: null as number | null, min_stock: null as number | null, herb_id: null as number | null,
+  default_supplier_id: null as number | null, barcode: '',
 })
 const itemRules = {
   item_type: [{ required: true, message: '请选择类别', trigger: 'change' }],
@@ -248,7 +266,7 @@ const itemRules = {
 function openCreate() {
   isEdit.value = false
   activeItemId.value = null
-  itemForm.value = { item_type: '中药', name: '', spec: '', unit: 'g', sell_price: null, min_stock: null, herb_id: null }
+  itemForm.value = { item_type: '中药', name: '', spec: '', unit: 'g', sell_price: null, min_stock: null, herb_id: null, default_supplier_id: null, barcode: '' }
   itemVisible.value = true
 }
 function openEdit(row: any) {
@@ -258,7 +276,8 @@ function openEdit(row: any) {
     item_type: row.item_type, name: row.name, spec: row.spec || '', unit: row.unit,
     sell_price: row.sell_price != null ? Number(row.sell_price) : null,
     min_stock: row.min_stock != null ? Number(row.min_stock) : null,
-    herb_id: row.herb_id || null,
+    herb_id: row.herb_id || null, default_supplier_id: row.default_supplier_id || null,
+    barcode: row.barcode || '',
   }
   itemVisible.value = true
 }
@@ -304,7 +323,7 @@ const stockInVisible = ref(false)
 const activeItem = ref<any>(null)
 const stockInFormRef = ref()
 const stockInForm = ref({
-  quantity: 1, unit_price: null as number | null, sale_price: null as number | null,
+  quantity: 1, unit_price: null as number | null, supplier_id: null as number | null,
   batch_number: '', purchase_date: '', expiry_date: '', supplier: '', location: '', note: '',
 })
 const stockInRules = {
@@ -312,7 +331,7 @@ const stockInRules = {
 }
 function openStockIn(row: any) {
   activeItem.value = row
-  stockInForm.value = { quantity: 1, unit_price: null, sale_price: null as number | null, batch_number: '', purchase_date: '', expiry_date: '', supplier: row.location || '', location: '', note: '' }
+  stockInForm.value = { quantity: 1, unit_price: null, supplier_id: row.default_supplier_id || null, batch_number: '', purchase_date: '', expiry_date: '', supplier: '', location: '', note: '' }
   stockInVisible.value = true
 }
 async function submitStockIn() {
@@ -330,12 +349,13 @@ async function submitStockIn() {
   }
 }
 
-onMounted(() => { loadItems(); loadHerbs() })
+onMounted(() => { loadItems(); loadHerbs(); loadSuppliers() })
 </script>
 
 <style scoped lang="scss">
 .item-manage {
   .low-stock { color: #f56c6c; font-weight: 700; }
+  .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; color: #8a7563; }
 }
 .cards { display: flex; flex-direction: column; gap: 10px; }
 .card {

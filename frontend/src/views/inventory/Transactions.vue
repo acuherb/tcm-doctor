@@ -11,6 +11,9 @@
             <el-button v-if="editable" type="warning" size="small" @click="openStockOut">
               <el-icon><Download /></el-icon> 出库
             </el-button>
+            <el-button v-if="editable" type="danger" size="small" @click="openStockWriteoff">
+              <el-icon><Delete /></el-icon> 报损
+            </el-button>
           </div>
         </div>
       </template>
@@ -23,6 +26,7 @@
             <el-option label="出库" value="出库" />
             <el-option label="盘点" value="盘点" />
             <el-option label="调整" value="调整" />
+            <el-option label="报损" value="损耗" />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -67,6 +71,20 @@
         <el-table-column prop="batch_number" label="批号" width="120">
           <template #default="{ row }">{{ row.batch_number || '-' }}</template>
         </el-table-column>
+        <el-table-column label="成本金额" width="120">
+          <template #default="{ row }">
+            <span v-if="row.cost_amount != null" :class="Number(row.cost_amount) < 0 ? 'out-qty' : 'in-qty'">
+              {{ Number(row.cost_amount) < 0 ? '-' : '+' }}¥{{ Math.abs(Number(row.cost_amount)).toFixed(2) }}
+            </span>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="收入金额" width="120">
+          <template #default="{ row }">
+            <span v-if="row.revenue_amount != null && Number(row.revenue_amount) > 0" class="in-qty">¥{{ Number(row.revenue_amount).toFixed(2) }}</span>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="reference_type" label="来源" width="90">
           <template #default="{ row }"><el-tag size="small" type="info">{{ row.reference_type || '-' }}</el-tag></template>
         </el-table-column>
@@ -87,6 +105,8 @@
               </span>
             </div>
             <div class="card-row"><span class="label">批号</span><span class="value">{{ row.batch_number || '-' }}</span></div>
+            <div class="card-row" v-if="row.cost_amount != null"><span class="label">成本</span><span class="value" :class="Number(row.cost_amount) < 0 ? 'out-qty' : 'in-qty'">{{ Number(row.cost_amount) < 0 ? '-' : '+' }}¥{{ Math.abs(Number(row.cost_amount)).toFixed(2) }}</span></div>
+            <div class="card-row" v-if="row.revenue_amount != null && Number(row.revenue_amount) > 0"><span class="label">收入</span><span class="value in-qty">¥{{ Number(row.revenue_amount).toFixed(2) }}</span></div>
             <div class="card-row"><span class="label">来源</span><span class="value">{{ row.reference_type || '-' }} / {{ row.operator || '-' }} / {{ row.created_at }}</span></div>
             <div class="card-row" v-if="row.note"><span class="label">备注</span><span class="value">{{ row.note }}</span></div>
           </div>
@@ -113,8 +133,10 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="售价">
-              <el-input-number v-model="stockInForm.sale_price" :min="0" :precision="2" :controls="false" style="width:100%" />
+            <el-form-item label="供应商">
+              <el-select v-model="stockInForm.supplier_id" filterable clearable placeholder="选供应商" style="width:100%">
+                <el-option v-for="s in suppliers" :key="s.id" :label="s.name" :value="s.id" />
+              </el-select>
             </el-form-item>
           </el-col>
         </el-row>
@@ -174,6 +196,35 @@
         <el-button type="primary" @click="submitStockOut" :loading="submitting">确认出库</el-button>
       </template>
     </el-dialog>
+
+    <!-- 报损对话框 -->
+    <el-dialog v-model="writeoffVisible" title="🗑 报损/核销" width="500px" destroy-on-close>
+      <el-form :model="writeoffForm" label-width="92px" :rules="stockOutRules" ref="writeoffFormRef">
+        <el-form-item label="物品" prop="item_id">
+          <el-select v-model="writeoffForm.item_id" filterable placeholder="搜索物品" style="width:100%" @change="onOutItemSelect">
+            <el-option v-for="i in items" :key="i.id" :label="`${i.name}（${i.unit}）`" :value="i.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="当前库存">
+          <span style="color:#8B4513;font-weight:600;">{{ outAvailable }} {{ outUnit }}</span>
+        </el-form-item>
+        <el-form-item label="指定批次">
+          <el-select v-model="writeoffForm.batch_id" clearable placeholder="留空则按 FIFO 顺序扣减" style="width:100%">
+            <el-option v-for="b in outBatches" :key="b.id" :label="`${b.batch_number || '批' + b.id}（余 ${b.quantity} ${outUnit}）`" :value="b.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="报损量" prop="quantity">
+          <el-input-number v-model="writeoffForm.quantity" :min="0.01" :precision="2" style="width:100%" />
+        </el-form-item>
+        <el-form-item label="原因">
+          <el-input v-model="writeoffForm.note" type="textarea" :rows="2" placeholder="过期/变质/损耗原因" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="writeoffVisible = false">取消</el-button>
+        <el-button type="danger" @click="submitStockWriteoff" :loading="submitting">确认报损</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -181,7 +232,7 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Upload, Download, Search } from '@element-plus/icons-vue'
+import { Upload, Download, Search, Delete } from '@element-plus/icons-vue'
 import api from '@/utils/api'
 import { useAuthStore } from '@/store/auth'
 
@@ -191,6 +242,7 @@ const route = useRoute()
 
 const transactions = ref<any[]>([])
 const items = ref<any[]>([])
+const suppliers = ref<any[]>([])
 const typeFilter = ref('')
 const refFilter = ref('')
 const searchText = ref('')
@@ -223,13 +275,16 @@ async function loadTransactions() {
 async function loadItems() {
   try { items.value = (await api.get('/stock/items') as any) || [] } catch {}
 }
+async function loadSuppliers() {
+  try { suppliers.value = (await api.get('/stock/suppliers') as any) || [] } catch {}
+}
 
 // ── 入库 ──
 const stockInVisible = ref(false)
 const stockInFormRef = ref()
 const stockInForm = ref({
   item_id: null as number | null, quantity: 1,
-  unit_price: null as number | null, sale_price: null as number | null,
+  unit_price: null as number | null, supplier_id: null as number | null,
   batch_number: '', purchase_date: '', expiry_date: '', supplier: '', note: '',
 })
 const stockInRules = {
@@ -237,12 +292,12 @@ const stockInRules = {
   quantity: [{ required: true, message: '请输入入库量', trigger: 'blur' }],
 }
 function openStockIn() {
-  stockInForm.value = { item_id: null, quantity: 1, unit_price: null, sale_price: null, batch_number: '', purchase_date: '', expiry_date: '', supplier: '', note: '' }
+  stockInForm.value = { item_id: null, quantity: 1, unit_price: null, supplier_id: null, batch_number: '', purchase_date: '', expiry_date: '', supplier: '', note: '' }
   stockInVisible.value = true
 }
 function onItemSelect(id: number) {
   const i = items.value.find((x: any) => x.id === id)
-  if (i && i.sell_price != null) stockInForm.value.sale_price = Number(i.sell_price)
+  if (i) stockInForm.value.supplier_id = i.default_supplier_id || null
 }
 async function submitStockIn() {
   if (!stockInForm.value.item_id) { ElMessage.warning('请选择物品'); return }
@@ -303,7 +358,32 @@ async function submitStockOut() {
   }
 }
 
-onMounted(() => { loadTransactions(); loadItems() })
+// ── 报损 ──
+const writeoffVisible = ref(false)
+const writeoffFormRef = ref()
+const writeoffForm = ref({ item_id: null as number | null, batch_id: null as number | null, quantity: 1, note: '' })
+function openStockWriteoff() {
+  writeoffForm.value = { item_id: null, batch_id: null, quantity: 1, note: '' }
+  outBatches.value = []; outAvailable.value = 0; outUnit.value = ''
+  writeoffVisible.value = true
+}
+async function submitStockWriteoff() {
+  if (!writeoffForm.value.item_id) { ElMessage.warning('请选择物品'); return }
+  if (!writeoffForm.value.quantity || writeoffForm.value.quantity <= 0) { ElMessage.warning('请输入大于 0 的报损量'); return }
+  submitting.value = true
+  try {
+    await api.post('/stock/batches/writeoff', writeoffForm.value)
+    ElMessage.success('报损成功')
+    writeoffVisible.value = false
+    loadTransactions()
+  } catch (e: any) {
+    ElMessage.error('报损失败：' + (e?.response?.data?.detail || e?.message || '未知错误'))
+  } finally {
+    submitting.value = false
+  }
+}
+
+onMounted(() => { loadTransactions(); loadItems(); loadSuppliers() })
 </script>
 
 <style scoped lang="scss">

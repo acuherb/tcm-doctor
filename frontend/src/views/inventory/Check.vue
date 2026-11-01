@@ -120,7 +120,7 @@ async function loadItems() {
 async function loadBatches() {
   if (!selectedItemId.value) { batchRows.value = []; return }
   try {
-    const rows = (await api.get('/stock/batches', { params: { item_id: selectedItemId.value } }) as any) || []
+    const rows = (await api.get('/stock/batches', { params: { item_id: selectedItemId.value, include_inactive: true } }) as any) || []
     batchRows.value = rows.map((b: any) => ({ ...b, counted: Number(b.quantity || 0) }))
   } catch (e: any) {
     ElMessage.error('批次加载失败：' + (e?.response?.data?.detail || e?.message || '未知错误'))

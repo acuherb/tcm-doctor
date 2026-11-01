@@ -6,7 +6,7 @@
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span>⚠️ 库存预警</span>
           <el-tag :type="alerts.length > 0 ? 'danger' : 'success'" size="small">
-            {{ alerts.length > 0 ? `${alerts.length} 项低于最低库存` : '库存正常' }}
+            {{ alerts.length > 0 ? `${alerts.length} 项预警` : '库存正常' }}
           </el-tag>
         </div>
       </template>
@@ -16,12 +16,24 @@
         <el-table-column prop="item_type" label="类别" width="100">
           <template #default="{ row }"><el-tag size="small">{{ row.item_type }}</el-tag></template>
         </el-table-column>
-        <el-table-column prop="unit" label="单位" width="70" />
+        <el-table-column prop="alert_type" label="预警类型" width="120">
+          <template #default="{ row }">
+            <el-tag :type="row.alert_type === '近效期' ? 'warning' : row.alert_type === '高价值积压' ? 'info' : 'danger'" size="small">{{ row.alert_type }}</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="current_quantity" label="当前库存" width="120">
           <template #default="{ row }"><span class="low-stock">{{ row.current_quantity }} {{ row.unit }}</span></template>
         </el-table-column>
         <el-table-column prop="min_stock" label="最低库存" width="120">
-          <template #default="{ row }">{{ row.min_stock }} {{ row.unit }}</template>
+          <template #default="{ row }">{{ row.min_stock != null ? row.min_stock + ' ' + row.unit : '-' }}</template>
+        </el-table-column>
+        <el-table-column label="附加信息" min-width="160">
+          <template #default="{ row }">
+            <span v-if="row.alert_type === '近效期'">效期剩 {{ row.days_to_expiry }} 天</span>
+            <span v-else-if="row.alert_type === '呆滞'">静止 {{ row.last_move_days }} 天</span>
+            <span v-else-if="row.alert_type === '高价值积压'">占用 ¥{{ row.stock_value?.toFixed(0) }}</span>
+            <span v-else>低于最低</span>
+          </template>
         </el-table-column>
         <el-table-column label="操作" width="120">
           <template #default="{ row }">
@@ -66,6 +78,9 @@
           </template>
         </el-table-column>
         <el-table-column prop="batch_count" label="批次数" width="90" />
+        <el-table-column label="库存金额" width="120">
+          <template #default="{ row }">¥{{ (row.stock_value || 0).toFixed(2) }}</template>
+        </el-table-column>
         <el-table-column prop="min_stock" label="最低库存" width="110">
           <template #default="{ row }">{{ row.min_stock != null ? row.min_stock + ' ' + row.unit : '-' }}</template>
         </el-table-column>
@@ -93,6 +108,7 @@
             <div class="card-row"><span class="label">库存</span>
               <span class="value" :class="{ 'low-stock': row.has_alert }">{{ row.total_quantity }} {{ row.unit }}（{{ row.batch_count }} 批）</span>
             </div>
+            <div class="card-row"><span class="label">金额</span><span class="value">¥{{ (row.stock_value || 0).toFixed(2) }}</span></div>
             <div class="card-row"><span class="label">最低</span><span class="value">{{ row.min_stock != null ? row.min_stock + row.unit : '-' }}</span></div>
           </div>
           <div class="card-actions">

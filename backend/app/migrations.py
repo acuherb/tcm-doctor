@@ -322,6 +322,68 @@ def m0006() -> None:
         conn.execute(_t("DROP TABLE IF EXISTS inventory_transactions"))
 
 
+@migration(
+    "0007",
+    "进销存财务化：为已有表补充金额列/条码列(suppliers/purchase_* 由 create_all 新建)，并回填流水成本收入与生成条码",
+)
+def m0007() -> None:
+    # 已存在表补列（create_all 不会给存量表加列）；全新库这些列已由 create_all 创建，_add_column 会自动跳过
+    _add_column("stock_items", "barcode", "VARCHAR(40)")
+    _add_column("stock_items", "default_supplier_id", "INTEGER")
+    _add_column("stock_batches", "barcode", "VARCHAR(40)")
+    _add_column("stock_batches", "supplier_id", "INTEGER")
+    _add_column("stock_transactions", "unit_cost", "NUMERIC(10,2)")
+    _add_column("stock_transactions", "unit_price", "NUMERIC(10,2)")
+    _add_column("stock_transactions", "cost_amount", "NUMERIC(14,2)")
+    _add_column("stock_transactions", "revenue_amount", "NUMERIC(14,2)")
+
+    from app.database import SessionLocal
+    from app.models.stock import StockItem, StockBatch, StockTransaction
+
+    db = SessionLocal()
+    try:
+        # 1) 为缺失条码的物品/批次生成条码（IT/BAnnnnnnnn）
+        items = db.query(StockItem).filter(StockItem.barcode.is_(None)).all()
+        for it in items:
+            it.barcode = f"IT{it.id:08d}"
+        batches = db.query(StockBatch).filter(StockBatch.barcode.is_(None)).all()
+        for b in batches:
+            b.barcode = f"BA{b.id:08d}"
+        if items or batches:
+            db.commit()
+
+        # 2) 回填流水金额（仅 cost_amount 为空的历史行）
+        txns = db.query(StockTransaction).filter(StockTransaction.cost_amount.is_(None)).all()
+        if txns:
+            item_sell = {
+                i.id: float(i.sell_price)
+                for i in db.query(StockItem).all() if i.sell_price is not None
+            }
+            batch_cost = {
+                b.id: float(b.unit_price)
+                for b in db.query(StockBatch).all() if b.unit_price is not None
+            }
+            for t in txns:
+                uc = batch_cost.get(t.batch_id) if t.batch_id else None
+                q = float(t.quantity)
+                if t.transaction_type == "入库":
+                    t.unit_cost = uc
+                    t.cost_amount = (q * uc) if uc is not None else None
+                    t.revenue_amount = 0.0
+                elif t.transaction_type in ("出库", "损耗", "盘点", "调整"):
+                    t.unit_cost = uc
+                    t.cost_amount = (-q * uc) if uc is not None else None
+                    if t.reference_type == "处方":
+                        sell = item_sell.get(t.item_id)
+                        t.unit_price = sell
+                        t.revenue_amount = (q * sell) if sell is not None else 0.0
+                    else:
+                        t.revenue_amount = 0.0
+            db.commit()
+    finally:
+        db.close()
+
+
 def run_migrations() -> None:
     """应用所有未执行过的迁移（幂等：以 schema_migrations 表记录为准）"""
     with engine.begin() as conn:

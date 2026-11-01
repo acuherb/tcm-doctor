@@ -80,6 +80,24 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '库房盘点', icon: 'Checked' },
       },
       {
+        path: 'stock/suppliers',
+        name: 'StockSuppliers',
+        component: () => import('@/views/inventory/SupplierManage.vue'),
+        meta: { title: '供应商', icon: 'OfficeBuilding' },
+      },
+      {
+        path: 'stock/purchases',
+        name: 'StockPurchases',
+        component: () => import('@/views/inventory/PurchaseInbound.vue'),
+        meta: { title: '采购入库', icon: 'ShoppingCart' },
+      },
+      {
+        path: 'stock/reports',
+        name: 'StockReports',
+        component: () => import('@/views/inventory/Reports.vue'),
+        meta: { title: '进销存报表', icon: 'DataLine' },
+      },
+      {
         path: 'prescriptions',
         name: 'PrescriptionList',
         component: () => import('@/views/prescription/PrescriptionList.vue'),

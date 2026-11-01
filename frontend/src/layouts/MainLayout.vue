@@ -56,6 +56,9 @@
           <el-menu-item index="/stock/items">物品管理</el-menu-item>
           <el-menu-item index="/stock/transactions">出入库流水</el-menu-item>
           <el-menu-item index="/stock/check">库房盘点</el-menu-item>
+          <el-menu-item index="/stock/suppliers">供应商</el-menu-item>
+          <el-menu-item index="/stock/purchases">采购入库</el-menu-item>
+          <el-menu-item index="/stock/reports">进销存报表</el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu index="prescription-group">
@@ -169,7 +172,7 @@ import { useRoute, useRouter } from 'vue-router'
 import {
   HomeFilled, User, FirstAidKit, Document, Search,
   ChatDotRound, Setting, Fold, Expand, TrendCharts, Box, Goods, Tickets, Checked, Notebook, DataAnalysis, Reading, Coin,
-  UserFilled, ArrowDown,
+  OfficeBuilding, ShoppingCart, DataLine, UserFilled, ArrowDown,
 } from '@element-plus/icons-vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { useAuthStore } from '@/store/auth'

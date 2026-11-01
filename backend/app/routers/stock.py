@@ -1,15 +1,21 @@
-"""库存管理路由：物品 / 批次 / 流水 / 总览 / 预警 / 盘点
+"""库存管理路由：物品 / 批次 / 流水 / 总览 / 预警 / 供应商 / 采购 / 报表 / 盘点
 
 库存本质是关于"物品"的管理，中药只是物品的一种(item_type='中药'，可选关联 herbs 字典)。
 耗材(针灸针/艾灸/外治)以相同结构管理，单位由 stock_items.unit 决定(g/盒/支/根/贴/包)。
+
+进销存财务化：入库/出库/发药/损耗/盘点均向 StockTransaction 写入金额维度
+(unit_cost / unit_price / cost_amount / revenue_amount)，使采购成本、COGS、收入、毛利可聚合。
 """
-from datetime import date
+from datetime import date, datetime, timedelta
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db, inventory_lock
-from app.models.stock import StockItem, StockBatch, StockTransaction
+from app.models.stock import (
+    StockItem, StockBatch, StockTransaction, Supplier, PurchaseOrder, PurchaseItem,
+)
 from app.models.herb import Herb
 from app.models.user import User
 from app.routers.auth import get_current_user
@@ -17,19 +23,54 @@ from app.schemas.stock import (
     StockItemCreate, StockItemUpdate, StockItemResponse,
     StockBatchIn, StockBatchOut, StockBatchResponse, StockBatchUpdate,
     StockTransactionResponse, StockOverview, StockAlert, StockCheckIn,
+    SupplierCreate, SupplierUpdate, SupplierResponse,
+    PurchaseOrderCreate, PurchaseOrderResponse, PurchaseItemResponse,
+    ReportSummary, ReportProfitItem, ReportABCItem, ReportTurnover, SupplierPriceRow,
 )
 
 router = APIRouter(prefix="/stock", tags=["库存管理"])
 
 
+def _gen_barcode(prefix: str, id_val: int) -> str:
+    return f"{prefix}{id_val:08d}"
+
+
 def _batch_resp(b: StockBatch) -> StockBatchResponse:
     return StockBatchResponse(
         id=b.id, item_id=b.item_id, batch_number=b.batch_number, quantity=b.quantity,
-        unit_price=b.unit_price, sale_price=b.sale_price, purchase_date=b.purchase_date,
-        expiry_date=b.expiry_date, supplier=b.supplier, min_stock=b.min_stock,
-        location=b.location, status=b.status, item_name=b.item.name, unit=b.item.unit,
+        unit_price=b.unit_price, purchase_date=b.purchase_date,
+        expiry_date=b.expiry_date, supplier=b.supplier, supplier_id=b.supplier_id,
+        min_stock=b.min_stock, location=b.location, status=b.status,
+        barcode=b.barcode, item_name=b.item.name, unit=b.item.unit,
         herb_id=b.item.herb_id,
     )
+
+
+def _item_base(item: StockItem, total: float, value: float) -> StockItemResponse:
+    return StockItemResponse(
+        id=item.id, item_type=item.item_type, name=item.name, spec=item.spec, unit=item.unit,
+        sell_price=item.sell_price, herb_id=item.herb_id, min_stock=item.min_stock,
+        is_active=item.is_active, barcode=item.barcode, default_supplier_id=item.default_supplier_id,
+        total_quantity=total, stock_value=value,
+    )
+
+
+def _item_agg(db: Session, ids: list[int]) -> tuple[dict, dict]:
+    """返回 {item_id: total_qty} 与 {item_id: stock_value}（仅正常/近效期批次计入）"""
+    if not ids:
+        return {}, {}
+    rows = (
+        db.query(
+            StockBatch.item_id,
+            func.sum(StockBatch.quantity),
+            func.sum(StockBatch.quantity * func.coalesce(StockBatch.unit_price, 0)),
+        )
+        .filter(StockBatch.item_id.in_(ids), StockBatch.status.in_(["正常", "近效期"]))
+        .group_by(StockBatch.item_id).all()
+    )
+    totals = {r[0]: float(r[1] or 0) for r in rows}
+    values = {r[0]: float(r[2] or 0) for r in rows}
+    return totals, values
 
 
 # ── 物品主数据 ──
@@ -52,21 +93,8 @@ def list_items(
         items = [i for i in items if s in (i.name or "").lower() or s in (i.spec or "").lower()]
     items.sort(key=lambda i: (i.item_type, i.name or ""))
     ids = [i.id for i in items]
-    totals: dict[int, float] = {}
-    if ids:
-        rows = db.query(
-            StockBatch.item_id, func.sum(StockBatch.quantity)
-        ).filter(
-            StockBatch.item_id.in_(ids), StockBatch.status.in_(["正常", "近效期"])
-        ).group_by(StockBatch.item_id).all()
-        totals = {iid: float(tot or 0) for (iid, tot) in rows}
-    return [
-        StockItemResponse(
-            id=i.id, item_type=i.item_type, name=i.name, spec=i.spec, unit=i.unit,
-            sell_price=i.sell_price, herb_id=i.herb_id, min_stock=i.min_stock,
-            is_active=i.is_active, total_quantity=totals.get(i.id, 0.0),
-        ) for i in items
-    ]
+    totals, values = _item_agg(db, ids)
+    return [_item_base(i, totals.get(i.id, 0.0), values.get(i.id, 0.0)) for i in items]
 
 
 @router.post("/items", response_model=StockItemResponse, summary="新增物品(药材/耗材)")
@@ -77,13 +105,12 @@ def create_item(data: StockItemCreate, current_user: User = Depends(get_current_
             raise HTTPException(status_code=404, detail="关联药材不存在")
     item = StockItem(**data.model_dump())
     db.add(item)
+    db.flush()
+    if not item.barcode:
+        item.barcode = _gen_barcode("IT", item.id)
     db.commit()
     db.refresh(item)
-    return StockItemResponse(
-        id=item.id, item_type=item.item_type, name=item.name, spec=item.spec, unit=item.unit,
-        sell_price=item.sell_price, herb_id=item.herb_id, min_stock=item.min_stock,
-        is_active=item.is_active, total_quantity=0.0,
-    )
+    return _item_base(item, 0.0, 0.0)
 
 
 @router.put("/items/{item_id}", response_model=StockItemResponse, summary="更新物品")
@@ -95,14 +122,8 @@ def update_item(item_id: int, data: StockItemUpdate, current_user: User = Depend
         setattr(item, key, value)
     db.commit()
     db.refresh(item)
-    total = float(db.query(func.sum(StockBatch.quantity)).filter(
-        StockBatch.item_id == item.id, StockBatch.status.in_(["正常", "近效期"])
-    ).scalar() or 0)
-    return StockItemResponse(
-        id=item.id, item_type=item.item_type, name=item.name, spec=item.spec, unit=item.unit,
-        sell_price=item.sell_price, herb_id=item.herb_id, min_stock=item.min_stock,
-        is_active=item.is_active, total_quantity=total,
-    )
+    totals, values = _item_agg(db, [item.id])
+    return _item_base(item, totals.get(item.id, 0.0), values.get(item.id, 0.0))
 
 
 @router.delete("/items/{item_id}", summary="删除物品(同时删除其批次与流水)")
@@ -124,16 +145,19 @@ def list_batches(
     item_id: int | None = Query(None),
     herb_id: int | None = Query(None, description="按关联药材查(中药)"),
     status: str | None = Query(None),
+    include_inactive: bool = Query(False, description="是否包含已停用(扣空)批次，默认隐藏"),
     search: str | None = Query(None),
     db: Session = Depends(get_db),
 ):
     q = db.query(StockBatch).join(StockItem, StockBatch.item_id == StockItem.id)
-    if item_id:
+    if item_id is not None:
         q = q.filter(StockBatch.item_id == item_id)
-    if herb_id:
+    if herb_id is not None:
         q = q.filter(StockItem.herb_id == herb_id)
-    if status:
+    if status is not None:
         q = q.filter(StockBatch.status == status)
+    elif not include_inactive:
+        q = q.filter(StockBatch.status != "停用")  # 默认隐藏扣空批次
     batches = q.all()
     if search:
         s = search.lower()
@@ -142,7 +166,7 @@ def list_batches(
     return [_batch_resp(b) for b in batches]
 
 
-@router.post("/batches/in", response_model=StockBatchResponse, summary="入库(新增或累加批次)")
+@router.post("/batches/in", response_model=StockBatchResponse, summary="入库(新增或累加批次, 记录成本)")
 def batch_in(data: StockBatchIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     item = db.query(StockItem).filter(StockItem.id == data.item_id).first()
     if not item:
@@ -151,40 +175,76 @@ def batch_in(data: StockBatchIn, current_user: User = Depends(get_current_user),
     exist = db.query(StockBatch).filter(
         StockBatch.item_id == data.item_id, StockBatch.batch_number == batch_number
     ).first()
+    uc = float(data.unit_price) if data.unit_price is not None else None
     if exist:
         before = float(exist.quantity)
         exist.quantity = before + data.quantity
+        if uc is not None:
+            exist.unit_price = uc
+        if data.expiry_date:
+            exist.expiry_date = data.expiry_date
+        if data.supplier_id:
+            exist.supplier_id = data.supplier_id
+        if data.location:
+            exist.location = data.location
+        if data.status:
+            exist.status = data.status
         batch = exist
         note_prefix = "入库累加"
     else:
         batch = StockBatch(
             item_id=data.item_id, batch_number=batch_number, quantity=data.quantity,
-            unit_price=data.unit_price, sale_price=data.sale_price,
-            purchase_date=data.purchase_date, expiry_date=data.expiry_date,
-            supplier=data.supplier, min_stock=data.min_stock, location=data.location,
-            status=data.status or "正常",
+            unit_price=uc, purchase_date=data.purchase_date, expiry_date=data.expiry_date,
+            supplier=data.supplier, supplier_id=data.supplier_id,
+            min_stock=data.min_stock, location=data.location, status=data.status or "正常",
         )
         db.add(batch)
         before = 0.0
         note_prefix = "入库"
     db.flush()
-    if data.sale_price is not None:
-        item.sell_price = data.sale_price
+    if not batch.barcode:
+        batch.barcode = _gen_barcode("BA", batch.id)
+    cost_amount = float(data.quantity) * uc if uc is not None else None
     db.add(StockTransaction(
         item_id=data.item_id, batch_id=batch.id, transaction_type="入库", quantity=data.quantity,
-        before_quantity=before, after_quantity=float(batch.quantity), reference_type="手动",
-        operator=current_user.username, note=(data.note or note_prefix),
+        before_quantity=before, after_quantity=float(batch.quantity),
+        unit_cost=uc, cost_amount=cost_amount, revenue_amount=0.0,
+        reference_type="手动", operator=current_user.username, note=(data.note or note_prefix),
     ))
     db.commit()
     db.refresh(batch)
     return _batch_resp(batch)
 
 
-@router.post("/batches/out", summary="出库(手动扣减, FIFO)")
+def _apply_out(db, batch: StockBatch, qty: float, reference_type: str, reference_id, note, unit_price_sold=None):
+    """通用出库/损耗扣减（带金额），返回是否扣空。"""
+    uc = float(batch.unit_price) if batch.unit_price is not None else None
+    before = float(batch.quantity)
+    batch.quantity = before - qty
+    depleted = False
+    if batch.quantity <= 0:
+        batch.quantity = 0.0
+        batch.status = "停用"  # 扣空即自动停用, 列表默认隐藏
+        depleted = True
+    cost_amount = -(qty * uc) if uc is not None else None
+    rev = (qty * float(unit_price_sold)) if unit_price_sold is not None else 0.0
+    db.add(StockTransaction(
+        item_id=batch.item_id, batch_id=batch.id, transaction_type=("出库" if reference_type != "损耗" else "损耗"),
+        quantity=qty, before_quantity=before, after_quantity=float(batch.quantity),
+        unit_cost=uc, unit_price=unit_price_sold, cost_amount=cost_amount,
+        revenue_amount=rev if reference_type == "处方" else 0.0,
+        reference_id=reference_id, reference_type=reference_type,
+        operator=note.get("operator"), note=note.get("note"),
+    ))
+    return depleted
+
+
+@router.post("/batches/out", summary="出库(手动扣减, FIFO, 记录成本)")
 def batch_out(data: StockBatchOut, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     item = db.query(StockItem).filter(StockItem.id == data.item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="物品不存在")
+    note_ctx = {"operator": current_user.username, "note": data.note}
     with inventory_lock:
         if data.batch_id:
             batch = db.query(StockBatch).filter(StockBatch.id == data.batch_id).with_for_update().first()
@@ -193,13 +253,41 @@ def batch_out(data: StockBatchOut, current_user: User = Depends(get_current_user
             avail = float(batch.quantity)
             if avail < data.quantity:
                 raise HTTPException(status_code=400, detail=f"批次库存不足: 可用{avail}{item.unit}，需{data.quantity}{item.unit}")
-            before = avail
-            batch.quantity = avail - data.quantity
-            db.add(StockTransaction(
-                item_id=data.item_id, batch_id=batch.id, transaction_type="出库", quantity=data.quantity,
-                before_quantity=before, after_quantity=float(batch.quantity), reference_type="手动",
-                operator=current_user.username, note=data.note,
-            ))
+            _apply_out(db, batch, data.quantity, "手动", None, note_ctx)
+        else:
+            batches = db.query(StockBatch).filter(
+                StockBatch.item_id == data.item_id, StockBatch.status.in_(["正常", "近效期"])
+            ).with_for_update().order_by(StockBatch.id).all()
+            avail_total = sum(float(b.quantity) for b in batches)
+            if avail_total < data.quantity:
+                raise HTTPException(status_code=400, detail=f"库存不足: 可用{avail_total}{item.unit}，需{data.quantity}{item.unit}")
+            remaining = data.quantity
+            for b in batches:
+                if remaining <= 0:
+                    break
+                before_b = float(b.quantity)
+                d = min(before_b, remaining)
+                _apply_out(db, b, d, "手动", None, note_ctx)
+                remaining -= d
+        db.commit()
+    return {"message": "出库成功", "quantity": data.quantity}
+
+
+@router.post("/batches/writeoff", summary="报损/核销(过期/变质损耗, 记录成本损失)")
+def batch_writeoff(data: StockBatchOut, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """报损：与出库类似扣减批次，但 transaction_type=损耗，不计入收入（纯成本损失）。"""
+    item = db.query(StockItem).filter(StockItem.id == data.item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="物品不存在")
+    note_ctx = {"operator": current_user.username, "note": (data.note or "报损/核销")}
+    with inventory_lock:
+        if data.batch_id:
+            batch = db.query(StockBatch).filter(StockBatch.id == data.batch_id).with_for_update().first()
+            if not batch or batch.item_id != data.item_id:
+                raise HTTPException(status_code=400, detail="批次不存在或不属于该物品")
+            if float(batch.quantity) < data.quantity:
+                raise HTTPException(status_code=400, detail="批次库存不足")
+            _apply_out(db, batch, data.quantity, "损耗", None, note_ctx)
         else:
             batches = db.query(StockBatch).filter(
                 StockBatch.item_id == data.item_id, StockBatch.status.in_(["正常", "近效期"])
@@ -212,15 +300,10 @@ def batch_out(data: StockBatchOut, current_user: User = Depends(get_current_user
                 if remaining <= 0:
                     break
                 d = min(float(b.quantity), remaining)
-                b.quantity = float(b.quantity) - d
+                _apply_out(db, b, d, "损耗", None, note_ctx)
                 remaining -= d
-                db.add(StockTransaction(
-                    item_id=data.item_id, batch_id=b.id, transaction_type="出库", quantity=d,
-                    before_quantity=avail_total, after_quantity=avail_total - data.quantity,
-                    reference_type="手动", operator=current_user.username, note=data.note,
-                ))
         db.commit()
-    return {"message": "出库成功", "quantity": data.quantity}
+    return {"message": "报损成功", "quantity": data.quantity}
 
 
 @router.put("/batches/{batch_id}", response_model=StockBatchResponse, summary="更新批次(纠错)")
@@ -232,15 +315,18 @@ def update_batch(batch_id: int, data: StockBatchUpdate, current_user: User = Dep
     payload = data.model_dump(exclude_unset=True)
     for key, value in payload.items():
         setattr(batch, key, value)
-    if "sale_price" in payload and payload["sale_price"] is not None:
-        item = db.query(StockItem).filter(StockItem.id == batch.item_id).first()
-        if item:
-            item.sell_price = payload["sale_price"]
     if "quantity" in payload and float(payload["quantity"]) != old_qty:
+        new_qty = float(batch.quantity)
+        uc = float(batch.unit_price) if batch.unit_price is not None else None
+        if new_qty <= 0:
+            batch.quantity = 0.0
+            batch.status = "停用"
+        diff = new_qty - old_qty
         db.add(StockTransaction(
-            item_id=batch.item_id, batch_id=batch.id, transaction_type="调整",
-            quantity=float(payload["quantity"]) - old_qty, before_quantity=old_qty,
-            after_quantity=float(batch.quantity), reference_type="手动",
+            item_id=batch.item_id, batch_id=batch.id, transaction_type="调整", quantity=diff,
+            before_quantity=old_qty, after_quantity=new_qty,
+            unit_cost=uc, cost_amount=(diff * uc) if uc is not None else None,
+            revenue_amount=0.0, reference_type="手动",
             operator=current_user.username, note="批次纠错调整",
         ))
     db.commit()
@@ -250,7 +336,7 @@ def update_batch(batch_id: int, data: StockBatchUpdate, current_user: User = Dep
 
 # ── 流水 ──
 
-@router.get("/transactions", response_model=list[StockTransactionResponse], summary="出入库流水(入/出/余可追溯)")
+@router.get("/transactions", response_model=list[StockTransactionResponse], summary="出入库流水(入/出/余/金额可追溯)")
 def list_transactions(
     item_id: int | None = Query(None),
     transaction_type: str | None = Query(None),
@@ -276,25 +362,24 @@ def list_transactions(
     txns = q.order_by(StockTransaction.id.desc()).limit(limit).all()
     item_ids = {t.item_id for t in txns}
     names = {i.id: i.name for i in db.query(StockItem).filter(StockItem.id.in_(item_ids)).all()} if item_ids else {}
-    names_unit = {i.id: i.unit for i in db.query(StockItem).filter(StockItem.id.in_(item_ids)).all()} if item_ids else {}
+    units = {i.id: i.unit for i in db.query(StockItem).filter(StockItem.id.in_(item_ids)).all()} if item_ids else {}
     batch_ids = {t.batch_id for t in txns if t.batch_id}
     bnos = {b.id: b.batch_number for b in db.query(StockBatch).filter(StockBatch.id.in_(batch_ids)).all()} if batch_ids else {}
-    result = [
+    return [
         StockTransactionResponse(
-            id=t.id, item_id=t.item_id, item_name=names.get(t.item_id),
-            unit=names_unit.get(t.item_id), batch_id=t.batch_id,
-            batch_number=bnos.get(t.batch_id), transaction_type=t.transaction_type, quantity=t.quantity,
-            before_quantity=t.before_quantity, after_quantity=t.after_quantity,
-            reference_id=t.reference_id, reference_type=t.reference_type, operator=t.operator,
-            note=t.note, created_at=t.created_at,
+            id=t.id, item_id=t.item_id, item_name=names.get(t.item_id), unit=units.get(t.item_id),
+            batch_id=t.batch_id, batch_number=bnos.get(t.batch_id), transaction_type=t.transaction_type,
+            quantity=t.quantity, before_quantity=t.before_quantity, after_quantity=t.after_quantity,
+            unit_cost=t.unit_cost, unit_price=t.unit_price, cost_amount=t.cost_amount,
+            revenue_amount=t.revenue_amount, reference_id=t.reference_id, reference_type=t.reference_type,
+            operator=t.operator, note=t.note, created_at=t.created_at,
         ) for t in txns
     ]
-    return result
 
 
 # ── 总览 / 预警 ──
 
-@router.get("/overview", response_model=list[StockOverview], summary="库存总览(按物品聚合)")
+@router.get("/overview", response_model=list[StockOverview], summary="库存总览(按物品聚合, 含库存金额)")
 def overview(
     item_type: str | None = Query(None),
     search: str | None = Query(None),
@@ -306,21 +391,25 @@ def overview(
         q = q.filter(StockItem.item_type == item_type)
     items = q.all()
     ids = [i.id for i in items]
-    rows = (
-        db.query(StockBatch.item_id, func.sum(StockBatch.quantity), func.count(StockBatch.id))
-        .filter(StockBatch.item_id.in_(ids), StockBatch.status.in_(["正常", "近效期"]))
-        .group_by(StockBatch.item_id).all()
-    ) if ids else []
-    agg = {iid: (float(tot or 0), cnt) for (iid, tot, cnt) in rows}
+    totals, values = _item_agg(db, ids)
     out = []
     for i in items:
-        total, cnt = agg.get(i.id, (0.0, 0))
+        total = totals.get(i.id, 0.0)
+        value = values.get(i.id, 0.0)
         threshold = float(i.min_stock or 0)
         has_alert = threshold > 0 and total < threshold
         out.append(StockOverview(
             item_id=i.id, item_name=i.name, item_type=i.item_type, unit=i.unit,
-            total_quantity=total, batch_count=cnt, min_stock=i.min_stock, has_alert=has_alert,
+            total_quantity=total, batch_count=0, min_stock=i.min_stock,
+            has_alert=has_alert, stock_value=value,
         ))
+    # batch_count 单独统计（含正常/近效期）
+    if ids:
+        bc = dict(db.query(StockBatch.item_id, func.count(StockBatch.id)).filter(
+            StockBatch.item_id.in_(ids), StockBatch.status.in_(["正常", "近效期"])
+        ).group_by(StockBatch.item_id).all())
+        for o in out:
+            o.batch_count = bc.get(o.item_id, 0)
     if alert_only:
         out = [o for o in out if o.has_alert]
     if search:
@@ -330,30 +419,91 @@ def overview(
     return out
 
 
-@router.get("/alerts", response_model=list[StockAlert], summary="库存预警(低于物品级阈值)")
-def alerts(db: Session = Depends(get_db)):
-    items = db.query(StockItem).filter(StockItem.is_active == True, StockItem.min_stock > 0).all()
+@router.get("/alerts", response_model=list[StockAlert], summary="多维库存预警(低库存/近效期/呆滞/高价值积压)")
+def alerts(
+    db: Session = Depends(get_db),
+    include_low: bool = Query(True),
+    include_expiry: bool = Query(True),
+    expiry_days: int = Query(90, description="近效期提前天数"),
+    include_stagnant: bool = Query(True),
+    stagnant_days: int = Query(180, description="呆滞阈值(天无出入)"),
+    include_highvalue: bool = Query(True),
+    highvalue_threshold: float = Query(5000.0, description="高价值积压阈值(金额)"),
+):
+    items = db.query(StockItem).filter(StockItem.is_active == True).all()
     ids = [i.id for i in items]
-    rows = (
-        db.query(StockBatch.item_id, func.sum(StockBatch.quantity))
-        .filter(StockBatch.item_id.in_(ids), StockBatch.status.in_(["正常", "近效期"]))
-        .group_by(StockBatch.item_id).all()
-    ) if ids else []
-    totals = {r[0]: float(r[1] or 0) for r in rows}
-    out = []
-    for i in items:
-        total = totals.get(i.id, 0.0)
-        if total < float(i.min_stock or 0):
-            out.append(StockAlert(
-                item_id=i.id, item_name=i.name, unit=i.unit, current_quantity=total,
-                min_stock=float(i.min_stock), alert_type="低于最低库存",
-            ))
+    totals, values = _item_agg(db, ids)
+    today = date.today()
+    out: list[StockAlert] = []
+
+    # 低库存
+    if include_low:
+        for i in items:
+            t = totals.get(i.id, 0.0)
+            if i.min_stock and t < float(i.min_stock):
+                out.append(StockAlert(item_id=i.id, item_name=i.name, unit=i.unit,
+                                     current_quantity=t, min_stock=float(i.min_stock),
+                                     alert_type="低于最低库存", stock_value=values.get(i.id, 0.0)))
+
+    # 近效期（取最早效期的在库批次）
+    if include_expiry:
+        exp_rows = (
+            db.query(StockBatch.item_id, StockBatch.expiry_date, StockBatch.quantity)
+            .filter(StockBatch.item_id.in_(ids), StockBatch.status.in_(["正常", "近效期"]),
+                    StockBatch.expiry_date.isnot(None), StockBatch.quantity > 0)
+            .all()
+        ) if ids else []
+        by_item: dict[int, tuple[str, int]] = {}
+        for item_id, exp, qty in exp_rows:
+            try:
+                d = datetime.strptime(exp, "%Y-%m-%d").date()
+            except Exception:
+                continue
+            left = (d - today).days
+            if 0 <= left <= expiry_days:
+                if item_id not in by_item or d < datetime.strptime(by_item[item_id][0], "%Y-%m-%d").date():
+                    by_item[item_id] = (exp, left)
+        for item_id, (exp, left) in by_item.items():
+            i = next(x for x in items if x.id == item_id)
+            out.append(StockAlert(item_id=item_id, item_name=i.name, unit=i.unit,
+                                 current_quantity=totals.get(item_id, 0.0), min_stock=i.min_stock,
+                                 alert_type="近效期", expiry_date=exp, days_to_expiry=left,
+                                 stock_value=values.get(item_id, 0.0)))
+
+    # 呆滞（最近一次流水距今超过阈值且无出库）
+    if include_stagnant:
+        last_txn = (
+            db.query(StockTransaction.item_id, func.max(StockTransaction.created_at))
+            .filter(StockTransaction.item_id.in_(ids)).group_by(StockTransaction.item_id).all()
+        ) if ids else []
+        last_map = {r[0]: r[1] for r in last_txn}
+        for i in items:
+            t = totals.get(i.id, 0.0)
+            if t <= 0:
+                continue
+            lt = last_map.get(i.id)
+            last_days = (datetime.now() - lt).days if lt else 9999
+            if last_days >= stagnant_days:
+                out.append(StockAlert(item_id=i.id, item_name=i.name, unit=i.unit,
+                                     current_quantity=t, min_stock=i.min_stock,
+                                     alert_type="呆滞", last_move_days=last_days,
+                                     stock_value=values.get(i.id, 0.0)))
+
+    # 高价值积压
+    if include_highvalue:
+        for i in items:
+            v = values.get(i.id, 0.0)
+            if v >= highvalue_threshold and totals.get(i.id, 0.0) > 0:
+                out.append(StockAlert(item_id=i.id, item_name=i.name, unit=i.unit,
+                                     current_quantity=totals.get(i.id, 0.0), min_stock=i.min_stock,
+                                     alert_type="高价值积压", stock_value=v))
+
     return out
 
 
 # ── 盘点 ──
 
-@router.post("/check", summary="库房盘点(逐批次实盘调整, 可含损耗)")
+@router.post("/check", summary="库房盘点(逐批次实盘调整, 可含损耗/盘盈, 记录金额)")
 def stock_check(data: StockCheckIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     item = db.query(StockItem).filter(StockItem.id == data.item_id).first()
     if not item:
@@ -372,10 +522,21 @@ def stock_check(data: StockCheckIn, current_user: User = Depends(get_current_use
             before = float(batch.quantity)
             diff = float(adj.counted) - before
             batch.quantity = float(adj.counted)
+            uc = float(batch.unit_price) if batch.unit_price is not None else None
+            if batch.quantity <= 0:
+                batch.quantity = 0.0
+                batch.status = "停用"
+            elif batch.status == "停用":
+                if batch.expiry_date and (datetime.strptime(batch.expiry_date, "%Y-%m-%d").date() - date.today()).days <= 90:
+                    batch.status = "近效期"
+                else:
+                    batch.status = "正常"
             total_diff += diff
             db.add(StockTransaction(
                 item_id=data.item_id, batch_id=batch.id, transaction_type="盘点", quantity=diff,
-                before_quantity=before, after_quantity=float(adj.counted), reference_type="盘点",
+                before_quantity=before, after_quantity=float(adj.counted),
+                unit_cost=uc, cost_amount=(diff * uc) if uc is not None else None,
+                revenue_amount=0.0, reference_type="盘点",
                 operator=current_user.username, note=data.note or "盘点调整",
             ))
         db.commit()
@@ -383,3 +544,297 @@ def stock_check(data: StockCheckIn, current_user: User = Depends(get_current_use
         "message": "盘点完成", "item_id": data.item_id,
         "before_quantity": cur_total, "after_quantity": cur_total + total_diff,
     }
+
+
+# ── 供应商 ──
+
+@router.get("/suppliers", response_model=list[SupplierResponse], summary="供应商列表")
+def list_suppliers(is_active: bool | None = Query(None), search: str | None = Query(None), db: Session = Depends(get_db)):
+    q = db.query(Supplier)
+    if is_active is not None:
+        q = q.filter(Supplier.is_active == is_active)
+    sups = q.all()
+    if search:
+        s = search.lower()
+        sups = [x for x in sups if s in x.name.lower() or s in (x.contact or "").lower()]
+    return sups
+
+
+@router.post("/suppliers", response_model=SupplierResponse, summary="新增供应商")
+def create_supplier(data: SupplierCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    sup = Supplier(**data.model_dump())
+    db.add(sup)
+    db.commit()
+    db.refresh(sup)
+    return sup
+
+
+@router.put("/suppliers/{sid}", response_model=SupplierResponse, summary="更新供应商")
+def update_supplier(sid: int, data: SupplierUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    sup = db.query(Supplier).filter(Supplier.id == sid).first()
+    if not sup:
+        raise HTTPException(status_code=404, detail="供应商不存在")
+    for key, value in data.model_dump(exclude_unset=True).items():
+        setattr(sup, key, value)
+    db.commit()
+    db.refresh(sup)
+    return sup
+
+
+@router.delete("/suppliers/{sid}", summary="删除供应商")
+def delete_supplier(sid: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    sup = db.query(Supplier).filter(Supplier.id == sid).first()
+    if not sup:
+        raise HTTPException(status_code=404, detail="供应商不存在")
+    if db.query(StockBatch).filter(StockBatch.supplier_id == sid).first():
+        raise HTTPException(status_code=400, detail="该供应商已有进货批次，无法删除")
+    db.delete(sup)
+    db.commit()
+    return {"deleted": sid}
+
+
+# ── 采购入库 ──
+
+def _po_resp(po: PurchaseOrder) -> PurchaseOrderResponse:
+    return PurchaseOrderResponse(
+        id=po.id, order_no=po.order_no, supplier_id=po.supplier_id, supplier_name=po.supplier_name,
+        order_date=po.order_date, note=po.note, status=po.status, total_amount=float(po.total_amount or 0),
+        operator=po.operator, created_at=po.created_at,
+        items=[PurchaseItemResponse(
+            id=it.id, item_id=it.item_id, item_name=None,
+            batch_number=it.batch_number, quantity=it.quantity, unit_price=it.unit_price,
+            amount=it.amount, expiry_date=it.expiry_date, location=it.location,
+        ) for it in po.items],
+    )
+
+
+@router.post("/purchases", response_model=PurchaseOrderResponse, summary="采购入库(生成批次与入库流水)")
+def create_purchase(data: PurchaseOrderCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    supplier = db.query(Supplier).filter(Supplier.id == data.supplier_id).first() if data.supplier_id else None
+    if data.supplier_id and not supplier:
+        raise HTTPException(status_code=404, detail="供应商不存在")
+    order_no = "PO" + datetime.now().strftime("%Y%m%d%H%M%S")
+    po = PurchaseOrder(
+        order_no=order_no, supplier_id=data.supplier_id, supplier_name=supplier.name if supplier else None,
+        order_date=data.order_date or date.today().strftime("%Y-%m-%d"), note=data.note,
+        status="已入库", operator=current_user.username, total_amount=0.0,
+    )
+    db.add(po)
+    db.flush()
+    total = 0.0
+    item_names = {i.id: i.name for i in db.query(StockItem).all()}
+    for it in data.items:
+        item = db.query(StockItem).filter(StockItem.id == it.item_id).first()
+        if not item:
+            raise HTTPException(status_code=400, detail=f"物品不存在: {it.item_id}")
+        amount = float(it.quantity) * float(it.unit_price)
+        total += amount
+        bn = it.batch_number or date.today().strftime("%Y%m%d")
+        batch = db.query(StockBatch).filter(
+            StockBatch.item_id == it.item_id, StockBatch.batch_number == bn
+        ).with_for_update().first()
+        if batch:
+            before = float(batch.quantity)
+            batch.quantity = before + it.quantity
+            batch.unit_price = it.unit_price
+            if it.expiry_date:
+                batch.expiry_date = it.expiry_date
+            if it.location:
+                batch.location = it.location
+        else:
+            before = 0.0
+            batch = StockBatch(
+                item_id=it.item_id, batch_number=bn, quantity=it.quantity, unit_price=it.unit_price,
+                purchase_date=po.order_date, expiry_date=it.expiry_date,
+                supplier=supplier.name if supplier else None, supplier_id=data.supplier_id,
+                location=it.location, status="正常",
+            )
+            db.add(batch)
+            db.flush()
+        if not batch.barcode:
+            batch.barcode = _gen_barcode("BA", batch.id)
+        db.add(StockTransaction(
+            item_id=it.item_id, batch_id=batch.id, transaction_type="入库", quantity=it.quantity,
+            before_quantity=(before if batch.quantity else 0.0),
+            after_quantity=float(batch.quantity), unit_cost=it.unit_price,
+            cost_amount=amount, revenue_amount=0.0, reference_id=po.id, reference_type="采购",
+            operator=current_user.username, note=f"采购单{order_no}",
+        ))
+        db.add(PurchaseItem(
+            po_id=po.id, item_id=it.item_id, batch_number=batch.batch_number, quantity=it.quantity,
+            unit_price=it.unit_price, amount=amount, expiry_date=it.expiry_date, location=it.location,
+        ))
+    po.total_amount = total
+    db.commit()
+    db.refresh(po)
+    # 重新构造响应（含物品名）
+    resp = _po_resp(po)
+    for r, it in zip(resp.items, po.items):
+        r.item_name = item_names.get(it.item_id)
+    return resp
+
+
+@router.get("/purchases", response_model=list[PurchaseOrderResponse], summary="采购单列表")
+def list_purchases(db: Session = Depends(get_db)):
+    pos = db.query(PurchaseOrder).order_by(PurchaseOrder.id.desc()).all()
+    item_names = {i.id: i.name for i in db.query(StockItem).all()}
+    result = []
+    for po in pos:
+        r = _po_resp(po)
+        for it in r.items:
+            it.item_name = item_names.get(it.item_id)
+        result.append(r)
+    return result
+
+
+# ── 条码查询 ──
+
+@router.get("/lookup", summary="按条码查询物品或批次")
+def lookup(barcode: str = Query(...), db: Session = Depends(get_db)):
+    item = db.query(StockItem).filter(StockItem.barcode == barcode).first()
+    if item:
+        totals, values = _item_agg(db, [item.id])
+        return {"type": "item", "data": _item_base(item, totals.get(item.id, 0.0), values.get(item.id, 0.0))}
+    batch = db.query(StockBatch).filter(StockBatch.barcode == barcode).first()
+    if batch:
+        return {"type": "batch", "data": _batch_resp(batch)}
+    raise HTTPException(status_code=404, detail="未找到该条码对应的物品或批次")
+
+
+# ── 报表 ──
+
+@router.get("/report/summary", response_model=ReportSummary, summary="进销存汇总(期间采购成本/收入/COGS/毛利/期末库存)")
+def report_summary(
+    start: str | None = Query(None, description="起始日期 YYYY-MM-DD"),
+    end: str | None = Query(None),
+    db: Session = Depends(get_db),
+):
+    q = db.query(StockTransaction)
+    if start:
+        q = q.filter(StockTransaction.created_at >= start)
+    if end:
+        q = q.filter(StockTransaction.created_at <= end + " 23:59:59")
+    txns = q.all()
+    purchase_cost = sum(float(t.cost_amount or 0) for t in txns if t.transaction_type == "入库" and t.cost_amount)
+    cogs = sum(-float(t.cost_amount or 0) for t in txns if t.cost_amount is not None and t.cost_amount < 0)
+    sales_revenue = sum(float(t.revenue_amount or 0) for t in txns if t.revenue_amount)
+    gross_profit = sales_revenue - cogs
+    gross_margin = (gross_profit / sales_revenue) if sales_revenue else 0.0
+    ending_inventory_value = float(
+        db.query(func.sum(StockBatch.quantity * func.coalesce(StockBatch.unit_price, 0))).scalar() or 0
+    )
+    return ReportSummary(
+        period_start=start, period_end=end, purchase_cost=purchase_cost, sales_revenue=sales_revenue,
+        cogs=cogs, gross_profit=gross_profit, gross_margin=gross_margin,
+        ending_inventory_value=ending_inventory_value,
+    )
+
+
+@router.get("/report/profit", response_model=list[ReportProfitItem], summary="毛利明细(按物品)")
+def report_profit(
+    start: str | None = Query(None),
+    end: str | None = Query(None),
+    db: Session = Depends(get_db),
+):
+    q = db.query(StockTransaction)
+    if start:
+        q = q.filter(StockTransaction.created_at >= start)
+    if end:
+        q = q.filter(StockTransaction.created_at <= end + " 23:59:59")
+    txns = q.all()
+    names = {i.id: (i.name, i.unit) for i in db.query(StockItem).all()}
+    agg: dict[int, dict] = {}
+    for t in txns:
+        a = agg.setdefault(t.item_id, {"rev": 0.0, "cogs": 0.0})
+        a["rev"] += float(t.revenue_amount or 0)
+        if t.cost_amount is not None and t.cost_amount < 0:
+            a["cogs"] += -float(t.cost_amount)
+    out = []
+    for item_id, a in agg.items():
+        rev, cogs = a["rev"], a["cogs"]
+        gp = rev - cogs
+        name, unit = names.get(item_id, (str(item_id), ""))
+        out.append(ReportProfitItem(
+            item_id=item_id, item_name=name, unit=unit, revenue=rev, cogs=cogs,
+            gross_profit=gp, gross_margin=(gp / rev) if rev else 0.0,
+        ))
+    out.sort(key=lambda x: x.gross_profit, reverse=True)
+    return out
+
+
+@router.get("/report/abc", response_model=list[ReportABCItem], summary="ABC 分类(按库存金额)")
+def report_abc(db: Session = Depends(get_db)):
+    items = db.query(StockItem).filter(StockItem.is_active == True).all()
+    ids = [i.id for i in items]
+    _, values = _item_agg(db, ids)
+    rows = sorted([(i, values.get(i.id, 0.0)) for i in items], key=lambda x: x[1], reverse=True)
+    total_value = sum(v for _, v in rows) or 1.0
+    cum = 0.0
+    out = []
+    for i, v in rows:
+        ratio = v / total_value
+        cum += ratio
+        cat = "A" if cum <= 0.7 else ("B" if cum <= 0.9 else "C")
+        out.append(ReportABCItem(item_id=i.id, item_name=i.name, unit=i.unit, stock_value=v,
+                                value_ratio=ratio, cumulative_ratio=cum, category=cat))
+    return out
+
+
+@router.get("/report/turnover", response_model=list[ReportTurnover], summary="周转率(期间COGS/平均库存金额)")
+def report_turnover(
+    start: str | None = Query(None),
+    end: str | None = Query(None),
+    db: Session = Depends(get_db),
+):
+    q = db.query(StockTransaction)
+    if start:
+        q = q.filter(StockTransaction.created_at >= start)
+    if end:
+        q = q.filter(StockTransaction.created_at <= end + " 23:59:59")
+    txns = q.all()
+    names = {i.id: (i.name, i.unit) for i in db.query(StockItem).all()}
+    cogs_map: dict[int, float] = {}
+    net_value_change = 0.0
+    for t in txns:
+        if t.cost_amount is not None:
+            net_value_change += float(t.cost_amount)
+            if t.cost_amount < 0:
+                cogs_map[t.item_id] = cogs_map.get(t.item_id, 0.0) - float(t.cost_amount)
+    ending = float(db.query(func.sum(StockBatch.quantity * func.coalesce(StockBatch.unit_price, 0))).scalar() or 0)
+    beginning = ending - net_value_change
+    out = []
+    for item_id, cogs in cogs_map.items():
+        avg = (beginning + ending) / 2
+        turn = cogs / avg if avg > 0 else 0.0
+        name, unit = names.get(item_id, (str(item_id), ""))
+        out.append(ReportTurnover(item_id=item_id, item_name=name, unit=unit, cogs=cogs,
+                                 avg_inventory_value=avg, turnover=turn))
+    out.sort(key=lambda x: x.turnover, reverse=True)
+    return out
+
+
+@router.get("/report/supplier-price", response_model=list[SupplierPriceRow], summary="供应商比价(同物品不同批次进价)")
+def report_supplier_price(db: Session = Depends(get_db)):
+    batches = db.query(StockBatch).filter(StockBatch.supplier_id.isnot(None), StockBatch.quantity > 0).all()
+    names = {i.id: (i.name, i.unit) for i in db.query(StockItem).all()}
+    suppliers = {s.id: s.name for s in db.query(Supplier).all()}
+    agg: dict[tuple, dict] = {}
+    for b in batches:
+        if b.unit_price is None:
+            continue
+        key = (b.item_id, b.supplier_id)
+        a = agg.setdefault(key, {"min": b.unit_price, "max": b.unit_price, "sum": b.unit_price, "n": 1, "last": b.unit_price})
+        a["min"] = min(a["min"], b.unit_price)
+        a["max"] = max(a["max"], b.unit_price)
+        a["sum"] += b.unit_price
+        a["n"] += 1
+        a["last"] = b.unit_price
+    out = []
+    for (item_id, sid), a in agg.items():
+        name, unit = names.get(item_id, (str(item_id), ""))
+        out.append(SupplierPriceRow(
+            item_id=item_id, item_name=name, unit=unit, supplier_name=suppliers.get(sid, str(sid)),
+            min_cost=a["min"], max_cost=a["max"], avg_cost=a["sum"] / a["n"], last_cost=a["last"],
+        ))
+    out.sort(key=lambda x: (x.item_name, x.supplier_name))
+    return out
