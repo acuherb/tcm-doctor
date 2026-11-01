@@ -41,13 +41,13 @@
         </el-table-column>
         <el-table-column prop="quantity" label="库存量(g)" width="110">
           <template #default="{ row }">
-            <span :class="{ 'low-stock': row.quantity < (row.min_stock || 0) }">
+            <span :class="{ 'low-stock': summaryMap[row.herb_id]?.has_alert }">
               {{ row.quantity }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column prop="min_stock" label="最低库存(g)" width="110">
-          <template #default="{ row }">{{ row.min_stock || '-' }}</template>
+        <el-table-column label="药材最低(g)" width="110">
+          <template #default="{ row }">{{ summaryMap[row.herb_id]?.min_stock != null ? summaryMap[row.herb_id].min_stock : '-' }}</template>
         </el-table-column>
         <el-table-column prop="unit_price" label="进价(元/g)" width="110">
           <template #default="{ row }">{{ row.unit_price != null ? row.unit_price.toFixed(2) : '-' }}</template>
@@ -97,8 +97,8 @@
             <div class="card-row">
               <span class="label">库存</span>
               <span class="value">
-                <span :class="{ 'low-stock': row.quantity < (row.min_stock || 0) }">{{ row.quantity }}</span>
-                g / 最低 {{ row.min_stock || '-' }}g
+                <span :class="{ 'low-stock': summaryMap[row.herb_id]?.has_alert }">{{ row.quantity }}</span>
+                g / 最低 {{ summaryMap[row.herb_id]?.min_stock != null ? summaryMap[row.herb_id].min_stock : '-' }}g
               </span>
             </div>
             <div class="card-row" v-if="row.batch_number">
@@ -257,9 +257,6 @@
         <el-form-item label="最低库存(g)">
           <el-input-number v-model="alertSettingForm.min_stock" :min="0" :precision="1" style="width:100%" />
         </el-form-item>
-        <el-form-item label="存放位置">
-          <el-input v-model="alertSettingForm.location" placeholder="如：A区3号架" />
-        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="alertSettingVisible = false">取消</el-button>
@@ -367,6 +364,7 @@ const inventoryList = ref<any[]>([])
 const searchText = ref('')
 const statusFilter = ref('')
 const alerts = ref<any[]>([])
+const summaryMap = ref<Record<number, any>>({})
 const herbs = ref<any[]>([])
 const submitting = ref(false)
 
@@ -432,12 +430,16 @@ function statusTag(status: string) {
 
 async function loadInventory() {
   try {
-    const [inventory, alertsData] = await Promise.all([
+    const [inventory, alertsData, summaryData] = await Promise.all([
       api.get('/herbs/inventory') as any,
       api.get('/herbs/inventory/alerts') as any,
+      api.get('/herbs/inventory/summary') as any,
     ])
     inventoryList.value = inventory || []
     alerts.value = alertsData || []
+    const m: Record<number, any> = {}
+    for (const s of (summaryData || [])) m[s.herb_id] = s
+    summaryMap.value = m
   } catch (e: any) {
     ElMessage.error('库存加载失败：' + (e?.response?.data?.detail || e?.message || '未知错误'))
   }
@@ -552,32 +554,29 @@ function quickStockIn(herbId: number) {
 
 // ── 设置预警 ──
 const alertSettingVisible = ref(false)
-const alertSettingForm = ref({ id: 0, herb_name: '', min_stock: 0, location: '' })
+const alertSettingForm = ref({ herb_id: 0, herb_name: '', min_stock: 0 })
 
 function editStock(row: any) {
+  const sum = summaryMap.value[row.herb_id]
   alertSettingForm.value = {
-    id: row.id,
+    herb_id: row.herb_id,
     herb_name: row.herb_name || '',
-    min_stock: row.min_stock || 0,
-    location: row.location || '',
+    min_stock: (sum && sum.min_stock != null) ? sum.min_stock : 0,
   }
   alertSettingVisible.value = true
 }
 
 async function saveAlertSetting() {
   try {
-    // 直接用 SQL 更新库存记录的 min_stock 和 location
-    await api.put(`/herbs/inventory/${alertSettingForm.value.id}`, {
+    // 药材级最低库存预警：更新 Herb.min_stock
+    await api.put(`/herbs/${alertSettingForm.value.herb_id}`, {
       min_stock: alertSettingForm.value.min_stock,
-      location: alertSettingForm.value.location,
     })
     ElMessage.success('预警设置已更新')
     alertSettingVisible.value = false
     loadInventory()
-  } catch {
-    // 后端可能没有单个库存更新接口，使用临时方案
-    ElMessage.info('预警设置已记录')
-    alertSettingVisible.value = false
+  } catch (e: any) {
+    ElMessage.error('预警设置失败：' + (e?.response?.data?.detail || e?.message || '未知错误'))
   }
 }
 

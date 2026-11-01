@@ -1,5 +1,19 @@
 # 开发日志 CHANGELOG
 
+## 2026-11-01 — 库存预警改为按药材总库存（多批次不再误报）
+
+### 问题
+预警是按**单个批次**判断 `quantity < min_stock`，且 `min_stock` 是批次级字段。第一次入石膏100g 设预警200g，再入第二批500g 后，第一批仍 100<200 持续告警，无视其它批次总量，与实际库存脱节。
+
+### 修复
+- `Herb` 模型新增药材级 `min_stock`（最低库存预警阈值）；`herbs` 表迁移加列；附幂等脚本 `migrate_herb_min_stock.py`。
+- `HerbUpdate`/`HerbResponse` 暴露 `min_stock`；`update_herb` 经通用 `setattr` 自动写入（已验证）。
+- `inventory_alerts` 与 `inventory/summary`：改为按药材维度聚合（该药材所有正常/近效期批次总库存 vs 药材级 `min_stock`，历史数据回退各批次 `min_stock` 最大值）。
+- 前端 `InventoryManage.vue`：加载时并行拉取 `/herbs/inventory/summary`；列表/卡片的"最低库存"列与预警高亮改为药材级（基于总库存）；"设置预警"对话框改为设置**药材**阈值（去掉批次级存放位置项）。
+
+### 验证
+- 同一药材两批次 A=100g/B=500g，药材级 min_stock=1000 → 总600<1000 告警；降到200 → 总600>200 不再告警（用户场景）。测试数据已清理。
+
 ## 2026-11-01 — 修复前端预估金额未尊重所选批次售价（取价 bug）
 
 ### 现象

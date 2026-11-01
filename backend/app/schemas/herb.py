@@ -36,6 +36,7 @@ class HerbUpdate(BaseModel):
     pregnancy_contraindicated: bool | None = None
     storage_condition: str | None = None
     price: float | None = None
+    min_stock: float | None = None
     is_active: bool | None = None
 
 
@@ -54,6 +55,7 @@ class HerbResponse(BaseModel):
     pregnancy_contraindicated: bool | None
     storage_condition: str | None
     price: float | None = None
+    min_stock: float | None = None
     is_active: bool | None
 
     model_config = {"from_attributes": True}

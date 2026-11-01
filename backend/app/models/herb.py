@@ -23,6 +23,7 @@ class Herb(Base):
     pregnancy_contraindicated: Mapped[bool] = mapped_column(Boolean, default=False, comment="孕妇禁忌")
     storage_condition: Mapped[str | None] = mapped_column(String(100), comment="储存条件")
     price: Mapped[float | None] = mapped_column(Numeric(8, 2), comment="参考单价(元/g)")
+    min_stock: Mapped[float | None] = mapped_column(Numeric(10, 2), comment="最低库存预警(药材级, g)")
     grade: Mapped[str | None] = mapped_column(String(20), comment="等级/规格")
     meridians: Mapped[list | None] = mapped_column(JSON, comment="归经(十二经数组)")
     directions: Mapped[list | None] = mapped_column(JSON, comment="升降浮沉")

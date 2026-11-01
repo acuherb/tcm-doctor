@@ -253,19 +253,40 @@ def inventory_out(data: InventoryOut, current_user: User = Depends(get_current_u
 
 @router.get("/inventory/alerts", response_model=list[InventoryAlert], summary="库存预警")
 def inventory_alerts(db: Session = Depends(get_db)):
-    """低于最低库存的药材预警"""
-    items = db.query(HerbInventory).options(joinedload(HerbInventory.herb)).filter(
-        HerbInventory.min_stock > 0,
-    ).all()
-
+    """按药材维度聚合预警：该药材所有可用批次总库存低于其最低库存阈值时预警。
+    阈值优先用药材级 Herb.min_stock，历史数据未设药材级时回退各批次 min_stock 最大值。
+    解决'同一药材多批次时，单个批次低于阈值却无视其它批次总库存'的问题。"""
+    from sqlalchemy import func
+    rows = (
+        db.query(
+            HerbInventory.herb_id,
+            func.sum(HerbInventory.quantity).label("total_quantity"),
+        )
+        .filter(HerbInventory.status.in_(["正常", "近效期"]))
+        .group_by(HerbInventory.herb_id)
+        .all()
+    )
+    herb_ids = [r.herb_id for r in rows]
+    herbs = {h.id: h for h in db.query(Herb).filter(Herb.id.in_(herb_ids)).all()} if herb_ids else {}
     alerts = []
-    for item in items:
-        if float(item.quantity) < float(item.min_stock or 0):
+    for r in rows:
+        herb = herbs.get(r.herb_id)
+        if not herb:
+            continue
+        threshold = herb.min_stock
+        if threshold is None:
+            mx = db.query(func.max(HerbInventory.min_stock)).filter(
+                HerbInventory.herb_id == r.herb_id
+            ).scalar()
+            threshold = mx
+        threshold = float(threshold or 0)
+        total = float(r.total_quantity or 0)
+        if threshold > 0 and total < threshold:
             alerts.append(InventoryAlert(
-                herb_id=item.herb_id,
-                herb_name=item.herb.name if item.herb else "未知",
-                current_quantity=float(item.quantity),
-                min_stock=float(item.min_stock or 0),
+                herb_id=r.herb_id,
+                herb_name=herb.name,
+                current_quantity=total,
+                min_stock=threshold,
                 alert_type="低于最低库存",
             ))
     return alerts
@@ -279,28 +300,36 @@ def inventory_summary(db: Session = Depends(get_db)):
         HerbInventory.herb_id,
         sqlfunc.sum(HerbInventory.quantity).label("total_quantity"),
         sqlfunc.count(HerbInventory.id).label("batch_count"),
-        sqlfunc.max(HerbInventory.min_stock).label("min_stock"),
     ).filter(
-        HerbInventory.status == "正常",
+        HerbInventory.status.in_(["正常", "近效期"]),
     ).group_by(HerbInventory.herb_id).all()
 
     herb_ids = [r.herb_id for r in results]
     herbs_map = {}
     if herb_ids:
         herbs_list = db.query(Herb).filter(Herb.id.in_(herb_ids)).all()
-        herbs_map = {h.id: h.name for h in herbs_list}
+        herbs_map = {h.id: h for h in herbs_list}
 
-    return [
-        InventorySummary(
+    out = []
+    for r in results:
+        herb = herbs_map.get(r.herb_id)
+        threshold = herb.min_stock if herb and herb.min_stock is not None else None
+        if threshold is None:
+            mx = db.query(sqlfunc.max(HerbInventory.min_stock)).filter(
+                HerbInventory.herb_id == r.herb_id
+            ).scalar()
+            threshold = mx
+        threshold = float(threshold or 0)
+        total = float(r.total_quantity or 0)
+        out.append(InventorySummary(
             herb_id=r.herb_id,
-            herb_name=herbs_map.get(r.herb_id, "未知"),
-            total_quantity=float(r.total_quantity or 0),
+            herb_name=herb.name if herb else "未知",
+            total_quantity=total,
             batch_count=r.batch_count,
-            min_stock=float(r.min_stock) if r.min_stock else None,
-            has_alert=float(r.min_stock or 0) > 0 and float(r.total_quantity or 0) < float(r.min_stock or 0),
-        )
-        for r in results
-    ]
+            min_stock=threshold if threshold > 0 else None,
+            has_alert=threshold > 0 and total < threshold,
+        ))
+    return out
 
 
 @router.put("/inventory/{inventory_id}", response_model=InventoryResponse, summary="更新库存记录")
