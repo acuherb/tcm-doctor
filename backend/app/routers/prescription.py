@@ -486,27 +486,58 @@ def dispense_prescription(prescription_id: int, current_user: User = Depends(get
         for item in fresh.items:
             total_qty = float(item.dose) * fresh.doses
             if item.inventory_id:
-                # 按开方所选批次出货：扣对应批次，不足则报错（避免跨批次误扣）
+                # 按开方所选批次出货；所选批次不足时自动从其它可用批次补差（跨批次拆单）
                 inv = db.query(HerbInventory).filter(
                     HerbInventory.id == item.inventory_id
                 ).with_for_update().first()
-                avail = float(inv.quantity) if inv else 0
-                if not inv or avail < total_qty:
+                if not inv:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"批次库存不足: {item.herb_name} 需{total_qty}g，所选批次可用{avail}g",
+                        detail=f"所选批次不存在: {item.herb_name}",
                     )
-                before = avail
-                inv.quantity = before - total_qty
-                db.add(InventoryTransaction(
-                    herb_id=inv.herb_id,
-                    transaction_type="出库",
-                    quantity=total_qty,
-                    before_quantity=before,
-                    after_quantity=float(inv.quantity),
-                    reference_id=fresh.id,
-                    note=f"处方#{fresh.id}发药(批次#{inv.id})",
-                ))
+                avail = float(inv.quantity)
+                if avail >= total_qty:
+                    # 全部从所选批次出
+                    before = avail
+                    inv.quantity = before - total_qty
+                    db.add(InventoryTransaction(
+                        herb_id=inv.herb_id, transaction_type="出库", quantity=total_qty,
+                        before_quantity=before, after_quantity=float(inv.quantity),
+                        reference_id=fresh.id, note=f"处方#{fresh.id}发药(批次#{inv.id})",
+                    ))
+                else:
+                    # 先出所选批次全部，差额从其它可用批次(正常/近效期)按 FIFO 补
+                    remaining = total_qty
+                    d0 = min(avail, remaining)
+                    inv.quantity = avail - d0
+                    remaining -= d0
+                    db.add(InventoryTransaction(
+                        herb_id=inv.herb_id, transaction_type="出库", quantity=d0,
+                        before_quantity=avail, after_quantity=float(inv.quantity),
+                        reference_id=fresh.id, note=f"处方#{fresh.id}发药(批次#{inv.id})",
+                    ))
+                    others = db.query(HerbInventory).filter(
+                        HerbInventory.herb_id == item.herb_id,
+                        HerbInventory.status.in_(["正常", "近效期"]),
+                        HerbInventory.id != item.inventory_id,
+                    ).with_for_update().all()
+                    for o in others:
+                        if remaining <= 0:
+                            break
+                        od = min(float(o.quantity), remaining)
+                        o_before = float(o.quantity)
+                        o.quantity = o_before - od
+                        remaining -= od
+                        db.add(InventoryTransaction(
+                            herb_id=o.herb_id, transaction_type="出库", quantity=od,
+                            before_quantity=o_before, after_quantity=float(o.quantity),
+                            reference_id=fresh.id, note=f"处方#{fresh.id}发药补差(批次#{o.id})",
+                        ))
+                    if remaining > 0:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"库存不足: {item.herb_name} 共需{total_qty}g，所选批次及可用批次合计仍缺{remaining}g",
+                        )
             else:
                 # 兼容旧处方（未选批次）：FIFO 全局扣减
                 available = db.query(HerbInventory).filter(

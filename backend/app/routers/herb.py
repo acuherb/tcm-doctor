@@ -168,10 +168,16 @@ def inventory_in(data: InventoryIn, current_user: User = Depends(get_current_use
     if not herb:
         raise HTTPException(status_code=404, detail="药材不存在")
 
+    # 批号：未填写时默认带当天入库日期，便于追溯；也可手填自定义好记名称
+    batch_number = data.batch_number
+    if not batch_number:
+        from datetime import date
+        batch_number = date.today().strftime("%Y%m%d")
+
     # 查找或创建库存记录
     inv = HerbInventory(
         herb_id=data.herb_id,
-        batch_number=data.batch_number,
+        batch_number=batch_number,
         quantity=data.quantity,
         unit_price=data.unit_price,
         sale_price=data.sale_price,
