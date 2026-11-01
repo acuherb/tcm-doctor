@@ -8,9 +8,10 @@
 ### 改动
 - 新增 [backend/seed_acupoint_formulas_nihaixia.py](file:///home/debian/tcm-doctor/backend/seed_acupoint_formulas_nihaixia.py)：解析上述 md → `acupoint_formulas` 记录，按 `name` upsert（幂等可重放）。
   - 覆盖三块：开头零散 `@病症：穴位` 速查卡片 + `## 215条针灸经验`（11 个系统分类）+ `## 31条透针透穴`。
-  - 字段映射：`name=病症/透穴名`、`source=倪海厦·针灸`、`composition.acupoints=解析出的穴位`、`indications=病症或治症`、`notes=【分类】…+透刺/放血/梅花灸等技法说明+透穴来源配穴`。
+  - 字段映射：`name=病症/透穴名`、`source=倪海厦·针灸`、`composition.acupoints=对象数组[{acupoint_name, technique, retention, sequence, note}]`（与原有"通用"方格式一致，前端按 acupoint_name 渲染）、`indications=病症或治症`、`notes=【分类】…+透刺/放血/梅花灸等技法说明+透穴来源配穴`。
   - 识别：内置标准经穴+常见奇穴白名单；`X透Y` 拆两穴并标透刺；去括号保留说明；粘连词（合谷止痛/开四关）最长子串匹配拆穴；非穴位词进 notes；解析不出任何穴位的行（纯功法/医案/病机）自动跳过；不编造 efficacy/频次/天数（留空）。
   - 默认 dry-run 预览，加 `--apply` 落库。
+  - 修正：首版曾误将 `composition.acupoints` 存为字符串数组（["合谷",...]），与项目约定及前端渲染（按 `acupoint_name` 取值）不符，导致针灸方列表/详情页"配穴"显示为空；已改为对象数组格式并幂等重跑覆盖全部 259 条倪海厦方。
 
 ### 数据
 - 解析并导入 **259 条**（新增 255 / 更新 4），运行库 `acupoint_formulas` 现共 **261 条**（倪海厦·针灸 258 + 原有通用 3）。系统分类分布：头面·五官 44、伤痛外科·运动 43、透针透穴 31、妇科·儿科 24、病症速查(零散) 18、其他问题 18、脾胃消化 17、神志·失眠·神经 16、肾·膀胱·泌尿生殖 13、皮肤·表皮 13、肺·呼吸 9、心·心血管 7、肝胆·少阳·厥阴 6。

@@ -99,6 +99,16 @@ def add_extra(extra: list, x: str):
         extra.append(x)
 
 
+def to_comp(pts: list):
+    """把穴位名列表转成与项目约定一致的对象数组格式
+    (原'通用'方、前端都用 {acupoint_name, technique, retention, sequence, note})"""
+    return {"acupoints": [
+        {"acupoint_name": p, "technique": None, "retention": None,
+         "sequence": i + 1, "note": None}
+        for i, p in enumerate(pts)
+    ]}
+
+
 def parse_points(text: str):
     """返回 (穴位列表, 非穴位残留词列表)"""
     extra = []
@@ -183,7 +193,7 @@ def parse_md(text: str):
             notes += "；备注：" + "、".join(extra)
         formulas.append({
             "name": name, "source": "倪海厦·针灸", "indications": name,
-            "composition": {"acupoints": pts}, "notes": notes,
+            "composition": to_comp(pts), "notes": notes,
         })
 
     # ---- 区块B: 215条经验 ----
@@ -214,7 +224,7 @@ def parse_md(text: str):
             notes += ("；" if notes else "") + "备注：" + "、".join(extra)
         formulas.append({
             "name": name, "source": "倪海厦·针灸", "indications": name,
-            "composition": {"acupoints": pts}, "notes": notes,
+            "composition": to_comp(pts), "notes": notes,
         })
 
     # ---- 区块C: 31条透穴 ----
@@ -227,7 +237,7 @@ def parse_md(text: str):
             pts, extra = parse_points(name)
             pending = {
                 "name": name, "source": "倪海厦·针灸", "indications": "",
-                "composition": {"acupoints": pts}, "notes": "【分类】透针透穴",
+                "composition": to_comp(pts), "notes": "【分类】透针透穴",
                 "_z": "", "_l": "", "_e": extra,
             }
             formulas.append(pending)
