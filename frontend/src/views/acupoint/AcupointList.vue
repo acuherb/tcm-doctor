@@ -12,9 +12,13 @@
             <span v-if="opt.description" :style="{ fontSize: '12px', color: '#909399', marginLeft: '8px' }">{{ opt.description }}</span>
           </el-option>
         </el-select>
-        <el-select v-model="regionCombo" placeholder="分部" clearable style="width: 200px" @change="onRegionChange">
-          <el-option label="全部分部" value="" />
-          <el-option v-for="r in regionOptions" :key="r" :label="r" :value="r" />
+        <el-select v-model="filter.meridian" placeholder="归经" clearable style="width: 160px" @change="loadAcupoints">
+          <el-option label="全部归经" value="" />
+          <el-option v-for="opt in dimOptions('meridian')" :key="opt.value" :label="opt.label" :value="opt.value" />
+        </el-select>
+        <el-select v-model="filter.region" placeholder="部位" clearable style="width: 130px" @change="loadAcupoints">
+          <el-option label="全部部位" value="" />
+          <el-option v-for="opt in dimOptions('region')" :key="opt.value" :label="opt.label" :value="opt.value" />
         </el-select>
         <el-button type="primary" @click="loadAcupoints">查询</el-button>
       </div>
@@ -32,8 +36,11 @@
         <el-table-column label="来源" width="130">
           <template #default="{ row }"><span class="src-pill">{{ row.source || '—' }}</span></template>
         </el-table-column>
-        <el-table-column label="分部" min-width="170">
-          <template #default="{ row }">{{ regionText(row) }}</template>
+        <el-table-column label="归经" min-width="150">
+          <template #default="{ row }">{{ row.meridian || '—' }}</template>
+        </el-table-column>
+        <el-table-column label="部位" min-width="90">
+          <template #default="{ row }">{{ row.region || '—' }}</template>
         </el-table-column>
         <el-table-column prop="point_type" label="类型" width="120" />
         <el-table-column prop="location" label="定位" min-width="240" show-overflow-tooltip />
@@ -55,7 +62,8 @@
           <span class="m-name">{{ a.name }}</span>
           <span class="src-pill">{{ a.source || '—' }}</span>
         </div>
-        <div class="m-row"><span class="m-label">分部</span><span class="m-val">{{ regionText(a) }}</span></div>
+        <div class="m-row"><span class="m-label">归经</span><span class="m-val">{{ a.meridian || '—' }}</span></div>
+        <div class="m-row"><span class="m-label">部位</span><span class="m-val">{{ a.region || '—' }}</span></div>
         <div class="m-row"><span class="m-label">类型</span><span class="m-val">{{ a.point_type || '—' }}</span></div>
         <div class="m-row"><span class="m-label">定位</span><span class="m-val">{{ a.location || '—' }}</span></div>
         <div class="m-row"><span class="m-label">功效</span><span class="m-val">{{ a.efficacy || '—' }}</span></div>
@@ -129,7 +137,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '@/utils/api'
 
@@ -157,7 +165,6 @@ const importText = ref('')
 const editId = ref<number | null>(null)
 
 const filter = reactive({ search: '', source: '', meridian: '', region: '' })
-const regionCombo = ref('')
 
 // 字典维度选项（来自 /acupoints/tags/meta）
 interface TagOption {
@@ -184,28 +191,6 @@ const meta = ref<TagMeta>({
 })
 function dimOptions(key: string): TagOption[] {
   return meta.value.dimensions[key]?.options || []
-}
-
-// 分部下拉选项：从当前数据去重得到「归经 · 部位」组合
-const regionOptions = computed(() => {
-  const set = new Set<string>()
-  for (const a of acupoints.value) {
-    const t = regionText(a)
-    if (t) set.add(t)
-  }
-  return Array.from(set).sort()
-})
-
-function regionText(a: Acupoint): string {
-  if (a.meridian && a.region) return `${a.meridian} · ${a.region}`
-  return a.meridian || a.region || '—'
-}
-
-function onRegionChange(val: string) {
-  const parts = (val || '').split(' · ')
-  filter.meridian = parts[0] || ''
-  filter.region = parts[1] || ''
-  loadAcupoints()
 }
 
 const form = reactive({
