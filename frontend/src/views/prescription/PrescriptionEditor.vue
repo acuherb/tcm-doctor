@@ -444,7 +444,7 @@ const filteredAcupointFormulas = computed(() => {
 function herbUnitPrice(item: any): number | null {
   if (item == null || item.herb_id == null) return null
   const herb = herbCacheList.value.find((h: any) => h.id === item.herb_id)
-  const price = herb?.price ?? item.price ?? null
+  const price = item.price ?? herb?.price ?? null
   return price != null ? Number(price) : null
 }
 function herbItemAmount(item: any): number | null {
