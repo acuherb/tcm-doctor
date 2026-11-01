@@ -1,5 +1,22 @@
 # 开发日志 CHANGELOG
 
+## 2026-11-01 — 修复库存出库"没反应"：补全前端错误处理与校验提示
+
+### 现象
+库存管理点"出库"操作后无任何反馈（无成功/失败提示，列表也不刷新）。
+
+### 根因
+- `submitStockOut`、`loadInventory` 的 `catch {}` 为空：出库请求异常，或数量未填被前端拦截时全部静默吞掉，表现为"没反应"。
+- 出库数量校验提示不醒目，易被忽略。
+
+### 修复
+- `InventoryManage.vue` `submitStockOut`：补全 `catch` 显式 `ElMessage.error` 失败原因；数量校验提示改为"请输入大于 0 的出库量"；仅提交 `herb_id/quantity/note` 必要字段。
+- `loadInventory`：补全 `catch` 错误提示，加载失败可见。
+- 后端 `POST /herbs/inventory/out` 经实测正常（200，库存正确扣减），"没反应"为纯前端吞错所致。
+
+### 附：入库售价与处方计价（用户问）
+入库填的售价会同步写入药材参考单价 `herb.price`；开处方选该药材时单价自动预填 `herb.price`（`PrescriptionEditor` 取 `herb?.price ?? item.price`），可在处方内再改。即入库把售价填对，开方计价即自动带价。
+
 ## 2026-11-01 — 库存管理入库记录支持编辑纠错（录入字段不再锁死）
 
 ### 问题

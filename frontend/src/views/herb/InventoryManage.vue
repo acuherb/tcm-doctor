@@ -438,7 +438,9 @@ async function loadInventory() {
     ])
     inventoryList.value = inventory || []
     alerts.value = alertsData || []
-  } catch {}
+  } catch (e: any) {
+    ElMessage.error('库存加载失败：' + (e?.response?.data?.detail || e?.message || '未知错误'))
+  }
 }
 
 async function loadHerbs() {
@@ -523,15 +525,21 @@ function onStockOutHerbSelect(herbId: number) {
 }
 
 async function submitStockOut() {
-  if (!stockOutForm.value.herb_id) { ElMessage.warning('请选择药材'); return }
-  if (stockOutForm.value.quantity <= 0) { ElMessage.warning('请输入出库量'); return }
+  if (!stockOutForm.value.herb_id) { ElMessage.warning('请先选择药材'); return }
+  if (!stockOutForm.value.quantity || stockOutForm.value.quantity <= 0) { ElMessage.warning('请输入大于 0 的出库量'); return }
   submitting.value = true
   try {
-    await api.post('/herbs/inventory/out', stockOutForm.value)
+    await api.post('/herbs/inventory/out', {
+      herb_id: stockOutForm.value.herb_id,
+      quantity: stockOutForm.value.quantity,
+      note: stockOutForm.value.note,
+    })
     ElMessage.success('出库成功')
     stockOutVisible.value = false
     loadInventory()
-  } catch {} finally {
+  } catch (e: any) {
+    ElMessage.error('出库失败：' + (e?.response?.data?.detail || e?.message || '未知错误'))
+  } finally {
     submitting.value = false
   }
 }
