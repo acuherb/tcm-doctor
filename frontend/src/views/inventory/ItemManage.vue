@@ -32,7 +32,7 @@
         </el-form-item>
       </el-form>
 
-      <el-table v-if="!isMobile" :data="filteredItems" stripe style="width:100%" empty-text="暂无物品">
+      <el-table v-if="!isMobile" class="stock-item-table" :data="filteredItems" stripe style="width:100%" empty-text="暂无物品" :row-class-name="rowClass">
         <el-table-column prop="item_type" label="类别" width="110">
           <template #default="{ row }"><el-tag size="small">{{ row.item_type }}</el-tag></template>
         </el-table-column>
@@ -66,7 +66,7 @@
 
       <!-- 移动端卡片 -->
       <div v-if="isMobile" class="cards">
-        <div v-for="row in filteredItems" :key="row.id" class="card">
+        <div v-for="row in filteredItems" :key="row.id" class="card" :class="{ 'focus-card': row.id === focusId }">
           <div class="card-head">
             <span class="card-name">{{ row.name }}</span>
             <el-tag size="small">{{ row.item_type }}</el-tag>
@@ -197,10 +197,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
 import api from '@/utils/api'
+import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/store/auth'
 
 const auth = useAuthStore()
@@ -212,6 +213,8 @@ const suppliers = ref<any[]>([])
 const searchText = ref('')
 const typeFilter = ref('')
 const submitting = ref(false)
+const route = useRoute()
+const focusId = ref<number | null>(null)
 
 const filteredItems = computed(() => {
   let list = items.value
@@ -233,9 +236,19 @@ function updateViewport() { isMobile.value = window.innerWidth < 768 }
 onMounted(() => { updateViewport(); window.addEventListener('resize', updateViewport) })
 onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
 
+function rowClass({ row }: any) {
+  return row.id === focusId.value ? 'focus-row' : ''
+}
+
 async function loadItems() {
   try {
     items.value = (await api.get('/stock/items') as any) || []
+    // 消费「去入库」跳转带来的 focus 参数：高亮并滚动到目标物品所在行/卡片
+    focusId.value = route.query.focus ? Number(route.query.focus) : null
+    nextTick(() => {
+      const el = document.querySelector('.stock-item-table .focus-row, .focus-card') as HTMLElement | null
+      el?.scrollIntoView({ block: 'center' })
+    })
   } catch (e: any) {
     ElMessage.error('物品加载失败：' + (e?.response?.data?.detail || e?.message || '未知错误'))
   }
@@ -356,6 +369,9 @@ onMounted(() => { loadItems(); loadHerbs(); loadSuppliers() })
 .item-manage {
   .low-stock { color: #f56c6c; font-weight: 700; }
   .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; color: #8a7563; }
+  :deep(.stock-item-table .focus-row) { background: #fdf6ec; }
+  :deep(.stock-item-table .focus-row:hover > td) { background: #faecd8; }
+  .focus-card { border-color: #e6a23c !important; box-shadow: 0 0 0 2px #fdf6ec; }
 }
 .cards { display: flex; flex-direction: column; gap: 10px; }
 .card {

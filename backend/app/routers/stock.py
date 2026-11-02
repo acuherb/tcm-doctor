@@ -308,28 +308,32 @@ def batch_writeoff(data: StockBatchOut, current_user: User = Depends(get_current
 
 @router.put("/batches/{batch_id}", response_model=StockBatchResponse, summary="更新批次(纠错)")
 def update_batch(batch_id: int, data: StockBatchUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    batch = db.query(StockBatch).filter(StockBatch.id == batch_id).first()
-    if not batch:
-        raise HTTPException(status_code=404, detail="批次不存在")
-    old_qty = float(batch.quantity)
-    payload = data.model_dump(exclude_unset=True)
-    for key, value in payload.items():
-        setattr(batch, key, value)
-    if "quantity" in payload and float(payload["quantity"]) != old_qty:
-        new_qty = float(batch.quantity)
-        uc = float(batch.unit_price) if batch.unit_price is not None else None
-        if new_qty <= 0:
-            batch.quantity = 0.0
-            batch.status = "停用"
-        diff = new_qty - old_qty
-        db.add(StockTransaction(
-            item_id=batch.item_id, batch_id=batch.id, transaction_type="调整", quantity=diff,
-            before_quantity=old_qty, after_quantity=new_qty,
-            unit_cost=uc, cost_amount=(diff * uc) if uc is not None else None,
-            revenue_amount=0.0, reference_type="手动",
-            operator=current_user.username, note="批次纠错调整",
-        ))
-    db.commit()
+    with inventory_lock:
+        batch = db.query(StockBatch).filter(StockBatch.id == batch_id).with_for_update().first()
+        if not batch:
+            raise HTTPException(status_code=404, detail="批次不存在")
+        old_qty = float(batch.quantity)
+        payload = data.model_dump(exclude_unset=True)
+        # 纠错不允许把库存改成负数：直接拒绝，避免流水 after_quantity 写负数导致数据不自洽
+        if "quantity" in payload and float(payload["quantity"]) < 0:
+            raise HTTPException(status_code=400, detail="批次数量不能为负")
+        for key, value in payload.items():
+            setattr(batch, key, value)
+        if "quantity" in payload and float(batch.quantity) != old_qty:
+            new_qty = float(batch.quantity)
+            uc = float(batch.unit_price) if batch.unit_price is not None else None
+            if new_qty <= 0:
+                batch.quantity = 0.0
+                batch.status = "停用"
+            diff = new_qty - old_qty
+            db.add(StockTransaction(
+                item_id=batch.item_id, batch_id=batch.id, transaction_type="调整", quantity=diff,
+                before_quantity=old_qty, after_quantity=float(batch.quantity),
+                unit_cost=uc, cost_amount=(diff * uc) if uc is not None else None,
+                revenue_amount=0.0, reference_type="手动",
+                operator=current_user.username, note="批次纠错调整",
+            ))
+        db.commit()
     db.refresh(batch)
     return _batch_resp(batch)
 
@@ -361,13 +365,12 @@ def list_transactions(
         q = q.filter(StockTransaction.created_at <= end + " 23:59:59")
     txns = q.order_by(StockTransaction.id.desc()).limit(limit).all()
     item_ids = {t.item_id for t in txns}
-    names = {i.id: i.name for i in db.query(StockItem).filter(StockItem.id.in_(item_ids)).all()} if item_ids else {}
-    units = {i.id: i.unit for i in db.query(StockItem).filter(StockItem.id.in_(item_ids)).all()} if item_ids else {}
+    item_info = {i.id: (i.name, i.unit) for i in db.query(StockItem).filter(StockItem.id.in_(item_ids)).all()} if item_ids else {}
     batch_ids = {t.batch_id for t in txns if t.batch_id}
     bnos = {b.id: b.batch_number for b in db.query(StockBatch).filter(StockBatch.id.in_(batch_ids)).all()} if batch_ids else {}
     return [
         StockTransactionResponse(
-            id=t.id, item_id=t.item_id, item_name=names.get(t.item_id), unit=units.get(t.item_id),
+            id=t.id, item_id=t.item_id, item_name=item_info.get(t.item_id, ("", ""))[0], unit=item_info.get(t.item_id, ("", ""))[1],
             batch_id=t.batch_id, batch_number=bnos.get(t.batch_id), transaction_type=t.transaction_type,
             quantity=t.quantity, before_quantity=t.before_quantity, after_quantity=t.after_quantity,
             unit_cost=t.unit_cost, unit_price=t.unit_price, cost_amount=t.cost_amount,
@@ -588,6 +591,10 @@ def delete_supplier(sid: int, current_user: User = Depends(get_current_user), db
         raise HTTPException(status_code=404, detail="供应商不存在")
     if db.query(StockBatch).filter(StockBatch.supplier_id == sid).first():
         raise HTTPException(status_code=400, detail="该供应商已有进货批次，无法删除")
+    if db.query(StockItem).filter(StockItem.default_supplier_id == sid).first():
+        raise HTTPException(status_code=400, detail="该供应商被某些物品设为默认供应商，无法删除")
+    if db.query(PurchaseOrder).filter(PurchaseOrder.supplier_id == sid).first():
+        raise HTTPException(status_code=400, detail="该供应商已有采购单记录，无法删除")
     db.delete(sup)
     db.commit()
     return {"deleted": sid}
@@ -716,7 +723,8 @@ def report_summary(
         q = q.filter(StockTransaction.created_at <= end + " 23:59:59")
     txns = q.all()
     purchase_cost = sum(float(t.cost_amount or 0) for t in txns if t.transaction_type == "入库" and t.cost_amount)
-    cogs = sum(-float(t.cost_amount or 0) for t in txns if t.cost_amount is not None and t.cost_amount < 0)
+    # COGS 仅统计「出库」（销售/手动出库的成本）；损耗/盘点/调整的成本不并入销售成本，避免毛利被系统性低估
+    cogs = sum(-float(t.cost_amount or 0) for t in txns if t.transaction_type == "出库" and t.cost_amount is not None and t.cost_amount < 0)
     sales_revenue = sum(float(t.revenue_amount or 0) for t in txns if t.revenue_amount)
     gross_profit = sales_revenue - cogs
     gross_margin = (gross_profit / sales_revenue) if sales_revenue else 0.0
@@ -747,7 +755,8 @@ def report_profit(
     for t in txns:
         a = agg.setdefault(t.item_id, {"rev": 0.0, "cogs": 0.0})
         a["rev"] += float(t.revenue_amount or 0)
-        if t.cost_amount is not None and t.cost_amount < 0:
+        # COGS 仅算出库成本（排除损耗/盘点/调整），与 summary 口径一致
+        if t.transaction_type == "出库" and t.cost_amount is not None and t.cost_amount < 0:
             a["cogs"] += -float(t.cost_amount)
     out = []
     for item_id, a in agg.items():
@@ -793,18 +802,24 @@ def report_turnover(
         q = q.filter(StockTransaction.created_at <= end + " 23:59:59")
     txns = q.all()
     names = {i.id: (i.name, i.unit) for i in db.query(StockItem).all()}
+    # 期间按物品的净金额变动（入库正、出/损/盘点/调整负）与 COGS（仅出库）
+    net_change_map: dict[int, float] = {}
     cogs_map: dict[int, float] = {}
-    net_value_change = 0.0
     for t in txns:
         if t.cost_amount is not None:
-            net_value_change += float(t.cost_amount)
-            if t.cost_amount < 0:
+            net_change_map[t.item_id] = net_change_map.get(t.item_id, 0.0) + float(t.cost_amount)
+            if t.transaction_type == "出库" and t.cost_amount < 0:
                 cogs_map[t.item_id] = cogs_map.get(t.item_id, 0.0) - float(t.cost_amount)
-    ending = float(db.query(func.sum(StockBatch.quantity * func.coalesce(StockBatch.unit_price, 0))).scalar() or 0)
-    beginning = ending - net_value_change
+    # 期末各物品库存金额（按 item_id 分别算，含所有批次；停用批次数量为 0 不影响）
+    item_ending = dict(
+        db.query(StockBatch.item_id, func.sum(StockBatch.quantity * func.coalesce(StockBatch.unit_price, 0)))
+        .group_by(StockBatch.item_id).all()
+    ) if txns else {}
     out = []
     for item_id, cogs in cogs_map.items():
-        avg = (beginning + ending) / 2
+        ending_val = float(item_ending.get(item_id, 0.0) or 0)
+        beginning_val = ending_val - net_change_map.get(item_id, 0.0)  # 期初 = 期末 - 期间净变动
+        avg = (beginning_val + ending_val) / 2
         turn = cogs / avg if avg > 0 else 0.0
         name, unit = names.get(item_id, (str(item_id), ""))
         out.append(ReportTurnover(item_id=item_id, item_name=name, unit=unit, cogs=cogs,

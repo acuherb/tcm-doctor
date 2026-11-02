@@ -73,7 +73,7 @@ class StockTransaction(Base):
                   发药另有 unit_price=售价, revenue_amount=+数量*售价(收入)
       - 损耗:   unit_cost=批次进价, cost_amount=-数量*进价(损失, 不计入收入)
       - 盘点:   cost_amount=(实盘-账面)*进价(盘盈正/盘亏负), revenue_amount=0
-    因此：期间采购成本=Σ(入库 cost_amount)；期间COGS=Σ(-cost_amount 且为出/损)；
+    因此：期间采购成本=Σ(入库 cost_amount)；期间COGS=Σ(-cost_amount 且为出库，不含损耗/盘点/调整)；
           期间收入=Σ revenue_amount；毛利=收入-COGS；期末库存价值=Σ(批次进价*数量)。
     """
     __tablename__ = "stock_transactions"
@@ -83,8 +83,8 @@ class StockTransaction(Base):
     batch_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("stock_batches.id"), comment="关联批次(可为空)")
     transaction_type: Mapped[str] = mapped_column(String(10), nullable=False, comment="入库/出库/损耗/盘点/调整")
     quantity: Mapped[float] = mapped_column(Numeric(12, 3), nullable=False, comment="变动数量(可正可负)")
-    before_quantity: Mapped[float | None] = mapped_column(Numeric(12, 3), comment="变动前(物品总量)")
-    after_quantity: Mapped[float | None] = mapped_column(Numeric(12, 3), comment="变动后(物品总量)")
+    before_quantity: Mapped[float | None] = mapped_column(Numeric(12, 3), comment="变动前(批次数量)")
+    after_quantity: Mapped[float | None] = mapped_column(Numeric(12, 3), comment="变动后(批次数量)")
     unit_cost: Mapped[float | None] = mapped_column(Numeric(10, 2), comment="单位成本(进价)")
     unit_price: Mapped[float | None] = mapped_column(Numeric(10, 2), comment="单位售价(仅销售/发药)")
     cost_amount: Mapped[float | None] = mapped_column(Numeric(14, 2), comment="成本金额(带符号)")
