@@ -32,7 +32,7 @@
         </el-form-item>
       </el-form>
 
-      <el-table v-if="!isMobile" class="stock-item-table" :data="filteredItems" stripe style="width:100%" empty-text="暂无物品" :row-class-name="rowClass">
+      <el-table v-if="!isMobile" class="stock-item-table" :data="filteredItems" stripe style="width:100%" empty-text="暂无物品">
         <el-table-column prop="item_type" label="类别" width="110">
           <template #default="{ row }"><el-tag size="small">{{ row.item_type }}</el-tag></template>
         </el-table-column>
@@ -57,7 +57,6 @@
         </el-table-column>
         <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
-            <el-button v-if="editable" link type="success" size="small" @click="openStockIn(row)">入库</el-button>
             <el-button v-if="editable" link type="primary" size="small" @click="openEdit(row)">编辑</el-button>
             <el-button v-if="editable" link type="danger" size="small" @click="removeItem(row)">删除</el-button>
           </template>
@@ -66,7 +65,7 @@
 
       <!-- 移动端卡片 -->
       <div v-if="isMobile" class="cards">
-        <div v-for="row in filteredItems" :key="row.id" class="card" :class="{ 'focus-card': row.id === focusId }">
+        <div v-for="row in filteredItems" :key="row.id" class="card">
           <div class="card-head">
             <span class="card-name">{{ row.name }}</span>
             <el-tag size="small">{{ row.item_type }}</el-tag>
@@ -79,7 +78,6 @@
             <div class="card-row"><span class="label">售价</span><span class="value">{{ row.sell_price != null ? row.sell_price.toFixed(2) + ' 元/' + row.unit : '-' }}</span></div>
           </div>
           <div v-if="editable" class="card-actions">
-            <el-button link type="success" size="small" @click="openStockIn(row)">入库</el-button>
             <el-button link type="primary" size="small" @click="openEdit(row)">编辑</el-button>
             <el-button link type="danger" size="small" @click="removeItem(row)">删除</el-button>
           </div>
@@ -150,66 +148,14 @@
       </template>
     </el-dialog>
 
-    <!-- 入库对话框 -->
-    <el-dialog v-model="stockInVisible" title="📥 入库" width="520px" destroy-on-close>
-      <el-alert v-if="activeItem" :title="`入库物品：${activeItem.name}（${activeItem.unit}）`" type="info" :closable="false" style="margin-bottom:12px" />
-      <el-form :model="stockInForm" label-width="92px" :rules="stockInRules" ref="stockInFormRef">
-        <el-form-item label="入库量" prop="quantity">
-          <el-input-number v-model="stockInForm.quantity" :min="0.01" :precision="2" style="width:100%" />
-        </el-form-item>
-        <el-row :gutter="12">
-          <el-col :span="12">
-            <el-form-item label="进价">
-              <el-input-number v-model="stockInForm.unit_price" :min="0" :precision="2" :controls="false" style="width:100%" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="供应商">
-              <el-select v-model="stockInForm.supplier_id" filterable clearable placeholder="选供应商" style="width:100%">
-                <el-option v-for="s in suppliers" :key="s.id" :label="s.name" :value="s.id" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-form-item label="批号">
-          <el-input v-model="stockInForm.batch_number" placeholder="留空则按当天日期" />
-        </el-form-item>
-        <el-row :gutter="12">
-          <el-col :span="12">
-            <el-form-item label="购入日期">
-              <el-date-picker v-model="stockInForm.purchase_date" type="date" value-format="YYYY-MM-DD" placeholder="选择日期" style="width:100%" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="有效期">
-              <el-date-picker v-model="stockInForm.expiry_date" type="date" value-format="YYYY-MM-DD" placeholder="选择日期" style="width:100%" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-form-item label="供应商">
-          <el-input v-model="stockInForm.supplier" placeholder="供应商名称" />
-        </el-form-item>
-        <el-form-item label="存放位置">
-          <el-input v-model="stockInForm.location" placeholder="如：A区3号架" />
-        </el-form-item>
-        <el-form-item label="备注">
-          <el-input v-model="stockInForm.note" type="textarea" :rows="2" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="stockInVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitStockIn" :loading="submitting">确认入库</el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
 import api from '@/utils/api'
-import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/store/auth'
 
 const auth = useAuthStore()
@@ -221,8 +167,6 @@ const suppliers = ref<any[]>([])
 const searchText = ref('')
 const typeFilter = ref('')
 const submitting = ref(false)
-const route = useRoute()
-const focusId = ref<number | null>(null)
 const page = ref(1)
 const pageSize = ref(50)
 const total = ref(0)
@@ -239,21 +183,10 @@ function updateViewport() { isMobile.value = window.innerWidth < 768 }
 onMounted(() => { updateViewport(); window.addEventListener('resize', updateViewport) })
 onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
 
-function rowClass({ row }: any) {
-  return row.id === focusId.value ? 'focus-row' : ''
-}
-
 async function loadItems(resetPage = false) {
   if (resetPage) page.value = 1
   try {
-    const params: any = {}
-    // 「去入库」定位场景拉全量，确保目标物品一定在结果中（否则按当前页过滤可能不命中）
-    if (route.query.focus) {
-      params.page = 0
-    } else {
-      params.page = page.value
-      params.page_size = pageSize.value
-    }
+    const params: any = { page: page.value, page_size: pageSize.value }
     if (typeFilter.value) params.item_type = typeFilter.value
     if (searchText.value) params.search = searchText.value
     const res = (await api.get('/stock/items', { params }) as any) || []
@@ -265,12 +198,6 @@ async function loadItems(resetPage = false) {
       items.value = res.items || []
       total.value = res.total || 0
     }
-    // 消费「去入库」跳转带来的 focus 参数：高亮并滚动到目标物品所在行/卡片
-    focusId.value = route.query.focus ? Number(route.query.focus) : null
-    nextTick(() => {
-      const el = document.querySelector('.stock-item-table .focus-row, .focus-card') as HTMLElement | null
-      el?.scrollIntoView({ block: 'center' })
-    })
   } catch (e: any) {
     ElMessage.error('物品加载失败：' + (e?.response?.data?.detail || e?.message || '未知错误'))
   }
@@ -353,37 +280,6 @@ async function removeItem(row: any) {
   }
 }
 
-// ── 入库 ──
-const stockInVisible = ref(false)
-const activeItem = ref<any>(null)
-const stockInFormRef = ref()
-const stockInForm = ref({
-  quantity: 1, unit_price: null as number | null, supplier_id: null as number | null,
-  batch_number: '', purchase_date: '', expiry_date: '', supplier: '', location: '', note: '',
-})
-const stockInRules = {
-  quantity: [{ required: true, message: '请输入入库量', trigger: 'blur' }],
-}
-function openStockIn(row: any) {
-  activeItem.value = row
-  stockInForm.value = { quantity: 1, unit_price: null, supplier_id: row.default_supplier_id || null, batch_number: '', purchase_date: '', expiry_date: '', supplier: '', location: '', note: '' }
-  stockInVisible.value = true
-}
-async function submitStockIn() {
-  if (!activeItem.value) return
-  submitting.value = true
-  try {
-    await api.post('/stock/batches/in', { item_id: activeItem.value.id, ...stockInForm.value })
-    ElMessage.success('入库成功')
-    stockInVisible.value = false
-    loadItems()
-  } catch (e: any) {
-    ElMessage.error('入库失败：' + (e?.response?.data?.detail || e?.message || '未知错误'))
-  } finally {
-    submitting.value = false
-  }
-}
-
 onMounted(() => { loadItems(true); loadHerbs(); loadSuppliers() })
 </script>
 
@@ -391,9 +287,6 @@ onMounted(() => { loadItems(true); loadHerbs(); loadSuppliers() })
 .item-manage {
   .low-stock { color: #f56c6c; font-weight: 700; }
   .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; color: #8a7563; }
-  :deep(.stock-item-table .focus-row) { background: #fdf6ec; }
-  :deep(.stock-item-table .focus-row:hover > td) { background: #faecd8; }
-  .focus-card { border-color: #e6a23c !important; box-shadow: 0 0 0 2px #fdf6ec; }
 }
 .cards { display: flex; flex-direction: column; gap: 10px; }
 .card {

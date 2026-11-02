@@ -5,8 +5,9 @@
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
           <span>🔄 出入库流水</span>
           <div style="display:flex;gap:8px;">
-            <el-button v-if="editable" type="success" size="small" @click="openStockIn">
-              <el-icon><Upload /></el-icon> 入库
+            <el-button v-if="editable" type="success" size="small" @click="openStockIn"
+              title="零星到货 / 期初建账 / 库存调账登记（向供应商批量采购请走「采购入库」）">
+              <el-icon><Upload /></el-icon> 手动入库
             </el-button>
             <el-button v-if="editable" type="warning" size="small" @click="openStockOut">
               <el-icon><Download /></el-icon> 出库
@@ -124,7 +125,7 @@
     </el-card>
 
     <!-- 入库对话框 -->
-    <el-dialog v-model="stockInVisible" title="📥 入库" width="520px" destroy-on-close>
+    <el-dialog v-model="stockInVisible" title="📥 手动入库" width="520px" destroy-on-close>
       <el-form :model="stockInForm" label-width="92px" :rules="stockInRules" ref="stockInFormRef">
         <el-form-item label="物品" prop="item_id">
           <el-select v-model="stockInForm.item_id" filterable placeholder="搜索物品" style="width:100%" @change="onItemSelect">
@@ -163,9 +164,6 @@
             </el-form-item>
           </el-col>
         </el-row>
-        <el-form-item label="供应商">
-          <el-input v-model="stockInForm.supplier" placeholder="供应商名称" />
-        </el-form-item>
         <el-form-item label="备注">
           <el-input v-model="stockInForm.note" type="textarea" :rows="2" />
         </el-form-item>
@@ -316,6 +314,9 @@ function onItemSelect(id: number) {
 }
 async function submitStockIn() {
   if (!stockInForm.value.item_id) { ElMessage.warning('请选择物品'); return }
+  // 用下拉选中的供应商回填 supplier 快照，避免与采购流程不一致
+  const sel = suppliers.value.find((s: any) => s.id === stockInForm.value.supplier_id)
+  stockInForm.value.supplier = sel ? sel.name : null
   submitting.value = true
   try {
     await api.post('/stock/batches/in', stockInForm.value)

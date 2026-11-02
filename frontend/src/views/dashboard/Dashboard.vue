@@ -130,7 +130,7 @@ const quickActions = [
   { title: '开具处方', desc: '选方/自拟', route: '/prescriptions/new', icon: 'Document', color: '#1890FF' },
   { title: '智能问诊', desc: 'AI辨证', route: '/diagnosis', icon: 'ChatDotRound', color: '#722ED1' },
   { title: '字典管理', desc: '证候脉象词条', route: '/dictionaries', icon: 'Collection', color: '#13C2C2' },
-  { title: '药材入库', desc: '入库登记', route: '/stock/items', icon: 'Box', color: '#52C41A' },
+  { title: '药材入库', desc: '入库登记', route: '/stock/transactions', icon: 'Box', color: '#52C41A' },
   { title: '知识检索', desc: '典籍查询', route: '/knowledge', icon: 'Search', color: '#FAAD14' },
   { title: '中药方库', desc: '方剂浏览', route: '/classic-formulas', icon: 'Notebook', color: '#8B4513' },
   { title: '系统设置', desc: '配置管理', route: '/settings', icon: 'Setting', color: '#999' },

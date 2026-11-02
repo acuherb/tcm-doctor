@@ -8,6 +8,10 @@
         </div>
       </template>
 
+      <el-alert type="info" :closable="false" show-icon style="margin-bottom:12px;"
+        title="采购入库（正规采购流程）"
+        description="向供应商批量采购、生成采购单并自动入库时，请用本页「新建采购单」。零星到货、期初建账或库存调账，请到「出入库流水」页使用【手动入库】。" />
+
       <el-table :data="orders" stripe style="width:100%" empty-text="暂无采购单">
         <el-table-column type="expand">
           <template #default="{ row }">

@@ -164,7 +164,7 @@ async function loadAlerts() {
   try { alerts.value = (await api.get('/stock/alerts') as any) || [] } catch {}
 }
 
-function goItems(id: number) { router.push({ path: '/stock/items', query: { focus: String(id) } }) }
+function goItems(id: number) { router.push({ path: '/stock/transactions', query: { item_id: String(id) } }) }
 function goTransactions(id: number) { router.push({ path: '/stock/transactions', query: { item_id: String(id) } }) }
 function goCheck(id: number) { router.push({ path: '/stock/check', query: { item_id: String(id) } }) }
 
