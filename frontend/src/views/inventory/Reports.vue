@@ -26,29 +26,29 @@
           <el-table :data="profit" stripe size="small" empty-text="暂无数据">
             <el-table-column prop="item_name" label="物品" min-width="140" />
             <el-table-column prop="unit" label="单位" width="70" />
-            <el-table-column label="收入" width="120"><template #default="{ r }">¥{{ Number(r.revenue).toFixed(2) }}</template></el-table-column>
-            <el-table-column label="成本" width="120"><template #default="{ r }">¥{{ Number(r.cogs).toFixed(2) }}</template></el-table-column>
-            <el-table-column label="毛利" width="120"><template #default="{ r }">¥{{ Number(r.gross_profit).toFixed(2) }}</template></el-table-column>
-            <el-table-column label="毛利率" width="100"><template #default="{ r }">{{ (r.gross_margin * 100).toFixed(1) }}%</template></el-table-column>
+            <el-table-column label="收入" width="120"><template #default="{ row }">¥{{ Number(row.revenue).toFixed(2) }}</template></el-table-column>
+            <el-table-column label="成本" width="120"><template #default="{ row }">¥{{ Number(row.cogs).toFixed(2) }}</template></el-table-column>
+            <el-table-column label="毛利" width="120"><template #default="{ row }">¥{{ Number(row.gross_profit).toFixed(2) }}</template></el-table-column>
+            <el-table-column label="毛利率" width="100"><template #default="{ row }">{{ (row.gross_margin * 100).toFixed(1) }}%</template></el-table-column>
           </el-table>
         </el-tab-pane>
         <el-tab-pane label="ABC 分类(按库存金额)" name="abc">
           <el-table :data="abc" stripe size="small" empty-text="暂无数据">
             <el-table-column prop="item_name" label="物品" min-width="140" />
             <el-table-column prop="unit" label="单位" width="70" />
-            <el-table-column label="库存金额" width="130"><template #default="{ r }">¥{{ Number(r.stock_value).toFixed(2) }}</template></el-table-column>
-            <el-table-column label="占比" width="100"><template #default="{ r }">{{ (r.value_ratio * 100).toFixed(1) }}%</template></el-table-column>
-            <el-table-column label="累计" width="100"><template #default="{ r }">{{ (r.cumulative_ratio * 100).toFixed(1) }}%</template></el-table-column>
-            <el-table-column label="分类" width="90"><template #default="{ r }"><el-tag :type="r.category === 'A' ? 'danger' : r.category === 'B' ? 'warning' : 'info'" size="small">{{ r.category }}</el-tag></template></el-table-column>
+            <el-table-column label="库存金额" width="130"><template #default="{ row }">¥{{ Number(row.stock_value).toFixed(2) }}</template></el-table-column>
+            <el-table-column label="占比" width="100"><template #default="{ row }">{{ (row.value_ratio * 100).toFixed(1) }}%</template></el-table-column>
+            <el-table-column label="累计" width="100"><template #default="{ row }">{{ (row.cumulative_ratio * 100).toFixed(1) }}%</template></el-table-column>
+            <el-table-column label="分类" width="90"><template #default="{ row }"><el-tag :type="row.category === 'A' ? 'danger' : row.category === 'B' ? 'warning' : 'info'" size="small">{{ row.category }}</el-tag></template></el-table-column>
           </el-table>
         </el-tab-pane>
         <el-tab-pane label="周转率" name="turnover">
           <el-table :data="turnover" stripe size="small" empty-text="暂无数据">
             <el-table-column prop="item_name" label="物品" min-width="140" />
             <el-table-column prop="unit" label="单位" width="70" />
-            <el-table-column label="COGS" width="120"><template #default="{ r }">¥{{ Number(r.cogs).toFixed(2) }}</template></el-table-column>
-            <el-table-column label="平均库存金额" width="140"><template #default="{ r }">¥{{ Number(r.avg_inventory_value).toFixed(2) }}</template></el-table-column>
-            <el-table-column label="周转率" width="100"><template #default="{ r }">{{ Number(r.turnover).toFixed(2) }}</template></el-table-column>
+            <el-table-column label="COGS" width="120"><template #default="{ row }">¥{{ Number(row.cogs).toFixed(2) }}</template></el-table-column>
+            <el-table-column label="平均库存金额" width="140"><template #default="{ row }">¥{{ Number(row.avg_inventory_value).toFixed(2) }}</template></el-table-column>
+            <el-table-column label="周转率" width="100"><template #default="{ row }">{{ Number(row.turnover).toFixed(2) }}</template></el-table-column>
           </el-table>
         </el-tab-pane>
         <el-tab-pane label="供应商比价" name="price">
@@ -56,10 +56,10 @@
             <el-table-column prop="item_name" label="物品" min-width="140" />
             <el-table-column prop="unit" label="单位" width="70" />
             <el-table-column prop="supplier_name" label="供应商" width="140" />
-            <el-table-column label="最低进价" width="110"><template #default="{ r }">¥{{ Number(r.min_cost).toFixed(2) }}</template></el-table-column>
-            <el-table-column label="最高进价" width="110"><template #default="{ r }">¥{{ Number(r.max_cost).toFixed(2) }}</template></el-table-column>
-            <el-table-column label="平均进价" width="110"><template #default="{ r }">¥{{ Number(r.avg_cost).toFixed(2) }}</template></el-table-column>
-            <el-table-column label="最近进价" width="110"><template #default="{ r }">¥{{ Number(r.last_cost).toFixed(2) }}</template></el-table-column>
+            <el-table-column label="最低进价" width="110"><template #default="{ row }">¥{{ Number(row.min_cost).toFixed(2) }}</template></el-table-column>
+            <el-table-column label="最高进价" width="110"><template #default="{ row }">¥{{ Number(row.max_cost).toFixed(2) }}</template></el-table-column>
+            <el-table-column label="平均进价" width="110"><template #default="{ row }">¥{{ Number(row.avg_cost).toFixed(2) }}</template></el-table-column>
+            <el-table-column label="最近进价" width="110"><template #default="{ row }">¥{{ Number(row.last_cost).toFixed(2) }}</template></el-table-column>
           </el-table>
         </el-tab-pane>
       </el-tabs>

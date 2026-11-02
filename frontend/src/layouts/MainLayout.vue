@@ -18,8 +18,7 @@
         background-color="#2C1810"
         text-color="#E8D5C4"
         active-text-color="#D4A574"
-        router
-        @select="closeMobileSidebar"
+        @select="onMenuSelect"
       >
         <el-menu-item index="/dashboard">
           <el-icon><HomeFilled /></el-icon>
@@ -200,6 +199,12 @@ function updateViewport() {
 
 function closeMobileSidebar() {
   if (isMobile.value) mobileOpen.value = false
+}
+
+// 手动处理菜单导航（不再依赖 el-menu 的 router 模式，规避其 hash 路由下点击不跳转/跳一半的已知问题）
+function onMenuSelect(index: string) {
+  if (index) router.push(index)
+  closeMobileSidebar()
 }
 
 onMounted(() => {

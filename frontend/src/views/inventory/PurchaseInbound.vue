@@ -14,9 +14,9 @@
             <el-table :data="row.items || []" size="small" :border="false">
               <el-table-column prop="item_name" label="物品" min-width="120" />
               <el-table-column prop="batch_number" label="批号" width="120" />
-              <el-table-column label="数量" width="90"><template #default="{ r }">{{ r.quantity }} {{ r.unit }}</template></el-table-column>
-              <el-table-column label="进价" width="100"><template #default="{ r }">¥{{ Number(r.unit_price).toFixed(2) }}</template></el-table-column>
-              <el-table-column label="金额" width="110"><template #default="{ r }">¥{{ Number(r.amount).toFixed(2) }}</template></el-table-column>
+              <el-table-column label="数量" width="90"><template #default="{ row }">{{ row.quantity }} {{ row.unit }}</template></el-table-column>
+              <el-table-column label="进价" width="100"><template #default="{ row }">¥{{ Number(row.unit_price).toFixed(2) }}</template></el-table-column>
+              <el-table-column label="金额" width="110"><template #default="{ row }">¥{{ Number(row.amount).toFixed(2) }}</template></el-table-column>
               <el-table-column prop="expiry_date" label="有效期" width="120" />
             </el-table>
           </template>

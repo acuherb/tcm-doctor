@@ -10,8 +10,25 @@ import router from './router'
 import { useAuthStore } from './store/auth'
 
 import './styles/tcm-theme.scss'
+import { ElMessage } from 'element-plus'
 
 const app = createApp(App)
+
+// 全局错误兜底：打到控制台；并延迟+去重地弹一次提示。
+// 注意：绝不能在 errorHandler 内「同步」弹窗，否则渲染错误→弹窗→再渲染错误会形成
+// 无限反馈回路，导致浏览器卡死、控制台刷屏。故用 setTimeout 脱离当前渲染周期 + 去重。
+const errReported = new Set<string>()
+app.config.errorHandler = (err, _instance, info) => {
+  const msg = err instanceof Error ? err.message : String(err)
+  console.error('[app error]', info, err)
+  const key = (info || '') + '|' + msg
+  if (!errReported.has(key) && errReported.size < 5) {
+    errReported.add(key)
+    setTimeout(() => {
+      try { ElMessage.error('页面出错：' + msg) } catch { /* 忽略弹窗自身异常 */ }
+    }, 0)
+  }
+}
 
 // 注册所有 Element Plus 图标
 for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
