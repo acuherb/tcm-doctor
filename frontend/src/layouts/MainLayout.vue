@@ -54,12 +54,12 @@
           </template>
           <el-menu-item index="/stock/overview">库存总览</el-menu-item>
           <el-menu-item index="/stock/items">物品管理</el-menu-item>
-          <el-menu-item index="/stock/transactions">出入库流水</el-menu-item>
+          <el-menu-item index="/stock/transactions">库存流水</el-menu-item>
           <el-menu-item index="/stock/check">库房盘点</el-menu-item>
-          <el-menu-item index="/stock/suppliers">供应商</el-menu-item>
-          <el-menu-item index="/stock/options"><el-icon><Collection /></el-icon>库存选项</el-menu-item>
           <el-menu-item index="/stock/purchases">采购入库</el-menu-item>
           <el-menu-item index="/stock/reports">进销存报表</el-menu-item>
+          <el-menu-item index="/stock/suppliers">供应商管理</el-menu-item>
+          <el-menu-item index="/stock/options">库存选项</el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu index="prescription-group">
@@ -111,7 +111,6 @@
         <div class="header-left">
           <el-icon v-show="isMobile" class="menu-hamburger" @click="mobileOpen = !mobileOpen"><Expand /></el-icon>
           <el-breadcrumb separator="/">
-            <el-breadcrumb-item v-if="!isMobile" :to="{ path: '/dashboard' }">首页</el-breadcrumb-item>
             <el-breadcrumb-item v-if="currentPageTitle">{{ currentPageTitle }}</el-breadcrumb-item>
           </el-breadcrumb>
         </div>
@@ -172,7 +171,7 @@ import { useRoute, useRouter } from 'vue-router'
 import {
   HomeFilled, User, FirstAidKit, Document, Search,
   ChatDotRound, Setting, Fold, Expand, TrendCharts, Box, Goods, Tickets, Checked, Notebook, DataAnalysis, Reading,
-  OfficeBuilding, ShoppingCart, DataLine, UserFilled, ArrowDown, Collection,
+  OfficeBuilding, ShoppingCart, DataLine, UserFilled, ArrowDown,
 } from '@element-plus/icons-vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { useAuthStore } from '@/store/auth'
