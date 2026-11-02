@@ -9,8 +9,8 @@
 from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy import func, or_
+from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db, inventory_lock
 from app.models.stock import (
@@ -75,11 +75,13 @@ def _item_agg(db: Session, ids: list[int]) -> tuple[dict, dict]:
 
 # ── 物品主数据 ──
 
-@router.get("/items", response_model=list[StockItemResponse], summary="物品列表(药材/耗材)")
+@router.get("/items", summary="物品列表(药材/耗材)")
 def list_items(
     item_type: str | None = Query(None, description="筛选类别"),
     search: str | None = Query(None),
     is_active: bool | None = Query(None),
+    page: int = Query(0, ge=0, description="0=返回全部(兼容下拉选择); >=1 时分页"),
+    page_size: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),
 ):
     q = db.query(StockItem)
@@ -87,14 +89,24 @@ def list_items(
         q = q.filter(StockItem.item_type == item_type)
     if is_active is not None:
         q = q.filter(StockItem.is_active == is_active)
-    items = q.all()
+    # 搜索下推到 SQL（名称/规格），避免全量捞出再内存过滤
     if search:
-        s = search.lower()
-        items = [i for i in items if s in (i.name or "").lower() or s in (i.spec or "").lower()]
-    items.sort(key=lambda i: (i.item_type, i.name or ""))
-    ids = [i.id for i in items]
+        s = f"%{search.strip()}%"
+        q = q.filter(or_(StockItem.name.ilike(s), StockItem.spec.ilike(s)))
+    q = q.order_by(StockItem.item_type, StockItem.name)
+    if page and page > 0:
+        total = q.count()
+        rows = q.offset((page - 1) * page_size).limit(page_size).all()
+        ids = [i.id for i in rows]
+        totals, values = _item_agg(db, ids)
+        return {
+            "items": [_item_base(i, totals.get(i.id, 0.0), values.get(i.id, 0.0)) for i in rows],
+            "total": total, "page": page, "page_size": page_size,
+        }
+    rows = q.all()
+    ids = [i.id for i in rows]
     totals, values = _item_agg(db, ids)
-    return [_item_base(i, totals.get(i.id, 0.0), values.get(i.id, 0.0)) for i in items]
+    return [_item_base(i, totals.get(i.id, 0.0), values.get(i.id, 0.0)) for i in rows]
 
 
 @router.post("/items", response_model=StockItemResponse, summary="新增物品(药材/耗材)")
@@ -140,13 +152,15 @@ def delete_item(item_id: int, current_user: User = Depends(get_current_user), db
 
 # ── 批次 ──
 
-@router.get("/batches", response_model=list[StockBatchResponse], summary="批次列表")
+@router.get("/batches", summary="批次列表")
 def list_batches(
     item_id: int | None = Query(None),
     herb_id: int | None = Query(None, description="按关联药材查(中药)"),
     status: str | None = Query(None),
     include_inactive: bool = Query(False, description="是否包含已停用(扣空)批次，默认隐藏"),
     search: str | None = Query(None),
+    page: int = Query(0, ge=0, description="0=返回全部(兼容按物品查询); >=1 时分页"),
+    page_size: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),
 ):
     q = db.query(StockBatch).join(StockItem, StockBatch.item_id == StockItem.id)
@@ -158,12 +172,20 @@ def list_batches(
         q = q.filter(StockBatch.status == status)
     elif not include_inactive:
         q = q.filter(StockBatch.status != "停用")  # 默认隐藏扣空批次
-    batches = q.all()
+    # 搜索下推到 SQL（批号/物品名），避免全量捞出再内存过滤
     if search:
-        s = search.lower()
-        batches = [b for b in batches if s in (b.batch_number or "").lower() or s in (b.item.name or "").lower()]
-    batches.sort(key=lambda b: (b.item.name or "", b.batch_number or ""))
-    return [_batch_resp(b) for b in batches]
+        s = f"%{search.strip()}%"
+        q = q.filter(or_(StockBatch.batch_number.ilike(s), StockItem.name.ilike(s)))
+    q = q.order_by(StockItem.name, StockBatch.batch_number)
+
+    def _build(rows):
+        return [_batch_resp(b) for b in rows]
+
+    if page and page > 0:
+        total = q.count()
+        rows = q.offset((page - 1) * page_size).limit(page_size).all()
+        return {"items": _build(rows), "total": total, "page": page, "page_size": page_size}
+    return _build(q.all())
 
 
 @router.post("/batches/in", response_model=StockBatchResponse, summary="入库(新增或累加批次, 记录成本)")
@@ -681,17 +703,30 @@ def create_purchase(data: PurchaseOrderCreate, current_user: User = Depends(get_
     return resp
 
 
-@router.get("/purchases", response_model=list[PurchaseOrderResponse], summary="采购单列表")
-def list_purchases(db: Session = Depends(get_db)):
-    pos = db.query(PurchaseOrder).order_by(PurchaseOrder.id.desc()).all()
+@router.get("/purchases", summary="采购单列表")
+def list_purchases(
+    page: int = Query(0, ge=0, description="0=返回全部(兼容下拉选择); >=1 时分页"),
+    page_size: int = Query(50, ge=1, le=500),
+    db: Session = Depends(get_db),
+):
+    # joinedload 预载明细，消除逐单懒加载的 N+1
+    q = db.query(PurchaseOrder).options(joinedload(PurchaseOrder.items)).order_by(PurchaseOrder.id.desc())
     item_names = {i.id: i.name for i in db.query(StockItem).all()}
-    result = []
-    for po in pos:
-        r = _po_resp(po)
-        for it in r.items:
-            it.item_name = item_names.get(it.item_id)
-        result.append(r)
-    return result
+
+    def _build(pos):
+        result = []
+        for po in pos:
+            r = _po_resp(po)
+            for it in r.items:
+                it.item_name = item_names.get(it.item_id)
+            result.append(r)
+        return result
+
+    if page and page > 0:
+        total = q.count()
+        pos = q.offset((page - 1) * page_size).limit(page_size).all()
+        return {"items": _build(pos), "total": total, "page": page, "page_size": page_size}
+    return _build(q.all())
 
 
 # ── 条码查询 ──

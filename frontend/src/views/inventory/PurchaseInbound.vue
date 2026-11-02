@@ -28,6 +28,14 @@
         <el-table-column prop="operator" label="操作人" width="100" />
         <el-table-column prop="note" label="备注" min-width="120" show-overflow-tooltip />
       </el-table>
+
+      <el-pagination
+        v-if="total > pageSize"
+        style="margin-top:14px;justify-content:center;"
+        layout="total, prev, pager, next"
+        :total="total" :page-size="pageSize" :current-page="page"
+        @current-change="(p: number) => { page = p; load() }"
+      />
     </el-card>
 
     <el-dialog v-model="visible" title="🛒 新建采购单" width="760px" destroy-on-close>
@@ -84,6 +92,9 @@ const items = ref<any[]>([])
 const visible = ref(false)
 const submitting = ref(false)
 const formRef = ref()
+const page = ref(1)
+const pageSize = ref(20)
+const total = ref(0)
 
 const form = reactive({ supplier_id: null as number | null, order_date: '', note: '', items: [] as any[] })
 const rules = { supplier_id: [{ required: false }] }
@@ -91,7 +102,10 @@ const poTotal = computed(() => form.items.reduce((s: number, it: any) => s + (Nu
 
 async function load() {
   try {
-    orders.value = (await api.get('/stock/purchases') as any) || []
+    const res = (await api.get('/stock/purchases', { params: { page: page.value, page_size: pageSize.value } }) as any) || []
+    // 兼容：分页接口返回 {items,total,...}；旧全量接口返回数组
+    if (Array.isArray(res)) { orders.value = res; total.value = res.length }
+    else { orders.value = res.items || []; total.value = res.total || 0 }
     suppliers.value = (await api.get('/stock/suppliers') as any) || []
     items.value = (await api.get('/stock/items') as any) || []
   } catch (e: any) { ElMessage.error('加载失败：' + (e?.response?.data?.detail || e?.message)) }
@@ -117,6 +131,7 @@ async function submit() {
     await api.post('/stock/purchases', { supplier_id: form.supplier_id, order_date: form.order_date, note: form.note, items: form.items })
     ElMessage.success('采购入库成功')
     visible.value = false
+    page.value = 1
     load()
   } catch (e: any) { ElMessage.error('提交失败：' + (e?.response?.data?.detail || e?.message)) }
   finally { submitting.value = false }

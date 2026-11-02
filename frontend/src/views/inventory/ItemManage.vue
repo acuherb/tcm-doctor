@@ -6,7 +6,7 @@
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
           <span>📋 物品管理</span>
           <div style="display:flex;gap:8px;">
-            <el-select v-model="typeFilter" placeholder="类别筛选" clearable @change="loadItems" style="width:140px">
+            <el-select v-model="typeFilter" placeholder="类别筛选" clearable @change="loadItems(true)" style="width:140px">
               <el-option label="全部" value="" />
               <el-option label="中药" value="中药" />
               <el-option label="针灸针" value="针灸针" />
@@ -23,12 +23,12 @@
 
       <el-form :inline="true" @submit.prevent="loadItems">
         <el-form-item>
-          <el-input v-model="searchText" placeholder="搜索名称/规格" clearable @clear="loadItems" style="width:220px">
+          <el-input v-model="searchText" placeholder="搜索名称/规格" clearable @clear="loadItems(true)" style="width:220px">
             <template #prefix><el-icon><Search /></el-icon></template>
           </el-input>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="loadItems">查询</el-button>
+          <el-button type="primary" @click="loadItems(true)">查询</el-button>
         </el-form-item>
       </el-form>
 
@@ -86,6 +86,14 @@
         </div>
         <el-empty v-if="!filteredItems.length" description="暂无物品" />
       </div>
+
+      <el-pagination
+        v-if="total > pageSize"
+        style="margin-top:14px;justify-content:center;"
+        layout="total, prev, pager, next"
+        :total="total" :page-size="pageSize" :current-page="page"
+        @current-change="(p: number) => { page = p; loadItems() }"
+      />
     </el-card>
 
     <!-- 新增 / 编辑 物品对话框 -->
@@ -215,17 +223,12 @@ const typeFilter = ref('')
 const submitting = ref(false)
 const route = useRoute()
 const focusId = ref<number | null>(null)
+const page = ref(1)
+const pageSize = ref(50)
+const total = ref(0)
 
-const filteredItems = computed(() => {
-  let list = items.value
-  if (typeFilter.value) list = list.filter((i: any) => i.item_type === typeFilter.value)
-  if (searchText.value) {
-    const s = searchText.value.toLowerCase()
-    list = list.filter((i: any) =>
-      (i.name || '').toLowerCase().includes(s) || (i.spec || '').toLowerCase().includes(s))
-  }
-  return list
-})
+// 后端已按 类别/搜索 过滤并分页，前端不再二次过滤
+const filteredItems = computed(() => items.value)
 
 function isLow(row: any) {
   return row.min_stock != null && row.min_stock > 0 && Number(row.total_quantity) < Number(row.min_stock)
@@ -240,9 +243,28 @@ function rowClass({ row }: any) {
   return row.id === focusId.value ? 'focus-row' : ''
 }
 
-async function loadItems() {
+async function loadItems(resetPage = false) {
+  if (resetPage) page.value = 1
   try {
-    items.value = (await api.get('/stock/items') as any) || []
+    const params: any = {}
+    // 「去入库」定位场景拉全量，确保目标物品一定在结果中（否则按当前页过滤可能不命中）
+    if (route.query.focus) {
+      params.page = 0
+    } else {
+      params.page = page.value
+      params.page_size = pageSize.value
+    }
+    if (typeFilter.value) params.item_type = typeFilter.value
+    if (searchText.value) params.search = searchText.value
+    const res = (await api.get('/stock/items', { params }) as any) || []
+    // 兼容：分页接口返回 {items,total,...}；旧全量接口返回数组
+    if (Array.isArray(res)) {
+      items.value = res
+      total.value = res.length
+    } else {
+      items.value = res.items || []
+      total.value = res.total || 0
+    }
     // 消费「去入库」跳转带来的 focus 参数：高亮并滚动到目标物品所在行/卡片
     focusId.value = route.query.focus ? Number(route.query.focus) : null
     nextTick(() => {
@@ -362,7 +384,7 @@ async function submitStockIn() {
   }
 }
 
-onMounted(() => { loadItems(); loadHerbs(); loadSuppliers() })
+onMounted(() => { loadItems(true); loadHerbs(); loadSuppliers() })
 </script>
 
 <style scoped lang="scss">
