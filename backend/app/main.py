@@ -1,6 +1,7 @@
 """FastAPI 主入口"""
 import logging
 import os
+import re
 import time
 import json
 from contextlib import asynccontextmanager
@@ -11,7 +12,7 @@ from pathlib import Path
 from fastapi import FastAPI, Request, Depends, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from starlette.background import BackgroundTask
 from pydantic import BaseModel
 
@@ -86,7 +87,9 @@ async def _http_exception_handler(request: Request, exc: HTTPException):
         try:
             from app.utils.operation_log import write_log
             tb = "".join(__import__("traceback").format_exception(type(exc), exc, exc.__traceback__))
-            write_log(level="ERROR", action=request.url.path, endpoint=request.url.path,
+            uid = getattr(request.state, "user_id", None)
+            uname = getattr(request.state, "username", None)
+            write_log(level="ERROR", user_id=uid, username=uname, action=request.url.path, endpoint=request.url.path,
                       method=request.method, status_code=exc.status_code, success=False,
                       message=str(exc.detail)[:500], error_detail=tb,
                       ip=request.client.host if request.client else "unknown")
@@ -155,6 +158,10 @@ async def require_admin_for_writes(request: Request, call_next):
             user = db.query(User).filter(User.id == record.user_id).first()
             if not user:
                 return JSONResponse({"detail": "用户不存在"}, status_code=401)
+            # 把已认证用户写入 request.state，供操作日志 / 异常处理器直接复用，
+            # 既避免每次请求重复查库，又让 5xx ERROR 日志不再匿名（审计追责可用）
+            request.state.user_id = user.id
+            request.state.username = user.username
             # 游客登录已关闭：拒绝任何遗留 guest 令牌
             if not settings.allow_guest_login and user.username == "guest":
                 return JSONResponse({"detail": "游客登录已禁用"}, status_code=403)
@@ -196,11 +203,10 @@ _EXPLICIT_AUDIT_PATHS = {
 }
 
 
-def _deferred_log(token, ip, method, path, status_code, level, success, action, message, duration_ms):
-    """响应返回后再写日志：查用户 + 入库，完全不占用接口响应时间。"""
-    user_id = None
-    username = None
-    if token:
+def _deferred_log(token, ip, method, path, status_code, level, success, action, message, duration_ms, user_id=None, username=None):
+    """响应返回后再写日志：若鉴权中间件已写入 request.state 则直接复用，否则按需用 token 反查；
+    入库不占用接口响应时间。"""
+    if user_id is None and token:
         db = SessionLocal()
         try:
             rec = db.query(AuthToken).filter(AuthToken.token == token).first()
@@ -222,19 +228,26 @@ async def operation_log_middleware(request: Request, call_next):
     path = request.url.path
     if not path.startswith("/api/v1") or path in _EXPLICIT_AUDIT_PATHS:
         return await call_next(request)
+    # 日志自身的读操作（列表 / 导出）不再记录，避免 INFO 噪音刷屏
+    if request.method == "GET" and path.startswith("/api/v1/system/logs"):
+        return await call_next(request)
 
     method = request.method
     ip = request.client.host if request.client else "unknown"
     token = _extract_token(request)
 
+    # 优先复用鉴权中间件写入的 request.state（已在鉴权时查过用户，避免每次请求重复查库）
+    uid = getattr(request.state, "user_id", None)
+    uname = getattr(request.state, "username", None)
+
     start = time.perf_counter()
     status_code = 500
     message = None
-    error_detail = None
     try:
         response = await call_next(request)
         status_code = response.status_code
-        if status_code >= 400 and hasattr(response, "body"):
+        # 流式响应（如 AI 问诊 SSE）的 response.body 恒为 b""，无法解析 detail；跳过无效解析
+        if status_code >= 400 and not isinstance(response, StreamingResponse):
             try:
                 body = json.loads(response.body.decode())
                 message = body.get("detail") if isinstance(body, dict) else None
@@ -248,8 +261,7 @@ async def operation_log_middleware(request: Request, call_next):
         message = str(exc)
         duration = round((time.perf_counter() - start) * 1000, 1)
         # 未处理异常无 response 可挂后台任务，同步记录（罕见路径）
-        uid = uname = None
-        if token:
+        if uid is None and token:
             db = SessionLocal()
             try:
                 rec = db.query(AuthToken).filter(AuthToken.token == token).first()
@@ -275,15 +287,16 @@ async def operation_log_middleware(request: Request, call_next):
         level, success = "INFO", True
     action = _ACTION_MAP.get(path)
     if not action:
-        # 取路径末两段作为动作描述（如 /api/v1/prescriptions/123/dispense -> prescriptions/dispense）
+        # 取路径语义段作为动作描述，并把数字段（如 ID）归一化为 {id}，便于按动作聚合
         parts = [p for p in path.split("/") if p and p != "api" and p != "v1"]
+        parts = [re.sub(r"^\d+$", "{id}", p) for p in parts]
         action = "/".join(parts[-2:]) if len(parts) >= 2 else (parts[0] if parts else path)
 
     # 5xx 由全局异常处理器统一记 ERROR(含堆栈)，此处不再重复；
     # 其余按级别记录，但放到后台任务——响应先返回，日志随后写，对接口耗时零影响。
     if status_code < 500:
         response.background = BackgroundTask(
-            _deferred_log, token, ip, method, path, status_code, level, success, action, message, duration
+            _deferred_log, token, ip, method, path, status_code, level, success, action, message, duration, uid, uname
         )
     return response
 

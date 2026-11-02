@@ -28,7 +28,10 @@ def _serialize(log: OperationLog) -> dict:
 
 def _apply_filters(q, level, user_id, action, keyword, start, end):
     if level:
-        q = q.filter(OperationLog.level == level)
+        # 支持逗号分隔多值（如 "WARN,ERROR"），便于前端「仅异常」tab 按级别后端过滤
+        levels = [l.strip().upper() for l in level.split(",") if l.strip()]
+        if levels:
+            q = q.filter(OperationLog.level.in_(levels))
     if user_id is not None:
         q = q.filter(OperationLog.user_id == user_id)
     if action:
@@ -50,7 +53,7 @@ def _apply_filters(q, level, user_id, action, keyword, start, end):
 
 @router.get("/logs", summary="操作日志列表")
 def list_logs(
-    level: str | None = Query(None, description="INFO/WARN/ERROR"),
+    level: str | None = Query(None, description="INFO/WARN/ERROR，或逗号分隔多值如 WARN,ERROR"),
     user_id: int | None = Query(None),
     action: str | None = Query(None),
     keyword: str | None = Query(None),

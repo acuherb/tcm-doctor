@@ -44,6 +44,7 @@
           </template>
           <el-menu-item index="/herbs">药材字典</el-menu-item>
           <el-menu-item index="/acupoints">针灸穴位</el-menu-item>
+          <el-menu-item index="/dictionaries">数据字典</el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu index="stock-group">
@@ -83,11 +84,6 @@
         <el-menu-item index="/diagnosis">
           <el-icon><ChatDotRound /></el-icon>
           <template #title>智能问诊</template>
-        </el-menu-item>
-
-        <el-menu-item index="/dictionaries">
-          <el-icon><Coin /></el-icon>
-          <template #title>数据字典</template>
         </el-menu-item>
 
         <el-menu-item index="/settings">
@@ -174,7 +170,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   HomeFilled, User, FirstAidKit, Document, Search,
-  ChatDotRound, Setting, Fold, Expand, TrendCharts, Box, Goods, Tickets, Checked, Notebook, DataAnalysis, Reading, Coin,
+  ChatDotRound, Setting, Fold, Expand, TrendCharts, Box, Goods, Tickets, Checked, Notebook, DataAnalysis, Reading,
   OfficeBuilding, ShoppingCart, DataLine, UserFilled, ArrowDown,
 } from '@element-plus/icons-vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'

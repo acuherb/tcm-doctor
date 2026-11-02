@@ -4,7 +4,9 @@
       <template #header>
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
           <span>📋 操作日志</span>
-          <div style="display:flex;gap:8px;">
+          <div style="display:flex;gap:8px;align-items:center;">
+            <span style="font-size:12px;color:#999;">清理保留(天)</span>
+            <el-input-number v-model="keepDays" :min="0" :max="3650" controls-position="right" size="small" style="width:120px" />
             <el-button size="small" type="primary" @click="exportCsv"><el-icon><Download /></el-icon> 导出CSV</el-button>
             <el-popconfirm title="确认清理旧日志？" @confirm="clean">
               <template #reference>
@@ -29,6 +31,12 @@
             <el-option label="ERROR" value="ERROR" />
           </el-select>
         </el-form-item>
+        <el-form-item label="用户ID">
+          <el-input v-model="userId" placeholder="按用户查" clearable style="width:110px" @clear="load" />
+        </el-form-item>
+        <el-form-item label="动作">
+          <el-input v-model="action" placeholder="如 入库/登录" clearable style="width:140px" @clear="load" />
+        </el-form-item>
         <el-form-item>
           <el-input v-model="keyword" placeholder="用户名/接口/消息" clearable @clear="load" style="width:200px" />
         </el-form-item>
@@ -37,9 +45,6 @@
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="load">查询</el-button>
-        </el-form-item>
-        <el-form-item label="清理保留(天)" style="margin-left:auto;">
-          <el-input-number v-model="keepDays" :min="0" :max="3650" controls-position="right" style="width:120px" />
         </el-form-item>
       </el-form>
 
@@ -84,14 +89,19 @@ import api from '@/utils/api'
 const logs = ref<any[]>([])
 const tab = ref<'all' | 'error'>('all')
 const level = ref('')
+const userId = ref('')
+const action = ref('')
 const keyword = ref('')
 const range = ref<any>(null)
 const keepDays = ref(90)
 
 function buildParams() {
   const p: any = {}
-  if (tab.value === 'error') p.level = ''  // 异常页用前端过滤，或后端 level 多值；这里用 status_code>=400 已由级别体现，简化为不过滤
-  if (level.value) p.level = level.value
+  // 「仅异常」tab 改由后端按 WARN/ERROR 过滤，避免前端 limit 截断导致漏数据
+  if (tab.value === 'error') p.level = 'WARN,ERROR'
+  else if (level.value) p.level = level.value
+  if (userId.value) p.user_id = userId.value
+  if (action.value) p.action = action.value
   if (keyword.value) p.keyword = keyword.value
   if (range.value && range.value.length === 2) { p.start = range.value[0]; p.end = range.value[1] }
   return p
@@ -99,9 +109,7 @@ function buildParams() {
 async function load() {
   try {
     const params = buildParams()
-    let rows = (await api.get('/system/logs', { params }) as any) || []
-    if (tab.value === 'error') rows = rows.filter((r: any) => r.level !== 'INFO')
-    logs.value = rows
+    logs.value = (await api.get('/system/logs', { params }) as any) || []
   } catch (e: any) { ElMessage.error('加载失败：' + (e?.response?.data?.detail || e?.message)) }
 }
 async function exportCsv() {
