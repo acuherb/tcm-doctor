@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db, inventory_lock
 from app.models.stock import (
-    StockItem, StockBatch, StockTransaction, Supplier, PurchaseOrder, PurchaseItem,
+    StockItem, StockBatch, StockTransaction, Supplier, PurchaseOrder, PurchaseItem, StockOption,
 )
 from app.models.herb import Herb
 from app.models.user import User
@@ -26,6 +26,7 @@ from app.schemas.stock import (
     SupplierCreate, SupplierUpdate, SupplierResponse,
     PurchaseOrderCreate, PurchaseOrderResponse, PurchaseItemResponse,
     ReportSummary, ReportProfitItem, ReportABCItem, ReportTurnover, SupplierPriceRow,
+    StockOptionCreate, StockOptionUpdate, StockOptionResponse,
 )
 
 router = APIRouter(prefix="/stock", tags=["库存管理"])
@@ -906,3 +907,73 @@ def report_supplier_price(db: Session = Depends(get_db)):
         ))
     out.sort(key=lambda x: (x.item_name, x.supplier_name))
     return out
+
+
+# ── 库存选项(类别/单位) ──
+# 受控词表：物品类别与计量单位从硬编码/自由文本改为可在「库存选项」界面维护，
+# 新增类别(如'理疗耗材')或单位不再需要改代码。
+
+@router.get("/options", summary="库存选项列表(类别/单位)")
+def list_options(
+    opt_type: str | None = Query(None, pattern="^(category|unit)$"),
+    db: Session = Depends(get_db),
+):
+    q = db.query(StockOption)
+    if opt_type:
+        q = q.filter(StockOption.opt_type == opt_type)
+    opts = q.order_by(StockOption.opt_type, StockOption.id).all()
+    return [StockOptionResponse.model_validate(o) for o in opts]
+
+
+@router.post("/options", response_model=StockOptionResponse, status_code=201, summary="新增库存选项")
+def create_option(
+    data: StockOptionCreate,
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if db.query(StockOption).filter(StockOption.opt_type == data.opt_type, StockOption.name == data.name).first():
+        raise HTTPException(status_code=400, detail=f"选项「{data.name}」已存在")
+    opt = StockOption(opt_type=data.opt_type, name=data.name, is_active=data.is_active)
+    db.add(opt)
+    db.commit()
+    db.refresh(opt)
+    return opt
+
+
+@router.put("/options/{opt_id}", response_model=StockOptionResponse, summary="更新库存选项")
+def update_option(
+    opt_id: int,
+    data: StockOptionUpdate,
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    opt = db.get(StockOption, opt_id)
+    if not opt:
+        raise HTTPException(status_code=404, detail="选项不存在")
+    if data.opt_type is not None:
+        opt.opt_type = data.opt_type
+    if data.name is not None:
+        if db.query(StockOption).filter(
+            StockOption.opt_type == opt.opt_type, StockOption.name == data.name, StockOption.id != opt_id
+        ).first():
+            raise HTTPException(status_code=400, detail=f"选项「{data.name}」已存在")
+        opt.name = data.name
+    if data.is_active is not None:
+        opt.is_active = data.is_active
+    db.commit()
+    db.refresh(opt)
+    return opt
+
+
+@router.delete("/options/{opt_id}", summary="删除库存选项")
+def delete_option(
+    opt_id: int,
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    opt = db.get(StockOption, opt_id)
+    if not opt:
+        raise HTTPException(status_code=404, detail="选项不存在")
+    db.delete(opt)
+    db.commit()
+    return {"detail": "已删除"}

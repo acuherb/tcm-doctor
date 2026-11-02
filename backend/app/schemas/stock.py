@@ -291,3 +291,28 @@ class SupplierPriceRow(BaseModel):
     max_cost: float
     avg_cost: float
     last_cost: float
+
+
+# === 库存选项(类别/单位) ===
+
+class StockOptionBase(BaseModel):
+    opt_type: str = Field(..., pattern="^(category|unit)$", description="类型: category 物品类别 / unit 计量单位")
+    name: str = Field(..., min_length=1, max_length=60, description="选项名称")
+    is_active: bool = True
+
+
+class StockOptionCreate(StockOptionBase):
+    pass
+
+
+class StockOptionUpdate(BaseModel):
+    opt_type: str | None = Field(None, pattern="^(category|unit)$")
+    name: str | None = Field(None, min_length=1, max_length=60)
+    is_active: bool | None = None
+
+
+class StockOptionResponse(StockOptionBase):
+    id: int
+    created_at: datetime
+
+    model_config = {"from_attributes": True}

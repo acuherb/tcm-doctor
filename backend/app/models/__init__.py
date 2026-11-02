@@ -7,7 +7,7 @@ from app.models.visit import Visit
 from app.models.inquiry import InquiryRecord
 from app.models.herb import Herb
 from app.models.stock import (
-    StockItem, StockBatch, StockTransaction, Supplier, PurchaseOrder, PurchaseItem,
+    StockItem, StockBatch, StockTransaction, Supplier, PurchaseOrder, PurchaseItem, StockOption,
 )
 from app.models.log import OperationLog
 from app.models.prescription import ClassicFormula, Prescription, PrescriptionItem
@@ -30,6 +30,7 @@ __all__ = [
     "Supplier",
     "PurchaseOrder",
     "PurchaseItem",
+    "StockOption",
     "ClassicFormula",
     "Prescription",
     "PrescriptionItem",

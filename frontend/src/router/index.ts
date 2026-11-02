@@ -17,6 +17,7 @@ import StockItems from '@/views/inventory/ItemManage.vue'
 import StockTransactions from '@/views/inventory/Transactions.vue'
 import StockCheck from '@/views/inventory/Check.vue'
 import StockSuppliers from '@/views/inventory/SupplierManage.vue'
+import StockOptions from '@/views/inventory/StockOptions.vue'
 import StockPurchases from '@/views/inventory/PurchaseInbound.vue'
 import StockReports from '@/views/inventory/Reports.vue'
 import PrescriptionList from '@/views/prescription/PrescriptionList.vue'
@@ -113,6 +114,12 @@ const routes: RouteRecordRaw[] = [
         name: 'StockSuppliers',
         component: StockSuppliers,
         meta: { title: '供应商', icon: 'OfficeBuilding' },
+      },
+      {
+        path: 'stock/options',
+        name: 'StockOptions',
+        component: StockOptions,
+        meta: { title: '库存选项', icon: 'Collection' },
       },
       {
         path: 'stock/purchases',

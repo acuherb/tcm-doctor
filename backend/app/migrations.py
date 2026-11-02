@@ -323,6 +323,30 @@ def m0006() -> None:
 
 
 @migration(
+    "0010",
+    "库存选项种子：注入默认类别(中药/针灸针/艾灸耗材/外治耗材/其他)与单位(g/盒/支/根/贴/包)",
+)
+def m0010() -> None:
+    from app.database import SessionLocal
+    from app.models.stock import StockOption
+
+    db = SessionLocal()
+    try:
+        if db.query(StockOption).count() == 0:
+            defaults = [
+                ("category", "中药"), ("category", "针灸针"), ("category", "艾灸耗材"),
+                ("category", "外治耗材"), ("category", "其他"),
+                ("unit", "g"), ("unit", "盒"), ("unit", "支"), ("unit", "根"), ("unit", "贴"), ("unit", "包"),
+            ]
+            for opt_type, name in defaults:
+                db.add(StockOption(opt_type=opt_type, name=name, is_active=True))
+            db.commit()
+            logging.getLogger(__name__).info("已注入默认库存选项(类别/单位)")
+    finally:
+        db.close()
+
+
+@migration(
     "0009",
     "兜底补齐进销存财务列(条码/供应商/金额)：防止 m0007 版本已登记但补列体未生效导致列缺失",
 )

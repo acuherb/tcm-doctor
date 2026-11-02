@@ -10,7 +10,7 @@
 from datetime import datetime
 
 from sqlalchemy import (
-    String, Text, DateTime, Boolean, Integer, Numeric, ForeignKey, Date,
+    String, Text, DateTime, Boolean, Integer, Numeric, ForeignKey, Date, UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -151,3 +151,25 @@ class PurchaseItem(Base):
     location: Mapped[str | None] = mapped_column(String(50), comment="存放位置")
 
     order: Mapped["PurchaseOrder"] = relationship(back_populates="items")
+
+
+class StockOption(Base):
+    """库存受控选项（类别 / 单位）：替代前端硬编码与自由文本，统一在界面维护。
+
+    opt_type 区分 category(物品类别) 与 unit(计量单位)；(opt_type, name) 唯一。
+    物品类别/单位下拉改为从此表读取，新增类别(如'理疗耗材')或单位不再需要改代码。
+    """
+    __tablename__ = "stock_options"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    opt_type: Mapped[str] = mapped_column(String(20), nullable=False, index=True, comment="类型: category/unit")
+    name: Mapped[str] = mapped_column(String(60), nullable=False, comment="选项名称")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, comment="是否启用")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+
+    __table_args__ = (
+        UniqueConstraint("opt_type", "name", name="uq_stock_option_type_name"),
+    )
+
+    def __repr__(self):
+        return f"<StockOption(id={self.id}, type='{self.opt_type}', name='{self.name}')>"

@@ -51,11 +51,7 @@
           <div style="display:flex;gap:8px;">
             <el-select v-model="typeFilter" placeholder="类别" clearable @change="loadOverview" style="width:130px">
               <el-option label="全部" value="" />
-              <el-option label="中药" value="中药" />
-              <el-option label="针灸针" value="针灸针" />
-              <el-option label="艾灸耗材" value="艾灸耗材" />
-              <el-option label="外治耗材" value="外治耗材" />
-              <el-option label="其他" value="其他" />
+              <el-option v-for="c in categories" :key="c.id" :label="c.name" :value="c.name" />
             </el-select>
             <el-checkbox v-model="alertOnly" @change="loadOverview" border size="small">仅看预警</el-checkbox>
             <el-input v-model="searchText" placeholder="搜索名称" clearable @clear="loadOverview" style="width:160px" @keyup.enter="loadOverview">
@@ -134,6 +130,13 @@ const alerts = ref<any[]>([])
 const typeFilter = ref('')
 const alertOnly = ref(false)
 const searchText = ref('')
+const categories = ref<any[]>([])
+async function loadOptions() {
+  try {
+    const res = (await api.get('/stock/options') as any) || []
+    categories.value = res.filter((o: any) => o.opt_type === 'category')
+  } catch {}
+}
 
 const filteredOverview = computed(() => {
   let list = overview.value
@@ -168,7 +171,7 @@ function goItems(id: number) { router.push({ path: '/stock/transactions', query:
 function goTransactions(id: number) { router.push({ path: '/stock/transactions', query: { item_id: String(id) } }) }
 function goCheck(id: number) { router.push({ path: '/stock/check', query: { item_id: String(id) } }) }
 
-onMounted(() => { loadOverview(); loadAlerts() })
+onMounted(() => { loadOverview(); loadAlerts(); loadOptions() })
 </script>
 
 <style scoped lang="scss">

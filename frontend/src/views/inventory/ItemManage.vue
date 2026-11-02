@@ -8,11 +8,7 @@
           <div style="display:flex;gap:8px;">
             <el-select v-model="typeFilter" placeholder="类别筛选" clearable @change="loadItems(true)" style="width:140px">
               <el-option label="全部" value="" />
-              <el-option label="中药" value="中药" />
-              <el-option label="针灸针" value="针灸针" />
-              <el-option label="艾灸耗材" value="艾灸耗材" />
-              <el-option label="外治耗材" value="外治耗材" />
-              <el-option label="其他" value="其他" />
+              <el-option v-for="c in categories" :key="c.id" :label="c.name" :value="c.name" />
             </el-select>
             <el-button v-if="editable" type="primary" size="small" @click="openCreate">
               <el-icon><Plus /></el-icon> 新增物品
@@ -98,12 +94,8 @@
     <el-dialog v-model="itemVisible" :title="isEdit ? '✏️ 编辑物品' : '➕ 新增物品'" width="520px" destroy-on-close>
       <el-form :model="itemForm" label-width="92px" :rules="itemRules" ref="itemFormRef">
         <el-form-item label="类别" prop="item_type">
-          <el-select v-model="itemForm.item_type" style="width:100%">
-            <el-option label="中药" value="中药" />
-            <el-option label="针灸针" value="针灸针" />
-            <el-option label="艾灸耗材" value="艾灸耗材" />
-            <el-option label="外治耗材" value="外治耗材" />
-            <el-option label="其他" value="其他" />
+          <el-select v-model="itemForm.item_type" filterable style="width:100%">
+            <el-option v-for="c in categories" :key="c.id" :label="c.name" :value="c.name" />
           </el-select>
         </el-form-item>
         <el-form-item label="名称" prop="name">
@@ -113,13 +105,8 @@
           <el-input v-model="itemForm.spec" placeholder="如：0.30×40mm / 五年陈" />
         </el-form-item>
         <el-form-item label="计量单位" prop="unit">
-          <el-select v-model="itemForm.unit" style="width:100%" filterable allow-create>
-            <el-option label="g（克）" value="g" />
-            <el-option label="盒" value="盒" />
-            <el-option label="支" value="支" />
-            <el-option label="根" value="根" />
-            <el-option label="贴" value="贴" />
-            <el-option label="包" value="包" />
+          <el-select v-model="itemForm.unit" filterable style="width:100%">
+            <el-option v-for="u in units" :key="u.id" :label="u.name" :value="u.name" />
           </el-select>
         </el-form-item>
         <el-form-item label="默认售价">
@@ -209,6 +196,17 @@ async function loadSuppliers() {
   try { suppliers.value = (await api.get('/stock/suppliers') as any) || [] } catch {}
 }
 
+// 物品类别 / 计量单位 改为从「库存选项」表读取（受控，可在界面增删，不再硬编码）
+const categories = ref<any[]>([])
+const units = ref<any[]>([])
+async function loadOptions() {
+  try {
+    const res = (await api.get('/stock/options') as any) || []
+    categories.value = res.filter((o: any) => o.opt_type === 'category')
+    units.value = res.filter((o: any) => o.opt_type === 'unit')
+  } catch {}
+}
+
 // ── 新增 / 编辑 物品 ──
 const itemVisible = ref(false)
 const isEdit = ref(false)
@@ -280,7 +278,7 @@ async function removeItem(row: any) {
   }
 }
 
-onMounted(() => { loadItems(true); loadHerbs(); loadSuppliers() })
+onMounted(() => { loadItems(true); loadHerbs(); loadSuppliers(); loadOptions() })
 </script>
 
 <style scoped lang="scss">
