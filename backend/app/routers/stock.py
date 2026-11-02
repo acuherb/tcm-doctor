@@ -362,14 +362,16 @@ def update_batch(batch_id: int, data: StockBatchUpdate, current_user: User = Dep
 
 # ── 流水 ──
 
-@router.get("/transactions", response_model=list[StockTransactionResponse], summary="出入库流水(入/出/余/金额可追溯)")
+@router.get("/transactions", summary="出入库流水(入/出/余/金额可追溯)")
 def list_transactions(
     item_id: int | None = Query(None),
     transaction_type: str | None = Query(None),
     reference_type: str | None = Query(None),
     start: str | None = Query(None, description="起始日期 YYYY-MM-DD"),
     end: str | None = Query(None),
-    limit: int = Query(200, ge=1, le=1000),
+    search: str | None = Query(None, description="按物品名称模糊搜索(下推 SQL)"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(100, ge=1, le=1000),
     db: Session = Depends(get_db),
 ):
     q = db.query(StockTransaction).join(
@@ -385,12 +387,16 @@ def list_transactions(
         q = q.filter(StockTransaction.created_at >= start)
     if end:
         q = q.filter(StockTransaction.created_at <= end + " 23:59:59")
-    txns = q.order_by(StockTransaction.id.desc()).limit(limit).all()
+    if search:
+        s = f"%{search.strip()}%"
+        q = q.filter(StockItem.name.ilike(s))
+    total = q.count()
+    txns = q.order_by(StockTransaction.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
     item_ids = {t.item_id for t in txns}
     item_info = {i.id: (i.name, i.unit) for i in db.query(StockItem).filter(StockItem.id.in_(item_ids)).all()} if item_ids else {}
     batch_ids = {t.batch_id for t in txns if t.batch_id}
     bnos = {b.id: b.batch_number for b in db.query(StockBatch).filter(StockBatch.id.in_(batch_ids)).all()} if batch_ids else {}
-    return [
+    items = [
         StockTransactionResponse(
             id=t.id, item_id=t.item_id, item_name=item_info.get(t.item_id, ("", ""))[0], unit=item_info.get(t.item_id, ("", ""))[1],
             batch_id=t.batch_id, batch_number=bnos.get(t.batch_id), transaction_type=t.transaction_type,
@@ -400,6 +406,7 @@ def list_transactions(
             operator=t.operator, note=t.note, created_at=t.created_at,
         ) for t in txns
     ]
+    return {"items": items, "total": total, "page": page, "page_size": page_size}
 
 
 # ── 总览 / 预警 ──

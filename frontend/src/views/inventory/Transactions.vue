@@ -38,12 +38,12 @@
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-input v-model="searchText" placeholder="物品名称" clearable @clear="loadTransactions" style="width:180px">
+          <el-input v-model="searchText" placeholder="物品名称" clearable @clear="loadTransactions(true)" style="width:180px">
             <template #prefix><el-icon><Search /></el-icon></template>
           </el-input>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="loadTransactions">查询</el-button>
+          <el-button type="primary" @click="loadTransactions(true)">查询</el-button>
         </el-form-item>
       </el-form>
 
@@ -113,6 +113,14 @@
         </div>
         <el-empty v-if="!transactions.length" description="暂无流水" />
       </div>
+
+      <el-pagination
+        v-if="total > pageSize"
+        style="margin-top:14px;justify-content:center;"
+        layout="total, prev, pager, next"
+        :total="total" :page-size="pageSize" :current-page="page"
+        @current-change="(p: number) => { page = p; loadTransactions() }"
+      />
     </el-card>
 
     <!-- 入库对话框 -->
@@ -247,6 +255,9 @@ const typeFilter = ref('')
 const refFilter = ref('')
 const searchText = ref('')
 const submitting = ref(false)
+const page = ref(1)
+const pageSize = ref(100)
+const total = ref(0)
 
 const isMobile = ref(false)
 function updateViewport() { isMobile.value = window.innerWidth < 768 }
@@ -260,14 +271,18 @@ function typeTag(t: string) {
   return 'info'
 }
 
-async function loadTransactions() {
+async function loadTransactions(resetPage = false) {
+  if (resetPage) page.value = 1
   try {
-    const params: any = { limit: 500 }
+    const params: any = { page: page.value, page_size: pageSize.value }
     if (route.query.item_id) params.item_id = Number(route.query.item_id)
     if (typeFilter.value) params.transaction_type = typeFilter.value
     if (refFilter.value) params.reference_type = refFilter.value
     if (searchText.value) params.search = searchText.value
-    transactions.value = (await api.get('/stock/transactions', { params }) as any) || []
+    const res = (await api.get('/stock/transactions', { params }) as any) || []
+    // 后端返回分页信封 {items,total,...}
+    if (Array.isArray(res)) { transactions.value = res; total.value = res.length }
+    else { transactions.value = res.items || []; total.value = res.total || 0 }
   } catch (e: any) {
     ElMessage.error('流水加载失败：' + (e?.response?.data?.detail || e?.message || '未知错误'))
   }
@@ -383,7 +398,7 @@ async function submitStockWriteoff() {
   }
 }
 
-onMounted(() => { loadTransactions(); loadItems(); loadSuppliers() })
+onMounted(() => { loadTransactions(true); loadItems(); loadSuppliers() })
 </script>
 
 <style scoped lang="scss">
