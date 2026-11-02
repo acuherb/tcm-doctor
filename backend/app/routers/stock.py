@@ -9,7 +9,7 @@
 from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, case, and_
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db, inventory_lock
@@ -758,16 +758,23 @@ def report_summary(
     end: str | None = Query(None),
     db: Session = Depends(get_db),
 ):
-    q = db.query(StockTransaction)
+    base = db.query(StockTransaction)
     if start:
-        q = q.filter(StockTransaction.created_at >= start)
+        base = base.filter(StockTransaction.created_at >= start)
     if end:
-        q = q.filter(StockTransaction.created_at <= end + " 23:59:59")
-    txns = q.all()
-    purchase_cost = sum(float(t.cost_amount or 0) for t in txns if t.transaction_type == "入库" and t.cost_amount)
+        base = base.filter(StockTransaction.created_at <= end + " 23:59:59")
+    # 用 SQL 聚合替代全量 q.all() 后在内存 sum（避免流水增长后的内存压力）
+    pc, cg, rev = base.with_entities(
+        func.coalesce(func.sum(case((StockTransaction.transaction_type == "入库", StockTransaction.cost_amount), else_=0)), 0),
+        func.coalesce(func.sum(case(
+            (and_(StockTransaction.transaction_type == "出库", StockTransaction.cost_amount < 0),
+             -StockTransaction.cost_amount), else_=0)), 0),
+        func.coalesce(func.sum(case((StockTransaction.revenue_amount > 0, StockTransaction.revenue_amount), else_=0)), 0),
+    ).first()
+    purchase_cost = 0.0 if pc is None else float(pc)
     # COGS 仅统计「出库」（销售/手动出库的成本）；损耗/盘点/调整的成本不并入销售成本，避免毛利被系统性低估
-    cogs = sum(-float(t.cost_amount or 0) for t in txns if t.transaction_type == "出库" and t.cost_amount is not None and t.cost_amount < 0)
-    sales_revenue = sum(float(t.revenue_amount or 0) for t in txns if t.revenue_amount)
+    cogs = 0.0 if cg is None else float(cg)
+    sales_revenue = 0.0 if rev is None else float(rev)
     gross_profit = sales_revenue - cogs
     gross_margin = (gross_profit / sales_revenue) if sales_revenue else 0.0
     ending_inventory_value = float(
@@ -786,23 +793,25 @@ def report_profit(
     end: str | None = Query(None),
     db: Session = Depends(get_db),
 ):
-    q = db.query(StockTransaction)
+    base = db.query(StockTransaction)
     if start:
-        q = q.filter(StockTransaction.created_at >= start)
+        base = base.filter(StockTransaction.created_at >= start)
     if end:
-        q = q.filter(StockTransaction.created_at <= end + " 23:59:59")
-    txns = q.all()
+        base = base.filter(StockTransaction.created_at <= end + " 23:59:59")
+    # 按物品 SQL 分组聚合，替代全量拉取后在内存循环
+    rows = base.with_entities(
+        StockTransaction.item_id,
+        func.coalesce(func.sum(case((StockTransaction.revenue_amount > 0, StockTransaction.revenue_amount), else_=0)), 0),
+        func.coalesce(func.sum(case(
+            (and_(StockTransaction.transaction_type == "出库", StockTransaction.cost_amount < 0),
+             -StockTransaction.cost_amount), else_=0)), 0),
+    ).group_by(StockTransaction.item_id).all()
     names = {i.id: (i.name, i.unit) for i in db.query(StockItem).all()}
-    agg: dict[int, dict] = {}
-    for t in txns:
-        a = agg.setdefault(t.item_id, {"rev": 0.0, "cogs": 0.0})
-        a["rev"] += float(t.revenue_amount or 0)
-        # COGS 仅算出库成本（排除损耗/盘点/调整），与 summary 口径一致
-        if t.transaction_type == "出库" and t.cost_amount is not None and t.cost_amount < 0:
-            a["cogs"] += -float(t.cost_amount)
     out = []
-    for item_id, a in agg.items():
-        rev, cogs = a["rev"], a["cogs"]
+    for item_id, rev, cogs in rows:
+        rev = 0.0 if rev is None else float(rev)
+        # COGS 仅算出库成本（排除损耗/盘点/调整），与 summary 口径一致
+        cogs = 0.0 if cogs is None else float(cogs)
         gp = rev - cogs
         name, unit = names.get(item_id, (str(item_id), ""))
         out.append(ReportProfitItem(
@@ -837,26 +846,28 @@ def report_turnover(
     end: str | None = Query(None),
     db: Session = Depends(get_db),
 ):
-    q = db.query(StockTransaction)
+    base = db.query(StockTransaction)
     if start:
-        q = q.filter(StockTransaction.created_at >= start)
+        base = base.filter(StockTransaction.created_at >= start)
     if end:
-        q = q.filter(StockTransaction.created_at <= end + " 23:59:59")
-    txns = q.all()
+        base = base.filter(StockTransaction.created_at <= end + " 23:59:59")
+    # 按物品 SQL 分组聚合净金额变动（入库正、出/损/盘点/调整负）与 COGS（仅出库），
+    # 替代全量拉取后在内存循环
+    rows = base.with_entities(
+        StockTransaction.item_id,
+        func.coalesce(func.sum(StockTransaction.cost_amount), 0),
+        func.coalesce(func.sum(case(
+            (and_(StockTransaction.transaction_type == "出库", StockTransaction.cost_amount < 0),
+             -StockTransaction.cost_amount), else_=0)), 0),
+    ).group_by(StockTransaction.item_id).all()
+    net_change_map = {item_id: (0.0 if nc is None else float(nc)) for item_id, nc, _ in rows}
+    cogs_map = {item_id: (0.0 if cg is None else float(cg)) for item_id, _, cg in rows}
     names = {i.id: (i.name, i.unit) for i in db.query(StockItem).all()}
-    # 期间按物品的净金额变动（入库正、出/损/盘点/调整负）与 COGS（仅出库）
-    net_change_map: dict[int, float] = {}
-    cogs_map: dict[int, float] = {}
-    for t in txns:
-        if t.cost_amount is not None:
-            net_change_map[t.item_id] = net_change_map.get(t.item_id, 0.0) + float(t.cost_amount)
-            if t.transaction_type == "出库" and t.cost_amount < 0:
-                cogs_map[t.item_id] = cogs_map.get(t.item_id, 0.0) - float(t.cost_amount)
     # 期末各物品库存金额（按 item_id 分别算，含所有批次；停用批次数量为 0 不影响）
     item_ending = dict(
         db.query(StockBatch.item_id, func.sum(StockBatch.quantity * func.coalesce(StockBatch.unit_price, 0)))
         .group_by(StockBatch.item_id).all()
-    ) if txns else {}
+    ) if rows else {}
     out = []
     for item_id, cogs in cogs_map.items():
         ending_val = float(item_ending.get(item_id, 0.0) or 0)
