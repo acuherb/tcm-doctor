@@ -12,6 +12,7 @@ from fastapi import FastAPI, Request, Depends, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.background import BackgroundTask
 from pydantic import BaseModel
 
 from app.config import settings, build_display_version
@@ -195,15 +196,8 @@ _EXPLICIT_AUDIT_PATHS = {
 }
 
 
-@app.middleware("http")
-async def operation_log_middleware(request: Request, call_next):
-    path = request.url.path
-    if not path.startswith("/api/v1") or path in _EXPLICIT_AUDIT_PATHS:
-        return await call_next(request)
-
-    method = request.method
-    ip = request.client.host if request.client else "unknown"
-    token = _extract_token(request)
+def _deferred_log(token, ip, method, path, status_code, level, success, action, message, duration_ms):
+    """响应返回后再写日志：查用户 + 入库，完全不占用接口响应时间。"""
     user_id = None
     username = None
     if token:
@@ -216,6 +210,22 @@ async def operation_log_middleware(request: Request, call_next):
                     user_id, username = u.id, u.username
         finally:
             db.close()
+    write_log(
+        level=level, user_id=user_id, username=username, action=action,
+        endpoint=path, method=method, status_code=status_code, success=success,
+        message=message, ip=ip, duration_ms=duration_ms,
+    )
+
+
+@app.middleware("http")
+async def operation_log_middleware(request: Request, call_next):
+    path = request.url.path
+    if not path.startswith("/api/v1") or path in _EXPLICIT_AUDIT_PATHS:
+        return await call_next(request)
+
+    method = request.method
+    ip = request.client.host if request.client else "unknown"
+    token = _extract_token(request)
 
     start = time.perf_counter()
     status_code = 500
@@ -237,8 +247,20 @@ async def operation_log_middleware(request: Request, call_next):
         )
         message = str(exc)
         duration = round((time.perf_counter() - start) * 1000, 1)
+        # 未处理异常无 response 可挂后台任务，同步记录（罕见路径）
+        uid = uname = None
+        if token:
+            db = SessionLocal()
+            try:
+                rec = db.query(AuthToken).filter(AuthToken.token == token).first()
+                if rec and rec.expires_at >= datetime.now():
+                    u = db.query(User).filter(User.id == rec.user_id).first()
+                    if u:
+                        uid, uname = u.id, u.username
+            finally:
+                db.close()
         write_log(
-            level="ERROR", user_id=user_id, username=username, action=_ACTION_MAP.get(path, path),
+            level="ERROR", user_id=uid, username=uname, action=_ACTION_MAP.get(path, path),
             endpoint=path, method=method, status_code=500, success=False,
             message=message, error_detail=error_detail, ip=ip, duration_ms=duration,
         )
@@ -257,14 +279,12 @@ async def operation_log_middleware(request: Request, call_next):
         parts = [p for p in path.split("/") if p and p != "api" and p != "v1"]
         action = "/".join(parts[-2:]) if len(parts) >= 2 else (parts[0] if parts else path)
 
-    # 5xx 由全局异常处理器统一记 ERROR(含堆栈)，此处不再重复；其余按级别记录。
+    # 5xx 由全局异常处理器统一记 ERROR(含堆栈)，此处不再重复；
+    # 其余按级别记录，但放到后台任务——响应先返回，日志随后写，对接口耗时零影响。
     if status_code < 500:
-        write_log(
-            level=level, user_id=user_id, username=username, action=action,
-            endpoint=path, method=method, status_code=status_code, success=success,
-            message=message, error_detail=error_detail, ip=ip, duration_ms=duration,
+        response.background = BackgroundTask(
+            _deferred_log, token, ip, method, path, status_code, level, success, action, message, duration
         )
-    # 重新取回 response（上方已 await 得到）
     return response
 
 
