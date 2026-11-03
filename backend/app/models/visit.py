@@ -11,7 +11,7 @@ class Visit(Base):
     __tablename__ = "visits"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    patient_id: Mapped[int] = mapped_column(Integer, ForeignKey("patients.id"), nullable=False)
+    patient_id: Mapped[int] = mapped_column(Integer, ForeignKey("patients.id", ondelete="CASCADE"), nullable=False)
     visit_date: Mapped[str] = mapped_column(String(20), nullable=False, comment="就诊日期")
     # 就诊类型：初诊 / 复诊（同一病种的首次为初诊，其后为复诊）
     visit_type: Mapped[str | None] = mapped_column(String(10), comment="就诊类型: 初诊/复诊", default="初诊")
@@ -36,11 +36,11 @@ class Visit(Base):
     ai_analysis: Mapped[str | None] = mapped_column(Text, comment="AI 辅助辨证完整分析(含依据，供病历参考)", default=None)
 
     # 受控词条关联 (引用 dictionary_terms, 可选; 为空时仍可用上方原文)
-    tongue_body_term_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("dictionary_terms.id"), comment="舌质词条ID")
-    tongue_coat_term_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("dictionary_terms.id"), comment="舌苔词条ID")
-    pulse_term_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("dictionary_terms.id"), comment="脉象词条ID(主脉象，向后兼容)")
+    tongue_body_term_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("dictionary_terms.id", ondelete="SET NULL"), comment="舌质词条ID")
+    tongue_coat_term_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("dictionary_terms.id", ondelete="SET NULL"), comment="舌苔词条ID")
+    pulse_term_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("dictionary_terms.id", ondelete="SET NULL"), comment="脉象词条ID(主脉象，向后兼容)")
     pulse_term_ids: Mapped[list | None] = mapped_column(JSON, comment="脉象词条ID列表(支持多选脉象)")
-    syndrome_term_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("dictionary_terms.id"), comment="证型词条ID")
+    syndrome_term_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("dictionary_terms.id", ondelete="SET NULL"), comment="证型词条ID")
 
     # 影像资料（base64 data URL，作为正式病历资料；亦可经 AI 辨证，但此处独立留存以便查询）
     tongue_image: Mapped[str | None] = mapped_column(Text, comment="舌苔照片 base64 data URL")
@@ -52,7 +52,7 @@ class Visit(Base):
     doctor_id: Mapped[int | None] = mapped_column(Integer, comment="接诊医师ID")
     # 父子关联：复诊指向其初诊，构成一次完整就诊（初诊→复诊链）
     parent_visit_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("visits.id"), comment="父就诊ID(复诊指向其初诊，构成一次完整就诊)", nullable=True
+        Integer, ForeignKey("visits.id", ondelete="SET NULL"), comment="父就诊ID(复诊指向其初诊，构成一次完整就诊)", nullable=True
     )
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)

@@ -2,6 +2,9 @@ import axios from 'axios'
 import type { AxiosInstance, AxiosRequestConfig } from 'axios'
 import { ElMessage } from 'element-plus'
 import { triggerLogout } from '@/store/authBus'
+import type { ApiResponse, Paginated } from '@/types'
+
+export type { ApiResponse, Paginated }
 
 // 扩展 axios 请求配置，支持本 api 层自定义的 silent 选项（静默错误、不弹全局提示）。
 // 此前未在类型中声明，导致所有传 { silent: true } 的调用均报 TS2353；类型检查门禁恢复后才暴露。
@@ -22,11 +25,7 @@ const api = axios.create({
   },
 })
 
-// 启动时若已有令牌，直接带入请求头
-const savedToken = typeof window !== 'undefined' && localStorage.getItem('tcm_token')
-if (savedToken) {
-  api.defaults.headers.common['Authorization'] = `Bearer ${savedToken}`
-}
+// 令牌已移入内存（配合后端 httpOnly Cookie），不再从 localStorage 预设；内存令牌由 auth store 在登录/恢复时写入
 
 // 请求拦截：FormData 时移除 Content-Type，让浏览器自动设置 multipart boundary
 api.interceptors.request.use((config) => {
@@ -45,7 +44,6 @@ api.interceptors.response.use(
     const isAuthCall = cfg?.url?.includes('/auth/')
     // 401 未登录/过期 → 清理登录态（localStorage + axios 头 + Pinia）并跳转登录页
     if (status === 401 && !isAuthCall) {
-      localStorage.removeItem('tcm_token')
       localStorage.removeItem('tcm_user')
       delete api.defaults.headers.common['Authorization']
       // 同步清理 Pinia 内存登录态（通过总线，避免循环依赖）

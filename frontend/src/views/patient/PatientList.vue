@@ -250,6 +250,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
 import api from '@/utils/api'
+import type { Patient } from '@/types'
 import { useAuthStore } from '@/store/auth'
 import { calcAge, calcBmi, bodyType } from '@/utils/health'
 
@@ -361,7 +362,7 @@ async function loadPatients() {
       params.sort_by = 'last_visit_date'
       params.order = sortOrder.value
     }
-    const res = await api.get('/patients', { params }) as any
+    const res = await api.get<Paginated<Patient>>('/patients', { params })
     patients.value = res.items || []
     total.value = res.total || 0
   } catch {}

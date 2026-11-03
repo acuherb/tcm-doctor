@@ -214,7 +214,7 @@ const editable = computed(() => auth.canWrite('diagnosis'))
 function streamFetch(path: string, data: unknown): Promise<Response> {
   const isElectronProd = typeof window !== 'undefined' && window.location.protocol === 'file:'
   const baseUrl = isElectronProd ? 'http://127.0.0.1:8765/api/v1' : '/api/v1'
-  const token = typeof window !== 'undefined' ? localStorage.getItem('tcm_token') : null
+  const token = useAuthStore().token
   return fetch(`${baseUrl}${path}`, {
     method: 'POST',
     headers: {

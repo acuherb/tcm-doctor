@@ -220,7 +220,7 @@ function statusText(code: number, action?: string) {
   if (code >= 500) return `服务异常 ${code}`
   return `失败 ${code}`
 }
-const PAGE_SIZE = 500
+const PAGE_SIZE = 50
 async function load() {
   try {
     expandedId.value = null

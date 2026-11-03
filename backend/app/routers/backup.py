@@ -108,18 +108,29 @@ def reset_data(
     from app.models.stock import (
         StockItem, StockBatch, StockTransaction, Supplier, PurchaseOrder, PurchaseItem,
     )
-    from app.models.prescription import ClassicFormula, Prescription, PrescriptionItem
+    from app.models.prescription import (
+        ClassicFormula, Prescription, PrescriptionItem, AcupointPrescription, PrescriptionInjection,
+    )
     from app.models.patient import Patient
     from app.models.visit import Visit
     from app.models.knowledge import KnowledgeEntry
     from app.models.conversation import Conversation, Message
     from app.models.inquiry import InquiryRecord
+    from app.models.followup import FollowUp
+    from app.models.followup_reminder import FollowUpReminder
     from app.models.user import AuthToken
 
-    # 按依赖顺序删除（含会话/问诊/令牌，避免重置后残留关联数据 M7）
-    for model in [Message, Conversation, PrescriptionItem, Prescription, PurchaseItem, PurchaseOrder,
-                  StockTransaction, StockBatch, StockItem, Supplier, InquiryRecord, AuthToken,
-                  Visit, Patient, ClassicFormula, KnowledgeEntry, Herb]:
+    # 严格按「子表先于父表」顺序删除：启用 PRAGMA foreign_keys=ON 后，
+    # 必须先清空子记录再删父记录，否则因缺级联而失败。覆盖会话/处方明细/随访/库存流水等全部子表。
+    for model in [
+        Message, Conversation,                      # 会话/消息
+        AcupointPrescription, PrescriptionInjection, PrescriptionItem, Prescription,  # 处方及其明细
+        FollowUp, FollowUpReminder,                  # 随访/提醒（引用患者/就诊）
+        InquiryRecord, Visit,                        # 问诊记录/就诊（引用患者）
+        StockTransaction, StockBatch, PurchaseItem, PurchaseOrder, StockItem,        # 库存/采购（引用物品/供应商）
+        AuthToken, Patient,                         # 令牌/患者（最后删父表）
+        ClassicFormula, Herb, Supplier, KnowledgeEntry,  # 基础资料（被上述子表引用，置于其后）
+    ]:
         db.query(model).delete()
 
     db.commit()

@@ -11,8 +11,8 @@ class FollowUp(Base):
     __tablename__ = "followups"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    patient_id: Mapped[int] = mapped_column(Integer, ForeignKey("patients.id"), nullable=False, comment="患者ID")
-    visit_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("visits.id"), nullable=True, comment="关联的治疗就诊(可选)")
+    patient_id: Mapped[int] = mapped_column(Integer, ForeignKey("patients.id", ondelete="CASCADE"), nullable=False, comment="患者ID")
+    visit_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("visits.id", ondelete="CASCADE"), nullable=True, comment="关联的治疗就诊(可选)")
     followup_date: Mapped[str] = mapped_column(String(20), nullable=False, comment="随访/反馈日期")
     treatment_type: Mapped[str | None] = mapped_column(String(20), comment="治疗类型: 中药/针灸/其他")
     improvement: Mapped[str | None] = mapped_column(String(20), comment="改善程度: 明显好转/好转/稳定/反复/加重")

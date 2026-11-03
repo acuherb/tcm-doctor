@@ -5,7 +5,7 @@ import hashlib
 import secrets
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
@@ -84,14 +84,19 @@ def _issue_token(db: Session, user: User) -> AuthToken:
 
 def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+    request: Request = None,
     db: Session = Depends(get_db),
 ) -> User:
-    """依赖注入：校验 Authorization: Bearer <token>，返回当前用户"""
-    if credentials is None:
+    """依赖注入：优先校验 Authorization: Bearer <token>，其次回退到 httpOnly Cookie（同域场景），返回当前用户"""
+    token_str = credentials.credentials if credentials else None
+    if not token_str and request is not None:
+        # 兼容 httpOnly Cookie：避免令牌暴露在前端存储（XSS 无法读取）
+        token_str = request.cookies.get("tcm_token")
+    if not token_str:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="未登录")
     record = (
         db.query(AuthToken)
-        .filter(AuthToken.token == credentials.credentials)
+        .filter(AuthToken.token == token_str)
         .first()
     )
     if not record or record.expires_at < datetime.now():
@@ -116,7 +121,7 @@ def _cleanup_login_fails() -> None:
 
 
 @router.post("/login", response_model=TokenOut, summary="用户登录")
-def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)):
+def login(payload: LoginRequest, request: Request, response: Response, db: Session = Depends(get_db)):
     client_ip = request.client.host if request.client else "unknown"
     _cleanup_login_fails()
     fail_key = f"{client_ip}:{payload.username}"
@@ -144,6 +149,11 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
     write_log(level="INFO", user_id=user.id, username=user.username, action="登录",
               endpoint="/api/v1/auth/login", method="POST", status_code=200,
               success=True, message="登录成功", ip=client_ip)
+    # 同时下发 httpOnly Cookie（同域防御纵深；令牌仍以 JSON 返回供跨域/Electron 走 Bearer）
+    response.set_cookie(
+        key="tcm_token", value=token.token, httponly=True, samesite="lax",
+        path="/api/v1", max_age=_TOKEN_TTL_DAYS * 86400,
+    )
     return TokenOut(
         token=token.token,
         user=UserOut.model_validate(user),
@@ -152,7 +162,7 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
 
 
 @router.post("/guest", response_model=TokenOut, summary="游客一键登录（免密码）")
-def guest_login(request: Request, db: Session = Depends(get_db)):
+def guest_login(request: Request, response: Response, db: Session = Depends(get_db)):
     """生成游客令牌，无需密码；用于展示/试用。可随时切换账号登录。"""
     client_ip = request.client.host if request.client else "unknown"
     # 基础限流：同一 IP 1 分钟内最多 10 次
@@ -172,6 +182,10 @@ def guest_login(request: Request, db: Session = Depends(get_db)):
     write_log(level="INFO", user_id=user.id, username=user.username, action="游客登录",
               endpoint="/api/v1/auth/guest", method="POST", status_code=200,
               success=True, message="游客一键登录", ip=client_ip)
+    response.set_cookie(
+        key="tcm_token", value=token.token, httponly=True, samesite="lax",
+        path="/api/v1", max_age=_TOKEN_TTL_DAYS * 86400,
+    )
     return TokenOut(token=token.token, user=UserOut.model_validate(user))
 
 
@@ -190,6 +204,7 @@ def permission_catalog(current_user: User = Depends(get_current_user)):
 def logout(
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
     request: Request = None,
+    response: Response = None,
     db: Session = Depends(get_db),
 ):
     uid = username = None
@@ -205,6 +220,8 @@ def logout(
     write_log(level="INFO", user_id=uid, username=username, action="登出",
               endpoint="/api/v1/auth/logout", method="POST", status_code=200,
               success=True, message="退出登录", ip=ip)
+    if response is not None:
+        response.delete_cookie("tcm_token", path="/api/v1")
     return {"message": "已退出登录"}
 
 
@@ -369,6 +386,11 @@ def delete_user(
         raise HTTPException(status_code=400, detail="至少保留一名可管理账号")
 
     db.query(AuthToken).filter(AuthToken.user_id == user.id).delete()
+    # 解除该用户作为开方医师的处方关联（doctor_id 置空），避免外键约束下删除失败
+    from app.models.prescription import Prescription
+    db.query(Prescription).filter(Prescription.doctor_id == user.id).update(
+        {Prescription.doctor_id: None}
+    )
     username = user.username
     db.delete(user)
     db.commit()

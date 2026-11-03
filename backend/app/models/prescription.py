@@ -29,12 +29,12 @@ class Prescription(Base):
     __tablename__ = "prescriptions"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    visit_id: Mapped[int] = mapped_column(Integer, ForeignKey("visits.id"), nullable=False)
-    patient_id: Mapped[int] = mapped_column(Integer, ForeignKey("patients.id"), nullable=False)
+    visit_id: Mapped[int] = mapped_column(Integer, ForeignKey("visits.id", ondelete="CASCADE"), nullable=False)
+    patient_id: Mapped[int] = mapped_column(Integer, ForeignKey("patients.id", ondelete="CASCADE"), nullable=False)
     formula_name: Mapped[str | None] = mapped_column(String(100), comment="方名")
     is_classic: Mapped[bool] = mapped_column(Boolean, default=False, comment="是否经典方")
-    classic_formula_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("classic_formulas.id"))
-    acupoint_formula_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("acupoint_formulas.id"), comment="关联针灸方库")
+    classic_formula_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("classic_formulas.id", ondelete="SET NULL"))
+    acupoint_formula_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("acupoint_formulas.id", ondelete="SET NULL"), comment="关联针灸方库")
     preparation_method: Mapped[str] = mapped_column(String(50), default="水煎服", comment="煎法")
     administration: Mapped[str | None] = mapped_column(String(100), comment="服法")
     doses: Mapped[int] = mapped_column(Integer, default=7, comment="剂数")
@@ -49,7 +49,7 @@ class Prescription(Base):
     acupuncture_fee: Mapped[float | None] = mapped_column(Numeric(8, 2), comment="针灸费用(元)")
     status: Mapped[str] = mapped_column(String(20), default="已开", comment="状态")
     reviewed_by: Mapped[int | None] = mapped_column(Integer, comment="审核人")
-    doctor_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"), comment="开方医师账号")
+    doctor_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id", ondelete="SET NULL"), comment="开方医师账号")
     doctor_name: Mapped[str | None] = mapped_column(String(50), comment="开方医师姓名快照（账号改名前打印仍正确）")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
 
@@ -68,8 +68,8 @@ class PrescriptionItem(Base):
     __tablename__ = "prescription_items"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    prescription_id: Mapped[int] = mapped_column(Integer, ForeignKey("prescriptions.id"), nullable=False)
-    herb_id: Mapped[int] = mapped_column(Integer, ForeignKey("herbs.id"), nullable=False)
+    prescription_id: Mapped[int] = mapped_column(Integer, ForeignKey("prescriptions.id", ondelete="CASCADE"), nullable=False)
+    herb_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("herbs.id", ondelete="SET NULL"), nullable=True)
     herb_name: Mapped[str] = mapped_column(String(50), nullable=False, comment="药材名(冗余)")
     dose: Mapped[float] = mapped_column(Numeric(6, 2), nullable=False, comment="剂量(g)")
     special_method: Mapped[str | None] = mapped_column(String(20), comment="特殊煎法")
@@ -89,8 +89,8 @@ class AcupointPrescription(Base):
     __tablename__ = "acupoint_prescriptions"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    prescription_id: Mapped[int] = mapped_column(Integer, ForeignKey("prescriptions.id"), nullable=False)
-    acupoint_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("acupoints.id"), comment="穴位ID(允许手输，可为空)")
+    prescription_id: Mapped[int] = mapped_column(Integer, ForeignKey("prescriptions.id", ondelete="CASCADE"), nullable=False)
+    acupoint_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("acupoints.id", ondelete="SET NULL"), comment="穴位ID(允许手输，可为空)")
     acupoint_name: Mapped[str] = mapped_column(String(50), nullable=False, comment="穴名(冗余)")
     technique: Mapped[str | None] = mapped_column(String(50), comment="针法：毫针泻法/补法/温灸...")
     retention: Mapped[str | None] = mapped_column(String(20), comment="留针时间")
@@ -108,7 +108,7 @@ class PrescriptionInjection(Base):
     __tablename__ = "prescription_injections"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    prescription_id: Mapped[int] = mapped_column(Integer, ForeignKey("prescriptions.id"), nullable=False)
+    prescription_id: Mapped[int] = mapped_column(Integer, ForeignKey("prescriptions.id", ondelete="CASCADE"), nullable=False)
     drug_name: Mapped[str] = mapped_column(String(100), nullable=False, comment="药品名称")
     spec: Mapped[str | None] = mapped_column(String(50), comment="规格")
     dose: Mapped[str | None] = mapped_column(String(50), comment="用量")

@@ -11,6 +11,8 @@ def _login(client, username, password):
 
 
 def test_anonymous_read_requires_auth(client):
+    # 清空会话级 client 可能遗留的登录 cookie，确保真正匿名（token 现可经 Cookie 传递）
+    client.cookies.clear()
     # 只读接口必须登录后访问
     assert client.get("/api/v1/patients").status_code == 401
 
@@ -49,6 +51,8 @@ def test_force_change_password_blocks_then_allows(client, db_session):
 
 
 def test_permissions_catalog_requires_auth(client):
+    # 清空会话级 client 可能遗留的登录 cookie，确保真正匿名
+    client.cookies.clear()
     # 权限目录接口曾匿名可访问（泄露完整 RBAC 目录）；应要求登录
     assert client.get("/api/v1/auth/permissions").status_code == 401
     # 登录后可正常获取

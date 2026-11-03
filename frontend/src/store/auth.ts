@@ -30,11 +30,11 @@ const DOMAIN_WRITE: Record<string, string | null> = {
   backup: 'system:write', system: 'system:write', config: 'system:write',
 }
 
-const TOKEN_KEY = 'tcm_token'
 const USER_KEY = 'tcm_user'
 
 export const useAuthStore = defineStore('auth', () => {
-  const token = ref<string>(localStorage.getItem(TOKEN_KEY) || '')
+  // 令牌仅存于内存（配合后端 httpOnly Cookie 作同域防御纵深），不再落 localStorage，避免 XSS 窃取
+  const token = ref<string>('')
   const user = ref<UserInfo | null>(
     JSON.parse(localStorage.getItem(USER_KEY) || 'null')
   )
@@ -44,7 +44,6 @@ export const useAuthStore = defineStore('auth', () => {
   // 登录成功后：授权 axios + 持久化
   function authorize(t: string) {
     token.value = t
-    localStorage.setItem(TOKEN_KEY, t)
     api.defaults.headers.common['Authorization'] = `Bearer ${t}`
   }
 
@@ -58,15 +57,25 @@ export const useAuthStore = defineStore('auth', () => {
 
   // 页面刷新后恢复登录态（校验 token 是否仍有效）
   async function restore() {
-    if (!token.value) return false
-    authorize(token.value)
+    // 内存仍有令牌：直接续期
+    if (token.value) {
+      try {
+        const me = (await api.get('/auth/me')) as any
+        user.value = me
+        localStorage.setItem(USER_KEY, JSON.stringify(me))
+        return true
+      } catch {
+        logout()
+        return false
+      }
+    }
+    // 内存无令牌：尝试用后端下发的 httpOnly Cookie（同域）静默恢复会话，前端无需持有令牌
     try {
       const me = (await api.get('/auth/me')) as any
       user.value = me
       localStorage.setItem(USER_KEY, JSON.stringify(me))
       return true
     } catch {
-      logout()
       return false
     }
   }
@@ -79,7 +88,6 @@ export const useAuthStore = defineStore('auth', () => {
     }
     token.value = ''
     user.value = null
-    localStorage.removeItem(TOKEN_KEY)
     localStorage.removeItem(USER_KEY)
     delete api.defaults.headers.common['Authorization']
   }

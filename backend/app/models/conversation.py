@@ -13,7 +13,7 @@ class Conversation(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     uuid: Mapped[str] = mapped_column(String(36), unique=True, nullable=False, comment="对外 UUID")
     title: Mapped[str | None] = mapped_column(String(200), comment="对话标题")
-    patient_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("patients.id"), comment="关联患者")
+    patient_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("patients.id", ondelete="CASCADE"), comment="关联患者")
     message_count: Mapped[int] = mapped_column(Integer, default=0, comment="消息数")
     last_message_at: Mapped[datetime | None] = mapped_column(DateTime, comment="最后消息时间")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
@@ -30,7 +30,7 @@ class Message(Base):
     __tablename__ = "messages"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    conversation_id: Mapped[int] = mapped_column(Integer, ForeignKey("conversations.id"), nullable=False)
+    conversation_id: Mapped[int] = mapped_column(Integer, ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False)
     seq: Mapped[int] = mapped_column(Integer, nullable=False, comment="序号")
     role: Mapped[str] = mapped_column(String(10), nullable=False, comment="user/assistant")
     content: Mapped[str] = mapped_column(Text, nullable=False, comment="消息文本")

@@ -252,7 +252,8 @@ function hideBar() {
 // 全局前置守卫：未登录一律跳转登录页
 router.beforeEach((to) => {
   showBar()
-  const token = localStorage.getItem('tcm_token')
+  // 用 localStorage 中的 user 作为「是否曾登录」的同步提示（令牌本身已移入内存/Cookie，不落 localStorage）
+  const token = localStorage.getItem('tcm_user')
   if (to.meta.public) {
     return true
   }

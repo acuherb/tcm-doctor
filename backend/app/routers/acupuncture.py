@@ -95,8 +95,13 @@ def delete_acupoint(acupoint_id: int, current_user: User = Depends(get_current_u
     row = db.query(Acupoint).filter(Acupoint.id == acupoint_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="腧穴不存在")
-    db.delete(row)
-    db.commit()
+    from sqlalchemy.exc import IntegrityError
+    try:
+        db.delete(row)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="该穴位已被处方引用，无法删除")
     return {"message": "已删除"}
 
 

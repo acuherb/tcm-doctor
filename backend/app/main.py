@@ -347,8 +347,12 @@ def _deferred_log(token, ip, method, path, status_code, level, success, action, 
 
 # 业务对象提取：仅取白名单字段，密码/证件等一律不记录。
 # 这些字段覆盖了系统主要写操作（患者、药材、处方、出入库、穴位、方剂）的关键标识。
-_TARGET_NAME_KEYS = ("name", "patient_name", "herb_name", "item_name", "formula_name", "username")
-_TARGET_QTY_KEYS = ("quantity", "qty", "amount", "count")
+_TARGET_NAME_KEYS = (
+    "name", "patient_name", "herb_name", "item_name", "formula_name", "username",
+    "display_name", "supplier_name", "acupoint_name", "term_name", "title", "book_name",
+    "real_name", "nickname", "disease_name", "label",
+)
+_TARGET_QTY_KEYS = ("quantity", "qty", "amount", "count", "dose", "days", "price", "unit_price")
 _TARGET_EXCLUDE = {"password", "old_password", "new_password", "id_card", "phone", "token"}
 
 
@@ -368,10 +372,25 @@ def _extract_target(body: bytes | None) -> str | None:
 
     name = None
     for key in _TARGET_NAME_KEYS:
+        if key in _TARGET_EXCLUDE:
+            continue
         val = data.get(key)
         if isinstance(val, str) and val.strip():
             name = val.strip()
             break
+    # 嵌套对象（如中药方 composition.herbs）取首个药名，便于看出改的是哪一味
+    if not name:
+        for key in ("herbs", "items", "acupoints", "terms", "records"):
+            arr = data.get(key)
+            if isinstance(arr, list) and arr and isinstance(arr[0], dict):
+                first = arr[0]
+                for nk in ("herb", "herb_name", "name", "item_name", "acupoint_name"):
+                    v = first.get(nk)
+                    if isinstance(v, str) and v.strip():
+                        name = f"{v.strip()} 等 {len(arr)} 项" if len(arr) > 1 else v.strip()
+                        break
+                if name:
+                    break
     qty = None
     for key in _TARGET_QTY_KEYS:
         val = data.get(key)

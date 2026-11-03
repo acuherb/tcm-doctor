@@ -11,7 +11,7 @@ class FollowUpReminder(Base):
     __tablename__ = "followup_reminders"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    patient_id: Mapped[int] = mapped_column(Integer, ForeignKey("patients.id"), nullable=False, index=True, comment="患者ID")
+    patient_id: Mapped[int] = mapped_column(Integer, ForeignKey("patients.id", ondelete="CASCADE"), nullable=False, index=True, comment="患者ID")
     due_date: Mapped[str] = mapped_column(String(20), nullable=False, comment="应回访日期 YYYY-MM-DD")
     source_type: Mapped[str] = mapped_column(String(20), default="prescription", comment="来源: prescription(处方自动)/manual(手动)")
     source_id: Mapped[int | None] = mapped_column(Integer, nullable=True, comment="来源处方ID")
