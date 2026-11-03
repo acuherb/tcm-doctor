@@ -18,6 +18,12 @@ def _get_env_file() -> str:
     return ".env"
 
 
+def resolve_env_path() -> "Path":
+    """统一解析 .env 路径（兼顾 PyInstaller frozen / DATA_DIR / 开发三场景），供 main.py 等复用，避免重复实现导致构建不一致。"""
+    from pathlib import Path
+    return Path(_get_env_file())
+
+
 class Settings(BaseSettings):
     """应用配置"""
 

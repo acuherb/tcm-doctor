@@ -897,6 +897,7 @@ class DiagnosisService:
                 detail = e.response.text[:200]
             return f"⚠️ API 调用失败 (HTTP {e.response.status_code}): {detail}"
         except Exception as e:
+            logger.error("AI 问诊调用上游 LLM 失败: %s", e, exc_info=True)
             return f"⚠️ 请求出错: {str(e)}"
 
     async def _call_deepseek_stream(self, messages: list[dict], use_vision: bool = False) -> AsyncGenerator[str, None]:
@@ -959,6 +960,7 @@ class DiagnosisService:
                 detail = str(e.response.status_code)
             yield f"⚠️ API 调用失败 (HTTP {e.response.status_code}): {detail}"
         except Exception as e:
+            logger.error("AI 问诊流式调用上游 LLM 失败: %s", e, exc_info=True)
             yield f"⚠️ 请求出错: {str(e)}"
 
     async def chat_stream(

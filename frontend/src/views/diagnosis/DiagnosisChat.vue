@@ -209,6 +209,22 @@ import PinchImage from '@/components/PinchImage.vue'
 const auth = useAuthStore()
 const editable = computed(() => auth.canWrite('diagnosis'))
 
+// 流式(SSE)接口复用统一的 baseURL 与鉴权 token：浏览器 XHR(axios) 不支持流式响应，
+// 故保留原生 fetch，但把 baseURL/token 的解析收敛到一处，避免各调用点重复硬编码。
+function streamFetch(path: string, data: unknown): Promise<Response> {
+  const isElectronProd = typeof window !== 'undefined' && window.location.protocol === 'file:'
+  const baseUrl = isElectronProd ? 'http://127.0.0.1:8765/api/v1' : '/api/v1'
+  const token = typeof window !== 'undefined' ? localStorage.getItem('tcm_token') : null
+  return fetch(`${baseUrl}${path}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(data),
+  })
+}
+
 // ---- 移动端适配：侧边栏抽屉化 ----
 const isMobile = ref(false)
 const sidebarOpen = ref(false)
@@ -467,17 +483,7 @@ async function sendMessage() {
     const payload: any = { message: text, conversation_id: activeConvId.value }
     if (images.length) payload.images = images
 
-    const isElectronProd = typeof window !== 'undefined' && window.location.protocol === 'file:'
-    const baseUrl = isElectronProd ? 'http://127.0.0.1:8765/api/v1' : '/api/v1'
-    const token = typeof window !== 'undefined' ? localStorage.getItem('tcm_token') : null
-    const response = await fetch(`${baseUrl}/diagnosis/chat/stream`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify(payload),
-    })
+    const response = await streamFetch('/diagnosis/chat/stream', payload)
 
     if (!response.ok || !response.body) {
       messages.value[msgIdx].content = `抱歉，请求出错 (HTTP ${response.status})`
@@ -536,17 +542,7 @@ async function submitAnalyze() {
     if (imgs.face) payload.face_image = imgs.face
     if (imgs.lab.length) payload.lab_report_images = imgs.lab
 
-    const isElectronProd = typeof window !== 'undefined' && window.location.protocol === 'file:'
-    const baseUrl = isElectronProd ? 'http://127.0.0.1:8765/api/v1' : '/api/v1'
-    const token = typeof window !== 'undefined' ? localStorage.getItem('tcm_token') : null
-    const response = await fetch(`${baseUrl}/diagnosis/analyze/stream`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify(payload),
-    })
+    const response = await streamFetch('/diagnosis/analyze/stream', payload)
 
     if (!response.ok || !response.body) {
       messages.value[msgIdx].content = `抱歉，分析出错 (HTTP ${response.status})`

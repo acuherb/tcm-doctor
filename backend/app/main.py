@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from starlette.background import BackgroundTask
 from pydantic import BaseModel
 
-from app.config import settings, build_display_version
+from app.config import settings, build_display_version, resolve_env_path
 from app.database import engine, Base, SessionLocal
 from app.migrations import run_migrations
 from app.models.user import User, AuthToken
@@ -586,13 +586,9 @@ def update_config(payload: ConfigUpdate, current_user: User = Depends(get_curren
     deepseek_vision_base_url = data.get("deepseek_vision_base_url")
     deepseek_vision_api_key = data.get("deepseek_vision_api_key")
 
-    # .env 路径：容器内优先放 DATA_DIR（与 pydantic_settings 一致），否则项目根目录
-    data_dir = os.environ.get("DATA_DIR", "")
-    if data_dir:
-        Path(data_dir).mkdir(parents=True, exist_ok=True)
-        env_path = Path(data_dir) / ".env"
-    else:
-        env_path = Path(__file__).parent.parent / ".env"
+    # 复用 config 的 .env 解析（兼顾 PyInstaller frozen / DATA_DIR / 开发三场景），避免重复实现导致不一致
+    env_path = resolve_env_path()
+    env_path.parent.mkdir(parents=True, exist_ok=True)
     env_lines: dict[str, str] = {}
 
     # 读取已有 .env

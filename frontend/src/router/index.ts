@@ -259,19 +259,6 @@ router.beforeEach((to) => {
   if (!token) {
     return { path: '/login', query: to.fullPath !== '/' ? { redirect: to.fullPath } : {} }
   }
-  // 仅管理员可访问的页面（兼容旧 adminOnly 标记）
-  if (to.meta.adminOnly) {
-    let role = ''
-    let isAdmin = false
-    try {
-      const u = JSON.parse(localStorage.getItem('tcm_user') || 'null')
-      role = u?.role || ''
-      isAdmin = role ? role === 'admin' : !!u?.is_admin
-    } catch { /* 忽略解析异常 */ }
-    if (!isAdmin) {
-      return { path: '/dashboard' }
-    }
-  }
   // 细粒度权限页：user 加载完成后无权限则回退（未加载时不拦截，避免首屏误判）
   if (to.meta.perm) {
     const auth = useAuthStore()
