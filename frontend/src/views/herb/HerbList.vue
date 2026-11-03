@@ -9,16 +9,10 @@
             <el-tag size="small" effect="light" round class="tcm-head__count">{{ herbs.length }} 味</el-tag>
           </div>
           <div class="tcm-head__actions">
-            <el-button v-if="editable" @click="triggerImport">
-              <el-icon><Upload /></el-icon>导入
-            </el-button>
-            <el-button v-if="editable" @click="exportHerbs">
-              <el-icon><Download /></el-icon>导出
-            </el-button>
+            <TemplateIO type="herbs" label="药材字典" />
             <el-button v-if="editable" type="primary" @click="openAdd">
               <el-icon><Plus /></el-icon> 新增药材
             </el-button>
-            <input ref="fileInput" type="file" accept=".json,application/json" style="display:none" @change="onImportFile" />
           </div>
         </div>
       </template>
@@ -205,10 +199,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Search, Upload, Download } from '@element-plus/icons-vue'
+import { Plus, Search } from '@element-plus/icons-vue'
 import api from '@/utils/api'
 import { useAuthStore } from '@/store/auth'
 import type { Herb, DictionaryTerm } from '@/types'
+import TemplateIO from '@/components/TemplateIO.vue'
 
 // 游客只读：隐藏所有写操作
 const auth = useAuthStore()
@@ -375,39 +370,7 @@ async function removeHerb(row: Herb) {
   } catch {}
 }
 
-// ── 导入/导出 ──
-const fileInput = ref<HTMLInputElement | null>(null)
-function triggerImport() {
-  if (fileInput.value) { fileInput.value.value = ''; fileInput.value.click() }
-}
-async function onImportFile(e: Event) {
-  const f = (e.target as HTMLInputElement).files?.[0]
-  if (!f) return
-  try {
-    const text = await f.text()
-    const arr = JSON.parse(text)
-    if (!Array.isArray(arr)) { ElMessage.error('文件须为药材数组 JSON'); return }
-    const r: { imported?: number; updated?: number; message?: string } = await api.post('/herbs/import', arr, { silent: true })
-    ElMessage.success(`导入完成：新增 ${r.imported} 条，更新 ${r.updated} 条`)
-    loadHerbs()
-  } catch {
-    ElMessage.error('JSON 解析或导入失败')
-  } finally {
-    if (fileInput.value) fileInput.value.value = ''
-  }
-}
-async function exportHerbs() {
-  try {
-    const data: Record<string, unknown> = await api.get('/herbs/export')
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `herbs_${new Date().toISOString().slice(0, 10)}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-  } catch {}
-}
+// ── 导入/导出已统一到 TemplateIO 组件（顶部工具栏）──
 
 onMounted(async () => {
   updateViewport()

@@ -13,14 +13,7 @@
               <el-icon><Plus /></el-icon>新增条目
             </el-button>
             <el-divider direction="vertical" />
-            <el-upload accept=".json" :on-change="onImportFile" :show-file-list="false" class="import-upload">
-              <el-button :loading="importing">
-                <el-icon><Upload /></el-icon>导入
-              </el-button>
-            </el-upload>
-            <el-button @click="onExport">
-              <el-icon><Download /></el-icon>导出
-            </el-button>
+            <TemplateIO type="knowledge" label="知识库" />
           </div>
         </div>
       </template>
@@ -179,13 +172,13 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, onBeforeUnmount } from 'vue'
-import { Search, Plus, Upload, Download, Delete } from '@element-plus/icons-vue'
+import { Search, Plus, Delete } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import api from '@/utils/api'
 import type { KnowledgeEntry, KnowledgeSource } from '@/types'
 import { renderMarkdown } from '@/utils/markdown'
 import { useAuthStore } from '@/store/auth'
-import type { UploadFile } from 'element-plus'
+import TemplateIO from '@/components/TemplateIO.vue'
 
 // 医籍文库由管理员维护：非管理员隐藏全部写操作（页面入口本身也已只对管理员开放）
 const auth = useAuthStore()
@@ -408,55 +401,7 @@ async function batchDelete() {
   }
 }
 
-// ---- 导出 ----
-async function onExport() {
-  try {
-    const params: Record<string, unknown> = {}
-    if (activeCategory.value) params.category = activeCategory.value
-    if (sourceFilter.value) params.source = sourceFilter.value
-    const data = await api.get<Blob>('/knowledge/export', { params })
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `医籍文库_${new Date().toISOString().slice(0, 10)}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-    ElMessage.success(`已导出 ${data.length} 条`)
-  } catch {
-    ElMessage.error('导出失败')
-  }
-}
-
-// ---- 导入 ----
-async function onImportFile(file: UploadFile) {
-  const raw = file.raw
-  if (!raw) return
-  const reader = new FileReader()
-  reader.onload = async () => {
-    try {
-      const data = JSON.parse(String(reader.result))
-      const list: Array<{ id: number }> = Array.isArray(data) ? data : (data.items || [])
-      if (!list.length) {
-        ElMessage.warning('文件中没有可导入的数据')
-        return
-      }
-      importing.value = true
-      const res = (await api.post<{ message?: string }>('/knowledge/import', list))
-      ElMessage.success(`导入完成：新增 ${res.added}，更新 ${res.updated}`)
-      loadStats()
-      loadSources()
-      loadEntries()
-    } catch {
-      ElMessage.error('JSON 解析失败或格式不正确')
-    } finally {
-      importing.value = false
-    }
-  }
-  reader.readAsText(raw)
-}
-
-const importing = ref(false)
+// 导入/导出已统一到 TemplateIO 组件（顶部工具栏），见 knowledge 类型
 
 onMounted(async () => {
   calcTableHeight()

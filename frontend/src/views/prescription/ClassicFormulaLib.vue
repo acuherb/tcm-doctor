@@ -15,14 +15,7 @@
               <el-icon><Plus /></el-icon>新增方剂
             </el-button>
             <el-divider direction="vertical" />
-            <el-button :loading="importing" @click="importFileRef?.click()">
-              <el-icon><Upload /></el-icon>导入
-            </el-button>
-            <el-button @click="exportFormulas">
-              <el-icon><Download /></el-icon>导出
-            </el-button>
-            <input ref="importFileRef" type="file" accept=".json,application/json"
-              style="display:none" @change="onImportFile" />
+            <TemplateIO type="classic_formulas" label="中药方库" />
           </div>
         </div>
       </template>
@@ -194,10 +187,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Plus, Upload, Download, Collection } from '@element-plus/icons-vue'
+import { Search, Plus, Collection } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
-import api, { errMsg } from '@/utils/api'
+import api from '@/utils/api'
 import type { ClassicFormula } from '@/types'
+import TemplateIO from '@/components/TemplateIO.vue'
 
 interface FormulaHerb { herb: string; dose?: string | null; special_method?: string | null; is_king_herb?: boolean; note?: string | null }
 interface FormulaChange { condition?: string | null; add?: string | null; remove?: string | null }
@@ -224,10 +218,8 @@ const sourceFilter = ref('')
 const detailVisible = ref(false)
 const currentFormula = ref<ClassicFormula | null>(null)
 const loading = ref(false)
-const importing = ref(false)
 
 const meridians = ['太阳', '阳明', '少阳', '太阴', '少阴', '厥阴']
-const importFileRef = ref<HTMLInputElement | null>(null)
 const editVisible = ref(false)
 const editId = ref<number | null>(null)
 const saving = ref(false)
@@ -336,54 +328,7 @@ async function removeFormula(f: ClassicFormula) {
   }).catch(() => {})
 }
 
-async function exportFormulas() {
-  try {
-    const data: Record<string, unknown> = await api.get('/prescriptions/classic-formulas/export')
-    const nl = Array.isArray(data) ? data : (data as Paginated<ClassicFormula>)?.data || []
-    if (!nl.length) {
-      ElMessage.warning('当前方剂库为空')
-      return
-    }
-    const blob = new Blob([JSON.stringify(nl, null, 2)], { type: 'application/json' })
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob)
-    a.download = `中药方库_${new Date().toISOString().slice(0, 10)}.json`
-    a.click()
-    URL.revokeObjectURL(a.href)
-    ElMessage.success(`已导出 ${nl.length} 首方剂`)
-  } catch (e) {
-    ElMessage.error('导出失败')
-  }
-}
-
-async function onImportFile(e: Event) {
-  const input = e.target as HTMLInputElement
-  const file = input.files?.[0]
-  input.value = ''
-  if (!file) return
-  importing.value = true
-  try {
-    const text = await file.text()
-    let data = JSON.parse(text)
-    if (!Array.isArray(data)) data = [data]
-    const payload = data.map((it: Record<string, unknown>) => ({
-      name: it.name,
-      source: it.source || null,
-      composition: it.composition || { herbs: it.herbs || [] },
-      efficacy: it.efficacy || null,
-      indications: it.indications || null,
-      usage: it.usage || null,
-      modifications: it.modifications || (it.modification_changes ? { changes: it.modification_changes } : null),
-    }))
-    const res: { created?: number; updated?: number } = await api.post('/prescriptions/classic-formulas/import', payload)
-    ElMessage.success(`导入完成：新增 ${res.created}，更新 ${res.updated}`)
-    await loadFormulas()
-  } catch (e) {
-    ElMessage.error('导入失败：' + (e?.message || '请检查JSON格式'))
-  } finally {
-    importing.value = false
-  }
-}
+// 导入/导出已统一到 TemplateIO 组件（顶部工具栏），见 classic_formulas 类型
 
 const sources = computed(() => {
   const set = new Set(formulas.value.map((f: ClassicFormula) => f.source).filter(Boolean))

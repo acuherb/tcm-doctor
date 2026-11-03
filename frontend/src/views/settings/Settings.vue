@@ -244,11 +244,17 @@
             <li><b>导出当前</b>：把库内某类数据导出为 JSON，用于备份或在多机间迁移。</li>
           </ol>
 
+          <p class="template-hint tpl-note">
+            提示：各内容模块页面（药材字典 / 中药方库 / 针灸方库 / 穴位 / 知识库）顶部工具栏也提供同样的
+            「导出模板 / 导入模板（上传）/ 导入内置」按钮，可就地操作；本卡片为总览与格式参考。
+          </p>
+
           <!-- 空框架显式提醒 -->
           <el-alert v-if="isEmptyFramework" type="info" :closable="false" show-icon class="tpl-empty">
             <template #title>当前为空框架</template>
             <div class="alert-body">
-              尚未导入任何内容数据，药材 / 方剂 / 穴位 / 知识库均为空。请在下方表格选择类型并「导入内置」或「上传导入」后即可使用。
+              尚未导入任何内容数据，药材 / 方剂 / 穴位 / 知识库均为空。可在各模块页面顶部点「导入内置」或「导入模板」，
+              或在本卡片表格选择类型导入后即可使用。
             </div>
           </el-alert>
 

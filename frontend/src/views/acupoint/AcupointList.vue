@@ -9,16 +9,10 @@
             <el-tag size="small" effect="light" round class="tcm-head__count">{{ acupoints.length }} 个</el-tag>
           </div>
           <div class="tcm-head__actions">
-            <el-button v-if="editable" @click="triggerImport">
-              <el-icon><Upload /></el-icon>导入
-            </el-button>
-            <el-button v-if="editable" @click="exportData">
-              <el-icon><Download /></el-icon>导出
-            </el-button>
+            <TemplateIO type="acupoints" label="穴位" />
             <el-button v-if="editable" type="primary" @click="openCreate">
               <el-icon><Plus /></el-icon> 新增穴位
             </el-button>
-            <input ref="fileInput" type="file" accept=".json,application/json" style="display:none" @change="onImportFile" />
           </div>
         </div>
       </template>
@@ -182,6 +176,7 @@ import { ref, reactive, onMounted, onBeforeUnmount, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api, { errMsg } from '@/utils/api'
 import { useAuthStore } from '@/store/auth'
+import TemplateIO from '@/components/TemplateIO.vue'
 
 const auth = useAuthStore()
 const editable = computed(() => auth.canWrite('acupoints'))
@@ -205,7 +200,6 @@ interface Acupoint {
 const acupoints = ref<Acupoint[]>([])
 const loading = ref(false)
 const dialogVisible = ref(false)
-const fileInput = ref<HTMLInputElement | null>(null)
 const editId = ref<number | null>(null)
 
 const filter = reactive({ search: '', source: '', meridian: '', region: '' })
@@ -366,36 +360,7 @@ async function del(row: Acupoint) {
   }
 }
 
-function exportData() {
-  const blob = new Blob([JSON.stringify(acupoints.value, null, 2)], { type: 'application/json' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = 'acupoints.json'
-  a.click()
-  URL.revokeObjectURL(url)
-}
-
-async function triggerImport() {
-  if (fileInput.value) { fileInput.value.value = ''; fileInput.value.click() }
-}
-
-async function onImportFile(e: Event) {
-  const f = (e.target as HTMLInputElement).files?.[0]
-  if (!f) return
-  try {
-    const text = await f.text()
-    const arr = JSON.parse(text)
-    if (!Array.isArray(arr)) { ElMessage.error('文件须为穴位数组 JSON'); return }
-    const r: { imported?: number; updated?: number } = await api.post('/acupoints/import', arr, { silent: true })
-    ElMessage.success(`导入完成：新增 ${r.imported ?? 0} 条，更新 ${r.updated ?? 0} 条`)
-    loadAcupoints()
-  } catch (err) {
-    ElMessage.error('JSON 解析或导入失败：' + errMsg(err))
-  } finally {
-    if (fileInput.value) fileInput.value.value = ''
-  }
-}
+// 导入/导出已统一到 TemplateIO 组件（顶部工具栏），见 acupoints 类型
 
 const isMobile = ref(false)
 function updateViewport() { isMobile.value = window.innerWidth < 768 }

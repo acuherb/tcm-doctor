@@ -15,14 +15,7 @@
               <el-icon><Plus /></el-icon>新增针方
             </el-button>
             <el-divider direction="vertical" />
-            <el-button :loading="importing" @click="importFileRef?.click()">
-              <el-icon><Upload /></el-icon>导入
-            </el-button>
-            <el-button @click="exportFormulas">
-              <el-icon><Download /></el-icon>导出
-            </el-button>
-            <input ref="importFileRef" type="file" accept=".json,application/json"
-              style="display:none" @change="onImportFile" />
+            <TemplateIO type="acupoint_formulas" label="针灸方库" />
           </div>
         </div>
       </template>
@@ -191,11 +184,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Plus, Upload, Download } from '@element-plus/icons-vue'
+import { Search, Plus } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
-import api, { errMsg } from '@/utils/api'
+import api from '@/utils/api'
 import type { AcupointFormula } from '@/types'
 import { useAuthStore } from '@/store/auth'
+import TemplateIO from '@/components/TemplateIO.vue'
 
 interface AcupointRow { acupoint_name: string; technique: string; retention: string; sequence: number; note: string }
 interface AcupointFormulaForm {
@@ -221,10 +215,8 @@ const sourceFilter = ref('')
 const detailVisible = ref(false)
 const currentFormula = ref<AcupointFormula | null>(null)
 const loading = ref(false)
-const importing = ref(false)
 
 const frequencies = ['每日', '隔日', '每周', '隔周', '每三日']
-const importFileRef = ref<HTMLInputElement | null>(null)
 const editVisible = ref(false)
 const editId = ref<number | null>(null)
 const saving = ref(false)
@@ -327,56 +319,7 @@ async function removeFormula(f: AcupointFormula) {
   }).catch(() => {})
 }
 
-async function exportFormulas() {
-  try {
-    const data: Record<string, unknown> = await api.get('/acupoint-formulas/export')
-    const nl = Array.isArray(data) ? data : (data as Paginated<AcupointFormula>)?.data || []
-    if (!nl.length) {
-      ElMessage.warning('当前针灸方库为空')
-      return
-    }
-    const blob = new Blob([JSON.stringify(nl, null, 2)], { type: 'application/json' })
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob)
-    a.download = `针灸方库_${new Date().toISOString().slice(0, 10)}.json`
-    a.click()
-    URL.revokeObjectURL(a.href)
-    ElMessage.success(`已导出 ${nl.length} 首针灸方`)
-  } catch (e) {
-    ElMessage.error('导出失败')
-  }
-}
-
-async function onImportFile(e: Event) {
-  const input = e.target as HTMLInputElement
-  const file = input.files?.[0]
-  input.value = ''
-  if (!file) return
-  importing.value = true
-  try {
-    const text = await file.text()
-    let data = JSON.parse(text)
-    if (!Array.isArray(data)) data = [data]
-    const payload = data.map((it: Record<string, unknown>) => ({
-      name: it.name,
-      source: it.source || null,
-      efficacy: it.efficacy || null,
-      indications: it.indications || null,
-      usage: it.usage || null,
-      technique: it.technique || null,
-      treatment_frequency: it.treatment_frequency || null,
-      treatment_days: it.treatment_days ?? null,
-      composition: it.composition || { acupoints: it.acupoints || [] },
-    }))
-    const res: { created?: number; updated?: number } = await api.post('/acupoint-formulas/import', payload)
-    ElMessage.success(`导入完成：新增 ${res.created}，更新 ${res.updated}`)
-    await loadFormulas()
-  } catch (e) {
-    ElMessage.error('导入失败：' + (e?.message || '请检查JSON格式'))
-  } finally {
-    importing.value = false
-  }
-}
+// 导入/导出已统一到 TemplateIO 组件（顶部工具栏），见 acupoint_formulas 类型
 
 const sources = computed(() => {
   const set = new Set(formulas.value.map((f: AcupointFormula) => f.source).filter(Boolean))
