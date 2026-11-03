@@ -460,7 +460,7 @@ function goPrescribeWithFormula(f: any) {
     router.push({ path: '/prescriptions/new' })
     return
   }
-  const q: any = { patient_id: props.patientId }
+  const q: Record<string, unknown> = { patient_id: props.patientId }
   if (props.visit?.id) q.visit_id = props.visit.id
   // 结构化方剂较大，走 sessionStorage 传递，避免超长 URL / 编码导致 herbs 丢失
   const key = 'ai_import_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
@@ -497,13 +497,13 @@ function goPrescribeWithFormula(f: any) {
 .iq-custom-note { color: #B8860B; font-size: 11.5px; }
 .iq-answer-row.iq-abn { background: #fff5f5; border-radius: 6px; padding: 1px 6px; margin: 2px 0; }
 .iq-abn-tag { display: inline-block; margin-left: 6px; padding: 0 6px; font-size: 11px; line-height: 1.6; color: #d64541; background: #fee9e7; border-radius: 10px; }
-.iq-suggestion { margin-top: 6px; font-size: 12.5px; color: #8B4513; border-top: 1px dashed #e8d8c0; padding-top: 6px; }
-.iq-suggestion-title { font-size: 12px; font-weight: 600; color: #8B4513; margin-bottom: 4px; }
+.iq-suggestion { margin-top: 6px; font-size: 12.5px; color: var(--tcm-primary); border-top: 1px dashed #e8d8c0; padding-top: 6px; }
+.iq-suggestion-title { font-size: 12px; font-weight: 600; color: var(--tcm-primary); margin-bottom: 4px; }
 .iq-suggestion-row { display: flex; gap: 6px; align-items: flex-start; margin: 3px 0; line-height: 1.6; }
 .iq-meridian-tag { flex: none; display: inline-block; padding: 1px 8px; font-size: 11px; color: #fff; background: #c2946a; border-radius: 10px; white-space: nowrap; margin-top: 1px; }
 .iq-meridian-text { color: #6b4423; }
 .ai-formulas { margin-top: 6px; border-top: 1px dashed #e0d0b8; padding-top: 6px; }
-.ai-formulas-title { font-size: 12px; font-weight: 600; color: #8B4513; margin-bottom: 4px; }
+.ai-formulas-title { font-size: 12px; font-weight: 600; color: var(--tcm-primary); margin-bottom: 4px; }
 .ai-formula-row { display: flex; align-items: center; gap: 8px; margin: 3px 0; line-height: 1.5; }
 .ai-formula-name { flex: none; font-size: 12.5px; font-weight: 600; color: #6b4423; }
 .ai-formula-comp { flex: 1; font-size: 12px; color: #666; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -527,7 +527,7 @@ function goPrescribeWithFormula(f: any) {
     background: linear-gradient(to bottom, rgba(255, 251, 240, 0), #fffbf0);
     pointer-events: none;
   }
-  :deep(h1), :deep(h2), :deep(h3), :deep(h4) { margin: 8px 0 4px; color: #8B4513; line-height: 1.4; }
+  :deep(h1), :deep(h2), :deep(h3), :deep(h4) { margin: 8px 0 4px; color: var(--tcm-primary); line-height: 1.4; }
   :deep(h1) { font-size: 14px; }
   :deep(h2) { font-size: 13.5px; }
   :deep(h3) { font-size: 13px; }
@@ -538,7 +538,7 @@ function goPrescribeWithFormula(f: any) {
   :deep(table) { table-layout: fixed; width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 12px; }
   :deep(th), :deep(td) { border: 1px solid #e8e0d8; padding: 3px 6px; text-align: left; word-break: break-word; overflow-wrap: anywhere; vertical-align: top; }
   :deep(th) { background: #faf7f4; }
-  :deep(strong) { color: #8B4513; }
+  :deep(strong) { color: var(--tcm-primary); }
   :deep(code) { background: #f5f0eb; padding: 0 3px; border-radius: 3px; }
   :deep(pre) { background: #f5f0eb; padding: 8px; border-radius: 5px; overflow-x: auto; }
   :deep(pre code) { background: transparent; padding: 0; }

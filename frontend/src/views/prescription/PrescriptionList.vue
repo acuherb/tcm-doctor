@@ -387,7 +387,7 @@ function formatRetention(v: any) {
 
 async function loadPrescriptions() {
   try {
-    const params: any = { limit: 100 }
+    const params: Record<string, unknown> = { limit: 100 }
     if (statusFilter.value) params.status = statusFilter.value
     if (patientFilter.value) params.patient_id = patientFilter.value
     prescriptions.value = (await api.get<Paginated<Prescription>>('/prescriptions', { params }))
@@ -563,7 +563,7 @@ onMounted(async () => {
   .rx-price {
     font-size: 14px;
     font-weight: 600;
-    color: #8b4513;
+    color: var(--tcm-primary);
     font-variant-numeric: tabular-nums;
   }
 

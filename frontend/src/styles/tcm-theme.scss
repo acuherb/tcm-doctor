@@ -14,6 +14,10 @@
   --tcm-sidebar-active: #D4A574;
   --tcm-header-bg: #F5F0EB;
   --tcm-card-bg: #FFFFFF;
+  /* 登录页背景（深色渐变，三色过渡） */
+  --tcm-login-bg-start: #241209;
+  --tcm-login-bg-mid: #4a2c1a;
+  --tcm-login-bg-end: #6b4423;
 }
 
 [data-theme="ink"] {
@@ -27,6 +31,9 @@
   --tcm-sidebar-active: #7FB3C7;
   --tcm-header-bg: #F3F5F6;
   --tcm-card-bg: #FFFFFF;
+  --tcm-login-bg-start: #141D22;
+  --tcm-login-bg-mid: #1E2E36;
+  --tcm-login-bg-end: #2F4858;
 }
 
 [data-theme="vermilion"] {
@@ -40,6 +47,9 @@
   --tcm-sidebar-active: #E0A080;
   --tcm-header-bg: #FAF6F3;
   --tcm-card-bg: #FFFFFF;
+  --tcm-login-bg-start: #2A0F0C;
+  --tcm-login-bg-mid: #5A211A;
+  --tcm-login-bg-end: #8A2E22;
 }
 
 [data-theme="jade"] {
@@ -53,6 +63,9 @@
   --tcm-sidebar-active: #A8CBAF;
   --tcm-header-bg: #F4F7F4;
   --tcm-card-bg: #FFFFFF;
+  --tcm-login-bg-start: #131F16;
+  --tcm-login-bg-mid: #1F3325;
+  --tcm-login-bg-end: #3A6347;
 }
 
 /* 通用语义色（不随主题变化） */

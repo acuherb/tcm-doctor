@@ -176,7 +176,7 @@ async function loadStats() {
 }
 
 function buildParams() {
-  const p: any = {}
+  const p: Record<string, unknown> = {}
   // 「关键操作」默认只看写请求，避免 GET 访问日志淹没真正有价值的操作
   if (tab.value === 'write') { p.method = 'POST,PUT,PATCH,DELETE'; if (level.value) p.level = level.value }
   else if (tab.value === 'error') p.level = 'WARN,ERROR'

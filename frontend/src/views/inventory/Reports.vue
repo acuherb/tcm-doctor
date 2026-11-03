@@ -164,7 +164,7 @@ const turnover = ref<any[]>([])
 const prices = ref<any[]>([])
 
 async function loadAll() {
-  const params: any = {}
+  const params: Record<string, unknown> = {}
   if (range.value && range.value.length === 2) { params.start = range.value[0]; params.end = range.value[1] }
   try {
     const [s, p, a, t, pr] = await Promise.all([

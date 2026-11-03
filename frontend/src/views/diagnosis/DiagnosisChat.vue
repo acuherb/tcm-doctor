@@ -481,7 +481,7 @@ async function sendMessage() {
   scrollBottom()
 
   try {
-    const payload: any = { message: text, conversation_id: activeConvId.value }
+    const payload: Record<string, unknown> = { message: text, conversation_id: activeConvId.value }
     if (images.length) payload.images = images
 
     const response = await streamFetch('/diagnosis/chat/stream', payload)
@@ -538,7 +538,7 @@ async function submitAnalyze() {
   loading.value = true; await nextTick(); scrollBottom()
 
   try {
-    const payload: any = { ...form }
+    const payload: Record<string, unknown> = { ...form }
     if (imgs.tongue) payload.tongue_image = imgs.tongue
     if (imgs.face) payload.face_image = imgs.face
     if (imgs.lab.length) payload.lab_report_images = imgs.lab
@@ -659,7 +659,7 @@ function scrollBottom() {
     transition: background 0.2s;
 
     &:hover { background: #f5f0eb; }
-    &.active { background: #ede4d8; border-left: 3px solid #8B4513; }
+    &.active { background: #ede4d8; border-left: 3px solid var(--tcm-primary); }
 
     .conv-title {
       font-size: 13px;
@@ -730,7 +730,7 @@ function scrollBottom() {
 
   &.user {
     flex-direction: row-reverse;
-    .message-content { background: #8B4513; color: #fff; }
+    .message-content { background: var(--tcm-primary); color: #fff; }
   }
 
   &.assistant {
@@ -769,7 +769,7 @@ function scrollBottom() {
   color: #999; font-style: italic;
   display: flex; align-items: center; gap: 4px;
   .dot {
-    width: 6px; height: 6px; border-radius: 50%; background: #D4A574;
+    width: 6px; height: 6px; border-radius: 50%; background: var(--tcm-accent);
     animation: blink 1.4s infinite both;
     &:nth-child(2) { animation-delay: 0.2s; }
     &:nth-child(3) { animation-delay: 0.4s; }
@@ -835,6 +835,6 @@ function scrollBottom() {
     background: #f56c6c; color: #fff; border-radius: 50%;
     width: 16px; height: 16px; cursor: pointer; font-size: 10px;
   }
-  .lab-count { font-size: 12px; color: #8B4513; background: #f5f0eb; padding: 2px 6px; border-radius: 4px; }
+  .lab-count { font-size: 12px; color: var(--tcm-primary); background: #f5f0eb; padding: 2px 6px; border-radius: 4px; }
 }
 </style>

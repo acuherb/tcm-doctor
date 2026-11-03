@@ -1068,7 +1068,7 @@ function fmtTime(iso?: string): string {
 .visit-thumb { width: 96px; height: 96px; border-radius: 6px; border: 1px solid #eee; cursor: zoom-in; overflow: hidden; }
 .iq-type { margin-bottom: 6px; }
 .iq-findings { margin: 4px 0; padding-left: 16px; font-size: 12.5px; color: #666; line-height: 1.8; }
-.iq-suggestion { margin-top: 6px; font-size: 12.5px; color: #8B4513; }
+.iq-suggestion { margin-top: 6px; font-size: 12.5px; color: var(--tcm-primary); }
 .view-ai-analysis {
   white-space: normal;
   word-break: break-word;
@@ -1093,7 +1093,7 @@ function fmtTime(iso?: string): string {
     background: linear-gradient(to bottom, rgba(255, 251, 240, 0), #fffbf0);
     pointer-events: none;
   }
-  :deep(h1), :deep(h2), :deep(h3), :deep(h4) { margin: 8px 0 4px; color: #8B4513; line-height: 1.4; }
+  :deep(h1), :deep(h2), :deep(h3), :deep(h4) { margin: 8px 0 4px; color: var(--tcm-primary); line-height: 1.4; }
   :deep(h1) { font-size: 14px; }
   :deep(h2) { font-size: 13.5px; }
   :deep(h3) { font-size: 13px; }
@@ -1105,7 +1105,7 @@ function fmtTime(iso?: string): string {
   :deep(table) { table-layout: fixed; width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 12px; }
   :deep(th), :deep(td) { border: 1px solid #e8e0d8; padding: 3px 6px; text-align: left; word-break: break-word; overflow-wrap: anywhere; vertical-align: top; }
   :deep(th) { background: #faf7f4; }
-  :deep(strong) { color: #8B4513; }
+  :deep(strong) { color: var(--tcm-primary); }
   :deep(code) { background: #f5f0eb; padding: 0 3px; border-radius: 3px; }
   :deep(pre) { background: #f5f0eb; padding: 8px; border-radius: 5px; overflow-x: auto; }
   :deep(pre code) { background: transparent; padding: 0; }
@@ -1124,7 +1124,7 @@ function fmtTime(iso?: string): string {
 }
 .visit-actions { margin-top: 8px; text-align: right; }
 .visit-trend { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 2px 0 8px 14px; padding: 6px 10px; background: #faf8f5; border-radius: 6px; }
-.visit-trend .trend-label { font-size: 12px; font-weight: 600; color: #8B4513; }
+.visit-trend .trend-label { font-size: 12px; font-weight: 600; color: var(--tcm-primary); }
 .trend-step { display: inline-flex; align-items: center; gap: 5px; }
 .trend-date { font-size: 12px; color: #999; }
 .fu-date { font-size:12px; color:#888; min-width:96px; }
@@ -1188,11 +1188,11 @@ function fmtTime(iso?: string): string {
 .iq-answer-a { font-size: 13.5px; color: #333; }
 .iq-opt { font-weight: 600; color: #6b4f2a; }
 .iq-custom-note { font-size: 12px; color: #888; }
-.iq-answer-result { font-size: 12.5px; color: #8B4513; line-height: 1.6; margin-top: 2px; }
+.iq-answer-result { font-size: 12.5px; color: var(--tcm-primary); line-height: 1.6; margin-top: 2px; }
 .view-iq-dims { display: flex; flex-wrap: wrap; gap: 6px; }
 .dim-chip { font-size: 12px; background: #f4f4f5; border-radius: 4px; padding: 2px 8px; color: #606266; }
 .note-line { font-size: 13px; color: #333; margin: 4px 0; }
-.note-line b { color: #8B4513; margin-right: 4px; }
+.note-line b { color: var(--tcm-primary); margin-right: 4px; }
 .rx-card { margin-top: 16px; }
 .rx-row { display: flex; align-items: center; gap: 6px; }
 .rx-doses { font-size: 12px; color: #999; margin-top: 4px; }

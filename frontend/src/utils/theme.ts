@@ -17,9 +17,41 @@ export const THEMES: ThemeOption[] = [
 const STORAGE_KEY = 'tcm-theme'
 const DEFAULT_THEME: ThemeKey = 'herbal'
 
+// 主题变更订阅（ECharts 等无法读取 CSS 变量的场景，需要在切换后重绘）
+const listeners = new Set<() => void>()
+
+export function onThemeChange(fn: () => void): () => void {
+  listeners.add(fn)
+  return () => {
+    listeners.delete(fn)
+  }
+}
+
+/* 读取当前主题变量（图表配置是 JS 对象，读不到 CSS 变量，需运行时取值） */
+export function themeVar(name: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+}
+
+/* 同步主题变量（attrs 名称 → 值），用于 ECharts 配置 */
+export function themeVars(names: string[]): Record<string, string> {
+  const out: Record<string, string> = {}
+  names.forEach((n) => {
+    out[n] = themeVar(n)
+  })
+  return out
+}
+
 export function applyTheme(key: ThemeKey): void {
   document.documentElement.setAttribute('data-theme', key)
   localStorage.setItem(STORAGE_KEY, key)
+  // 等样式重算完成后再通知，确保订阅方读到的变量已是新主题的值
+  if (typeof requestAnimationFrame !== 'undefined') {
+    requestAnimationFrame(() => {
+      listeners.forEach((fn) => fn())
+    })
+  } else {
+    listeners.forEach((fn) => fn())
+  }
 }
 
 export function getStoredTheme(): ThemeKey {

@@ -111,7 +111,7 @@ const rules = { name: [{ required: true, message: '请输入名称', trigger: 'b
 
 async function load() {
   try {
-    const params: any = {}
+    const params: Record<string, unknown> = {}
     if (searchText.value) params.search = searchText.value
     const list = (await api.get<Supplier[]>('/stock/suppliers', { params })) || []
     // 标记是否已被进货使用（前端无法精确判断，交给后端删除校验）

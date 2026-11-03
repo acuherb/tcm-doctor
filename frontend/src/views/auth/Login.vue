@@ -135,7 +135,12 @@ async function onSubmit() {
   justify-content: center;
   padding: 32px 20px;
   overflow: hidden;
-  background: linear-gradient(140deg, #241209 0%, #4a2c1a 55%, #6b4423 100%);
+  background: linear-gradient(
+    140deg,
+    var(--tcm-login-bg-start) 0%,
+    var(--tcm-login-bg-mid) 55%,
+    var(--tcm-login-bg-end) 100%
+  );
 }
 
 .login-card {
@@ -160,8 +165,8 @@ async function onSubmit() {
       align-items: center;
       justify-content: center;
       border-radius: 18px;
-      background: linear-gradient(135deg, #8B4513, #6b3410);
-      box-shadow: 0 8px 20px rgba(107, 52, 16, 0.35);
+      background: linear-gradient(135deg, var(--tcm-primary), var(--tcm-primary-dark));
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
 
       .logo-icon {
         font-size: 32px;
@@ -178,7 +183,7 @@ async function onSubmit() {
     .title {
       margin: 0 0 8px;
       font-size: 21px;
-      color: #2C1810;
+      color: var(--tcm-primary);
       font-weight: 700;
       letter-spacing: 1px;
     }
@@ -211,7 +216,11 @@ async function onSubmit() {
 .deco {
   position: absolute;
   border-radius: 50%;
-  background: radial-gradient(circle at 30% 30%, rgba(212, 165, 116, 0.28), rgba(212, 165, 116, 0.04));
+  background: radial-gradient(
+    circle at 30% 30%,
+    color-mix(in srgb, var(--tcm-accent) 28%, transparent),
+    color-mix(in srgb, var(--tcm-accent) 4%, transparent)
+  );
   pointer-events: none;
 }
 .deco-1 { width: 420px; height: 420px; top: -140px; right: -140px; }

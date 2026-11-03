@@ -337,7 +337,7 @@ async function submitForm() {
   if (!form.value.name.trim()) { ElMessage.warning('请输入药名'); return }
   try {
     const f = form.value
-    const payload: any = {
+    const payload: Record<string, unknown> = {
       name: f.name,
       aliases: f.aliasesStr ? f.aliasesStr.split(/[,，、]/).map((s: string) => s.trim()).filter(Boolean) : null,
       nature: f.nature || null,
@@ -368,7 +368,7 @@ async function removeHerb(row: any) {
     await ElMessageBox.confirm(`确定删除药材「${row.name}」？`, '提示', { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
   } catch { return }
   try {
-    const r: any = await api.delete(`/herbs/${row.id}`)
+    const r: { message?: string } = await api.delete(`/herbs/${row.id}`)
     ElMessage.success(r?.message || '操作成功')
     loadHerbs()
   } catch {}
@@ -386,7 +386,7 @@ async function onImportFile(e: any) {
     const text = await f.text()
     const arr = JSON.parse(text)
     if (!Array.isArray(arr)) { ElMessage.error('文件须为药材数组 JSON'); return }
-    const r: any = await api.post('/herbs/import', arr, { silent: true })
+    const r: { imported?: number; updated?: number; message?: string } = await api.post('/herbs/import', arr, { silent: true })
     ElMessage.success(`导入完成：新增 ${r.imported} 条，更新 ${r.updated} 条`)
     loadHerbs()
   } catch {
@@ -397,7 +397,7 @@ async function onImportFile(e: any) {
 }
 async function exportHerbs() {
   try {
-    const data: any = await api.get('/herbs/export')
+    const data: Record<string, unknown> = await api.get('/herbs/export')
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')

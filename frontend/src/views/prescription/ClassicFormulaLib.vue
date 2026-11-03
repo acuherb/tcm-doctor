@@ -260,7 +260,7 @@ function buildPayload() {
       is_king_herb: !!h.is_king_herb,
       note: h.note || null,
     }))
-  const composition: any = { herbs }
+  const composition: Record<string, unknown> = { herbs }
   if (editForm.value.meridian) composition.meridian = editForm.value.meridian
   const changes = editForm.value.changes.filter((c: any) => c.condition || c.add || c.remove)
   return {
@@ -314,7 +314,7 @@ async function removeFormula(f: any) {
 
 async function exportFormulas() {
   try {
-    const data: any = await api.get('/prescriptions/classic-formulas/export')
+    const data: Record<string, unknown> = await api.get('/prescriptions/classic-formulas/export')
     const nl = Array.isArray(data) ? data : (data as Paginated<ClassicFormula>)?.data || []
     if (!nl.length) {
       ElMessage.warning('当前方剂库为空')
@@ -351,7 +351,7 @@ async function onImportFile(e: Event) {
       usage: it.usage || null,
       modifications: it.modifications || (it.modification_changes ? { changes: it.modification_changes } : null),
     }))
-    const res: any = await api.post('/prescriptions/classic-formulas/import', payload)
+    const res: { created?: number; updated?: number } = await api.post('/prescriptions/classic-formulas/import', payload)
     ElMessage.success(`导入完成：新增 ${res.created}，更新 ${res.updated}`)
     await loadFormulas()
   } catch (e: any) {
@@ -369,7 +369,7 @@ const sources = computed(() => {
 async function loadFormulas() {
   loading.value = true
   try {
-    const params: any = {}
+    const params: Record<string, unknown> = {}
     if (searchText.value) params.search = searchText.value
     if (sourceFilter.value) params.source = sourceFilter.value
     formulas.value = (await api.get<Paginated<ClassicFormula>>('/prescriptions/classic-formulas', { params }))
@@ -446,7 +446,7 @@ onMounted(loadFormulas)
     transition: all .2s ease;
 
     &:hover {
-      border-color: #d4a574;
+      border-color: var(--tcm-accent);
       box-shadow: 0 4px 14px rgba(139, 94, 52, .1);
       transform: translateY(-2px);
     }
@@ -464,7 +464,7 @@ onMounted(loadFormulas)
     .formula-name {
       font-size: 16px;
       font-weight: 700;
-      color: #8b4513;
+      color: var(--tcm-primary);
       line-height: 1.4;
       overflow: hidden;
       text-overflow: ellipsis;

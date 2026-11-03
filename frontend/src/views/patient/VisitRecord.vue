@@ -366,7 +366,7 @@ const aiResultWarnings = ref<string[]>([])
 const aiResultFormulas = ref<unknown[]>([])
 const aiBasisText = ref('')
 // 待分析上下文（点击「开始分析」后再真正请求；避免未核对的误请求）
-let pendingAiPayload: any = null
+let pendingAiPayload: Record<string, unknown> | null = null
 let pendingAiFingerprint = ''
 // 缓存：同一组辨证输入不重复请求(避免关闭重开再次消耗 token)
 const lastAiFingerprint = ref('')
@@ -882,7 +882,7 @@ async function saveAiIntoRecord() {
 
 // 将 AI 推荐方剂（结构化）带入开方页，由开方页弹窗勾选加减后生成处方
 function goPrescribeWithFormula(f: any) {
-  const q: any = { patient_id: patientId }
+  const q: Record<string, unknown> = { patient_id: patientId }
   if (currentVisitId.value != null) q.visit_id = currentVisitId.value
   // 结构化方剂较大，走 sessionStorage 传递，避免超长 URL / 编码导致 herbs 丢失
   const key = 'ai_import_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
@@ -972,7 +972,7 @@ async function loadExistingVisit(visitId: number) {
   margin-bottom: 10px;
   line-height: 1.5;
 }
-.vit-last-rx { margin-left: 8px; color: #8B4513; }
+.vit-last-rx { margin-left: 8px; color: var(--tcm-primary); }
 .form-tip { font-size: 12px; color: #999; line-height: 1.5; margin-top: 4px; }
 .camera-box video {
   width: 100%;
@@ -1063,7 +1063,7 @@ async function loadExistingVisit(visitId: number) {
   border-radius: 6px;
   flex-wrap: wrap;
 
-  .lab-label { font-size: 13px; color: #8B4513; }
+  .lab-label { font-size: 13px; color: var(--tcm-primary); }
 
   .lab-thumb {
     width: 48px;
@@ -1130,7 +1130,7 @@ async function loadExistingVisit(visitId: number) {
 }
 .ai-basis-title {
   font-weight: 600;
-  color: #8B4513;
+  color: var(--tcm-primary);
   margin-bottom: 6px;
 }
 .ai-basis-body {
@@ -1147,7 +1147,7 @@ async function loadExistingVisit(visitId: number) {
 }
 /* markdown 渲染样式（AI 辨证结果含标题/列表/表格/代码块） */
 .ai-result-body, .ai-basis-body {
-  :deep(h1), :deep(h2), :deep(h3), :deep(h4) { margin: 12px 0 6px; color: #8B4513; line-height: 1.4; }
+  :deep(h1), :deep(h2), :deep(h3), :deep(h4) { margin: 12px 0 6px; color: var(--tcm-primary); line-height: 1.4; }
   :deep(h1) { font-size: 18px; }
   :deep(h2) { font-size: 16px; }
   :deep(h3) { font-size: 15px; }
@@ -1157,7 +1157,7 @@ async function loadExistingVisit(visitId: number) {
   :deep(table) { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 13px; }
   :deep(th), :deep(td) { border: 1px solid #e8e0d8; padding: 4px 8px; text-align: left; }
   :deep(th) { background: #faf7f4; }
-  :deep(strong) { color: #8B4513; }
+  :deep(strong) { color: var(--tcm-primary); }
   :deep(code) {
     background: #f5f0eb; padding: 0 4px; border-radius: 4px; font-size: 13px;
   }
@@ -1165,7 +1165,7 @@ async function loadExistingVisit(visitId: number) {
   :deep(pre code) { background: transparent; padding: 0; }
   :deep(blockquote) { border-left: 3px solid #d9c9a3; margin: 6px 0; padding-left: 10px; color: #999; }
 }
-.ai-result-body strong { color: #8B4513; }
+.ai-result-body strong { color: var(--tcm-primary); }
 .ai-result-body code {
   background: #f5f0eb;
   padding: 0 4px;
@@ -1177,7 +1177,7 @@ async function loadExistingVisit(visitId: number) {
 .ai-section { margin-top: 14px; }
 .ai-section-title {
   font-weight: 600;
-  color: #8B4513;
+  color: var(--tcm-primary);
   margin-bottom: 8px;
   font-size: 14px;
 }

@@ -351,7 +351,7 @@ const newPatient = ref({
 
 async function loadPatients() {
   try {
-    const params: any = { page: page.value, page_size: pageSize.value }
+    const params: Record<string, unknown> = { page: page.value, page_size: pageSize.value }
     if (searchText.value) params.search = searchText.value
     if (filterConstitution.value) params.constitution_type = filterConstitution.value
     if (filterTag.value) params.tag = filterTag.value

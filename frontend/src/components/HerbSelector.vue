@@ -25,7 +25,7 @@
               ({{ h.aliases.join('、') }})
             </span>
           </span>
-          <span style="font-size:12px;color:#8B4513;">
+          <span style="font-size:12px;color:var(--tcm-primary);">
             {{ h.dosage_min }}~{{ h.dosage_max }}g
           </span>
         </div>

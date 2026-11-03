@@ -293,7 +293,7 @@ async function loadSources() {
 async function loadEntries() {
   loading.value = true
   try {
-    const params: any = {
+    const params: Record<string, unknown> = {
       limit: pageSize.value,
       offset: (currentPage.value - 1) * pageSize.value,
     }
@@ -348,7 +348,7 @@ async function saveEntry() {
   }
   saving.value = true
   try {
-    const body: any = {
+    const body: Record<string, unknown> = {
       title: editForm.value.title,
       category: editForm.value.category || '其他',
       content: editForm.value.content,
@@ -411,7 +411,7 @@ async function batchDelete() {
 // ---- 导出 ----
 async function onExport() {
   try {
-    const params: any = {}
+    const params: Record<string, unknown> = {}
     if (activeCategory.value) params.category = activeCategory.value
     if (sourceFilter.value) params.source = sourceFilter.value
     const data = await api.get<Blob>('/knowledge/export', { params })
@@ -571,7 +571,7 @@ onUnmounted(() => {
 
     h1, h2, h3, h4 {
       font-weight: 600;
-      color: #8B4513;
+      color: var(--tcm-primary);
       margin: 12px 0 6px;
       &:first-child { margin-top: 0; }
     }
@@ -592,7 +592,7 @@ onUnmounted(() => {
     blockquote {
       margin: 6px 0;
       padding: 5px 10px;
-      border-left: 3px solid #D4A574;
+      border-left: 3px solid var(--tcm-accent);
       background: #faf6f1;
       color: #5a4632;
       border-radius: 0 4px 4px 0;
@@ -621,7 +621,7 @@ onUnmounted(() => {
 
     :deep(h1), :deep(h2), :deep(h3), :deep(h4) {
       font-weight: 600;
-      color: #8B4513;
+      color: var(--tcm-primary);
       margin: 14px 0 8px;
       &:first-child { margin-top: 0; }
     }
@@ -643,7 +643,7 @@ onUnmounted(() => {
     :deep(blockquote) {
       margin: 8px 0;
       padding: 6px 12px;
-      border-left: 3px solid #D4A574;
+      border-left: 3px solid var(--tcm-accent);
       background: #faf6f1;
       color: #5a4632;
       border-radius: 0 4px 4px 0;
@@ -662,7 +662,7 @@ onUnmounted(() => {
     }
     :deep(th) { background: #f5ede3; font-weight: 600; }
     :deep(tr:nth-child(even) td) { background: #fcf9f5; }
-    :deep(a) { color: #8B4513; }
+    :deep(a) { color: var(--tcm-primary); }
     :deep(hr) { border: none; border-top: 1px solid #e0d6ca; margin: 12px 0; }
   }
 }

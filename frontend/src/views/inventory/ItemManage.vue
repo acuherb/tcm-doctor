@@ -197,7 +197,7 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
 async function loadItems(resetPage = false) {
   if (resetPage) { page.value = 1; loadingMore.value = false }
   try {
-    const params: any = { page: page.value, page_size: pageSize.value }
+    const params: Record<string, unknown> = { page: page.value, page_size: pageSize.value }
     if (typeFilter.value) params.item_type = typeFilter.value
     if (searchText.value) params.search = searchText.value
     const res = (await api.get<Paginated<StockItem>>('/stock/items', { params })) || []

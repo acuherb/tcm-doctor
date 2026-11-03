@@ -309,7 +309,7 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
 
 async function loadOverview() {
   try {
-    const params: any = {}
+    const params: Record<string, unknown> = {}
     if (typeFilter.value) params.item_type = typeFilter.value
     if (alertOnly.value) params.alert_only = true
     if (searchText.value) params.search = searchText.value

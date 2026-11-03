@@ -309,7 +309,7 @@ async function removeFormula(f: any) {
 
 async function exportFormulas() {
   try {
-    const data: any = await api.get('/acupoint-formulas/export')
+    const data: Record<string, unknown> = await api.get('/acupoint-formulas/export')
     const nl = Array.isArray(data) ? data : (data as Paginated<AcupointFormula>)?.data || []
     if (!nl.length) {
       ElMessage.warning('当前针灸方库为空')
@@ -348,7 +348,7 @@ async function onImportFile(e: Event) {
       treatment_days: it.treatment_days ?? null,
       composition: it.composition || { acupoints: it.acupoints || [] },
     }))
-    const res: any = await api.post('/acupoint-formulas/import', payload)
+    const res: { created?: number; updated?: number } = await api.post('/acupoint-formulas/import', payload)
     ElMessage.success(`导入完成：新增 ${res.created}，更新 ${res.updated}`)
     await loadFormulas()
   } catch (e: any) {
@@ -366,7 +366,7 @@ const sources = computed(() => {
 async function loadFormulas() {
   loading.value = true
   try {
-    const params: any = {}
+    const params: Record<string, unknown> = {}
     if (searchText.value) params.search = searchText.value
     if (sourceFilter.value) params.source = sourceFilter.value
     formulas.value = (await api.get<Paginated<AcupointFormula>>('/acupoint-formulas', { params }))
@@ -443,7 +443,7 @@ onMounted(loadFormulas)
     transition: all .2s ease;
 
     &:hover {
-      border-color: #d4a574;
+      border-color: var(--tcm-accent);
       box-shadow: 0 4px 14px rgba(139, 94, 52, .1);
       transform: translateY(-2px);
     }

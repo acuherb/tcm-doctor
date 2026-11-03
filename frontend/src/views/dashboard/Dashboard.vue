@@ -128,9 +128,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '@/utils/api'
+import { onThemeChange, themeVar } from '@/utils/theme'
 
 const router = useRouter()
 function goPatient(id: number) {
@@ -138,7 +139,7 @@ function goPatient(id: number) {
 }
 
 const statCards = ref([
-  { title: '今日就诊', value: 0, icon: 'User', color: '#8B4513' },
+  { title: '今日就诊', value: 0, icon: 'User', color: themeVar('--tcm-primary') || '#8B4513' },
   { title: '患者总数', value: 0, icon: 'User', color: '#52C41A' },
   { title: '今日处方', value: 0, icon: 'Document', color: '#1890FF' },
   { title: '药品总数', value: 0, icon: 'FirstAidKit', color: '#13C2C2' },
@@ -146,16 +147,16 @@ const statCards = ref([
   { title: '库存预警', value: 0, icon: 'Warning', color: '#F5222D' },
 ])
 
-const quickActions = [
-  { title: '新增患者', desc: '录入信息', route: '/patients', icon: 'User', color: '#8B4513' },
+const quickActions = ref([
+  { title: '新增患者', desc: '录入信息', route: '/patients', icon: 'User', color: themeVar('--tcm-primary') || '#8B4513' },
   { title: '开具处方', desc: '选方/自拟', route: '/prescriptions/new', icon: 'Document', color: '#1890FF' },
   { title: '智能问诊', desc: 'AI辨证', route: '/diagnosis', icon: 'ChatDotRound', color: '#722ED1' },
   { title: '字典管理', desc: '证候脉象词条', route: '/dictionaries', icon: 'Collection', color: '#13C2C2' },
   { title: '药材入库', desc: '入库登记', route: '/stock/transactions', icon: 'Box', color: '#52C41A' },
   { title: '知识检索', desc: '典籍查询', route: '/knowledge', icon: 'Search', color: '#FAAD14' },
-  { title: '中药方库', desc: '方剂浏览', route: '/classic-formulas', icon: 'Notebook', color: '#8B4513' },
+  { title: '中药方库', desc: '方剂浏览', route: '/classic-formulas', icon: 'Notebook', color: themeVar('--tcm-primary') || '#8B4513' },
   { title: '系统设置', desc: '配置管理', route: '/settings', icon: 'Setting', color: '#999' },
-]
+])
 
 const alerts = ref<Array<Record<string, unknown>>>([])
 const pendingCount = ref(0)
@@ -191,44 +192,72 @@ async function loadDashboard() {
   }
 }
 
-function renderVisitChart() {
+let visitChart: any = null
+let echartsLib: any = null
+let chartResizeHandler: (() => void) | null = null
+
+async function renderVisitChart() {
   if (!visitChartRef.value || visitTrend.value.length === 0) return
 
-  // 动态导入 ECharts
-  import('echarts').then((echarts) => {
-    const chart = echarts.init(visitChartRef.value!)
-    chart.setOption({
-      tooltip: { trigger: 'axis' },
-      grid: { left: 40, right: 20, top: 20, bottom: 30 },
-      xAxis: {
-        type: 'category',
-        data: visitTrend.value.map((d: any) => d.date),
-        axisLabel: { color: '#666' },
+  if (!echartsLib) {
+    echartsLib = await import('echarts')
+  }
+  const echarts = echartsLib
+
+  if (!visitChart) {
+    visitChart = echarts.init(visitChartRef.value)
+    // 响应式（只注册一次，避免主题切换重绘时重复绑定）
+    chartResizeHandler = () => visitChart?.resize()
+    window.addEventListener('resize', chartResizeHandler)
+  }
+
+  const primary = themeVar('--tcm-primary') || '#8B4513'
+  const accent = themeVar('--tcm-accent') || '#D4A574'
+
+  visitChart.setOption({
+    tooltip: { trigger: 'axis' },
+    grid: { left: 40, right: 20, top: 20, bottom: 30 },
+    xAxis: {
+      type: 'category',
+      data: visitTrend.value.map((d: any) => d.date),
+      axisLabel: { color: '#666' },
+    },
+    yAxis: {
+      type: 'value',
+      minInterval: 1,
+      axisLabel: { color: '#666' },
+    },
+    series: [{
+      type: 'bar',
+      data: visitTrend.value.map((d: any) => d.count),
+      itemStyle: {
+        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+          { offset: 0, color: primary },
+          { offset: 1, color: accent },
+        ]),
+        borderRadius: [4, 4, 0, 0],
       },
-      yAxis: {
-        type: 'value',
-        minInterval: 1,
-        axisLabel: { color: '#666' },
-      },
-      series: [{
-        type: 'bar',
-        data: visitTrend.value.map((d: any) => d.count),
-        itemStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: '#8B4513' },
-            { offset: 1, color: '#D4A574' },
-          ]),
-          borderRadius: [4, 4, 0, 0],
-        },
-        barWidth: '40%',
-      }],
-    })
-    // 响应式
-    window.addEventListener('resize', () => chart.resize())
+      barWidth: '40%',
+    }],
   })
 }
 
 onMounted(loadDashboard)
+
+// 主题切换后重绘图表（ECharts 读不到 CSS 变量，必须重新取色）
+onThemeChange(() => {
+  const primary = themeVar('--tcm-primary') || '#8B4513'
+  statCards.value[0].color = primary
+  quickActions.value[0].color = primary
+  const formulaAction = quickActions.value.find((a) => a.route === '/classic-formulas')
+  if (formulaAction) formulaAction.color = primary
+  renderVisitChart()
+})
+onUnmounted(() => {
+  if (chartResizeHandler) window.removeEventListener('resize', chartResizeHandler)
+  visitChart?.dispose()
+  visitChart = null
+})
 </script>
 
 <style scoped lang="scss">

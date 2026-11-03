@@ -204,7 +204,7 @@ async function doSearch() {
   searching.value = true
   searched.value = true
   try {
-    const params: any = { q: searchText.value, limit: 20 }
+    const params: Record<string, unknown> = { q: searchText.value, limit: 20 }
     if (categoryFilter.value) params.category = categoryFilter.value
     results.value = (await api.get<KnowledgeEntry[]>('/knowledge/search', { params }))
   } catch {} finally {
@@ -338,7 +338,7 @@ onMounted(loadStats)
 
       &:hover {
         background: #faf5f0;
-        border-color: #d4a574;
+        border-color: var(--tcm-accent);
         box-shadow: 0 2px 10px rgba(139, 94, 52, .08);
         transform: translateY(-1px);
       }
@@ -579,7 +579,7 @@ onMounted(loadStats)
 
     :deep(h1), :deep(h2), :deep(h3), :deep(h4) {
       font-weight: 600;
-      color: #8B4513;
+      color: var(--tcm-primary);
       margin: 14px 0 8px;
       &:first-child { margin-top: 0; }
     }
@@ -601,7 +601,7 @@ onMounted(loadStats)
     :deep(blockquote) {
       margin: 8px 0;
       padding: 6px 12px;
-      border-left: 3px solid #D4A574;
+      border-left: 3px solid var(--tcm-accent);
       background: #faf6f1;
       color: #5a4632;
       border-radius: 0 4px 4px 0;
@@ -619,7 +619,7 @@ onMounted(loadStats)
     }
     :deep(th) { background: #f5ede3; font-weight: 600; }
     :deep(tr:nth-child(even) td) { background: #fcf9f5; }
-    :deep(a) { color: #8B4513; }
+    :deep(a) { color: var(--tcm-primary); }
     :deep(hr) { border: none; border-top: 1px solid #e0d6ca; margin: 12px 0; }
   }
 }

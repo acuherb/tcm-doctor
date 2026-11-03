@@ -180,12 +180,12 @@ async function save() {
     // 仅物品类别支持自定义颜色，单位不写 color
     const color = form.value.opt_type === 'category' ? (form.value.color || null) : undefined
     if (editing.value) {
-      const payload: any = { name }
+      const payload: Record<string, unknown> = { name }
       if (color !== undefined) payload.color = color
       await api.put(`/stock/options/${editing.value}`, payload)
       ElMessage.success('已更新')
     } else {
-      const payload: any = { opt_type: form.value.opt_type, name }
+      const payload: Record<string, unknown> = { opt_type: form.value.opt_type, name }
       if (color !== undefined) payload.color = color
       await api.post('/stock/options', payload)
       ElMessage.success('已添加')

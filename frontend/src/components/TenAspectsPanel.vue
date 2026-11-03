@@ -53,7 +53,7 @@
 
         <!-- 合病：分经展示，可同时清、温两条思路 -->
         <div v-if="recommend.groups && recommend.groups.length" v-for="g in recommend.groups" :key="g.label">
-          <div class="ta-group-title" style="font-weight:600;color:#8B4513;margin:6px 0 4px;">〔{{ g.label }}〕</div>
+          <div class="ta-group-title" style="font-weight:600;color:var(--tcm-primary);margin:6px 0 4px;">〔{{ g.label }}〕</div>
           <el-empty v-if="!recLoading && g.matched && g.matched.length === 0" description="中药方库暂无录入该六经候选方（可在中药方库补充），下方为候选方名参考" :image-size="40">
             <template #description>
               <div class="ta-suggestion" v-if="g.missing && g.missing.length">
@@ -241,7 +241,7 @@ defineExpose({ getAspectSummary, getAspectAnswers })
   padding: 10px 12px;
   border-radius: 8px;
   background: #faf8f6;
-  border-left: 3px solid #8B4513;
+  border-left: 3px solid var(--tcm-primary);
 }
 .ta-title { font-size: 14px; font-weight: 600; color: #5a4632; }
 .ta-opt-wrap { display: flex; flex-wrap: wrap; gap: 4px; }
@@ -249,7 +249,7 @@ defineExpose({ getAspectSummary, getAspectAnswers })
 .ta-submit { text-align: center; margin-top: 8px; }
 .ta-primary { font-size: 15px; }
 .ta-findings { margin: 10px 0 0; padding-left: 18px; font-size: 13px; color: #666; line-height: 1.9; }
-.ta-suggestion { margin-top: 8px; font-size: 13px; color: #8B4513; }
+.ta-suggestion { margin-top: 8px; font-size: 13px; color: var(--tcm-primary); }
 .ta-recommend { margin-top: 4px; }
 .rec-item {
   display: flex;
@@ -262,6 +262,6 @@ defineExpose({ getAspectSummary, getAspectAnswers })
   background: #fff7e6;
   border: 1px solid #ffe7ba;
 }
-.rec-name { font-size: 14px; font-weight: 600; color: #8B4513; }
+.rec-name { font-size: 14px; font-weight: 600; color: var(--tcm-primary); }
 .rec-eff { font-size: 12px; color: #a0896f; margin-top: 2px; }
 </style>

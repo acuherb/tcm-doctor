@@ -94,11 +94,11 @@
     color: #7a6553;
   }
   :deep(.el-tabs__item.is-active) {
-    color: #8b4513;
+    color: var(--tcm-primary);
     font-weight: 600;
   }
   :deep(.el-tabs__active-bar) {
-    background-color: #8b4513;
+    background-color: var(--tcm-primary);
   }
 
   :deep(.stat-desc .el-descriptions__label) {
@@ -121,8 +121,9 @@
 </style>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import api from '@/utils/api'
+import { onThemeChange, themeVar } from '@/utils/theme'
 
 const period = ref(30)
 const activeTab = ref('visits')
@@ -138,6 +139,33 @@ const herbUsage = ref<unknown[]>([])
 const prescriptionStats = ref<Record<string, unknown>>({ total: 0, status_stats: [], formula_stats: [] })
 
 const chartInstances: unknown[] = []
+
+// 按容器复用图表实例：主题切换时只需 setOption 重绘，避免重复 init 与 resize 监听累积
+const chartMap = new Map<HTMLElement, any>()
+let resizeBound = false
+
+function getOrInitChart(echarts: any, el: HTMLElement): any {
+  const existing = chartMap.get(el)
+  if (existing) return existing
+  const chart = echarts.init(el)
+  chartMap.set(el, chart)
+  chartInstances.push(chart)
+  return chart
+}
+
+// #RRGGBB → rgba()，用于面积渐变透明度
+function hexToRgba(hex: string, alpha: number): string {
+  const m = hex.replace('#', '')
+  if (m.length !== 6) return `rgba(139,69,19,${alpha})`
+  const r = parseInt(m.slice(0, 2), 16)
+  const g = parseInt(m.slice(2, 4), 16)
+  const b = parseInt(m.slice(4, 6), 16)
+  return `rgba(${r},${g},${b},${alpha})`
+}
+
+function resizeAllCharts() {
+  chartMap.forEach((c) => c?.resize())
+}
 
 async function loadAll() {
   await Promise.all([
@@ -189,8 +217,8 @@ function onTabChange(tab: string) {
 function renderVisitChart() {
   if (!visitChartRef.value || dailyStats.value.length === 0) return
   import('echarts').then((echarts) => {
-    const chart = echarts.init(visitChartRef.value!)
-    chartInstances.push(chart)
+    const chart = getOrInitChart(echarts, visitChartRef.value!)
+    const primary = themeVar('--tcm-primary') || '#8B4513'
     chart.setOption({
       tooltip: { trigger: 'axis' },
       grid: { left: 50, right: 20, top: 20, bottom: 40 },
@@ -206,23 +234,23 @@ function renderVisitChart() {
         smooth: true,
         areaStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(139,69,19,0.3)' },
-            { offset: 1, color: 'rgba(139,69,19,0.05)' },
+            { offset: 0, color: hexToRgba(primary, 0.3) },
+            { offset: 1, color: hexToRgba(primary, 0.05) },
           ]),
         },
-        lineStyle: { color: '#8B4513', width: 2 },
-        itemStyle: { color: '#8B4513' },
+        lineStyle: { color: primary, width: 2 },
+        itemStyle: { color: primary },
       }],
     })
-    window.addEventListener('resize', () => chart.resize())
   })
 }
 
 function renderHerbChart() {
   if (!herbChartRef.value || herbUsage.value.length === 0) return
   import('echarts').then((echarts) => {
-    const chart = echarts.init(herbChartRef.value!)
-    chartInstances.push(chart)
+    const chart = getOrInitChart(echarts, herbChartRef.value!)
+    const primary = themeVar('--tcm-primary') || '#8B4513'
+    const accent = themeVar('--tcm-accent') || '#D4A574'
     const top15 = herbUsage.value.slice(0, 15)
     chart.setOption({
       tooltip: { trigger: 'axis' },
@@ -238,23 +266,21 @@ function renderHerbChart() {
         data: top15.map((h: any) => h.usage_count).reverse(),
         itemStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
-            { offset: 0, color: '#D4A574' },
-            { offset: 1, color: '#8B4513' },
+            { offset: 0, color: accent },
+            { offset: 1, color: primary },
           ]),
           borderRadius: [0, 4, 4, 0],
         },
       }],
     })
-    window.addEventListener('resize', () => chart.resize())
   })
 }
 
 function renderPrescriptionCharts() {
   import('echarts').then((echarts) => {
-    // 状态饼图
+    // 状态饼图（语义色：已开/已审核/已发药/已取消，不随主题变化）
     if (prescriptionStatusRef.value && prescriptionStats.value.status_stats?.length) {
-      const chart1 = echarts.init(prescriptionStatusRef.value!)
-      chartInstances.push(chart1)
+      const chart1 = getOrInitChart(echarts, prescriptionStatusRef.value!)
       const colorMap: Record<string, string> = { '已开': '#FAAD14', '已审核': '#1890FF', '已发药': '#52C41A', '已取消': '#F5222D' }
       chart1.setOption({
         tooltip: { trigger: 'item' },
@@ -270,13 +296,11 @@ function renderPrescriptionCharts() {
           label: { formatter: '{b}: {c}' },
         }],
       })
-      window.addEventListener('resize', () => chart1.resize())
     }
 
     // 方剂柱图
     if (formulaChartRef.value && prescriptionStats.value.formula_stats?.length) {
-      const chart2 = echarts.init(formulaChartRef.value!)
-      chartInstances.push(chart2)
+      const chart2 = getOrInitChart(echarts, formulaChartRef.value!)
       chart2.setOption({
         tooltip: { trigger: 'axis' },
         grid: { left: 80, right: 20, top: 10, bottom: 20 },
@@ -289,15 +313,36 @@ function renderPrescriptionCharts() {
           type: 'bar',
           data: prescriptionStats.value.formula_stats.map((f: any) => f.count).reverse(),
           itemStyle: {
-            color: '#8B4513',
+            color: themeVar('--tcm-primary') || '#8B4513',
             borderRadius: [0, 4, 4, 0],
           },
         }],
       })
-      window.addEventListener('resize', () => chart2.resize())
     }
   })
 }
 
-onMounted(loadAll)
+onMounted(() => {
+  if (!resizeBound) {
+    window.addEventListener('resize', resizeAllCharts)
+    resizeBound = true
+  }
+  loadAll()
+})
+
+// 主题切换后重绘全部图表
+onThemeChange(() => {
+  renderVisitChart()
+  renderHerbChart()
+  if (activeTab.value === 'prescriptions') renderPrescriptionCharts()
+})
+
+onUnmounted(() => {
+  if (resizeBound) {
+    window.removeEventListener('resize', resizeAllCharts)
+    resizeBound = false
+  }
+  chartMap.forEach((c) => c?.dispose())
+  chartMap.clear()
+})
 </script>

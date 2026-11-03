@@ -180,11 +180,11 @@ const roleOptions = [
 ]
 
 // 权限目录（来自后端 /auth/permissions），用于渲染权限勾选表
-const permCatalog = ref<{ groups: any[]; role_defaults: Record<string, string[]> }>({ groups: [], role_defaults: {} })
+const permCatalog = ref<{ groups: Array<{ perms?: Array<{ key?: string; label?: string }> }>; role_defaults: Record<string, string[]> }>({ groups: [], role_defaults: {} })
 
 function permLabel(key: string) {
   for (const g of permCatalog.value.groups) {
-    const p = (g.perms || []).find((x: any) => x.key === key)
+    const p = (g.perms || []).find((x: { key?: string; label?: string }) => x.key === key)
     if (p) return p.label
   }
   return key

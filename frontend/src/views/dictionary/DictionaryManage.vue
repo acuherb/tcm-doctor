@@ -383,7 +383,7 @@ async function save() {
   }
   saving.value = true
   try {
-    const payload: any = {
+    const payload: Record<string, unknown> = {
       term_type: form.term_type,
       name: form.name.trim(),
       description: form.description || null,

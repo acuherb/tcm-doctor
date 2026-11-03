@@ -105,7 +105,7 @@
               <el-input-number v-model="item.dose" :min="0.5" :max="200" :precision="1"
                 placeholder="剂量" style="width:120px;" />
               <span style="font-size:13px;color:#999;">g</span>
-              <span v-if="herbUnitPrice(item) != null" style="font-size:12px;color:#8B4513;white-space:nowrap;min-width:96px;display:inline-block;">
+              <span v-if="herbUnitPrice(item) != null" style="font-size:12px;color:var(--tcm-primary);white-space:nowrap;min-width:96px;display:inline-block;">
                 ￥{{ herbUnitPrice(item) }}·{{ herbItemAmount(item) }}元
               </span>
               <el-select v-model="item.special_method" placeholder="煎法" clearable style="width:100px;">

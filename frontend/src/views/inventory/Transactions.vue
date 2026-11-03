@@ -193,7 +193,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="当前库存">
-          <span style="color:#8B4513;font-weight:600;">{{ outAvailable }} {{ outUnit }}</span>
+          <span style="color:var(--tcm-primary);font-weight:600;">{{ outAvailable }} {{ outUnit }}</span>
         </el-form-item>
         <el-form-item label="指定批次">
           <el-select v-model="stockOutForm.batch_id" clearable placeholder="留空则按 FIFO 顺序扣减" style="width:100%">
@@ -229,7 +229,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="当前库存">
-          <span style="color:#8B4513;font-weight:600;">{{ outAvailable }} {{ outUnit }}</span>
+          <span style="color:var(--tcm-primary);font-weight:600;">{{ outAvailable }} {{ outUnit }}</span>
         </el-form-item>
         <el-form-item label="指定批次">
           <el-select v-model="writeoffForm.batch_id" clearable placeholder="留空则按 FIFO 顺序扣减" style="width:100%">
@@ -291,7 +291,7 @@ function typeTag(t: string) {
 async function loadTransactions(resetPage = false) {
   if (resetPage) { page.value = 1; loadingMore.value = false }
   try {
-    const params: any = { page: page.value, page_size: pageSize.value }
+    const params: Record<string, unknown> = { page: page.value, page_size: pageSize.value }
     if (route.query.item_id) params.item_id = Number(route.query.item_id)
     if (typeFilter.value) params.transaction_type = typeFilter.value
     if (refFilter.value) params.reference_type = refFilter.value

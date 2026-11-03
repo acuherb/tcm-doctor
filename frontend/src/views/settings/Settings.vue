@@ -317,7 +317,7 @@ function onLogoChange(uploadFile: any) {
 async function saveConfig() {
   savingConfig.value = true
   try {
-    const body: any = {
+    const body: Record<string, unknown> = {
       deepseek_model: deepseekModel.value,
       deepseek_base_url: deepseekBaseUrl.value,
     }
@@ -360,7 +360,7 @@ async function testConnection() {
 
   try {
     // 先保存配置：仅当用户确实输入了新 key 才提交（否则易把残留旧值误写覆盖真实 key）
-    const body: any = {
+    const body: Record<string, unknown> = {
       deepseek_model: deepseekModel.value,
       deepseek_base_url: deepseekBaseUrl.value,
     }
@@ -574,7 +574,7 @@ async function resetData() {
       font-size: 12px;
       color: #8b7a68;
 
-      b { color: #8b4513; font-variant-numeric: tabular-nums; }
+      b { color: var(--tcm-primary); font-variant-numeric: tabular-nums; }
     }
   }
 }
