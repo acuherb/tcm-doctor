@@ -221,14 +221,42 @@
               </div>
             </div>
           </template>
+          <!-- 版权 / 免责声明 -->
+          <el-alert type="warning" :closable="false" show-icon class="tpl-alert">
+            <template #title>版权与免责声明</template>
+            <div class="alert-body">
+              内置示例内容整理自《倪海厦人纪》系列，<strong>仅供学习交流，不构成任何临床诊疗依据</strong>。
+              使用前请对照权威典籍核对；若用于教学分享或二次分发，请注意相关版权。
+            </div>
+          </el-alert>
+
+          <!-- 途径说明 -->
           <p class="template-hint">
-            系统默认<strong>纯框架</strong>，不预置临床内容。可「导出当前」备份，或导入模板：
-            「<strong>导入内置</strong>」载入随包示例（按倪海厦人纪整理），「<strong>上传导入</strong>」载入自定义 JSON（格式见导出文件）。
+            系统默认<strong>纯框架</strong>，不预置临床内容。可通过以下三种方式填充（仅管理员可导入）：
           </p>
+          <ol class="tpl-ways">
+            <li>
+              <b>导入内置</b>：载入随安装包附带的示例模板（已按人纪整理）。
+              <span v-if="hasBundled" class="ok">当前版本已附带，可直接导入。</span>
+              <span v-else class="muted">当前版本未附带内置模板（多见于直接克隆源码），请改用下方「上传导入」。</span>
+            </li>
+            <li><b>上传导入</b>：选择本地 JSON 模板文件批量导入（格式见文末示例，或直接「导出当前」得到同格式文件）。</li>
+            <li><b>导出当前</b>：把库内某类数据导出为 JSON，用于备份或在多机间迁移。</li>
+          </ol>
+
+          <!-- 空框架显式提醒 -->
+          <el-alert v-if="isEmptyFramework" type="info" :closable="false" show-icon class="tpl-empty">
+            <template #title>当前为空框架</template>
+            <div class="alert-body">
+              尚未导入任何内容数据，药材 / 方剂 / 穴位 / 知识库均为空。请在下方表格选择类型并「导入内置」或「上传导入」后即可使用。
+            </div>
+          </el-alert>
+
           <el-table :data="templateTypes" size="small" border class="template-table">
-            <el-table-column prop="label" label="内容类型" width="140" />
-            <el-table-column prop="type" label="标识" width="170" />
-            <el-table-column label="操作" min-width="280">
+            <el-table-column prop="label" label="内容类型" width="120" />
+            <el-table-column prop="type" label="标识" width="150" />
+            <el-table-column prop="count" label="当前条数" width="90" align="right" />
+            <el-table-column label="操作" min-width="300">
               <template #default="{ row }">
                 <el-button size="small" @click="exportTemplate(row.type)" :loading="row.exporting">
                   <el-icon><Download /></el-icon>导出当前
@@ -237,15 +265,24 @@
                   @click="importBundled(row)" :loading="row.importing">
                   导入内置
                 </el-button>
-                <el-upload :auto-upload="false" :show-file-list="false" accept=".json" :disabled="!editable"
-                  @change="(f: UploadFile) => onTemplateFile(row, f)">
-                  <el-button size="small" :disabled="!editable">
-                    <el-icon><Upload /></el-icon>上传导入
-                  </el-button>
-                </el-upload>
+                <el-tooltip :content="editable ? '选择本地 JSON 模板文件导入' : '仅管理员可导入'" placement="top">
+                  <el-upload :auto-upload="false" :show-file-list="false" accept=".json" :disabled="!editable"
+                    @change="(f: UploadFile) => onTemplateFile(row, f)">
+                    <el-button size="small" :disabled="!editable">
+                      <el-icon><Upload /></el-icon>上传导入
+                    </el-button>
+                  </el-upload>
+                </el-tooltip>
               </template>
             </el-table-column>
           </el-table>
+
+          <el-collapse class="tpl-format">
+            <el-collapse-item title="JSON 模板格式（上传前请参考）">
+              <pre class="code-block">{{ formatExample }}</pre>
+            </el-collapse-item>
+          </el-collapse>
+
           <div v-if="templateMsg" class="template-msg">{{ templateMsg }}</div>
         </el-card>
       </el-col>
@@ -291,12 +328,30 @@ interface TemplateType {
   type: string
   label: string
   key: string
+  count?: number
   bundled_available: boolean
   exporting?: boolean
   importing?: boolean
 }
 const templateTypes = ref<TemplateType[]>([])
 const templateMsg = ref('')
+
+// 内置模板是否随本版本提供（packaged release 带，源码克隆不带）
+const hasBundled = computed(() => templateTypes.value.some((t) => t.bundled_available))
+// 是否完全空框架（所有类型当前条数均为 0），用于显式空状态引导
+const isEmptyFramework = computed(
+  () => templateTypes.value.length > 0 && templateTypes.value.every((t) => (t.count ?? 0) === 0),
+)
+
+// JSON 模板格式示例（与导出文件同构），方便用户按格式准备上传文件
+const formatExample = `{
+  "type": "herbs",            // 类型: herbs / classic_formulas / acupoint_formulas / acupoints / knowledge
+  "version": 1,
+  "items": [
+    { "name": "人参", "flavors": ["甘","微苦"], "efficacy": "大补元气", "is_active": true }
+    // 字段与系统各模块录入项一致；无需 id / created_at；同名自动更新，不存在则新增
+  ]
+}`
 
 const connectionStatus = ref({ type: 'info' as 'success' | 'danger' | 'info', text: '未测试' })
 
@@ -759,6 +814,31 @@ async function onTemplateFile(row: TemplateType, file: UploadFile) {
 .status-retest:hover .retest-hint { text-decoration: underline; }
 .retest-hint { font-size: 12px; color: #b08753; }
 .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; word-break: break-all; color: #555; }
+
+// ---- 内容模板卡片 ----
+.tpl-alert { margin-bottom: 14px; }
+.tpl-alert .alert-body { font-size: 13px; line-height: 1.7; color: #614a14; }
+.template-hint { font-size: 13px; color: #666; margin: 4px 0 10px; line-height: 1.7; }
+.tpl-ways { margin: 0 0 14px; padding-left: 20px; font-size: 13px; color: #555; line-height: 1.9; }
+.tpl-ways b { color: var(--tcm-primary, #2f7d5b); }
+.tpl-ways .ok { color: #2f7d5b; }
+.tpl-ways .muted { color: #999; }
+.tpl-empty { margin-bottom: 14px; }
+.tpl-empty .alert-body { font-size: 13px; line-height: 1.7; color: #4a6072; }
+.tpl-format { margin-top: 12px; }
+.code-block {
+  margin: 0;
+  padding: 12px 14px;
+  background: #1e1e1e;
+  color: #d4d4d4;
+  border-radius: 8px;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.template-msg { margin-top: 10px; font-size: 13px; color: #2f7d5b; }
 
 @media (max-width: 767px) {
   .settings-page {

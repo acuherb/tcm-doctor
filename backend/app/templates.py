@@ -59,8 +59,8 @@ TEMPLATE_TYPES: dict = {
 }
 
 
-def list_types() -> list:
-    """列出可导入的模板类型及内置模板是否可用（前端据此显示「内置」按钮）。"""
+def list_types(db: Session) -> list:
+    """列出可导入的模板类型、当前条数及内置模板是否可用（前端据此显示状态/按钮）。"""
     out = []
     for t, spec in TEMPLATE_TYPES.items():
         out.append(
@@ -68,6 +68,7 @@ def list_types() -> list:
                 "type": t,
                 "label": spec["label"],
                 "key": spec["key"],
+                "count": db.query(spec["model"]).count(),
                 "bundled_available": any(p.exists() for p in spec["bundled"]),
             }
         )

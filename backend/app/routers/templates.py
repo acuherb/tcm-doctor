@@ -21,8 +21,8 @@ router = APIRouter(prefix="/templates", tags=["数据模板"])
 
 
 @router.get("", summary="列出可导入的模板类型")
-def get_types(current_user: User = Depends(get_current_user)):
-    return list_types()
+def get_types(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return list_types(db)
 
 
 @router.get("/export/{type_}", summary="导出当前数据为模板 JSON")
