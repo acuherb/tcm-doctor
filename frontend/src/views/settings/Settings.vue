@@ -208,6 +208,48 @@
         </el-card>
       </el-col>
     </el-row>
+
+    <el-row :gutter="20" class="settings-row">
+      <el-col :xs="24" :span="24">
+        <el-card shadow="hover" class="main-card">
+          <template #header>
+            <div class="card-head-bar">
+              <div class="card-head-title">
+                <span class="head-icon">📚</span>
+                <span class="head-text">内容模板</span>
+                <el-tag size="small" type="info" effect="plain" round class="head-count">按需导入</el-tag>
+              </div>
+            </div>
+          </template>
+          <p class="template-hint">
+            系统默认<strong>纯框架</strong>，不预置临床内容。可「导出当前」备份，或导入模板：
+            「<strong>导入内置</strong>」载入随包示例（按倪海厦人纪整理），「<strong>上传导入</strong>」载入自定义 JSON（格式见导出文件）。
+          </p>
+          <el-table :data="templateTypes" size="small" border class="template-table">
+            <el-table-column prop="label" label="内容类型" width="140" />
+            <el-table-column prop="type" label="标识" width="170" />
+            <el-table-column label="操作" min-width="280">
+              <template #default="{ row }">
+                <el-button size="small" @click="exportTemplate(row.type)" :loading="row.exporting">
+                  <el-icon><Download /></el-icon>导出当前
+                </el-button>
+                <el-button size="small" type="primary" plain :disabled="!editable || !row.bundled_available"
+                  @click="importBundled(row)" :loading="row.importing">
+                  导入内置
+                </el-button>
+                <el-upload :auto-upload="false" :show-file-list="false" accept=".json" :disabled="!editable"
+                  @change="(f: UploadFile) => onTemplateFile(row, f)">
+                  <el-button size="small" :disabled="!editable">
+                    <el-icon><Upload /></el-icon>上传导入
+                  </el-button>
+                </el-upload>
+              </template>
+            </el-table-column>
+          </el-table>
+          <div v-if="templateMsg" class="template-msg">{{ templateMsg }}</div>
+        </el-card>
+      </el-col>
+    </el-row>
   </div>
 </template>
 
@@ -244,6 +286,17 @@ const vectorAvailable = ref(false)
 const savingClinic = ref(false)
 const dbPath = ref('')
 const counts = ref<Record<string, unknown>>({})
+
+interface TemplateType {
+  type: string
+  label: string
+  key: string
+  bundled_available: boolean
+  exporting?: boolean
+  importing?: boolean
+}
+const templateTypes = ref<TemplateType[]>([])
+const templateMsg = ref('')
 
 const connectionStatus = ref({ type: 'info' as 'success' | 'danger' | 'info', text: '未测试' })
 
@@ -283,6 +336,11 @@ onMounted(async () => {
   try {
     const res = await api.get<Record<string, unknown>>('/diagnosis/status')
     vectorAvailable.value = res.vector_store_available || false
+  } catch {}
+
+  // 内容模板类型列表（含内置模板是否可用），供「导入内置」按钮显隐
+  try {
+    templateTypes.value = await api.get<TemplateType[]>('/templates')
   } catch {}
 })
 
@@ -432,6 +490,64 @@ async function resetData() {
     await api.post('/backup/reset')
     ElMessage.success('数据已清空')
   } catch {}
+}
+
+async function exportTemplate(type: string) {
+  const t = templateTypes.value.find((x) => x.type === type)
+  if (t) t.exporting = true
+  try {
+    const res = await api.get<Blob>(`/templates/export/${type}`, { responseType: 'blob' })
+    const url = window.URL.createObjectURL(new Blob([res]))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `tcm_template_${type}.json`
+    link.click()
+    window.URL.revokeObjectURL(url)
+    ElMessage.success('模板已导出')
+  } catch {
+    ElMessage.error('导出失败')
+  } finally {
+    if (t) t.exporting = false
+  }
+}
+
+async function importBundled(row: TemplateType) {
+  row.importing = true
+  try {
+    const res = await api.post<{ added: number; updated: number; skipped: number; errors: string[] }>(
+      `/templates/import?type=${row.type}&use_bundled=true`,
+    )
+    templateMsg.value =
+      `${row.label}：新增 ${res.added}，更新 ${res.updated}，跳过 ${res.skipped}` +
+      (res.errors.length ? `；异常 ${res.errors.length} 条` : '')
+    ElMessage.success('内置模板导入完成')
+  } catch {
+    ElMessage.error('导入失败')
+  } finally {
+    row.importing = false
+  }
+}
+
+async function onTemplateFile(row: TemplateType, file: UploadFile) {
+  const raw = file.raw
+  if (!raw) return
+  const fd = new FormData()
+  fd.append('file', raw)
+  row.importing = true
+  try {
+    const res = await api.post<{ added: number; updated: number; skipped: number; errors: string[] }>(
+      `/templates/import?type=${row.type}`,
+      fd,
+    )
+    templateMsg.value =
+      `${row.label}：新增 ${res.added}，更新 ${res.updated}，跳过 ${res.skipped}` +
+      (res.errors.length ? `；异常 ${res.errors.length} 条` : '')
+    ElMessage.success('模板导入完成')
+  } catch {
+    ElMessage.error('导入失败')
+  } finally {
+    row.importing = false
+  }
 }
 </script>
 

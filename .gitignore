@@ -49,6 +49,11 @@ tcm-backend.exe
 # 构建导出的镜像 tar（部署用，不入库）
 tcm-doctor-image.tar
 
+# ---- 内容数据模板（不入库：用户按倪海厦人纪调整后作为模板导入，默认纯框架）----
+# 这些 JSON 仍可随发行包/本地存在，作为「内置模板」在设置页一键导入；但源码仓库不追踪，避免大体积临床数据入库与版权风险。
+backend/app/data/*.json
+backend/app/data/books/*.json
+
 # 误写入根目录的 docker 构建输出碎片（调试残留，勿入库）
 =
 CACHED

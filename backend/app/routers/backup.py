@@ -135,8 +135,9 @@ def reset_data(
 
     db.commit()
 
-    # 重新导入种子数据（含字典与腧穴，M4）
+    # 重新初始化系统骨架（账号与字典脚手架）；内容数据（药材/中药方库/针灸方库/穴位/知识库）
+    # 不再自动恢复，清空后即为纯框架，可在「设置 → 内容模板」重新导入模板。
     from app.seed import seed_all
     seed_all()
 
-    return {"message": "数据已清空并重新初始化"}
+    return {"message": "数据已清空并重新初始化（内容库需重新导入模板）"}

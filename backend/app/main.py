@@ -26,6 +26,7 @@ from app.routers import patient, herb, prescription, knowledge, diagnosis, dicti
 from app.routers import acupoint_formula
 from app.routers import stats, backup, auth, followup_reminders, stock
 from app.routers import system_log
+from app.routers import templates
 from app.routers.auth import get_current_user
 
 WRITE_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
@@ -518,6 +519,7 @@ app.include_router(acupoint_formula.router, prefix="/api/v1")
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(followup_reminders.router, prefix="/api/v1")
 app.include_router(system_log.router, prefix="/api/v1")
+app.include_router(templates.router, prefix="/api/v1")
 
 
 def _clean_env_value(value: str) -> str:
