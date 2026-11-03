@@ -1,17 +1,21 @@
 <template>
   <div class="op-log">
-    <el-card shadow="hover">
+    <el-card shadow="hover" class="main-card">
       <template #header>
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-          <span>📋 操作日志</span>
-          <div style="display:flex;gap:8px;align-items:center;">
-            <el-button size="small" type="primary" @click="exportCsv"><el-icon><Download /></el-icon> 导出CSV</el-button>
-            <div style="display:flex;gap:4px;align-items:center;">
-              <el-input-number v-model="keepDays" :min="1" :max="3650" controls-position="right" size="small" style="width:100px" />
-              <span style="font-size:12px;color:#999;">天</span>
+        <div class="tcm-head">
+          <div class="tcm-head__title">
+            <span class="tcm-head__icon">📋</span>
+            <span class="tcm-head__text">操作日志</span>
+            <el-tag size="small" effect="light" round class="tcm-head__count">{{ stats.total }} 条今日</el-tag>
+          </div>
+          <div class="tcm-head__actions">
+            <el-button type="primary" @click="exportCsv"><el-icon><Download /></el-icon> 导出 CSV</el-button>
+            <div class="clean-group">
+              <el-input-number v-model="keepDays" :min="1" :max="3650" controls-position="right" class="keep-days" />
+              <span class="clean-unit">天</span>
               <el-popconfirm title="确认清理旧日志？" @confirm="clean">
                 <template #reference>
-                  <el-button size="small" type="danger"><el-icon><Delete /></el-icon> 清理</el-button>
+                  <el-button type="danger" plain><el-icon><Delete /></el-icon> 清理</el-button>
                 </template>
               </el-popconfirm>
             </div>
@@ -26,43 +30,31 @@
         <div class="stat-item"><span class="num">{{ stats.active_users }}</span><span class="lbl">活跃用户</span></div>
       </div>
 
-      <el-form :inline="true" @submit.prevent="load">
-        <el-form-item label="只看">
-          <el-radio-group v-model="tab" @change="load">
-            <el-radio-button label="关键操作" value="write" />
-            <el-radio-button label="仅异常" value="error" />
-            <el-radio-button label="全部" value="all" />
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item>
-          <el-select v-model="level" placeholder="级别" clearable style="width:110px" @change="load">
-            <el-option label="INFO" value="INFO" />
-            <el-option label="WARN" value="WARN" />
-            <el-option label="ERROR" value="ERROR" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="操作人">
-          <el-select v-model="userId" placeholder="全部用户" clearable filterable style="width:140px" @change="load">
-            <el-option v-for="u in userOptions" :key="u.id" :label="u.name" :value="String(u.id)" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="动作">
-          <el-select v-model="action" placeholder="全部动作" clearable filterable style="width:150px" @change="load">
-            <el-option v-for="a in actionOptions" :key="a" :label="a" :value="a" />
-          </el-select>
-        </el-form-item>
-        <el-form-item>
-          <el-input v-model="keyword" placeholder="用户名/对象/接口/消息" clearable @clear="load" style="width:200px" />
-        </el-form-item>
-        <el-form-item>
-          <el-date-picker v-model="range" type="daterange" value-format="YYYY-MM-DD" range-separator="至" start-placeholder="起始" end-placeholder="结束" style="width:240px" />
-        </el-form-item>
-        <el-form-item>
+      <div class="tcm-filter">
+        <el-radio-group v-model="tab" @change="load">
+          <el-radio-button label="关键操作" value="write" />
+          <el-radio-button label="仅异常" value="error" />
+          <el-radio-button label="全部" value="all" />
+        </el-radio-group>
+        <el-select v-model="level" placeholder="全部级别" clearable class="filter-mini" @change="load">
+          <el-option label="INFO" value="INFO" />
+          <el-option label="WARN" value="WARN" />
+          <el-option label="ERROR" value="ERROR" />
+        </el-select>
+        <el-select v-model="userId" placeholder="全部用户" clearable filterable class="filter-small" @change="load">
+          <el-option v-for="u in userOptions" :key="u.id" :label="u.name" :value="String(u.id)" />
+        </el-select>
+        <el-select v-model="action" placeholder="全部动作" clearable filterable class="filter-small" @change="load">
+          <el-option v-for="a in actionOptions" :key="a" :label="a" :value="a" />
+        </el-select>
+        <el-input v-model="keyword" placeholder="用户名/对象/接口/消息" clearable class="filter-search" @clear="load" />
+        <el-date-picker v-model="range" type="daterange" value-format="YYYY-MM-DD" range-separator="至" start-placeholder="起始" end-placeholder="结束" class="filter-range" />
+        <div class="filter-actions">
           <el-button type="primary" @click="load">查询</el-button>
-        </el-form-item>
-      </el-form>
+        </div>
+      </div>
 
-      <el-table v-if="!isMobile" :data="logs" stripe size="small" style="width:100%" empty-text="暂无日志"
+      <el-table v-if="!isMobile" :data="logs" class="tcm-table" size="small" style="width:100%" empty-text="暂无日志"
                 :row-class-name="rowCls" @expand-change="() => {}">
         <el-table-column type="expand">
           <template #default="{ row }">
@@ -294,6 +286,17 @@ onBeforeUnmount(() => {
 
 <style scoped lang="scss">
 .op-log {
+  .main-card {
+    border-radius: 12px;
+    border: 1px solid #f0e4d6;
+  }
+  .clean-group { display: flex; align-items: center; gap: 6px; }
+  .keep-days { width: 100px; }
+  .clean-unit { font-size: 12px; color: #a08b76; }
+  .filter-mini { width: 110px; }
+  .filter-small { width: 150px; }
+  .filter-search { width: 200px; }
+  .filter-range { width: 240px; }
   .stats-bar {
     display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px;
   }

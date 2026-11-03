@@ -102,7 +102,7 @@
         </el-descriptions>
 
         <el-divider content-position="left">配穴组成</el-divider>
-        <el-table v-if="(currentFormula.composition?.acupoints || []).length" :data="currentFormula.composition.acupoints" stripe size="small">
+        <el-table v-if="(currentFormula.composition?.acupoints || []).length" :data="currentFormula.composition.acupoints" class="tcm-table" size="small">
           <el-table-column type="index" label="#" width="50" />
           <el-table-column prop="acupoint_name" label="穴位" width="120" />
           <el-table-column prop="technique" label="针法" width="120">

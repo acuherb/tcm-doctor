@@ -198,7 +198,7 @@
             <el-descriptions-item label="煎法">{{ currentPrescription.preparation_method }}</el-descriptions-item>
             <el-descriptions-item label="服法">{{ currentPrescription.administration || '-' }}</el-descriptions-item>
           </el-descriptions>
-          <el-table :data="currentPrescription.items || []" stripe style="margin-top:12px;" size="small">
+          <el-table :data="currentPrescription.items || []" class="tcm-table" style="margin-top:12px;" size="small">
             <el-table-column prop="herb_name" label="药味" width="100" />
             <el-table-column prop="dose" label="剂量(g)" width="90" />
             <el-table-column prop="special_method" label="煎法" width="80">
@@ -224,7 +224,7 @@
             <el-descriptions-item v-if="currentPrescription.treatment_frequency" label="操作频次">{{ currentPrescription.treatment_frequency }}</el-descriptions-item>
             <el-descriptions-item v-if="currentPrescription.treatment_days" label="疗程天数">{{ currentPrescription.treatment_days }} 天</el-descriptions-item>
           </el-descriptions>
-          <el-table v-if="(currentPrescription.acupoints || []).length" :data="currentPrescription.acupoints || []" stripe size="small" style="margin-top:12px;">
+          <el-table v-if="(currentPrescription.acupoints || []).length" :data="currentPrescription.acupoints || []" class="tcm-table" size="small" style="margin-top:12px;">
             <el-table-column type="index" label="#" width="50" />
             <el-table-column prop="acupoint_name" label="穴位" width="120" />
             <el-table-column prop="technique" label="针法" width="120">

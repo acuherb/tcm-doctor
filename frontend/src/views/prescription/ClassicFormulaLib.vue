@@ -92,7 +92,7 @@
 
         <el-divider content-position="left">组成</el-divider>
         <div class="formula-herbs" v-if="currentFormula.composition?.herbs">
-          <el-table :data="currentFormula.composition.herbs" stripe size="small">
+          <el-table :data="currentFormula.composition.herbs" class="tcm-table" size="small">
             <el-table-column prop="herb" label="药味" width="100" />
             <el-table-column prop="dose" label="剂量" width="80">
               <template #default="{ row }">{{ row.dose ? row.dose + 'g' : '-' }}</template>

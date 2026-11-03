@@ -7,15 +7,22 @@
       title="此页面直接进入时未关联患者，问诊结果将无处归档。请选择一位患者后再开始，结果会自动存入其「问诊十问」病例链。"
       type="warning"
       :closable="false"
-      style="margin-top: 16px;"
+      class="page-alert"
     />
-    <el-card v-if="!hasPatient" shadow="hover" style="margin-top: 12px;">
-      <template #header><span>👤 选择评估对象</span></template>
+    <el-card v-if="!hasPatient" shadow="hover" class="main-card">
+      <template #header>
+        <div class="tcm-head compact">
+          <div class="tcm-head__title">
+            <span class="tcm-head__icon">👤</span>
+            <span class="tcm-head__text">选择评估对象</span>
+          </div>
+        </div>
+      </template>
       <el-select
         v-model="patientId"
         placeholder="请选择患者"
         filterable
-        style="width: 300px;"
+        class="filter-sel"
         :disabled="submitting"
       >
         <el-option
@@ -25,24 +32,36 @@
           :label="p.name + (p.gender ? ' · ' + p.gender : '')"
         />
       </el-select>
-      <span v-if="patients.length === 0" class="text-muted" style="margin-left:12px;">暂无患者，请先到「患者管理」建档</span>
+      <span v-if="patients.length === 0" class="text-muted">暂无患者，请先到「患者管理」建档</span>
     </el-card>
-    <el-card v-else-if="hasPatient" shadow="hover" style="margin-top: 12px;">
-      <template #header><span>🩺 评估对象</span></template>
-      <span style="font-size:14px;">为患者 <el-tag type="success" size="large">{{ currentPatientName }}</el-tag> 辨证，结果将自动归档到其病例</span>
+    <el-card v-else-if="hasPatient" shadow="hover" class="main-card">
+      <template #header>
+        <div class="tcm-head compact">
+          <div class="tcm-head__title">
+            <span class="tcm-head__icon">🩺</span>
+            <span class="tcm-head__text">评估对象</span>
+          </div>
+        </div>
+      </template>
+      <span class="patient-line">为患者 <el-tag type="success" size="large">{{ currentPatientName }}</el-tag> 辨证，结果将自动归档到其病例</span>
     </el-card>
 
-    <el-card shadow="hover" style="margin-top: 20px;">
+    <el-card shadow="hover" class="main-card spaced">
       <template #header>
-        <span>🩺 倪海厦·问诊十问</span>
-        <el-tag type="warning" size="small" style="margin-left: 8px;">共10问</el-tag>
+        <div class="tcm-head compact">
+          <div class="tcm-head__title">
+            <span class="tcm-head__icon">🩺</span>
+            <span class="tcm-head__text">倪海厦·问诊十问</span>
+            <el-tag type="warning" size="small" effect="light" round class="tcm-head__count">共 10 问</el-tag>
+          </div>
+        </div>
       </template>
 
       <el-alert
         title="请按经方家问诊方式，逐项说明你身体的感觉。经方家即可不看到你，仅依这些主要症状来辨证开方。"
         type="warning"
         :closable="false"
-        style="margin-bottom: 20px;"
+        class="inner-alert"
       />
 
       <div v-for="q in questions" :key="q.key" class="question-group">
@@ -68,17 +87,25 @@
     </el-card>
 
     <!-- 结果 -->
-    <el-card v-if="result" shadow="hover" style="margin-top: 20px;" class="result-card">
-      <template #header><span>📊 偏性画像</span></template>
+    <el-card v-if="result" shadow="hover" class="main-card spaced result-card">
+      <template #header>
+        <div class="tcm-head compact">
+          <div class="tcm-head__title">
+            <span class="tcm-head__icon">📊</span>
+            <span class="tcm-head__text">偏性画像</span>
+            <el-tag type="warning" size="small" effect="light" round class="tcm-head__count">{{ result.primary_type }}</el-tag>
+          </div>
+        </div>
+      </template>
       <div class="result-primary">
         <span class="result-label">主归偏性：</span>
         <el-tag type="warning" size="large">{{ result.primary_type }}</el-tag>
-        <el-tag v-for="st in result.secondary_types" :key="st" size="medium" style="margin-left:6px;">倾向·{{ st }}</el-tag>
+        <el-tag v-for="st in result.secondary_types" :key="st" size="medium" class="sec-tag">倾向·{{ st }}</el-tag>
       </div>
 
       <template v-if="result.detail && result.detail.labels && result.detail.labels.length">
         <div class="result-labels">
-          <el-tag v-for="lb in result.detail.labels" :key="lb" type="info" effect="plain" size="small" style="margin-right:6px;">{{ lb }}</el-tag>
+          <el-tag v-for="lb in result.detail.labels" :key="lb" type="info" effect="plain" size="small" class="lb-tag">{{ lb }}</el-tag>
         </div>
       </template>
 
@@ -93,7 +120,7 @@
       <div class="meridian-bars">
         <div v-for="(score, m) in result.scores" :key="m" class="bar-row">
           <span class="bar-label">{{ m }}</span>
-          <el-progress :percentage="meridianPct(score, maxMeridian)" :stroke-width="16" style="flex:1;max-width:420px;" :color="meridianColor(score)" />
+          <el-progress :percentage="meridianPct(score, maxMeridian)" :stroke-width="16" class="bar-track" :color="meridianColor(score)" />
           <span class="bar-value">{{ score }} 处</span>
         </div>
       </div>
@@ -281,22 +308,50 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="scss">
+.constitution-scale {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+
+  .page-alert { margin-top: 16px; }
+
+  .main-card {
+    border-radius: 12px;
+    border: 1px solid #f0e4d6;
+
+    :deep(.el-card__header) {
+      padding: 0;
+      border-bottom: none;
+    }
+  }
+
+  .spaced { margin-top: 4px; }
+
+  .filter-sel { width: 300px; }
+  .patient-line { font-size: 14px; color: #4a3628; }
+  .inner-alert { margin-bottom: 20px; }
+
+  .sec-tag { margin-left: 6px; }
+  .lb-tag { margin-right: 6px; }
+  .bar-track { flex: 1; max-width: 420px; }
+}
+
 .question-group {
   margin-bottom: 24px;
   padding: 12px 16px;
   border-radius: 8px;
-  background: #faf8f6;
-  border-left: 3px solid #8B4513;
+  background: #fdf8f3;
+  border-left: 3px solid #8b5e34;
 
   .group-title {
     font-size: 15px;
     font-weight: 600;
-    color: #8B4513;
+    color: #8b5e34;
     margin-bottom: 4px;
   }
   .group-topic {
     font-size: 13px;
-    color: #888;
+    color: #8a7563;
     margin-bottom: 12px;
   }
   .options-wrap {
@@ -328,10 +383,11 @@ onMounted(async () => {
   .result-label {
     font-weight: 600;
     margin-right: 8px;
+    color: #2c1810;
   }
   .findings {
     padding-left: 18px;
-    color: #555;
+    color: #6b5644;
     font-size: 14px;
     line-height: 1.9;
     li { margin-bottom: 2px; }
@@ -342,14 +398,15 @@ onMounted(async () => {
       align-items: center;
       gap: 12px;
       margin-bottom: 8px;
-      .bar-label { width: 48px; text-align: right; font-size: 13px; }
-      .bar-value { width: 40px; font-size: 13px; color: #666; }
+      .bar-label { width: 48px; text-align: right; font-size: 13px; color: #6b5644; }
+      .bar-value { width: 40px; font-size: 13px; color: #8a7563; font-variant-numeric: tabular-nums; }
     }
   }
   .suggestion {
-    color: #8B4513;
+    color: #8b5e34;
     font-size: 14px;
     line-height: 1.8;
   }
+  :deep(.el-divider__text) { color: #8a7563; background: #fff; }
 }
 </style>

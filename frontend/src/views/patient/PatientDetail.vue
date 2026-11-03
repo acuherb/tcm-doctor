@@ -1021,6 +1021,9 @@ function fmtTime(iso?: string): string {
 
 <style scoped>
 .text-muted { color: #c0c4cc; }
+.patient-detail :deep(.el-card) { border-radius: 12px; border: 1px solid #f0e4d6; }
+.patient-detail :deep(.el-card__header) { padding: 0; background: linear-gradient(135deg, #fdf8f3, #f7efe6); border-bottom: 1px solid #f0e4d6; }
+.reminder-hint { font-size: 12px; color: #a08b76; }
 .xw-tag {
   display: inline-block;
   padding: 0 8px;

@@ -1,17 +1,20 @@
 <template>
   <div class="prescription-editor">
     <!-- 左侧：处方表单 -->
-    <el-card shadow="hover">
+    <el-card shadow="hover" class="main-card">
       <template #header>
-        <div class="editor-header" style="display:flex;justify-content:space-between;align-items:center;">
-          <span>📝 {{ prescriptionId ? '编辑处方' : '开具处方' }}</span>
-          <div class="editor-actions" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-            <span v-if="estimatedTotal > 0" title="中药售价×剂量×剂数 + 针灸费用（预估）" style="font-size:14px;font-weight:600;color:#8B4513;">
+        <div class="tcm-head">
+          <div class="tcm-head__title">
+            <span class="tcm-head__icon">📝</span>
+            <span class="tcm-head__text">{{ prescriptionId ? '编辑处方' : '开具处方' }}</span>
+          </div>
+          <div class="tcm-head__actions">
+            <span v-if="estimatedTotal > 0" class="est-total" title="中药售价×剂量×剂数 + 针灸费用（预估）">
               预估合计 ¥{{ estimatedTotal }}
             </span>
-            <el-button v-if="editable" size="small" @click="loadFromFormula">从中药方导入</el-button>
-            <el-button v-if="editable" size="small" @click="loadFromAcupointFormula">从针灸方导入</el-button>
-            <el-button v-if="editable" type="primary" size="small" @click="submitPrescription" :loading="submitting">
+            <el-button v-if="editable" @click="loadFromFormula">从中药方导入</el-button>
+            <el-button v-if="editable" @click="loadFromAcupointFormula">从针灸方导入</el-button>
+            <el-button v-if="editable" type="primary" @click="submitPrescription" :loading="submitting">
               {{ prescriptionId ? '保存修改' : '提交处方' }}
             </el-button>
           </div>
@@ -246,11 +249,16 @@
     </el-card>
 
     <!-- 右侧：配伍安全检查结果 -->
-    <el-card shadow="hover" style="margin-top:16px;">
+    <el-card shadow="hover" class="side-card">
       <template #header>
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-          <span>🔍 安全检查</span>
-          <el-button size="small" @click="runSafetyCheck">重新检查</el-button>
+        <div class="tcm-head compact">
+          <div class="tcm-head__title">
+            <span class="tcm-head__icon">🔍</span>
+            <span class="tcm-head__text">安全检查</span>
+          </div>
+          <div class="tcm-head__actions">
+            <el-button @click="runSafetyCheck">重新检查</el-button>
+          </div>
         </div>
       </template>
 
@@ -289,7 +297,7 @@
     <!-- 中药方导入对话框 -->
     <el-dialog v-model="formulaDialogVisible" title="📖 从中药方导入" width="650px" destroy-on-close>
       <el-input v-model="formulaSearch" placeholder="搜索方名" clearable style="margin-bottom:12px;" />
-      <el-table :data="filteredFormulas" stripe size="small" @row-click="selectFormula"
+      <el-table :data="filteredFormulas" class="tcm-table" size="small" @row-click="selectFormula"
         highlight-current-row style="cursor:pointer;">
         <el-table-column prop="name" label="方名" width="120" />
         <el-table-column prop="source" label="出处" width="100" />
@@ -307,7 +315,7 @@
     <!-- 针灸方导入对话框 -->
     <el-dialog v-model="acupointFormulaDialogVisible" title="🪡 从针灸方导入" width="650px" destroy-on-close>
       <el-input v-model="acupointFormulaSearch" placeholder="搜索针方名 / 功效" clearable style="margin-bottom:12px;" />
-      <el-table :data="filteredAcupointFormulas" stripe size="small" @row-click="selectAcupointFormula"
+      <el-table :data="filteredAcupointFormulas" class="tcm-table" size="small" @row-click="selectAcupointFormula"
         highlight-current-row style="cursor:pointer;">
         <el-table-column prop="name" label="针方名" width="140" />
         <el-table-column prop="source" label="出处" width="100" />
@@ -995,6 +1003,36 @@ function applyStructuredFormula(f: any) {
 
 <style scoped lang="scss">
 .prescription-editor {
+  .main-card {
+    border-radius: 12px;
+    border: 1px solid #f0e4d6;
+
+    :deep(.el-card__header) {
+      padding: 0;
+      background: linear-gradient(135deg, #fdf8f3, #f7efe6);
+      border-bottom: 1px solid #f0e4d6;
+    }
+  }
+
+  .est-total {
+    font-size: 14px;
+    font-weight: 600;
+    color: #8b5e34;
+    white-space: nowrap;
+  }
+
+  .side-card {
+    margin-top: 16px;
+    border-radius: 12px;
+    border: 1px solid #f0e4d6;
+
+    :deep(.el-card__header) {
+      padding: 0;
+      background: linear-gradient(135deg, #fdf8f3, #f7efe6);
+      border-bottom: 1px solid #f0e4d6;
+    }
+  }
+
   .herb-items {
     .herb-item-row {
       padding: 8px 0;

@@ -1,23 +1,31 @@
 <template>
   <div class="dictionary-manage">
-    <el-card shadow="hover">
+    <el-card shadow="hover" class="main-card">
       <template #header>
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-          <span>🗂️ 数据字典</span>
-          <el-button v-if="editable" type="primary" size="small" @click="openCreate">＋ 新增词条</el-button>
+        <div class="tcm-head">
+          <div class="tcm-head__title">
+            <span class="tcm-head__icon">🗂️</span>
+            <span class="tcm-head__text">数据字典</span>
+            <el-tag size="small" effect="light" round class="tcm-head__count">{{ terms.length }} 条</el-tag>
+          </div>
+          <div class="tcm-head__actions">
+            <el-button v-if="editable" type="primary" @click="openCreate">＋ 新增词条</el-button>
+          </div>
         </div>
       </template>
 
-      <el-radio-group v-model="activeType" @change="loadTerms" style="margin-bottom:16px">
-        <el-radio-button value="syndrome">证型</el-radio-button>
-        <el-radio-button value="tongue">舌象</el-radio-button>
-        <el-radio-button value="pulse">脉象</el-radio-button>
-        <el-radio-button value="tag">患者标签</el-radio-button>
-        <el-radio-button value="herb_tag">药材性味</el-radio-button>
-        <el-radio-button value="acupoint_tag">穴位属性</el-radio-button>
-      </el-radio-group>
+      <div class="tcm-filter">
+        <el-radio-group v-model="activeType" @change="loadTerms">
+          <el-radio-button value="syndrome">证型</el-radio-button>
+          <el-radio-button value="tongue">舌象</el-radio-button>
+          <el-radio-button value="pulse">脉象</el-radio-button>
+          <el-radio-button value="tag">患者标签</el-radio-button>
+          <el-radio-button value="herb_tag">药材性味</el-radio-button>
+          <el-radio-button value="acupoint_tag">穴位属性</el-radio-button>
+        </el-radio-group>
+      </div>
 
-      <el-table v-if="!isMobile" :data="terms" border stripe>
+      <el-table v-if="!isMobile" :data="terms" class="tcm-table" border>
         <el-table-column prop="name" label="词项" min-width="140" />
         <el-table-column v-if="activeType === 'syndrome'" label="六经" width="150">
           <template #default="{ row }">
@@ -426,6 +434,14 @@ onMounted(loadTerms)
 </script>
 
 <style scoped>
+/* ---- 页面卡片 ---- */
+.main-card { border-radius: 12px; border: 1px solid #f0e4d6; }
+.main-card :deep(.el-card__header) {
+  padding: 0;
+  background: linear-gradient(135deg, #fdf8f3, #f7efe6);
+  border-bottom: 1px solid #f0e4d6;
+}
+
 /* ---- 移动端卡片视图 ---- */
 .dict-cards {
   display: flex;
