@@ -348,14 +348,14 @@ onMounted(updateViewport)
 onMounted(() => window.addEventListener('resize', updateViewport))
 onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
 
-const prescriptions = ref<any[]>([])
+const prescriptions = ref<Prescription[]>([])
 const statusFilter = ref('')
 const patientFilter = ref<number | null>(null)
-const patients = ref<any[]>([])
+const patients = ref<Patient[]>([])
 const patientsLoading = ref(false)
 const detailVisible = ref(false)
 const printVisible = ref(false)
-const currentPrescription = ref<any>(null)
+const currentPrescription = ref<Prescription | null>(null)
 const printRef = ref<HTMLElement>()
 const clinicName = ref('')
 const doctorName = ref('')
@@ -377,7 +377,7 @@ function formatTime(t: string) {
 }
 
 // 留针时间：数据里可能已带「分钟/分」，避免重复拼出「20分钟 分钟」
-function formatRetention(v: any) {
+function formatRetention(v: number | string | null) {
   if (v === null || v === undefined) return ''
   const s = String(v).trim()
   if (!s) return ''
@@ -419,12 +419,12 @@ async function searchPatients(query: string) {
   patientsLoading.value = false
 }
 
-function viewDetail(row: any) {
+function viewDetail(row: Prescription) {
   currentPrescription.value = row
   detailVisible.value = true
 }
 
-async function reviewPrescription(row: any) {
+async function reviewPrescription(row: Prescription) {
   try {
     await ElMessageBox.confirm(`确认审核处方 #${row.id}「${row.formula_name || '自拟方'}」？`, '审核确认', {
       confirmButtonText: '确认审核',
@@ -437,7 +437,7 @@ async function reviewPrescription(row: any) {
   } catch {}
 }
 
-async function dispensePrescription(row: any) {
+async function dispensePrescription(row: Prescription) {
   try {
     await ElMessageBox.confirm(
       `确认发药？将自动扣减库存。处方 #${row.id}「${row.formula_name || '自拟方'}」`,
@@ -450,7 +450,7 @@ async function dispensePrescription(row: any) {
   } catch {}
 }
 
-function printPrescription(row: any) {
+function printPrescription(row: Prescription) {
   currentPrescription.value = row
   printVisible.value = true
 }

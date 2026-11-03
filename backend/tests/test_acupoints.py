@@ -9,11 +9,11 @@ from app.models.acupuncture import Acupoint
 
 
 def test_acupoint_tag_meta_dimensions(client, auth_headers):
-    """/acupoints/tags/meta 返回 来源/归经/部位/类型 四维度（种子已写入 54 条 acupoint_tag）。"""
+    """/acupoints/tags/meta 返回 来源/归经/部位 三受控维度（类型已改为自由文本，不再受控）。"""
     r = client.get("/api/v1/acupoints/tags/meta", headers=auth_headers)
     assert r.status_code == 200, r.text
     dims = r.json()["dimensions"]
-    assert set(dims.keys()) == {"source", "meridian", "region", "point_type"}
+    assert set(dims.keys()) == {"source", "meridian", "region"}
     assert dims["source"]["label"] == "来源"
     opts = dims["source"]["options"]
     assert len(opts) == 4
@@ -23,7 +23,7 @@ def test_acupoint_tag_meta_dimensions(client, auth_headers):
         return any(o["value"] == name for o in dims[dimension]["options"])
     assert has("meridian", "董氏奇穴")
     assert has("region", "一一部位")
-    assert has("point_type", "特效穴")
+    assert "point_type" not in dims
 
 
 def test_acupoint_create_with_new_fields(client, auth_headers, db_session):

@@ -172,7 +172,7 @@ const submitting = ref(false)
 
 const selectedItem = computed(() => items.value.find((i: StockItem) => i.id === selectedItemId.value) || null)
 const unit = computed(() => selectedItem.value?.unit || '')
-const totalBefore = computed(() => batchRows.value.reduce((s: number, b: any) => s + Number(b.quantity || 0), 0))
+const totalBefore = computed(() => batchRows.value.reduce((s: number, b: StockBatch) => s + Number(b.quantity || 0), 0))
 
 const fixPageSize = 20
 const fixShown = ref(fixPageSize)
@@ -184,7 +184,7 @@ function loadMoreFix() {
 function diffOf(row: StockItem) {
   return Math.round((Number(row.counted ?? 0) - Number(row.quantity || 0)) * 100) / 100
 }
-function diffClass(row: any) {
+function diffClass(row: StockItem) {
   const d = diffOf(row)
   if (d > 0) return 'in-qty'
   if (d < 0) return 'out-qty'
@@ -238,7 +238,17 @@ async function submitCheck() {
 const fixVisible = ref(false)
 const fixSubmitting = ref(false)
 const fixBatchId = ref<number | null>(null)
-const fixForm = ref<any>({
+interface FixBatchForm {
+  batch_number: string
+  unit_price: number | null
+  expiry_date: string
+  supplier_id: number | null
+  location: string
+  status: string
+  reason: string
+  quantity: number | null
+}
+const fixForm = ref<FixBatchForm>({
   batch_number: '', unit_price: null, expiry_date: '', supplier_id: null,
   location: '', status: '正常', reason: '', quantity: null,
 })

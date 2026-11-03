@@ -64,6 +64,7 @@ import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { User, Lock } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/store/auth'
 import api from '@/utils/api'
+import { applyBranding } from '@/utils/branding'
 import type { AppConfig } from '@/types'
 
 const router = useRouter()
@@ -77,16 +78,7 @@ onMounted(async () => {
     const res = await api.get<AppConfig>('/config')
     clinicName.value = res.clinic_name?.trim() || ''
     clinicLogo.value = res.clinic_logo || ''
-    document.title = clinicName.value || '中医诊所管理平台'
-    if (clinicLogo.value) {
-      let link = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
-      if (!link) {
-        link = document.createElement('link')
-        link.rel = 'icon'
-        document.head.appendChild(link)
-      }
-      link.href = clinicLogo.value
-    }
+    applyBranding(clinicName.value, clinicLogo.value)
   } catch {}
 })
 

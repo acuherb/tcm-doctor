@@ -13,7 +13,7 @@
             <el-select v-model="typeFilter" placeholder="全部类别" clearable class="filter-sel" @change="loadItems(true)">
               <el-option label="全部" value="" />
               <el-option v-for="c in categories" :key="c.id" :label="c.name" :value="c.name">
-                <span class="opt-dot" :style="{ backgroundColor: categoryColor(c.name) }" />{{ c.name }}
+                <span class="opt-dot" :style="{ backgroundColor: dotColorOf(c.name) }"></span>{{ c.name }}
               </el-option>
             </el-select>
             <el-button v-if="editable" type="primary" @click="openCreate">
@@ -35,7 +35,7 @@
       <el-table v-if="!isMobile" class="tcm-table" :data="filteredItems" style="width:100%" empty-text="暂无物品">
         <el-table-column prop="item_type" label="类别" width="110">
           <template #default="{ row }">
-            <span class="xw-tag" :style="categoryChipStyle(row.item_type)">{{ row.item_type }}</span>
+            <span class="xw-tag" :style="chipStyleOf(row.item_type)">{{ row.item_type }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="name" label="名称" min-width="140" show-overflow-tooltip />
@@ -70,7 +70,7 @@
         <div v-for="row in filteredItems" :key="row.id" class="card">
           <div class="card-head">
             <span class="card-name">{{ row.name }}</span>
-            <span class="xw-tag" :style="categoryChipStyle(row.item_type)">{{ row.item_type }}</span>
+            <span class="xw-tag" :style="chipStyleOf(row.item_type)">{{ row.item_type }}</span>
           </div>
           <div class="card-body">
             <div class="card-row"><span class="label">规格</span><span class="value">{{ row.spec || '-' }}</span></div>
@@ -107,7 +107,7 @@
         <el-form-item label="类别" prop="item_type">
           <el-select v-model="itemForm.item_type" filterable style="width:100%">
             <el-option v-for="c in categories" :key="c.id" :label="c.name" :value="c.name">
-              <span class="opt-dot" :style="{ backgroundColor: categoryColor(c.name) }" />{{ c.name }}
+              <span class="opt-dot" :style="{ backgroundColor: dotColorOf(c.name) }"></span>{{ c.name }}
             </el-option>
           </el-select>
         </el-form-item>
@@ -134,8 +134,8 @@
             <span style="white-space:nowrap;color:#8a7563;font-size:13px;flex-shrink:0">{{ itemForm.unit }}</span>
           </div>
         </el-form-item>
-        <el-form-item label="关联药材" v-if="itemForm.item_type === '中药'">
-          <el-select v-model="itemForm.herb_id" filterable clearable placeholder="可选（仅中药）" style="width:100%">
+        <el-form-item label="关联药材" v-if="isHerbCategory(itemForm.item_type)">
+          <el-select v-model="itemForm.herb_id" filterable clearable placeholder="可选（仅中药材）" style="width:100%">
             <el-option v-for="h in herbs" :key="h.id" :label="h.name" :value="h.id" />
           </el-select>
         </el-form-item>
@@ -166,7 +166,7 @@ import { useAuthStore } from '@/store/auth'
 import type { StockItem, Herb, Supplier, Paginated, StockOption } from '@/types'
 import { useStockOptionColors } from '@/utils/dictColors'
 
-const { categoryColor, categoryChipStyle } = useStockOptionColors()
+const { categoryChipStyle, categoryColor, stockOptionVersion } = useStockOptionColors()
 
 const auth = useAuthStore()
 const editable = computed(() => auth.canWrite('stock'))
@@ -186,6 +186,18 @@ const filteredItems = computed(() => items.value)
 
 function isLow(row: StockItem) {
   return row.min_stock != null && row.min_stock > 0 && Number(row.total_quantity) < Number(row.min_stock)
+}
+
+// 读取选项版本号，使类别标签色在「库存选项」改自定义色后即时重算
+function chipStyleOf(name: string) {
+  void stockOptionVersion.value
+  return categoryChipStyle(name)
+}
+
+// 下拉色点只需要纯色值，不能直接给 categoryChipStyle 的复合样式
+function dotColorOf(name: string) {
+  void stockOptionVersion.value
+  return categoryColor(name)
 }
 
 const isMobile = ref(false)
@@ -248,13 +260,20 @@ async function loadOptions() {
   } catch {}
 }
 
+// 类别名可在「库存选项」里自由改名，故按「中药/中药材」两种写法判断是否为药材类，
+// 避免写死单一名称后改名即失效（如把类别改成'中药材'就找不到关联药材入口）
+const HERB_CATEGORY_NAMES = ['中药', '中药材']
+function isHerbCategory(name: string) {
+  return HERB_CATEGORY_NAMES.includes(name)
+}
+
 // ── 新增 / 编辑 物品 ──
 const itemVisible = ref(false)
 const isEdit = ref(false)
 const itemFormRef = ref()
 const activeItemId = ref<number | null>(null)
 const itemForm = ref({
-  item_type: '中药', name: '', spec: '', unit: 'g',
+  item_type: '', name: '', spec: '', unit: 'g',
   sell_price: null as number | null, min_stock: null as number | null, herb_id: null as number | null,
   default_supplier_id: null as number | null, barcode: '',
 })
@@ -267,7 +286,10 @@ const itemRules = {
 function openCreate() {
   isEdit.value = false
   activeItemId.value = null
-  itemForm.value = { item_type: '中药', name: '', spec: '', unit: 'g', sell_price: null, min_stock: null, herb_id: null, default_supplier_id: null, barcode: '' }
+  // 默认类别取选项表中第一个药材类，回退到首个类别，避免写死已改名的旧类别名
+  const herbCat = categories.value.find((c: StockOption) => isHerbCategory(c.name))
+  const defaultType = herbCat?.name || categories.value[0]?.name || ''
+  itemForm.value = { item_type: defaultType, name: '', spec: '', unit: 'g', sell_price: null, min_stock: null, herb_id: null, default_supplier_id: null, barcode: '' }
   itemVisible.value = true
 }
 function openEdit(row: StockItem) {
@@ -288,7 +310,7 @@ async function saveItem() {
     if (!valid) return
     submitting.value = true
     const payload = { ...itemForm.value }
-    if (payload.item_type !== '中药') payload.herb_id = null
+    if (!isHerbCategory(payload.item_type)) payload.herb_id = null
     try {
       if (isEdit.value) {
         await api.put(`/stock/items/${activeItemId.value}`, payload)

@@ -11,8 +11,9 @@
           <div class="tcm-head__actions">
             <el-button type="primary" @click="exportCsv"><el-icon><Download /></el-icon> 导出 CSV</el-button>
             <div class="clean-group">
-              <el-input-number v-model="keepDays" :min="1" :max="3650" controls-position="right" class="keep-days" />
-              <span class="clean-unit">天</span>
+              <el-input-number v-model="keepDays" :min="1" :max="3650" controls-position="right" class="keep-days">
+                <template #suffix><span class="keep-days__unit">天</span></template>
+              </el-input-number>
               <el-popconfirm title="确认清理旧日志？" @confirm="clean">
                 <template #reference>
                   <el-button type="danger" plain><el-icon><Delete /></el-icon> 清理</el-button>
@@ -293,7 +294,7 @@ onBeforeUnmount(() => {
   }
   .clean-group { display: flex; align-items: center; gap: 6px; }
   .keep-days { width: 100px; }
-  .clean-unit { font-size: 12px; color: #a08b76; }
+  .keep-days__unit { font-size: 12px; color: #a08b76; padding-left: 2px; }
   .filter-mini { width: 110px; }
   .filter-small { width: 150px; }
   .filter-search { width: 200px; }
@@ -360,6 +361,43 @@ onBeforeUnmount(() => {
 
 @media (max-width: 767px) {
   .op-log {
+    :deep(.tcm-head__actions) {
+      width: 100%;
+      flex-wrap: nowrap;
+      gap: 4px;
+    }
+    :deep(.tcm-head__actions > .el-button) {
+      flex: 0 0 auto;
+      margin-left: 0;
+      padding: 8px 6px;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    :deep(.tcm-head__actions > .el-button .el-icon) { margin-right: 2px; }
+    .clean-group {
+      flex: 1 1 auto;
+      min-width: 0;
+      gap: 4px;
+    }
+    .keep-days {
+      flex: 1 1 0;
+      width: auto;
+      min-width: 0;
+    }
+    :deep(.keep-days .el-input__inner) { padding: 0 38px 0 6px; font-size: 12px; }
+    :deep(.keep-days .el-input-number__increase),
+    :deep(.keep-days .el-input-number__decrease) { width: 16px; }
+    :deep(.keep-days .el-input__suffix) { right: 18px; }
+    :deep(.keep-days .el-input__suffix-inner) { pointer-events: none; }
+    .keep-days__unit { padding-left: 0; font-size: 11px; }
+    :deep(.clean-group .el-button) {
+      flex: 0 0 auto;
+      margin-left: 0;
+      padding: 8px 6px;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    :deep(.clean-group .el-button .el-icon) { margin-right: 2px; }
     :deep(.el-form--inline .el-form-item) { display: block; margin-right: 0; margin-bottom: 8px; }
     :deep(.el-form--inline .el-form-item__label) { display: block; padding: 0 0 4px; }
     :deep(.el-form--inline .el-form-item__content) { display: block; max-width: 100%; }

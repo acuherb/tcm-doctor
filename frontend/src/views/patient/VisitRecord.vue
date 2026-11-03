@@ -30,7 +30,7 @@
             <template v-if="lastVisitHint">{{ lastVisitHint }}</template>
             <el-button v-if="lastVisit && currentVisitId == null" size="small" type="warning" plain @click="applyLastVisitDraft">📋 参照上次</el-button>
             <span v-if="lastVisit && lastVisit.prescriptions && lastVisit.prescriptions.length" class="vit-last-rx">
-              上次处方：{{ lastVisit.prescriptions.map((r: any) => r.formula_name || r.id).join('、') }}
+              上次处方：{{ lastVisit.prescriptions.map((r: Prescription) => r.formula_name || r.id).join('、') }}
             </span>
           </div>
           <el-form :model="form" label-width="80px" label-position="top">
@@ -326,12 +326,12 @@ const props = defineProps<{
   patientId?: number
   patientName?: string
   patientTags?: string[]
-  patient?: any
+  patient?: Patient
   visitId?: number | null
-  parentVisit?: any
+  parentVisit?: Visit
   embedded?: boolean
 }>()
-const emit = defineEmits<{ saved: [any]; cancel: [] }>()
+const emit = defineEmits<{ saved: [Visit]; cancel: [] }>()
 const route = useRoute()
 const router = useRouter()
 const patientId = props.patientId ?? Number(route.params.id)
@@ -389,7 +389,7 @@ const syndromeTerms = computed(() => dictTerms.value.filter(t => t.term_type ===
 
 // 字典色：下拉色点 / 摘要证型标签（字典色优先，缺失回退默认色）
 const { termColor } = useDictColors()
-function dotColor(t: any): string {
+function dotColor(t: DictTerm): string {
   return termColor(t.name, t.term_type, t)
 }
 function chipStyle(name: string, type: 'tongue' | 'pulse' | 'syndrome'): Record<string, string> {
@@ -444,10 +444,10 @@ onMounted(async () => {
 })
 
 // 以父就诊(初诊)为底稿预填复诊表单
-function applyParentVisit(p: any) {
+function applyParentVisit(p: Visit) {
   form.value.visit_type = '复诊'
   form.value.parent_visit_id = p.id
-  const set = (k: string, v: any) => { if (v != null && v !== '') (form.value as Record<string, unknown>)[k] = v }
+  const set = (k: string, v: unknown) => { if (v != null && v !== '') (form.value as Record<string, unknown>)[k] = v }
   set('present_illness', p.present_illness)
   set('observation', p.observation)
   set('auscultation', p.auscultation)
@@ -469,16 +469,16 @@ const lastVisitHint = ref('')
 const lastVisit = ref<Visit | null>(null)
 
 // 可作为「本次复诊」父节点的初诊列表（parent_visit_id 为空者），供用户明确选择归属
-const rootVisits = computed<any[]>(() => {
+const rootVisits = computed<Visit[]>(() => {
   const cur = effectiveVisitId
   return (visits.value || [])
-    .filter((v: any) => v.parent_visit_id == null && v.id !== cur)
-    .sort((a: any, b: any) => b.visit_date.localeCompare(a.visit_date))
+    .filter((v: Visit) => v.parent_visit_id == null && v.id !== cur)
+    .sort((a: Visit, b: Visit) => b.visit_date.localeCompare(a.visit_date))
 })
 // 给定就诊，沿 parent 链找到其所属初诊根节点 id
-function findRootId(v: any): number {
+function findRootId(v: Visit): number {
   let cur = v
-  const byId = new Map((visits.value || []).map((x: any) => [x.id, x]))
+  const byId = new Map((visits.value || []).map((x: Visit) => [x.id, x]))
   while (cur && cur.parent_visit_id != null && byId.has(cur.parent_visit_id)) {
     cur = byId.get(cur.parent_visit_id)
   }
@@ -524,8 +524,8 @@ watch(
       return
     }
     const hit = visits.value
-      .filter((v: any) => v.tcm_disease && v.tcm_disease.trim() === d.trim())
-      .sort((a: any, b: any) => a.visit_date.localeCompare(b.visit_date))
+      .filter((v: Visit) => v.tcm_disease && v.tcm_disease.trim() === d.trim())
+      .sort((a: Visit, b: Visit) => a.visit_date.localeCompare(b.visit_date))
     if (hit.length) {
       form.value.visit_type = '复诊'
       // 自动关联该病种最近一次初诊（若用户未手动指定/未通过「＋复诊」预设则预填）
@@ -555,8 +555,8 @@ async function loadLastPrescription(vid: number) {
 function applyLastVisitDraft() {
   const lv = lastVisit.value
   if (!lv) return
-  const setIfEmpty = (key: string, val: any) => {
-    if (val && !(form.value as Record<string, any>)[key]) (form.value as Record<string, any>)[key] = val
+  const setIfEmpty = (key: string, val: unknown) => {
+    if (val && !(form.value as Record<string, unknown>)[key]) (form.value as Record<string, unknown>)[key] = val
   }
   setIfEmpty('present_illness', lv.present_illness)
   setIfEmpty('observation', lv.observation)
@@ -652,7 +652,7 @@ async function startCamera() {
       video.srcObject = cameraStream
       await video.play().catch(() => {})
     }
-  } catch (e: any) {
+  } catch (e) {
     cameraStarted = false
     ElMessage.error('无法访问摄像头：' + (e?.message || '请检查权限设置'))
   }
@@ -691,7 +691,7 @@ function capturePhoto() {
 }
 
 // 由已保存的问诊十问记录生成可读摘要（AI 辨证用于兜底展示）
-function buildIqSummaryFromRecord(rec: any): string {
+function buildIqSummaryFromRecord(rec: InquiryRecord): string {
   if (!rec || !rec.answers) return ''
   const lines: string[] = []
   for (const q of TEN_QUESTIONS) {
@@ -827,16 +827,16 @@ async function doAiAnalyze() {
 }
 
 // 将结构化 AI 方剂渲染为规范文本（便于存库后再解析回结构化）
-function fmtFormulaBlock(formulas: any[]): string {
+function fmtFormulaBlock(formulas: Array<Record<string, unknown>>): string {
   if (!formulas?.length) return ''
-  const fmtHerb = (h: any) => `${h.name || ''}${h.dose ? h.dose : ''}${h.method ? '(' + h.method + ')' : ''}`
+  const fmtHerb = (h: { name?: string; dose?: string; method?: string }) => `${h.name || ''}${h.dose ? h.dose : ''}${h.method ? '(' + h.method + ')' : ''}`
   const lines = formulas.map((f, i) => {
     const role = f.role || (i === 0 ? '主方' : '副方')
     const prep = f.preparation || '水煎服'
     const head = `${i + 1}. ${f.name || '推荐方'}（${role}·${prep}）`
     const herbs = '   组成：' + (f.herbs || []).map(fmtHerb).join('、')
     const mods = (f.modifications || []).length
-      ? '\n   加减：\n' + (f.modifications || []).map((m: any) => {
+      ? '\n   加减：\n' + (f.modifications || []).map((m: { label?: string; add?: unknown[]; remove?: unknown[] }) => {
           const add = (m.add || []).map(fmtHerb).join('、')
           const rm = (m.remove || []).join('、')
           return `     - ${m.label || ''}：加 ${add}${rm ? '；减 ' + rm : ''}`
@@ -856,7 +856,7 @@ async function saveAiIntoRecord() {
     try {
       await api.put(`/patients/${patientId}/visits/${currentVisitId.value}`, { ai_analysis: form.value.ai_analysis })
       ElMessage.success('已存入本就诊 AI 诊断库')
-    } catch (e: any) {
+    } catch (e) {
       ElMessage.error('入库失败：' + (e?.response?.data?.detail || e?.message || ''))
     }
   } else {
@@ -873,7 +873,7 @@ async function saveAiIntoRecord() {
       currentVisitId.value = res.id
       if (props.embedded) emit('saved', res)
       ElMessage.success('已存入本就诊 AI 诊断库')
-    } catch (e: any) {
+    } catch (e) {
       ElMessage.error('入库失败：' + (e?.response?.data?.detail || e?.message || ''))
     }
   }
@@ -881,7 +881,7 @@ async function saveAiIntoRecord() {
 }
 
 // 将 AI 推荐方剂（结构化）带入开方页，由开方页弹窗勾选加减后生成处方
-function goPrescribeWithFormula(f: any) {
+function goPrescribeWithFormula(f: Record<string, unknown>) {
   const q: Record<string, unknown> = { patient_id: patientId }
   if (currentVisitId.value != null) q.visit_id = currentVisitId.value
   // 结构化方剂较大，走 sessionStorage 传递，避免超长 URL / 编码导致 herbs 丢失
@@ -921,7 +921,7 @@ async function submitVisit() {
     ElMessage.success(props.embedded ? '就诊记录已保存' : '就诊记录已保存，可在右侧完成本次问诊十问，或下方去开药')
     if (props.embedded) emit('saved', res)
     return res
-  } catch (e: any) {
+  } catch (e) {
     ElMessage.error('保存失败：' + (e?.response?.data?.detail || e?.message || ''))
   } finally {
     submitting.value = false
@@ -936,7 +936,7 @@ function onCancel() {
 // 脉象多选：记录全部词条 id（避免只保留第一项导致其余脉象词条丢失）
 function onPulseChange() {
   const ids = form.value.pulse
-    .map((name: string) => pulseTerms.value.find((p: any) => p.name === name)?.id)
+    .map((name: string) => pulseTerms.value.find((p: DictTerm) => p.name === name)?.id)
     .filter((id: number | undefined): id is number => id != null)
   form.value.pulse_term_ids = ids
   form.value.pulse_term_id = ids[0] ?? null

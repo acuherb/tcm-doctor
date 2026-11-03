@@ -216,6 +216,8 @@ import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, type UploadFile } from 'element-plus'
 import { Download, Upload, OfficeBuilding, InfoFilled, Lock } from '@element-plus/icons-vue'
 import api from '@/utils/api'
+import { applyBranding } from '@/utils/branding'
+import { compressToDataUrl } from '@/utils/image'
 import type { AppConfig } from '@/types'
 import { useAuthStore } from '@/store/auth'
 
@@ -292,7 +294,7 @@ async function saveClinic() {
       clinic_logo: clinicLogo.value,
     })
     ElMessage.success('诊所信息已保存')
-    document.title = clinicName.value.trim() || '中医诊所管理平台'
+    applyBranding(clinicName.value, clinicLogo.value)
   } catch {
     ElMessage.error('保存失败')
   } finally {
@@ -300,18 +302,19 @@ async function saveClinic() {
   }
 }
 
-function onLogoChange(uploadFile: UploadFile) {
+async function onLogoChange(uploadFile: UploadFile) {
   const raw = uploadFile?.raw
   if (!raw) return
   if (raw.size > 2 * 1024 * 1024) {
     ElMessage.warning('Logo 图片请小于 2MB')
     return
   }
-  const reader = new FileReader()
-  reader.onload = () => {
-    clinicLogo.value = reader.result as string
+  try {
+    // 统一压缩为 webp：既与项目其它图片格式一致，也避免原图 base64 撑大配置文件
+    clinicLogo.value = await compressToDataUrl(raw)
+  } catch {
+    ElMessage.error('Logo 处理失败，请换一张图片重试')
   }
-  reader.readAsDataURL(raw)
 }
 
 async function saveConfig() {

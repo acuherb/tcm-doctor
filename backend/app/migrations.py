@@ -569,6 +569,40 @@ def m0015() -> None:
 
 
 
+@migration(
+    "0016",
+    "类别改名同步：库存选项里「中药」已被改成「中药材」时，回填 stock_items.item_type",
+)
+def m0016() -> None:
+    """修复历史遗留的类别名不一致。
+
+    背景：stock_items.item_type 与 stock_options.name 是两套独立存储，早期在
+    「库存选项」里重命名类别（中药 -> 中药材）不会回溯更新已有物品，导致物品管理
+    按新类别筛选时查不到任何数据，只能逐条手动改。
+    此迁移把仍使用旧默认名「中药」的物品统一改为选项表中的现名；若选项表里已不存在
+    「中药」且没有「中药材」，说明用户是自建类别，则不动数据。
+    """
+    from app.database import SessionLocal
+    from app.models.stock import StockItem, StockOption
+
+    db = SessionLocal()
+    try:
+        names = {
+            o.name for o in db.query(StockOption).filter(StockOption.opt_type == "category").all()
+        }
+        if "中药" in names or "中药材" not in names:
+            return
+        legacy = db.query(StockItem).filter(StockItem.item_type == "中药").all()
+        if not legacy:
+            return
+        for item in legacy:
+            item.item_type = "中药材"
+        db.commit()
+        logging.getLogger(__name__).info("已将 %d 个物品类别由「中药」同步为「中药材」", len(legacy))
+    finally:
+        db.close()
+
+
 def _sync_model_columns() -> None:
     """兜底补齐：按 ORM 模型把库里缺失的列补上（幂等）。
 
@@ -612,6 +646,38 @@ def _sync_model_columns() -> None:
                 log.info("sync_model_columns: 补齐列 %s.%s (%s)", tname, col.name, col_type)
             except Exception as e:  # 单列失败不影响其它列
                 log.warning("sync_model_columns: 跳过 %s.%s —— %s", tname, col.name, e)
+
+
+@migration(
+    "0017",
+    "诊所品牌入库：把 .env 中的 CLINIC_NAME / CLINIC_LOGO 迁移到 branding_config 表",
+)
+def m0017() -> None:
+    """把 .env 里已有的诊所名称与 Logo 搬进数据库。
+
+    背景：Logo 是 base64 data URL（可达 100KB+），放在 .env 里会导致每次保存配置都
+    整文件重写，且 .env 本应只存可手改的部署参数。迁移后品牌信息统一由数据库管理，
+    .env 中的旧键由保存接口自动剔除；本迁移仅在目标表为空时写入，避免覆盖用户已改的新值。
+    """
+    import logging
+    from app.config import settings
+    from app.database import SessionLocal
+    from app.models.branding import BrandingConfig
+
+    if not settings.clinic_name and not settings.clinic_logo:
+        return
+    db = SessionLocal()
+    try:
+        if db.query(BrandingConfig).first():
+            return
+        db.add(BrandingConfig(
+            clinic_name=settings.clinic_name or "",
+            clinic_logo=settings.clinic_logo or "",
+        ))
+        db.commit()
+        logging.getLogger(__name__).info("已将 .env 中的诊所品牌信息迁移至 branding_config")
+    finally:
+        db.close()
 
 
 def run_migrations() -> None:

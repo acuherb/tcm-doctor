@@ -2,7 +2,9 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- 诊所 Logo 由后端动态提供：新开标签页即可直接带上自定义图标，无需等前端脚本执行。
+         不写死 type，交由后端按实际图片类型返回，避免上传 jpg/webp 后类型不符被浏览器忽略。 -->
+    <link rel="icon" href="/api/v1/favicon" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>中医诊所管理平台</title>
   </head>

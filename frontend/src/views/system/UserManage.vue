@@ -23,7 +23,7 @@
         <span>新账号首次登录需修改初始密码；修改显示名称不影响登录，修改角色或停用后该账号将被强制重新登录。</span>
       </div>
 
-      <el-table :data="users" class="user-table" style="width:100%" empty-text="暂无账号">
+      <el-table v-if="!isMobile" :data="users" class="user-table" style="width:100%" empty-text="暂无账号">
         <el-table-column label="账号" min-width="180">
           <template #default="{ row }">
             <div class="user-cell">
@@ -78,10 +78,58 @@
           </template>
         </el-table-column>
       </el-table>
+
+      <div v-if="isMobile" class="cards">
+        <div v-for="row in users" :key="row.id" class="card">
+          <div class="card-head">
+            <div class="user-cell">
+              <div class="user-avatar" :class="`is-${row.role}`">{{ avatarText(row) }}</div>
+              <div class="user-id">
+                <div class="user-display">
+                  {{ row.display_name || row.username }}
+                  <el-tag v-if="row.id === auth.user?.id" size="small" type="success" effect="plain" round class="self-tag">当前登录</el-tag>
+                </div>
+                <div class="user-username">@{{ row.username }}</div>
+              </div>
+            </div>
+            <el-tag :type="roleTagType(row.role)" size="small" effect="light" round>{{ roleLabelOf(row.role) }}</el-tag>
+          </div>
+          <div class="card-body">
+            <div class="card-row">
+              <span class="label">状态</span>
+              <span class="value">
+                <el-tag :type="row.is_active ? 'success' : 'info'" size="small" effect="light" round>
+                  {{ row.is_active ? '启用' : '停用' }}
+                </el-tag>
+              </span>
+            </div>
+            <div class="card-row">
+              <span class="label">权限</span>
+              <span class="value" :class="{ 'perm-inherit': !row.permissions?.length }">
+                {{ row.permissions?.length ? row.permissions.map(permLabel).join('、') : '继承角色模板' }}
+              </span>
+            </div>
+          </div>
+          <div class="card-actions">
+            <el-button link type="primary" size="small" :disabled="isGuest(row)" @click="openEdit(row)">编辑</el-button>
+            <el-button link type="primary" size="small" :disabled="isGuest(row)" @click="openReset(row)">重置密码</el-button>
+            <el-button link type="primary" size="small" :disabled="isGuest(row)" @click="toggleActive(row)">
+              {{ row.is_active ? '停用' : '启用' }}
+            </el-button>
+            <el-popconfirm title="确认删除该账号？此操作不可恢复" @confirm="removeUser(row)">
+              <template #reference>
+                <el-button link type="danger" size="small"
+                           :disabled="isGuest(row) || row.id === auth.user?.id">删除</el-button>
+              </template>
+            </el-popconfirm>
+          </div>
+        </div>
+        <el-empty v-if="!users.length" description="暂无账号" />
+      </div>
     </el-card>
 
-    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑账号' : '新建账号'" width="620px" append-to-body>
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="90px">
+    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑账号' : '新建账号'" :width="isMobile ? '94%' : '620px'" append-to-body>
+      <el-form ref="formRef" :model="form" :rules="rules" :label-width="isMobile ? '72px' : '90px'">
         <el-form-item label="用户名" prop="username">
           <el-input v-model="form.username" :disabled="isEdit" placeholder="登录用，至少 2 个字符" />
         </el-form-item>
@@ -123,12 +171,12 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="resetVisible" title="重置密码" width="420px" append-to-body>
+    <el-dialog v-model="resetVisible" title="重置密码" :width="isMobile ? '90%' : '420px'" append-to-body>
       <div class="notice-bar is-warn">
         <el-icon class="notice-icon"><WarningFilled /></el-icon>
         <span>将为账号 <b>{{ resetTarget?.username }}</b> 设置新密码，该账号会被强制重新登录。</span>
       </div>
-      <el-form label-width="80px">
+      <el-form :label-width="isMobile ? '68px' : '80px'">
         <el-form-item label="新密码">
           <el-input v-model="resetPassword" type="password" show-password autocomplete="new-password"
                     placeholder="至少 6 位" />
@@ -143,7 +191,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage, type FormInstance } from 'element-plus'
 import { Plus, InfoFilled, WarningFilled } from '@element-plus/icons-vue'
 import api, { errMsg } from '@/utils/api'
@@ -365,10 +413,16 @@ async function removeUser(row: AccountRow) {
   }
 }
 
+const isMobile = ref(false)
+function updateViewport() { isMobile.value = window.innerWidth < 768 }
+
 onMounted(() => {
+  updateViewport()
+  window.addEventListener('resize', updateViewport)
   load()
   loadCatalog()
 })
+onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
 </script>
 
 <style scoped lang="scss">
@@ -548,6 +602,49 @@ onMounted(() => {
     .card-head-bar { align-items: stretch; }
     .card-actions { justify-content: flex-start; }
     .notice-bar { font-size: 12px; }
+  }
+}
+
+.cards { display: flex; flex-direction: column; gap: 10px; }
+.cards .card {
+  background: #fff;
+  border: 1px solid #f0e4d6;
+  border-radius: 10px;
+  padding: 12px 14px;
+  box-shadow: 0 1px 3px rgba(44, 24, 16, .04);
+}
+.cards .card .card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.cards .card .card-head .user-cell { min-width: 0; }
+.cards .card .card-head .user-id { min-width: 0; }
+.cards .card .card-head .user-display { max-width: none; }
+.cards .card .card-body { display: flex; flex-direction: column; gap: 6px; }
+.cards .card .card-row { display: flex; align-items: flex-start; gap: 4px; font-size: 13px; line-height: 1.5; }
+.cards .card .card-row .label { flex-shrink: 0; width: 40px; color: #8a7563; }
+.cards .card .card-row .value { flex: 1; color: #4a3628; word-break: break-all; }
+.cards .card .card-row .value.perm-inherit { color: #bdb0a2; }
+.cards .card .card-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #f0e4d6;
+
+  :deep(.el-button) { margin-left: 0; padding: 2px 0; }
+}
+
+@media (max-width: 767px) {
+  .perm-panel { max-height: 46vh; }
+  .perm-group :deep(.el-checkbox.is-bordered) {
+    width: 100%;
+    margin-right: 0;
   }
 }
 </style>

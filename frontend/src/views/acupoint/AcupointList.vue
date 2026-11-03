@@ -9,15 +9,16 @@
             <el-tag size="small" effect="light" round class="tcm-head__count">{{ acupoints.length }} 个</el-tag>
           </div>
           <div class="tcm-head__actions">
-            <el-button v-if="editable" @click="exportData">
-              <el-icon><Download /></el-icon> 导出JSON
+            <el-button v-if="editable" @click="triggerImport">
+              <el-icon><Upload /></el-icon>导入
             </el-button>
-            <el-button v-if="editable" @click="importVisible = true">
-              <el-icon><Upload /></el-icon> 导入JSON
+            <el-button v-if="editable" @click="exportData">
+              <el-icon><Download /></el-icon>导出
             </el-button>
             <el-button v-if="editable" type="primary" @click="openCreate">
               <el-icon><Plus /></el-icon> 新增穴位
             </el-button>
+            <input ref="fileInput" type="file" accept=".json,application/json" style="display:none" @change="onImportFile" />
           </div>
         </div>
       </template>
@@ -30,20 +31,38 @@
         <el-select v-model="filter.source" placeholder="全部来源" clearable class="filter-sel" @change="loadAcupoints">
           <el-option label="全部来源" value="" />
           <el-option v-for="opt in dimOptions('source')" :key="opt.value" :label="opt.label" :value="opt.value">
-            <span v-if="opt.color" class="opt-dot" :style="{ backgroundColor: opt.color }"></span>
-            <span>{{ opt.label }}</span>
-            <el-tooltip v-if="opt.description" :content="opt.description" placement="right" :teleported="true">
-              <span class="opt-hint-dot"></span>
-            </el-tooltip>
+            <div class="term-opt">
+              <span class="opt-dot" :style="{ backgroundColor: opt.color || '#909399' }"></span>
+              <span class="term-name">{{ opt.label }}</span>
+              <el-tooltip v-if="opt.description" :content="opt.description" placement="right" :teleported="true">
+                <span class="opt-hint-dot"></span>
+              </el-tooltip>
+            </div>
           </el-option>
         </el-select>
         <el-select v-model="filter.meridian" placeholder="全部归经" clearable class="filter-sel" @change="loadAcupoints">
           <el-option label="全部归经" value="" />
-          <el-option v-for="opt in dimOptions('meridian')" :key="opt.value" :label="opt.label" :value="opt.value" />
+          <el-option v-for="opt in dimOptions('meridian')" :key="opt.value" :label="opt.label" :value="opt.value">
+            <div class="term-opt">
+              <span class="opt-dot" :style="{ backgroundColor: opt.color || '#909399' }"></span>
+              <span class="term-name">{{ opt.label }}</span>
+              <el-tooltip v-if="opt.description" :content="opt.description" placement="right" :teleported="true">
+                <span class="opt-hint-dot"></span>
+              </el-tooltip>
+            </div>
+          </el-option>
         </el-select>
         <el-select v-model="filter.region" placeholder="全部部位" clearable class="filter-sel" @change="loadAcupoints">
           <el-option label="全部部位" value="" />
-          <el-option v-for="opt in dimOptions('region')" :key="opt.value" :label="opt.label" :value="opt.value" />
+          <el-option v-for="opt in dimOptions('region')" :key="opt.value" :label="opt.label" :value="opt.value">
+            <div class="term-opt">
+              <span class="opt-dot" :style="{ backgroundColor: opt.color || '#909399' }"></span>
+              <span class="term-name">{{ opt.label }}</span>
+              <el-tooltip v-if="opt.description" :content="opt.description" placement="right" :teleported="true">
+                <span class="opt-hint-dot"></span>
+              </el-tooltip>
+            </div>
+          </el-option>
         </el-select>
         <div class="filter-actions">
           <el-button type="primary" @click="loadAcupoints">查询</el-button>
@@ -51,23 +70,23 @@
         </div>
       </div>
 
-      <!-- 桌面端表格：7 列（穴名 / 来源 / 分部 / 类型 / 定位 / 功效 / 操作） -->
-      <el-table :data="acupoints" v-loading="loading" class="tcm-table" border>
-        <el-table-column prop="name" label="穴名" width="110" fixed />
-        <el-table-column label="来源" width="130">
+      <!-- 桌面端表格：穴名 / 来源 / 归经 / 部位 / 类型 / 定位 / 功效 / 操作，拖动边框可调列宽 -->
+      <el-table v-if="!isMobile" :data="acupoints" v-loading="loading" class="tcm-table" border>
+        <el-table-column prop="name" label="穴名" width="100" fixed />
+        <el-table-column label="来源" width="108">
           <template #default="{ row }"><span class="src-pill" :style="tagStyle('source', row.source)">{{ row.source || '—' }}</span></template>
         </el-table-column>
-        <el-table-column label="归经" min-width="150">
+        <el-table-column label="归经" width="132">
           <template #default="{ row }"><span class="src-pill" :style="tagStyle('meridian', row.meridian)">{{ row.meridian || '—' }}</span></template>
         </el-table-column>
-        <el-table-column label="部位" min-width="90">
+        <el-table-column label="部位" width="78">
           <template #default="{ row }"><span class="src-pill" :style="tagStyle('region', row.region)">{{ row.region || '—' }}</span></template>
         </el-table-column>
-        <el-table-column label="类型" width="120">
+        <el-table-column label="类型" width="150">
           <template #default="{ row }"><span class="src-pill" :style="tagStyle('point_type', row.point_type)">{{ row.point_type || '—' }}</span></template>
         </el-table-column>
-        <el-table-column prop="location" label="定位" min-width="240" show-overflow-tooltip />
-        <el-table-column prop="efficacy" label="功效" min-width="220" show-overflow-tooltip />
+        <el-table-column prop="location" label="定位" min-width="260" show-overflow-tooltip />
+        <el-table-column prop="efficacy" label="功效" min-width="240" show-overflow-tooltip />
         <el-table-column v-if="editable" label="操作" width="140" fixed="right">
           <template #default="{ row }">
             <el-button size="small" @click="openEdit(row)">编辑</el-button>
@@ -75,11 +94,11 @@
           </template>
         </el-table-column>
       </el-table>
-      <div class="summary">共 {{ acupoints.length }} 个穴位（维度均可字典自定义）</div>
+      <div v-if="!isMobile" class="summary">共 {{ acupoints.length }} 个穴位（维度均可字典自定义）</div>
     </el-card>
 
     <!-- 移动端卡片 -->
-    <div class="mobile-cards">
+    <div v-if="isMobile" class="mobile-cards">
       <el-card v-for="a in acupoints" :key="a.id" class="m-card" shadow="never">
         <div class="m-head">
           <span class="m-name">{{ a.name }}</span>
@@ -104,46 +123,44 @@
         <el-form-item label="来源">
           <el-select v-model="form.source" filterable allow-create default-first-option placeholder="选择或录入" style="width:100%">
             <el-option v-for="opt in dimOptions('source')" :key="opt.value" :label="opt.label" :value="opt.value">
-            <span v-if="opt.color" :style="{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: opt.color, marginRight: '6px', verticalAlign: 'middle' }"></span>
-            <span>{{ opt.label }}</span>
-            <el-tooltip v-if="opt.description" :content="opt.description" placement="right" :teleported="true">
-              <span class="opt-hint-dot"></span>
-            </el-tooltip>
-          </el-option>
+              <div class="term-opt">
+                <span class="opt-dot" :style="{ backgroundColor: opt.color || '#909399' }"></span>
+                <span class="term-name">{{ opt.label }}</span>
+                <el-tooltip v-if="opt.description" :content="opt.description" placement="right" :teleported="true">
+                  <span class="opt-hint-dot"></span>
+                </el-tooltip>
+              </div>
+            </el-option>
           </el-select>
         </el-form-item>
         <el-form-item label="归经">
           <el-select v-model="form.meridian" filterable allow-create default-first-option placeholder="选择或录入" style="width:100%">
             <el-option v-for="opt in dimOptions('meridian')" :key="opt.value" :label="opt.label" :value="opt.value">
-              <span v-if="opt.color" :style="{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: opt.color, marginRight: '6px', verticalAlign: 'middle' }"></span>
-              <span>{{ opt.label }}</span>
-              <el-tooltip v-if="opt.description" :content="opt.description" placement="right" :teleported="true">
-                <span class="opt-hint-dot"></span>
-              </el-tooltip>
+              <div class="term-opt">
+                <span class="opt-dot" :style="{ backgroundColor: opt.color || '#909399' }"></span>
+                <span class="term-name">{{ opt.label }}</span>
+                <el-tooltip v-if="opt.description" :content="opt.description" placement="right" :teleported="true">
+                  <span class="opt-hint-dot"></span>
+                </el-tooltip>
+              </div>
             </el-option>
           </el-select>
         </el-form-item>
         <el-form-item label="部位">
           <el-select v-model="form.region" filterable allow-create default-first-option placeholder="选择或录入" style="width:100%">
             <el-option v-for="opt in dimOptions('region')" :key="opt.value" :label="opt.label" :value="opt.value">
-              <span v-if="opt.color" :style="{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: opt.color, marginRight: '6px', verticalAlign: 'middle' }"></span>
-              <span>{{ opt.label }}</span>
-              <el-tooltip v-if="opt.description" :content="opt.description" placement="right" :teleported="true">
-                <span class="opt-hint-dot"></span>
-              </el-tooltip>
+              <div class="term-opt">
+                <span class="opt-dot" :style="{ backgroundColor: opt.color || '#909399' }"></span>
+                <span class="term-name">{{ opt.label }}</span>
+                <el-tooltip v-if="opt.description" :content="opt.description" placement="right" :teleported="true">
+                  <span class="opt-hint-dot"></span>
+                </el-tooltip>
+              </div>
             </el-option>
           </el-select>
         </el-form-item>
         <el-form-item label="类型">
-          <el-select v-model="form.point_type" filterable allow-create default-first-option placeholder="选择或录入" style="width:100%">
-            <el-option v-for="opt in dimOptions('point_type')" :key="opt.value" :label="opt.label" :value="opt.value">
-              <span v-if="opt.color" :style="{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: opt.color, marginRight: '6px', verticalAlign: 'middle' }"></span>
-              <span>{{ opt.label }}</span>
-              <el-tooltip v-if="opt.description" :content="opt.description" placement="right" :teleported="true">
-                <span class="opt-hint-dot"></span>
-              </el-tooltip>
-            </el-option>
-          </el-select>
+          <el-input v-model="form.point_type" placeholder="如 井穴·木 / 荥穴·火 / 原穴" />
         </el-form-item>
         <el-form-item label="定位"><el-input v-model="form.location" type="textarea" :rows="2" /></el-form-item>
         <el-form-item label="功效"><el-input v-model="form.efficacy" type="textarea" :rows="2" /></el-form-item>
@@ -157,18 +174,11 @@
       </template>
     </el-dialog>
 
-    <el-dialog title="导入穴位" v-model="importVisible" width="480px">
-      <el-input v-model="importText" type="textarea" :rows="10" placeholder="粘贴 JSON 数组" />
-      <template #footer>
-        <el-button @click="importVisible = false">取消</el-button>
-        <el-button type="primary" @click="importData">导入</el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api, { errMsg } from '@/utils/api'
 import { useAuthStore } from '@/store/auth'
@@ -195,8 +205,7 @@ interface Acupoint {
 const acupoints = ref<Acupoint[]>([])
 const loading = ref(false)
 const dialogVisible = ref(false)
-const importVisible = ref(false)
-const importText = ref('')
+const fileInput = ref<HTMLInputElement | null>(null)
 const editId = ref<number | null>(null)
 
 const filter = reactive({ search: '', source: '', meridian: '', region: '' })
@@ -230,7 +239,6 @@ const meta = ref<TagMeta>({
     source: { label: '来源', multi: false, options: [] },
     meridian: { label: '归经', multi: false, options: [] },
     region: { label: '部位', multi: false, options: [] },
-    point_type: { label: '类型', multi: false, options: [] },
   },
 })
 function dimOptions(key: string): TagOption[] {
@@ -251,8 +259,24 @@ function readableInk(hex: string): string {
   return L > 0.6 ? '#333333' : '#ffffff'
 }
 
+const POINT_TYPE_DEFAULT_COLORS: Record<string, string> = {
+  '井穴': '#aed6f1', '荥穴': '#5dade2', '输穴': '#2e86c1', '经穴': '#1f618d', '合穴': '#154360',
+  '原穴': '#8e6bb0', '络穴': '#16a085', '郄穴': '#a93226', '募穴': '#d68910', '背俞穴': '#7d6608',
+  '八会穴': '#6c3483', '八脉交会穴': '#5b2c6f', '下合穴': '#21618c', '经外奇穴': '#7f8c8d',
+  '特效穴': '#b9770e', '常用要穴': '#af601a',
+}
+const FIVE_ELEMENT_COLORS: Record<string, string> = {
+  '木': '#2e9e5b', '火': '#d9434e', '土': '#e0a82e', '金': '#aab8c2', '水': '#2c3e50',
+}
+
 function tagColor(dim: string, value: string | null | undefined): string {
   if (!value) return ''
+  if (dim === 'point_type') {
+    const fe = value.match(/[木火土金水]/)
+    if (fe) return FIVE_ELEMENT_COLORS[fe[0]] || ''
+    const base = value.split(/[·、\s]/)[0]
+    return POINT_TYPE_DEFAULT_COLORS[base] || ''
+  }
   const opt = dimOptions(dim).find((o) => o.value === value)
   return opt?.color || ''
 }
@@ -352,26 +376,37 @@ function exportData() {
   URL.revokeObjectURL(url)
 }
 
-async function importData() {
+async function triggerImport() {
+  if (fileInput.value) { fileInput.value.value = ''; fileInput.value.click() }
+}
+
+async function onImportFile(e: Event) {
+  const f = (e.target as HTMLInputElement).files?.[0]
+  if (!f) return
   try {
-    const arr = JSON.parse(importText.value)
-    if (!Array.isArray(arr)) throw new Error('格式错误')
-    for (const item of arr) {
-      await api.post('/acupoints', item)
-    }
-    ElMessage.success(`已导入 ${arr.length} 条`)
-    importVisible.value = false
-    importText.value = ''
+    const text = await f.text()
+    const arr = JSON.parse(text)
+    if (!Array.isArray(arr)) { ElMessage.error('文件须为穴位数组 JSON'); return }
+    const r: { imported?: number; updated?: number } = await api.post('/acupoints/import', arr, { silent: true })
+    ElMessage.success(`导入完成：新增 ${r.imported ?? 0} 条，更新 ${r.updated ?? 0} 条`)
     loadAcupoints()
-  } catch (e) {
-    ElMessage.error(errMsg(e) || '导入失败')
+  } catch (err) {
+    ElMessage.error('JSON 解析或导入失败：' + errMsg(err))
+  } finally {
+    if (fileInput.value) fileInput.value.value = ''
   }
 }
 
+const isMobile = ref(false)
+function updateViewport() { isMobile.value = window.innerWidth < 768 }
+
 onMounted(() => {
+  updateViewport()
+  window.addEventListener('resize', updateViewport)
   loadMeta()
   loadAcupoints()
 })
+onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
 </script>
 
 <style scoped>
@@ -389,9 +424,21 @@ onMounted(() => {
 .filter-search { width: 200px; }
 .filter-sel { width: 140px; }
 .filter-actions { display: flex; gap: 8px; }
-.opt-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+.opt-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  vertical-align: middle;
+  flex: none;
+}
+.term-opt { display: flex; align-items: center; gap: 6px; line-height: 1.35; padding: 2px 0; }
+.term-name { font-weight: 500; }
 .summary { margin-top: 10px; font-size: 12px; color: #907a63; }
-.src-pill { display: inline-block; padding: 0 8px; font-size: 12px; line-height: 20px; border: 1px solid transparent; border-radius: 10px; white-space: nowrap; }
+.src-pill { display: inline-block; padding: 0 8px; font-size: 12px; line-height: 20px; border: 1px solid transparent; border-radius: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; vertical-align: middle; }
+.tcm-table :deep(.el-table__header-wrapper th .cell),
+.tcm-table :deep(.el-table__body-wrapper td .cell) { padding: 0 8px; }
 
 /* 移动端卡片 */
 .mobile-cards { display: none; }
@@ -407,8 +454,20 @@ onMounted(() => {
 .m-val { color: #4a3628; flex: 1; word-break: break-all; }
 .m-actions { margin-top: 8px; display: flex; gap: 8px; }
 
-@media (max-width: 768px) {
-  .main-card { display: none; }
+@media (max-width: 767px) {
   .mobile-cards { display: block; }
+  .tcm-head__actions {
+    width: 100%;
+    flex-wrap: nowrap;
+    gap: 6px;
+
+    :deep(.el-button) {
+      margin-left: 0;
+      flex: 1 1 auto;
+      padding-left: 6px;
+      padding-right: 6px;
+    }
+  }
+  .filter-actions { width: 100%; }
 }
 </style>

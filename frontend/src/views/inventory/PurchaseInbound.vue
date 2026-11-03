@@ -99,13 +99,17 @@
             <el-select v-model="it.item_id" filterable placeholder="物品" class="f-item" @change="onItemPick(it)">
               <el-option v-for="i in items" :key="i.id" :label="`${i.name}（${i.unit}）`" :value="i.id" />
             </el-select>
-            <el-input v-model="it.batch_number" placeholder="批号" class="f-batch" />
-            <el-input-number v-model="it.quantity" :min="0.01" :precision="2" controls-position="right" class="f-num" :placeholder="unitOf(it) ? '数量(' + unitOf(it) + ')' : '数量'" />
-            <span class="f-unit" v-if="unitOf(it)">{{ unitOf(it) }}</span>
-            <el-input-number v-model="it.unit_price" :min="0" :precision="2" controls-position="right" class="f-num" :placeholder="unitOf(it) ? '进价(元/' + unitOf(it) + ')' : '进价'" />
-            <span class="f-unit" v-if="unitOf(it)">元/{{ unitOf(it) }}</span>
-            <el-date-picker v-model="it.expiry_date" type="date" value-format="YYYY-MM-DD" placeholder="效期" class="f-date" />
+            <div class="po-item-nums">
+              <el-input-number v-model="it.quantity" :min="0.01" :precision="2" controls-position="right" class="f-num" :placeholder="unitOf(it) ? '数量(' + unitOf(it) + ')' : '数量'" />
+              <span class="f-unit" v-if="unitOf(it)">{{ unitOf(it) }}</span>
+              <el-input-number v-model="it.unit_price" :min="0" :precision="2" controls-position="right" class="f-num" :placeholder="unitOf(it) ? '进价(元/' + unitOf(it) + ')' : '进价'" />
+              <span class="f-unit" v-if="unitOf(it)">元/{{ unitOf(it) }}</span>
+            </div>
             <el-button link type="danger" class="f-del" @click="removeItem(idx)"><el-icon><Delete /></el-icon></el-button>
+          </div>
+          <div class="po-item-sub">
+            <el-input v-model="it.batch_number" placeholder="批号" class="f-batch" />
+            <el-date-picker v-model="it.expiry_date" type="date" value-format="YYYY-MM-DD" placeholder="效期" class="f-date" />
           </div>
         </div>
         <el-button link type="primary" @click="addItem"><el-icon><Plus /></el-icon> 添加明细</el-button>
@@ -145,7 +149,7 @@ const loadingMore = ref(false)
 
 const form = reactive({ supplier_id: null as number | null, order_date: '', note: '', items: [] as PurchaseItem[] })
 const rules = { supplier_id: [{ required: false }] }
-const poTotal = computed(() => form.items.reduce((s: number, it: any) => s + (Number(it.quantity) || 0) * (Number(it.unit_price) || 0), 0))
+const poTotal = computed(() => form.items.reduce((s: number, it: PurchaseItem) => s + (Number(it.quantity) || 0) * (Number(it.unit_price) || 0), 0))
 
 async function load() {
   loadingMore.value = false
@@ -174,7 +178,7 @@ async function loadMore() {
     const res = (await api.get<Paginated<PurchaseOrder>>('/stock/purchases', { params: { page: next, page_size: pageSize.value } })) || []
     const rows = Array.isArray(res) ? res : (res.items || [])
     const seen = new Set(orders.value.map((o: PurchaseOrder) => o.id))
-    orders.value.push(...rows.filter((r: any) => !seen.has(r.id)))
+    orders.value.push(...rows.filter((r: PurchaseOrder) => !seen.has(r.id)))
     page.value = next
     hasMore.value = orders.value.length < total.value
   } catch (e) { ElMessage.error('加载失败：' + (e?.response?.data?.detail || e?.message)) }
@@ -232,6 +236,8 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
 
   .po-item { margin-bottom: 8px; }
   .po-item-main { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .po-item-nums { display: flex; gap: 8px; align-items: center; }
+  .po-item-sub { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
   .f-item { width: 200px; }
   .f-batch { width: 120px; }
   .f-num { width: 130px; }
@@ -264,11 +270,19 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
     :deep(.el-alert__description) { font-size: 12px; line-height: 1.5; }
     :deep(.el-pagination) { flex-wrap: wrap; row-gap: 6px; }
 
-    .f-item { width: 100%; }
-    .f-batch { width: calc(50% - 4px); }
-    .f-date { width: calc(50% - 4px); }
-    .f-num { width: calc(50% - 4px); }
-    .f-del { margin-left: auto; }
+    .f-item { width: auto; flex: 1 1 0; min-width: 0; }
+    .po-item-nums .f-num { width: auto; flex: 1 1 0; min-width: 0; }
+    .f-batch { width: calc(50% - 4px); flex: 0 0 auto; min-width: 0; }
+    .f-date { width: calc(50% - 4px); flex: 0 0 auto; min-width: 0; }
+    .f-unit { display: none; }
+    .f-del { flex: 0 0 auto; margin-left: 0; padding: 0 4px; }
+    .po-item-main { row-gap: 6px; flex-wrap: wrap; }
+    .po-item-nums { flex: 1 1 100%; gap: 8px; min-width: 0; }
+    .po-item-sub { margin-top: 6px; flex-wrap: nowrap; }
+    :deep(.po-item-nums .el-input-number) { width: 100%; }
+    :deep(.po-item-sub > .el-date-editor) { min-width: 0; }
+    :deep(.po-item-sub > .el-date-editor .el-input__wrapper) { padding-left: 6px; padding-right: 6px; }
+    .po-item { margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px dashed #f0e4d6; }
   }
 }
 </style>

@@ -137,7 +137,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
-import api from '@/utils/api'
+import api, { errMsg } from '@/utils/api'
 
 const isMobile = ref(false)
 function updateViewport() { isMobile.value = window.innerWidth < 768 }
@@ -145,23 +145,23 @@ function updateViewport() { isMobile.value = window.innerWidth < 768 }
 const cardPageSize = 20
 const shownCounts = ref<Record<string, number>>({})
 function shownOf(k: string) { return shownCounts.value[k] ?? cardPageSize }
-function cardsOf(k: string, list: any[]) {
+function cardsOf(k: string, list: unknown[]) {
   return isMobile.value ? list.slice(0, shownOf(k)) : list
 }
-function hasMoreCards(k: string, list: any[]) {
+function hasMoreCards(k: string, list: unknown[]) {
   return shownOf(k) < list.length
 }
-function loadMoreCards(k: string, list: any[]) {
+function loadMoreCards(k: string, list: unknown[]) {
   shownCounts.value[k] = Math.min(shownOf(k) + cardPageSize, list.length)
 }
 
-const range = ref<any>(null)
+const range = ref<Array<Date | string> | null>(null)
 const tab = ref('profit')
-const summary = ref<any>({})
-const profit = ref<any[]>([])
-const abc = ref<any[]>([])
-const turnover = ref<any[]>([])
-const prices = ref<any[]>([])
+const summary = ref<Record<string, unknown>>({})
+const profit = ref<Array<Record<string, unknown>>>([])
+const abc = ref<Array<Record<string, unknown>>>([])
+const turnover = ref<Array<Record<string, unknown>>>([])
+const prices = ref<Array<Record<string, unknown>>>([])
 
 async function loadAll() {
   const params: Record<string, unknown> = {}
@@ -169,10 +169,10 @@ async function loadAll() {
   try {
     const [s, p, a, t, pr] = await Promise.all([
       api.get<Record<string, unknown>>('/stock/report/summary', { params }),
-      api.get<unknown[]>('/stock/report/profit', { params }),
-      api.get<unknown[]>('/stock/report/abc'),
-      api.get<unknown[]>('/stock/report/turnover', { params }),
-      api.get<unknown[]>('/stock/report/supplier-price'),
+      api.get<Array<Record<string, unknown>>>('/stock/report/profit', { params }),
+      api.get<Array<Record<string, unknown>>>('/stock/report/abc'),
+      api.get<Array<Record<string, unknown>>>('/stock/report/turnover', { params }),
+      api.get<Array<Record<string, unknown>>>('/stock/report/supplier-price'),
     ])
     summary.value = s
     profit.value = p || []
@@ -180,7 +180,7 @@ async function loadAll() {
     turnover.value = t || []
     prices.value = pr || []
     shownCounts.value = {}
-  } catch (e: any) { ElMessage.error('加载失败：' + (e?.response?.data?.detail || e?.message)) }
+  } catch (e) { ElMessage.error('加载失败：' + errMsg(e)) }
 }
 
 onMounted(() => {

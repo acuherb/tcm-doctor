@@ -10,10 +10,10 @@
           </div>
           <div class="tcm-head__actions">
             <el-button v-if="editable" @click="triggerImport">
-              <el-icon><Upload /></el-icon> 导入JSON
+              <el-icon><Upload /></el-icon>导入
             </el-button>
             <el-button v-if="editable" @click="exportHerbs">
-              <el-icon><Download /></el-icon> 导出JSON
+              <el-icon><Download /></el-icon>导出
             </el-button>
             <el-button v-if="editable" type="primary" @click="openAdd">
               <el-icon><Plus /></el-icon> 新增药材
@@ -581,6 +581,18 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
   }
   :deep(.el-card__header) {
     padding: 12px;
+  }
+  .tcm-head__actions {
+    width: 100%;
+    flex-wrap: nowrap;
+    gap: 6px;
+
+    :deep(.el-button) {
+      margin-left: 0;
+      flex: 1 1 auto;
+      padding-left: 6px;
+      padding-right: 6px;
+    }
   }
   /* 新增/编辑弹窗：移动端限宽 + 标签上置，避免窄屏挤成一团 */
   :deep(.herb-dialog) {

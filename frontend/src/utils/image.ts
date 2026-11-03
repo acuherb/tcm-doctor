@@ -68,3 +68,50 @@ export function compressImageFile(file: File): Promise<File> {
     img.src = url
   })
 }
+
+// 品牌 Logo 用途的最大边长：页面展示仅 72px，取 256 兼顾 2 倍屏清晰度
+const LOGO_MAX_DIM = 256
+
+/**
+ * 将图片压缩为 webp data URL，供诊所 Logo 等需要以字符串入库的场景使用。
+ * 与 compressImageFile 的区别：不做体积放行判断，小图同样转码，保证格式统一为 webp。
+ */
+export function compressToDataUrl(file: File, maxDim = LOGO_MAX_DIM, quality = QUALITY): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      let { width, height } = img
+      if (width > maxDim || height > maxDim) {
+        if (width >= height) {
+          height = Math.round((height * maxDim) / width)
+          width = maxDim
+        } else {
+          width = Math.round((width * maxDim) / height)
+          height = maxDim
+        }
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext('2d')
+      if (!ctx) {
+        reject(new Error('canvas 不可用'))
+        return
+      }
+      // 透明背景填充白色，避免 webp 透明区在处方笺白纸上显示异常
+      ctx.fillStyle = '#fff'
+      ctx.fillRect(0, 0, width, height)
+      ctx.drawImage(img, 0, 0, width, height)
+      // 优先 webp，不支持则回退 jpeg
+      const dataUrl = canvas.toDataURL('image/webp', quality)
+      resolve(dataUrl.startsWith('data:image/webp') ? dataUrl : canvas.toDataURL('image/jpeg', quality))
+    }
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error('图片读取失败'))
+    }
+    img.src = url
+  })
+}

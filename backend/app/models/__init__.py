@@ -14,6 +14,7 @@ from app.models.prescription import ClassicFormula, Prescription, PrescriptionIt
 from app.models.knowledge import KnowledgeEntry
 from app.models.conversation import Conversation, Message
 from app.models.acupuncture import Acupoint, AcupointFormula
+from app.models.branding import BrandingConfig
 from app.models.user import User, AuthToken
 
 __all__ = [
@@ -39,6 +40,7 @@ __all__ = [
     "Message",
     "Acupoint",
     "AcupointFormula",
+    "BrandingConfig",
     "User",
     "AuthToken",
     "OperationLog",

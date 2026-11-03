@@ -21,7 +21,7 @@
         <el-table-column prop="item_name" label="物品" min-width="140" show-overflow-tooltip />
         <el-table-column prop="item_type" label="类别" width="100">
           <template #default="{ row }">
-            <span class="xw-tag" :style="categoryChipStyle(row.item_type)">{{ row.item_type }}</span>
+            <span class="xw-tag" :style="chipStyleOf(row.item_type)">{{ row.item_type }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="alert_type" label="预警类型" width="120">
@@ -93,7 +93,7 @@
             <el-select v-model="typeFilter" placeholder="全部类别" clearable class="filter-sel" @change="loadOverview">
               <el-option label="全部" value="" />
               <el-option v-for="c in categories" :key="c.id" :label="c.name" :value="c.name">
-                <span class="opt-dot" :style="{ backgroundColor: categoryColor(c.name) }" />{{ c.name }}
+                <span class="opt-dot" :style="{ backgroundColor: dotColorOf(c.name) }"></span>{{ c.name }}
               </el-option>
             </el-select>
             <el-checkbox v-model="alertOnly" border size="small" class="alert-check" @change="loadOverview">仅看预警</el-checkbox>
@@ -106,6 +106,9 @@
       </template>
 
       <div class="bulk-bar">
+        <el-checkbox v-if="isMobile" class="bulk-all" :model-value="mobileAllSelected" :disabled="!pagedOverview.length" @change="toggleSelectAllMobile">
+          全选
+        </el-checkbox>
         <el-button type="primary" plain :disabled="!selectedList.length" @click="openBulkIn">批量入库（已选 {{ selectedList.length }}）</el-button>
         <el-button type="warning" plain :disabled="!selectedList.length" @click="openBulkCheck">批量盘点（已选 {{ selectedList.length }}）</el-button>
       </div>
@@ -115,7 +118,7 @@
         <el-table-column prop="item_name" label="物品" min-width="140" show-overflow-tooltip />
         <el-table-column prop="item_type" label="类别" width="100">
           <template #default="{ row }">
-            <span class="xw-tag" :style="categoryChipStyle(row.item_type)">{{ row.item_type }}</span>
+            <span class="xw-tag" :style="chipStyleOf(row.item_type)">{{ row.item_type }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="unit" label="单位" width="70" />
@@ -148,7 +151,7 @@
       <div v-if="isMobile" class="cards">
         <div v-for="row in pagedOverview" :key="row.item_id" class="card">
           <div class="card-head">
-            <el-checkbox :model-value="selectedIds.has(row.item_id)" @change="(v:any)=>toggleSel(row, v)" />
+            <el-checkbox :model-value="selectedIds.has(row.item_id)" @change="(v: boolean)=>toggleSel(row, v)" />
             <span class="card-name">{{ row.item_name }}</span>
             <span class="xw-tag" :style="categoryChipStyle(row.item_type)">{{ row.item_type }}</span>
           </div>
@@ -245,22 +248,49 @@ import { useRouter } from 'vue-router'
 import { Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import api from '@/utils/api'
-import type { StockOption } from '@/types'
+import type { StockOption, Supplier } from '@/types'
+
+interface OverviewItem {
+  item_id: number
+  item_name: string
+  unit?: string
+  item_type?: string
+  total_quantity?: number
+  min_stock?: number
+  has_alert?: boolean
+  batch_count?: number
+  stock_value?: number
+  [key: string]: unknown
+}
+interface BulkInItem { item_id: number; item_name: string; unit: string; total_quantity: number; min_stock: number; qty: number; unit_price: number | null }
+interface BulkCheckItem { item_id: number; item_name: string; unit: string; total_quantity: number; counted: number }
 import { useStockOptionColors } from '@/utils/dictColors'
 
-const { categoryColor, categoryChipStyle } = useStockOptionColors()
+const { categoryChipStyle, categoryColor, stockOptionVersion } = useStockOptionColors()
+
+// 读取选项版本号，使类别标签色在「库存选项」改自定义色后即时重算
+function chipStyleOf(name: string) {
+  void stockOptionVersion.value
+  return categoryChipStyle(name)
+}
+
+// 下拉色点只需要纯色值，不能直接给 categoryChipStyle 的复合样式
+function dotColorOf(name: string) {
+  void stockOptionVersion.value
+  return categoryColor(name)
+}
 
 const router = useRouter()
-const overview = ref<any[]>([])
-const alerts = ref<any[]>([])
+const overview = ref<OverviewItem[]>([])
+const alerts = ref<Array<Record<string, unknown>>>([])
 const typeFilter = ref('')
 const alertOnly = ref(false)
 const searchText = ref('')
-const categories = ref<any[]>([])
+const categories = ref<StockOption[]>([])
 async function loadOptions() {
   try {
     const res = (await api.get<StockOption[]>('/stock/options')) || []
-    categories.value = res.filter((o: any) => o.opt_type === 'category')
+    categories.value = res.filter((o: StockOption) => o.opt_type === 'category')
   } catch {}
 }
 
@@ -268,7 +298,7 @@ const filteredOverview = computed(() => {
   let list = overview.value
   if (searchText.value) {
     const s = searchText.value.toLowerCase()
-    list = list.filter((o: any) => (o.item_name || '').toLowerCase().includes(s))
+    list = list.filter((o: OverviewItem) => (o.item_name || '').toLowerCase().includes(s))
   }
   return list
 })
@@ -313,9 +343,9 @@ async function loadOverview() {
     if (typeFilter.value) params.item_type = typeFilter.value
     if (alertOnly.value) params.alert_only = true
     if (searchText.value) params.search = searchText.value
-    overview.value = (await api.get<Record<string, unknown>>('/stock/overview', { params })) || {}
+    overview.value = ((await api.get<Array<Record<string, unknown>>>('/stock/overview', { params })) || []) as OverviewItem[]
     overviewShown.value = overviewPageSize
-  } catch (e: any) {
+  } catch (e) {
     console.error(e)
   }
 }
@@ -332,18 +362,29 @@ function goCheck(id: number) { router.push({ path: '/stock/check', query: { item
 
 // ── 批量操作（勾选 → 批量入库 / 批量盘点）──
 const overviewTableRef = ref()
-const selectedRows = ref<any[]>([])
+const selectedRows = ref<OverviewItem[]>([])
 const selectedIds = ref<Set<number>>(new Set())
-function onSelectionChange(rows: any[]) { selectedRows.value = rows }
-function toggleSel(row: any, val: boolean) {
+function onSelectionChange(rows: OverviewItem[]) { selectedRows.value = rows }
+function toggleSel(row: OverviewItem, val: boolean) {
   const s = new Set(selectedIds.value)
   if (val) s.add(row.item_id); else s.delete(row.item_id)
+  selectedIds.value = s
+}
+// 移动端全选：仅作用于当前已加载（分页展示）的卡片，避免选中未加载项
+const mobileAllSelected = computed(() =>
+  pagedOverview.value.length > 0 && pagedOverview.value.every((o: OverviewItem) => selectedIds.value.has(o.item_id))
+)
+function toggleSelectAllMobile(val: boolean) {
+  const s = new Set(selectedIds.value)
+  pagedOverview.value.forEach((o: OverviewItem) => {
+    if (val) s.add(o.item_id); else s.delete(o.item_id)
+  })
   selectedIds.value = s
 }
 // 桌面端走表格勾选(selectedRows)，移动端走卡片勾选(selectedIds)，统一出口
 const selectedList = computed(() =>
   isMobile.value
-    ? overview.value.filter((o: any) => selectedIds.value.has(o.item_id))
+    ? overview.value.filter((o: OverviewItem) => selectedIds.value.has(o.item_id))
     : selectedRows.value
 )
 function clearSelection() {
@@ -353,13 +394,13 @@ function clearSelection() {
 }
 
 const bulkInVisible = ref(false)
-const bulkInItems = ref<any[]>([])
+const bulkInItems = ref<BulkInItem[]>([])
 const bulkInSupplier = ref<number | undefined>(undefined)
 const bulkInPurchaseDate = ref<string>('')
 const bulkInExpiry = ref<string>('')
-const supplierOptions = ref<any[]>([])
+const supplierOptions = ref<Supplier[]>([])
 const bulkCheckVisible = ref(false)
-const bulkCheckItems = ref<any[]>([])
+const bulkCheckItems = ref<BulkCheckItem[]>([])
 const bulkCheckNote = ref<string>('')
 const bulkSubmitting = ref(false)
 
@@ -371,15 +412,16 @@ function todayStr(): string {
 
 async function loadSuppliers() {
   try {
-    const r = await api.get('/stock/suppliers')
-    supplierOptions.value = Array.isArray(r.data) ? r.data : (r.data?.items || [])
+    const r = await api.get<{ data: unknown }>('/stock/suppliers')
+    const d = r.data
+    supplierOptions.value = Array.isArray(d) ? (d as Supplier[]) : (((d as { items?: Supplier[] })?.items) || [])
   } catch { supplierOptions.value = [] }
 }
 
 function openBulkIn() {
-  bulkInItems.value = selectedList.value.map((o: any) => ({
-    item_id: o.item_id, item_name: o.item_name, unit: o.unit,
-    total_quantity: o.total_quantity, min_stock: o.min_stock,
+  bulkInItems.value = selectedList.value.map((o: OverviewItem) => ({
+    item_id: o.item_id, item_name: o.item_name, unit: o.unit || '',
+    total_quantity: Number(o.total_quantity || 0), min_stock: Number(o.min_stock || 0),
     qty: 0, unit_price: null,
   }))
   bulkInSupplier.value = undefined
@@ -389,15 +431,15 @@ function openBulkIn() {
   bulkInVisible.value = true
 }
 function fillToMin() {
-  bulkInItems.value.forEach((it: any) => {
+  bulkInItems.value.forEach((it: BulkInItem) => {
     const min = Number(it.min_stock || 0)
     it.qty = Math.max(0, +(min - Number(it.total_quantity)).toFixed(2))
   })
 }
 async function submitBulkIn() {
   const payload = bulkInItems.value
-    .filter((it: any) => it.qty && it.qty > 0)
-    .map((it: any) => ({
+    .filter((it: BulkInItem) => it.qty && it.qty > 0)
+    .map((it: BulkInItem) => ({
       item_id: it.item_id, quantity: it.qty, unit_price: it.unit_price,
       supplier_id: bulkInSupplier.value,
       purchase_date: bulkInPurchaseDate.value || undefined,
@@ -412,21 +454,21 @@ async function submitBulkIn() {
     bulkInVisible.value = false
     clearSelection()
     loadOverview()
-  } catch (e: any) {
+  } catch (e) {
     ElMessage.error('批量入库失败：' + (e?.response?.data?.detail || e?.message || '未知错误'))
   } finally { bulkSubmitting.value = false }
 }
 
 async function openBulkCheck() {
-  bulkCheckItems.value = selectedList.value.map((o: any) => ({
-    item_id: o.item_id, item_name: o.item_name, unit: o.unit,
-    total_quantity: o.total_quantity, counted: Number(o.total_quantity),
+  bulkCheckItems.value = selectedList.value.map((o: OverviewItem) => ({
+    item_id: o.item_id, item_name: o.item_name, unit: o.unit || '',
+    total_quantity: Number(o.total_quantity || 0), counted: Number(o.total_quantity || 0),
   }))
   bulkCheckNote.value = ''
   bulkCheckVisible.value = true
 }
 async function submitBulkCheck() {
-  const payload = bulkCheckItems.value.map((it: any) => ({ item_id: it.item_id, counted: it.counted, note: bulkCheckNote.value || '批量盘点' }))
+  const payload = bulkCheckItems.value.map((it: BulkCheckItem) => ({ item_id: it.item_id, counted: it.counted, note: bulkCheckNote.value || '批量盘点' }))
   bulkSubmitting.value = true
   try {
     await api.post('/stock/adjust/bulk', payload)
@@ -434,7 +476,7 @@ async function submitBulkCheck() {
     bulkCheckVisible.value = false
     clearSelection()
     loadOverview()
-  } catch (e: any) {
+  } catch (e) {
     ElMessage.error('批量盘点失败：' + (e?.response?.data?.detail || e?.message || '未知错误'))
   } finally { bulkSubmitting.value = false }
 }
@@ -467,6 +509,8 @@ async function submitBulkCheck() {
     margin-bottom: 12px;
     flex-wrap: wrap;
   }
+
+  .bulk-all { margin-right: auto; height: 32px; }
 
   .low-stock { color: #b5624f; font-weight: 700; font-variant-numeric: tabular-nums; }
 }

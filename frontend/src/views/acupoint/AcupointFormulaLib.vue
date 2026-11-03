@@ -193,19 +193,33 @@ import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Plus, Upload, Download } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
-import api from '@/utils/api'
+import api, { errMsg } from '@/utils/api'
 import type { AcupointFormula } from '@/types'
 import { useAuthStore } from '@/store/auth'
+
+interface AcupointRow { acupoint_name: string; technique: string; retention: string; sequence: number; note: string }
+interface AcupointFormulaForm {
+  id?: number
+  name: string
+  source: string
+  technique: string
+  treatment_frequency: string
+  treatment_days: number | null
+  efficacy: string
+  indications: string
+  usage: string
+  acupoints: AcupointRow[]
+}
 
 // 游客只读：隐藏所有写操作
 const auth = useAuthStore()
 const editable = computed(() => auth.canWrite('acupoint-formulas'))
 const router = useRouter()
-const formulas = ref<any[]>([])
+const formulas = ref<AcupointFormula[]>([])
 const searchText = ref('')
 const sourceFilter = ref('')
 const detailVisible = ref(false)
-const currentFormula = ref<any>(null)
+const currentFormula = ref<AcupointFormula | null>(null)
 const loading = ref(false)
 const importing = ref(false)
 
@@ -214,9 +228,9 @@ const importFileRef = ref<HTMLInputElement | null>(null)
 const editVisible = ref(false)
 const editId = ref<number | null>(null)
 const saving = ref(false)
-const editForm = ref<any>(emptyForm())
+const editForm = ref<AcupointFormulaForm>(emptyForm())
 
-function emptyForm() {
+function emptyForm(): AcupointFormulaForm {
   return {
     name: '', source: '', technique: '', treatment_frequency: '', treatment_days: null as number | null,
     efficacy: '', indications: '', usage: '',
@@ -230,7 +244,7 @@ function openCreate() {
   editVisible.value = true
 }
 
-function openEdit(f: any) {
+function openEdit(f: AcupointFormula) {
   editId.value = f.id
   editForm.value = {
     name: f.name || '',
@@ -241,15 +255,21 @@ function openEdit(f: any) {
     efficacy: f.efficacy || '',
     indications: f.indications || '',
     usage: f.usage || '',
-    acupoints: (f.composition?.acupoints || []).map((a: any) => ({ ...a })),
+    acupoints: (f.composition?.acupoints || []).map((a) => ({
+      acupoint_name: a.acupoint_name ?? '',
+      technique: a.technique ?? '',
+      retention: a.retention ?? '',
+      sequence: a.sequence ?? 1,
+      note: a.note ?? '',
+    })),
   }
   editVisible.value = true
 }
 
 function buildPayload() {
   const acupoints = editForm.value.acupoints
-    .filter((a: any) => a.acupoint_name && String(a.acupoint_name).trim())
-    .map((a: any) => ({
+    .filter((a) => a.acupoint_name && String(a.acupoint_name).trim())
+    .map((a) => ({
       acupoint_name: a.acupoint_name.trim(),
       technique: a.technique || null,
       retention: a.retention || null,
@@ -286,13 +306,13 @@ async function saveFormula() {
     }
     editVisible.value = false
     await loadFormulas()
-  } catch (e: any) {
+  } catch (e) {
     ElMessage.error('保存失败：' + (e?.response?.data?.detail || e?.message || ''))
   }
   saving.value = false
 }
 
-async function removeFormula(f: any) {
+async function removeFormula(f: AcupointFormula) {
   ElMessageBox.confirm(`确定删除针灸方「${f.name}」吗？该操作不可恢复。`, '删除确认', {
     type: 'warning',
   }).then(async () => {
@@ -301,7 +321,7 @@ async function removeFormula(f: any) {
       ElMessage.success('已删除')
       detailVisible.value = false
       await loadFormulas()
-    } catch (e: any) {
+    } catch (e) {
       ElMessage.error('删除失败：' + (e?.response?.data?.detail || e?.message || ''))
     }
   }).catch(() => {})
@@ -322,7 +342,7 @@ async function exportFormulas() {
     a.click()
     URL.revokeObjectURL(a.href)
     ElMessage.success(`已导出 ${nl.length} 首针灸方`)
-  } catch (e: any) {
+  } catch (e) {
     ElMessage.error('导出失败')
   }
 }
@@ -337,7 +357,7 @@ async function onImportFile(e: Event) {
     const text = await file.text()
     let data = JSON.parse(text)
     if (!Array.isArray(data)) data = [data]
-    const payload = data.map((it: any) => ({
+    const payload = data.map((it: Record<string, unknown>) => ({
       name: it.name,
       source: it.source || null,
       efficacy: it.efficacy || null,
@@ -351,7 +371,7 @@ async function onImportFile(e: Event) {
     const res: { created?: number; updated?: number } = await api.post('/acupoint-formulas/import', payload)
     ElMessage.success(`导入完成：新增 ${res.created}，更新 ${res.updated}`)
     await loadFormulas()
-  } catch (e: any) {
+  } catch (e) {
     ElMessage.error('导入失败：' + (e?.message || '请检查JSON格式'))
   } finally {
     importing.value = false
@@ -359,7 +379,7 @@ async function onImportFile(e: Event) {
 }
 
 const sources = computed(() => {
-  const set = new Set(formulas.value.map((f: any) => f.source).filter(Boolean))
+  const set = new Set(formulas.value.map((f: AcupointFormula) => f.source).filter(Boolean))
   return Array.from(set)
 })
 
@@ -383,12 +403,12 @@ function resetFilter() {
   loadFormulas()
 }
 
-function viewFormula(formula: any) {
+function viewFormula(formula: AcupointFormula) {
   currentFormula.value = formula
   detailVisible.value = true
 }
 
-function useInPrescription(formula: any) {
+function useInPrescription(formula: AcupointFormula) {
   detailVisible.value = false
   // 跳转到处方编辑器，通过 router query 传递 acupoint_formula_id
   router.push({ path: '/prescriptions/new', query: { acupoint_formula_id: formula.id } })

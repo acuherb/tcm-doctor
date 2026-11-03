@@ -399,7 +399,7 @@ async function onOutItemSelect(id: number) {
     outBatches.value = (await api.get<StockBatch[]>('/stock/batches', { params: { item_id: id } })) || []
     outAvailable.value = outBatches.value
       .filter((b: StockBatch) => ['正常', '近效期'].includes(b.status))
-      .reduce((s: number, b: any) => s + Number(b.quantity || 0), 0)
+      .reduce((s: number, b: StockBatch) => s + Number(b.quantity || 0), 0)
   } catch { outBatches.value = []; outAvailable.value = 0 }
 }
 async function submitStockOut() {

@@ -92,13 +92,16 @@ export function useDictColors() {
 
 // 库存「物品类别」自定义色：模块级缓存，全应用共享一次选项拉取
 const STOCK_OPTION_DEFAULT_COLOR = '#909399'
+// 选项版本号：库存选项增删改后自增，依赖它的视图（如物品管理）据此重新拉取配色，
+// 否则模块级缓存会一直沿用首次加载的旧颜色，改了自定义色也不联动。
+const stockOptionVersion = ref(0)
 const stockCategoryColorMap = ref<Record<string, string>>({})
 let stockOptionsLoaded = false
 let stockOptionsLoadingPromise: Promise<void> | null = null
 
 export function useStockOptionColors() {
   if (!stockOptionsLoaded && !stockOptionsLoadingPromise) {
-    stockOptionsLoadingPromise = api.get<Array<{ opt_type?: string; name?: string; color?: string }>>('/stock/options').then((res) => {
+    stockOptionsLoadingPromise = api.get<Array<{ opt_type?: string; name?: string; color?: string }>>('/stock/options', { silent: true }).then((res) => {
       const arr = Array.isArray(res) ? res : []
       const m: Record<string, string> = {}
       for (const o of arr) {
@@ -106,10 +109,17 @@ export function useStockOptionColors() {
       }
       stockCategoryColorMap.value = m
       stockOptionsLoaded = true
-    }).catch(() => { stockOptionsLoaded = true })
+    }).catch(() => {
+      // 请求失败（如登录态尚未恢复、接口瞬时不可用）不能标记为已加载，
+      // 否则模块级缓存会永久停留在空 map，导致类别色点全部回退默认灰且不再重试。
+      stockOptionsLoaded = false
+      stockOptionsLoadingPromise = null
+    })
   }
   // 取类别颜色：无自定义色时回退默认灰
   function categoryColor(name: string): string {
+    // 显式读取 map，确保调用处在 map 异步填充完成后能重新求值（否则会停留在默认灰）
+    void stockCategoryColorMap.value
     return stockCategoryColorMap.value[name] || STOCK_OPTION_DEFAULT_COLOR
   }
   // 按类别颜色生成带可读前景色的标签样式
@@ -118,5 +128,15 @@ export function useStockOptionColors() {
     const ink = readableInk(c)
     return { color: ink, backgroundColor: c, borderColor: ink }
   }
-  return { stockCategoryColorMap, categoryColor, categoryChipStyle }
+  return { stockCategoryColorMap, stockOptionVersion, categoryColor, categoryChipStyle }
+}
+
+// 库存选项被改动后调用：丢弃缓存并重拉配色，再用版本号通知正在显示的视图刷新标签色
+export function refreshStockOptionColors(): void {
+  stockOptionsLoaded = false
+  stockOptionsLoadingPromise = null
+  stockCategoryColorMap.value = {}
+  // 通知依赖方（v-if/计算属性监听到版本变化即重算）
+  stockOptionVersion.value++
+  useStockOptionColors()
 }

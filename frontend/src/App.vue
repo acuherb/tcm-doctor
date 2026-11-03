@@ -8,6 +8,7 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import api from '@/utils/api'
+import { applyBranding } from '@/utils/branding'
 import type { AppConfig } from '@/types'
 import ForceChangePassword from '@/views/auth/ForceChangePassword.vue'
 
@@ -16,22 +17,11 @@ import ForceChangePassword from '@/views/auth/ForceChangePassword.vue'
 onMounted(async () => {
   try {
     const res = await api.get<AppConfig>('/config', { silent: true })
-    document.title = res.clinic_name?.trim() || '中医诊所管理平台'
-    if (res.clinic_logo) setFavicon(res.clinic_logo)
+    applyBranding(res.clinic_name, res.clinic_logo)
   } catch {
     /* 后端不可用或未登录时保持默认标题 */
   }
 })
-
-function setFavicon(href: string) {
-  let link = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
-  if (!link) {
-    link = document.createElement('link')
-    link.rel = 'icon'
-    document.head.appendChild(link)
-  }
-  link.href = href
-}
 </script>
 
 <style scoped>

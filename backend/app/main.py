@@ -15,9 +15,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from starlette.background import BackgroundTask
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 from app.config import settings, build_display_version, resolve_env_path
-from app.database import engine, Base, SessionLocal
+from app.database import engine, Base, SessionLocal, get_db
 from app.migrations import run_migrations
 from app.models.user import User, AuthToken
 from app.permissions import has_read, has_write, has_perm
@@ -521,10 +522,71 @@ app.include_router(followup_reminders.router, prefix="/api/v1")
 app.include_router(system_log.router, prefix="/api/v1")
 
 
+def _clean_env_value(value: str) -> str:
+    """剥离首尾空白及误粘的引号/反引号（如 `https://api.deepseek.com`），避免写坏 .env"""
+    return value.strip().strip("`'\"").strip()
+
+
 @app.get("/health", tags=["系统"])
 def health_check():
     """健康检查 — Electron 启动时轮询此接口"""
     return {"status": "ok", "version": build_display_version()}
+
+
+def _read_branding(db) -> dict:
+    """读取诊所品牌信息：数据库优先，未落库时回退 .env（兼容旧配置）"""
+    from app.models.branding import BrandingConfig
+    row = db.query(BrandingConfig).first()
+    if row:
+        return {
+            "clinic_name": row.clinic_name or "",
+            "clinic_logo": row.clinic_logo or "",
+        }
+    return {
+        "clinic_name": settings.clinic_name or "",
+        "clinic_logo": settings.clinic_logo or "",
+    }
+
+
+def _save_branding(db, clinic_name: str | None, clinic_logo: str | None) -> None:
+    """写入诊所品牌信息到数据库（None 表示该字段不修改；空串表示清空）"""
+    from app.models.branding import BrandingConfig
+    row = db.query(BrandingConfig).first()
+    if not row:
+        row = BrandingConfig()
+        db.add(row)
+    if clinic_name is not None:
+        row.clinic_name = clinic_name
+    if clinic_logo is not None:
+        row.clinic_logo = clinic_logo
+    db.commit()
+
+
+@app.get("/api/v1/favicon", tags=["系统"])
+def get_favicon(db: Session = Depends(get_db)):
+    """浏览器标签图标（免鉴权）：新开标签页由 index.html 直接引用，返回诊所 Logo 原始字节。
+
+    仅暴露 Logo 本身（诊所对外展示信息），不含任何配置或密钥；未设置 Logo 时返回 404，
+    前端 link 自动回退默认 /favicon.svg。加短时缓存避免每次开页重复读取。
+    """
+    from fastapi.responses import Response
+    import base64
+
+    brand = _read_branding(db)
+    data_url = brand["clinic_logo"]
+    if not data_url.startswith("data:") or "," not in data_url:
+        raise HTTPException(status_code=404, detail="未设置诊所 Logo")
+    header, _, payload = data_url.partition(",")
+    media_type = header[5:].split(";")[0] or "image/png"
+    try:
+        binary = base64.b64decode(payload)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Logo 数据无法解析")
+    return Response(
+        content=binary,
+        media_type=media_type,
+        headers={"Cache-Control": "public, max-age=300"},
+    )
 
 
 @app.get("/api/v1/config", tags=["系统"])
@@ -557,12 +619,19 @@ def get_config(current_user: User = Depends(get_current_user)):
     except Exception as e:  # 统计失败不应影响配置下发
         logger.warning(f"统计系统数据条数失败: {e}")
 
+    # 诊所品牌信息单独会话读取（上面的 db 已在 finally 关闭）
+    brand_db = SessionLocal()
+    try:
+        brand = _read_branding(brand_db)
+    finally:
+        brand_db.close()
+
     return {
         "app_name": settings.app_name,
         "version": build_display_version(),
-        "clinic_name": settings.clinic_name,
+        "clinic_name": brand["clinic_name"],
         "doctor_name": settings.doctor_name,
-        "clinic_logo": settings.clinic_logo,
+        "clinic_logo": brand["clinic_logo"],
         "ui_theme": settings.ui_theme,
         "deepseek_configured": bool(settings.deepseek_api_key),
         "deepseek_model": settings.deepseek_model,
@@ -592,8 +661,12 @@ class ConfigUpdate(BaseModel):
 
 
 @app.put("/api/v1/config", tags=["系统"])
-def update_config(payload: ConfigUpdate, current_user: User = Depends(get_current_user)):
-    """更新系统配置 — 同时写入 .env 文件持久化（密钥不回显、文件权限 600）"""
+def update_config(
+    payload: ConfigUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """更新系统配置 — 诊所品牌写入数据库，其余参数写入 .env 持久化（密钥不回显、文件权限 600）"""
     if not has_perm(current_user, "system:write"):
         return JSONResponse({"detail": "权限不足，仅 system:write 账号可修改系统配置"}, status_code=403)
     data = payload.model_dump(exclude_unset=True)
@@ -621,17 +694,14 @@ def update_config(payload: ConfigUpdate, current_user: User = Depends(get_curren
                 k, _, v = line.partition("=")
                 env_lines[k.strip()] = v.strip()
 
-    # 更新内存 + env（诊所信息允许清空；密钥忽略空字符串，防止误清已有配置）
-    if clinic_name is not None:
-        settings.clinic_name = clinic_name
-        env_lines["CLINIC_NAME"] = clinic_name
+    # 诊所品牌（名称 / Logo）写入数据库：Logo 为 base64 大字段，写 .env 会导致整文件反复重写
+    if clinic_name is not None or clinic_logo is not None:
+        _save_branding(db, clinic_name, clinic_logo)
     if doctor_name is not None:
         settings.doctor_name = doctor_name
         env_lines["DOCTOR_NAME"] = doctor_name
-    # 诊所 logo 允许清空：空字符串也写入
-    if clinic_logo is not None:
-        settings.clinic_logo = clinic_logo
-        env_lines["CLINIC_LOGO"] = clinic_logo
+    # 旧版本曾把诊所信息写进 .env，这里剔除，避免与数据库中的新值产生双源歧义
+    env_lines.pop("CLINIC_NAME", None)
     # 界面风格：仅接受已知主题，非法值忽略（防止写入无效 CSS 选择器）
     if ui_theme is not None:
         allowed_themes = {"herbal", "ink", "vermilion", "jade"}
@@ -639,21 +709,25 @@ def update_config(payload: ConfigUpdate, current_user: User = Depends(get_curren
             settings.ui_theme = ui_theme
             env_lines["UI_THEME"] = ui_theme
     if deepseek_api_key:
+        deepseek_api_key = _clean_env_value(deepseek_api_key)
         settings.deepseek_api_key = deepseek_api_key
         env_lines["DEEPSEEK_API_KEY"] = deepseek_api_key
     if deepseek_model:
         settings.deepseek_model = deepseek_model
         env_lines["DEEPSEEK_MODEL"] = deepseek_model
     if deepseek_base_url:
+        deepseek_base_url = _clean_env_value(deepseek_base_url)
         settings.deepseek_base_url = deepseek_base_url
         env_lines["DEEPSEEK_BASE_URL"] = deepseek_base_url
     if deepseek_vision_model:
         settings.deepseek_vision_model = deepseek_vision_model
         env_lines["DEEPSEEK_VISION_MODEL"] = deepseek_vision_model
     if deepseek_vision_base_url:
+        deepseek_vision_base_url = _clean_env_value(deepseek_vision_base_url)
         settings.deepseek_vision_base_url = deepseek_vision_base_url
         env_lines["DEEPSEEK_VISION_BASE_URL"] = deepseek_vision_base_url
     if deepseek_vision_api_key:
+        deepseek_vision_api_key = _clean_env_value(deepseek_vision_api_key)
         settings.deepseek_vision_api_key = deepseek_vision_api_key
         env_lines["DEEPSEEK_VISION_API_KEY"] = deepseek_vision_api_key
 

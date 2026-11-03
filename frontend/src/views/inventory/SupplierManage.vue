@@ -171,6 +171,23 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
 
   .filter-search { width: 200px; }
 
+  @media (max-width: 767px) {
+    .tcm-head__actions {
+      flex-wrap: nowrap;
+      gap: 6px;
+    }
+    .tcm-head__actions .filter-search {
+      width: auto;
+      flex: 1 1 0;
+      min-width: 0;
+    }
+    .tcm-head__actions .el-button {
+      flex: 0 0 auto;
+      margin-left: 0;
+      padding: 8px 10px;
+    }
+  }
+
   .cards { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
   .card { border: 1px solid #f0e4d6; border-radius: 10px; padding: 12px; background: #fff; box-shadow: 0 1px 3px rgba(44,24,16,.04); }
   .card .card-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }

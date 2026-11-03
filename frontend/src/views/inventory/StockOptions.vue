@@ -23,7 +23,7 @@
         </el-table-column>
         <el-table-column label="启用" width="90">
           <template #default="{ row }">
-            <el-switch v-model="row.is_active" @change="(v: any) => toggle(row, v)" />
+            <el-switch v-model="row.is_active" @change="(v: boolean) => toggle(row, v)" />
           </template>
         </el-table-column>
         <el-table-column label="操作" width="140" fixed="right">
@@ -38,7 +38,7 @@
         <div v-for="row in categories" :key="row.id" class="card">
           <span class="card-name">{{ row.name }}</span>
           <div class="card-actions">
-            <el-switch v-model="row.is_active" @change="(v: any) => toggle(row, v)" />
+            <el-switch v-model="row.is_active" @change="(v: boolean) => toggle(row, v)" />
             <el-button link type="primary" size="small" @click="openEdit(row)">编辑</el-button>
             <el-button link type="danger" size="small" @click="remove(row)">删除</el-button>
           </div>
@@ -66,7 +66,7 @@
         <el-table-column prop="name" label="名称" min-width="160" />
         <el-table-column label="启用" width="90">
           <template #default="{ row }">
-            <el-switch v-model="row.is_active" @change="(v: any) => toggle(row, v)" />
+            <el-switch v-model="row.is_active" @change="(v: boolean) => toggle(row, v)" />
           </template>
         </el-table-column>
         <el-table-column label="操作" width="140" fixed="right">
@@ -81,7 +81,7 @@
         <div v-for="row in units" :key="row.id" class="card">
           <span class="card-name">{{ row.name }}</span>
           <div class="card-actions">
-            <el-switch v-model="row.is_active" @change="(v: any) => toggle(row, v)" />
+            <el-switch v-model="row.is_active" @change="(v: boolean) => toggle(row, v)" />
             <el-button link type="primary" size="small" @click="openEdit(row)">编辑</el-button>
             <el-button link type="danger" size="small" @click="remove(row)">删除</el-button>
           </div>
@@ -121,6 +121,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import api, { errMsg } from '@/utils/api'
 import type { StockOption } from '@/types'
+import { refreshStockOptionColors } from '@/utils/dictColors'
 
 const DEFAULT_COLOR = '#909399'
 
@@ -147,7 +148,7 @@ function chipStyle(c: string): Record<string, string> {
   const ink = readableInk(c)
   return { color: ink, backgroundColor: c, borderColor: ink }
 }
-function optionChipStyle(row: any): Record<string, string> {
+function optionChipStyle(row: StockOption): Record<string, string> {
   return chipStyle(row?.color || DEFAULT_COLOR)
 }
 const isCategory = computed(() => form.value.opt_type === 'category')
@@ -191,6 +192,8 @@ async function save() {
       ElMessage.success('已添加')
     }
     visible.value = false
+    // 类别名/自定义色改动后让全局共享的配色缓存失效，物品管理等页面才能跟着变
+    refreshStockOptionColors()
     load()
   } catch {
     /* 错误提示由拦截器处理 */
@@ -203,11 +206,12 @@ async function toggle(row: StockOption, v: boolean) {
   try {
     await api.put(`/stock/options/${row.id}`, { is_active: val })
     ElMessage.success('已更新')
+    refreshStockOptionColors()
   } catch {
     row.is_active = !val // 失败回滚
   }
 }
-async function remove(row: any) {
+async function remove(row: StockOption) {
   try {
     await ElMessageBox.confirm(
       `确认删除选项「${row.name}」？已使用该选项的物品不受影响（仅不再作为下拉候选）。`,
@@ -219,6 +223,7 @@ async function remove(row: any) {
   try {
     await api.delete(`/stock/options/${row.id}`)
     ElMessage.success('已删除')
+    refreshStockOptionColors()
     load()
   } catch {
     /* 错误提示由拦截器处理 */

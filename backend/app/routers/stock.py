@@ -1006,6 +1006,12 @@ def update_option(
             StockOption.opt_type == opt.opt_type, StockOption.name == data.name, StockOption.id != opt_id
         ).first():
             raise HTTPException(status_code=400, detail=f"选项「{data.name}」已存在")
+        # 类别改名须同步已归该类的物品：item_type 存的是类别名而非外键，
+        # 不同步会导致物品管理按新类别筛选时查不到数据，只能逐条手改。
+        if opt.opt_type == "category" and opt.name != data.name:
+            db.query(StockItem).filter(StockItem.item_type == opt.name).update(
+                {StockItem.item_type: data.name}, synchronize_session=False
+            )
         opt.name = data.name
     if "color" in data.model_fields_set:
         opt.color = data.color
@@ -1025,6 +1031,15 @@ def delete_option(
     opt = db.get(StockOption, opt_id)
     if not opt:
         raise HTTPException(status_code=404, detail="选项不存在")
+    # 类别仍被物品引用时拒绝删除：item_type 是名称字段，删掉类别会让这些物品
+    # 在下拉里无对应项、按类别筛选也永远查不到，数据将变成"孤儿"。
+    if opt.opt_type == "category":
+        used = db.query(StockItem).filter(StockItem.item_type == opt.name).count()
+        if used:
+            raise HTTPException(
+                status_code=400,
+                detail=f"类别「{opt.name}」下仍有 {used} 个物品，请先改名或调整这些物品的类别后再删除",
+            )
     db.delete(opt)
     db.commit()
     return {"detail": "已删除"}

@@ -196,19 +196,33 @@ import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Plus, Upload, Download, Collection } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
-import api from '@/utils/api'
+import api, { errMsg } from '@/utils/api'
 import type { ClassicFormula } from '@/types'
+
+interface FormulaHerb { herb: string; dose?: string | null; special_method?: string | null; is_king_herb?: boolean; note?: string | null }
+interface FormulaChange { condition?: string | null; add?: string | null; remove?: string | null }
+interface ClassicFormulaForm {
+  id?: number
+  name: string
+  source: string
+  meridian: string
+  efficacy: string
+  indications: string
+  usage: string
+  herbs: FormulaHerb[]
+  changes: FormulaChange[]
+}
 import { useAuthStore } from '@/store/auth'
 
 // 游客只读：隐藏所有写操作
 const auth = useAuthStore()
 const editable = computed(() => auth.can('dict:write'))
 const router = useRouter()
-const formulas = ref<any[]>([])
+const formulas = ref<ClassicFormula[]>([])
 const searchText = ref('')
 const sourceFilter = ref('')
 const detailVisible = ref(false)
-const currentFormula = ref<any>(null)
+const currentFormula = ref<ClassicFormula | null>(null)
 const loading = ref(false)
 const importing = ref(false)
 
@@ -217,12 +231,12 @@ const importFileRef = ref<HTMLInputElement | null>(null)
 const editVisible = ref(false)
 const editId = ref<number | null>(null)
 const saving = ref(false)
-const editForm = ref<any>({
+const editForm = ref<ClassicFormulaForm>({
   name: '', source: '', meridian: '', efficacy: '', indications: '', usage: '',
   herbs: [], changes: [],
 })
 
-function emptyForm() {
+function emptyForm(): ClassicFormulaForm {
   return {
     name: '', source: '', meridian: '', efficacy: '', indications: '', usage: '',
     herbs: [], changes: [],
@@ -235,7 +249,7 @@ function openCreate() {
   editVisible.value = true
 }
 
-function openEdit(f: any) {
+function openEdit(f: ClassicFormula) {
   editId.value = f.id
   editForm.value = {
     name: f.name || '',
@@ -244,16 +258,26 @@ function openEdit(f: any) {
     efficacy: f.efficacy || '',
     indications: f.indications || '',
     usage: f.usage || '',
-    herbs: (f.composition?.herbs || []).map((h: any) => ({ ...h })),
-    changes: (f.modifications?.changes || []).map((c: any) => ({ ...c })),
+    herbs: (f.composition?.herbs || []).map((h) => ({
+      herb: h.herb ?? '',
+      dose: h.dose ?? null,
+      special_method: h.special_method ?? null,
+      is_king_herb: !!h.is_king_herb,
+      note: h.note ?? null,
+    })),
+    changes: (f.modifications?.changes || []).map((c) => ({
+      condition: c.condition ?? null,
+      add: c.add ?? null,
+      remove: c.remove ?? null,
+    })),
   }
   editVisible.value = true
 }
 
 function buildPayload() {
   const herbs = editForm.value.herbs
-    .filter((h: any) => h.herb && String(h.herb).trim())
-    .map((h: any) => ({
+    .filter((h: FormulaHerb) => h.herb && String(h.herb).trim())
+    .map((h: FormulaHerb) => ({
       herb: h.herb.trim(),
       dose: h.dose || null,
       special_method: h.special_method || null,
@@ -262,7 +286,7 @@ function buildPayload() {
     }))
   const composition: Record<string, unknown> = { herbs }
   if (editForm.value.meridian) composition.meridian = editForm.value.meridian
-  const changes = editForm.value.changes.filter((c: any) => c.condition || c.add || c.remove)
+  const changes = editForm.value.changes.filter((c: FormulaChange) => c.condition || c.add || c.remove)
   return {
     name: editForm.value.name.trim(),
     source: editForm.value.source?.trim() || null,
@@ -291,13 +315,13 @@ async function saveFormula() {
     }
     editVisible.value = false
     await loadFormulas()
-  } catch (e: any) {
+  } catch (e) {
     ElMessage.error('保存失败：' + (e?.response?.data?.detail || e?.message || ''))
   }
   saving.value = false
 }
 
-async function removeFormula(f: any) {
+async function removeFormula(f: ClassicFormula) {
   ElMessageBox.confirm(`确定删除方剂「${f.name}」吗？该操作不可恢复。`, '删除确认', {
     type: 'warning',
   }).then(async () => {
@@ -306,7 +330,7 @@ async function removeFormula(f: any) {
       ElMessage.success('已删除')
       detailVisible.value = false
       await loadFormulas()
-    } catch (e: any) {
+    } catch (e) {
       ElMessage.error('删除失败：' + (e?.response?.data?.detail || e?.message || ''))
     }
   }).catch(() => {})
@@ -327,7 +351,7 @@ async function exportFormulas() {
     a.click()
     URL.revokeObjectURL(a.href)
     ElMessage.success(`已导出 ${nl.length} 首方剂`)
-  } catch (e: any) {
+  } catch (e) {
     ElMessage.error('导出失败')
   }
 }
@@ -342,7 +366,7 @@ async function onImportFile(e: Event) {
     const text = await file.text()
     let data = JSON.parse(text)
     if (!Array.isArray(data)) data = [data]
-    const payload = data.map((it: any) => ({
+    const payload = data.map((it: Record<string, unknown>) => ({
       name: it.name,
       source: it.source || null,
       composition: it.composition || { herbs: it.herbs || [] },
@@ -354,7 +378,7 @@ async function onImportFile(e: Event) {
     const res: { created?: number; updated?: number } = await api.post('/prescriptions/classic-formulas/import', payload)
     ElMessage.success(`导入完成：新增 ${res.created}，更新 ${res.updated}`)
     await loadFormulas()
-  } catch (e: any) {
+  } catch (e) {
     ElMessage.error('导入失败：' + (e?.message || '请检查JSON格式'))
   } finally {
     importing.value = false
@@ -362,7 +386,7 @@ async function onImportFile(e: Event) {
 }
 
 const sources = computed(() => {
-  const set = new Set(formulas.value.map((f: any) => f.source).filter(Boolean))
+  const set = new Set(formulas.value.map((f: ClassicFormula) => f.source).filter(Boolean))
   return Array.from(set)
 })
 
@@ -386,12 +410,12 @@ function resetFilter() {
   loadFormulas()
 }
 
-function viewFormula(formula: any) {
+function viewFormula(formula: ClassicFormula) {
   currentFormula.value = formula
   detailVisible.value = true
 }
 
-function useInPrescription(formula: any) {
+function useInPrescription(formula: ClassicFormula) {
   detailVisible.value = false
   // 跳转到处方编辑器，通过 router query 传递 formula_id
   router.push({ path: '/prescriptions/new', query: { formula_id: formula.id } })
