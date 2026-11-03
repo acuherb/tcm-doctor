@@ -4,7 +4,7 @@
     <div v-show="isMobile && mobileOpen" class="mobile-mask" @click="mobileOpen = false"></div>
 
     <!-- 侧边栏 -->
-    <el-aside :width="isMobile ? '200px' : (isCollapsed ? '64px' : '210px')" class="sidebar" :class="{ 'sidebar-mobile-open': mobileOpen }">
+    <el-aside :width="isMobile ? '176px' : (isCollapsed ? '64px' : '210px')" class="sidebar" :class="{ 'sidebar-mobile-open': mobileOpen }">
       <div class="sidebar-logo" @click="$router.push('/dashboard')">
         <img v-if="clinicLogo" :src="clinicLogo" class="logo-img" alt="诊所Logo" />
         <span v-else class="logo-icon">🌿</span>
@@ -540,7 +540,7 @@ async function onUserCommand(command: string) {
     top: 0;
     left: 0;
     bottom: 0;
-    width: 200px !important;
+    width: 176px !important;
     transform: translateX(-100%);
     transition: transform 0.25s ease;
     z-index: 2000;
