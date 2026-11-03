@@ -87,6 +87,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
 import api from '@/utils/api'
 import { useAuthStore } from '@/store/auth'
+import type { Supplier } from '@/types'
 
 const auth = useAuthStore()
 const isMobile = ref(false)
@@ -112,7 +113,7 @@ async function load() {
   try {
     const params: any = {}
     if (searchText.value) params.search = searchText.value
-    const list = (await api.get('/stock/suppliers', { params }) as any) || []
+    const list = (await api.get<Supplier[]>('/stock/suppliers', { params })) || []
     // 标记是否已被进货使用（前端无法精确判断，交给后端删除校验）
     suppliers.value = list
     shownCount.value = cardPageSize

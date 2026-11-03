@@ -163,6 +163,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
 import api from '@/utils/api'
 import { useAuthStore } from '@/store/auth'
+import type { StockItem, Herb, Supplier, Paginated, StockOption } from '@/types'
 import { useStockOptionColors } from '@/utils/dictColors'
 
 const { categoryColor, categoryChipStyle } = useStockOptionColors()
@@ -199,7 +200,7 @@ async function loadItems(resetPage = false) {
     const params: any = { page: page.value, page_size: pageSize.value }
     if (typeFilter.value) params.item_type = typeFilter.value
     if (searchText.value) params.search = searchText.value
-    const res = (await api.get('/stock/items', { params }) as any) || []
+    const res = (await api.get<Paginated<StockItem>>('/stock/items', { params })) || []
     // 兼容：分页接口返回 {items,total,...}；旧全量接口返回数组
     if (Array.isArray(res)) {
       items.value = res
@@ -220,7 +221,7 @@ async function loadMoreItems() {
     const params: any = { page: next, page_size: pageSize.value }
     if (typeFilter.value) params.item_type = typeFilter.value
     if (searchText.value) params.search = searchText.value
-    const res = (await api.get('/stock/items', { params }) as any) || []
+    const res = (await api.get<Paginated<StockItem>>('/stock/items', { params })) || []
     const rows = Array.isArray(res) ? res : (res.items || [])
     const seen = new Set(items.value.map((r: any) => r.id))
     items.value.push(...rows.filter((r: any) => !seen.has(r.id)))
@@ -230,10 +231,10 @@ async function loadMoreItems() {
   } finally { loadingMore.value = false }
 }
 async function loadHerbs() {
-  try { herbs.value = (await api.get('/herbs') as any) || [] } catch {}
+  try { herbs.value = (await api.get<Herb[]>('/herbs')) || [] } catch {}
 }
 async function loadSuppliers() {
-  try { suppliers.value = (await api.get('/stock/suppliers') as any) || [] } catch {}
+  try { suppliers.value = (await api.get<Supplier[]>('/stock/suppliers')) || [] } catch {}
 }
 
 // 物品类别 / 计量单位 改为从「库存选项」表读取（受控，可在界面增删，不再硬编码）
@@ -241,7 +242,7 @@ const categories = ref<any[]>([])
 const units = ref<any[]>([])
 async function loadOptions() {
   try {
-    const res = (await api.get('/stock/options') as any) || []
+    const res = (await api.get<StockOption[]>('/stock/options')) || []
     categories.value = res.filter((o: any) => o.opt_type === 'category')
     units.value = res.filter((o: any) => o.opt_type === 'unit')
   } catch {}

@@ -2,6 +2,7 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import api from '@/utils/api'
 import { setLogoutHandler } from './authBus'
+import type { AuthLoginResult, TcmUser } from '@/types'
 
 interface UserInfo {
   id: number
@@ -48,7 +49,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function login(username: string, password: string) {
-    const res = (await api.post('/auth/login', { username, password })) as any
+    const res = await api.post<AuthLoginResult>('/auth/login', { username, password })
     authorize(res.token)
     user.value = res.user
     localStorage.setItem(USER_KEY, JSON.stringify(res.user))
@@ -60,7 +61,7 @@ export const useAuthStore = defineStore('auth', () => {
     // 内存仍有令牌：直接续期
     if (token.value) {
       try {
-        const me = (await api.get('/auth/me')) as any
+        const me = await api.get<TcmUser>('/auth/me')
         user.value = me
         localStorage.setItem(USER_KEY, JSON.stringify(me))
         return true

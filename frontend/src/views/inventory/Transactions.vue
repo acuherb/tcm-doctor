@@ -258,6 +258,7 @@ import { ElMessage } from 'element-plus'
 import { Upload, Download, Search, Delete } from '@element-plus/icons-vue'
 import api from '@/utils/api'
 import { useAuthStore } from '@/store/auth'
+import type { StockTransaction, StockItem, Supplier, StockBatch, Paginated } from '@/types'
 
 const auth = useAuthStore()
 const editable = computed(() => auth.canWrite('stock'))
@@ -295,7 +296,7 @@ async function loadTransactions(resetPage = false) {
     if (typeFilter.value) params.transaction_type = typeFilter.value
     if (refFilter.value) params.reference_type = refFilter.value
     if (searchText.value) params.search = searchText.value
-    const res = (await api.get('/stock/transactions', { params }) as any) || []
+    const res = (await api.get<Paginated<StockTransaction>>('/stock/transactions', { params })) || []
     // 后端返回分页信封 {items,total,...}
     if (Array.isArray(res)) { transactions.value = res; total.value = res.length }
     else { transactions.value = res.items || []; total.value = res.total || 0 }
@@ -313,7 +314,7 @@ async function loadMoreTransactions() {
     if (typeFilter.value) params.transaction_type = typeFilter.value
     if (refFilter.value) params.reference_type = refFilter.value
     if (searchText.value) params.search = searchText.value
-    const res = (await api.get('/stock/transactions', { params }) as any) || []
+    const res = (await api.get<Paginated<StockTransaction>>('/stock/transactions', { params })) || []
     const rows = Array.isArray(res) ? res : (res.items || [])
     const seen = new Set(transactions.value.map((r: any) => r.id))
     transactions.value.push(...rows.filter((r: any) => !seen.has(r.id)))
@@ -323,10 +324,10 @@ async function loadMoreTransactions() {
   } finally { loadingMore.value = false }
 }
 async function loadItems() {
-  try { items.value = (await api.get('/stock/items') as any) || [] } catch {}
+  try { items.value = (await api.get<StockItem[]>('/stock/items')) || [] } catch {}
 }
 async function loadSuppliers() {
-  try { suppliers.value = (await api.get('/stock/suppliers') as any) || [] } catch {}
+  try { suppliers.value = (await api.get<Supplier[]>('/stock/suppliers')) || [] } catch {}
 }
 
 // ── 入库 ──
@@ -395,7 +396,7 @@ async function onOutItemSelect(id: number) {
   outUnit.value = item?.unit || ''
   stockOutForm.value.batch_id = null
   try {
-    outBatches.value = (await api.get('/stock/batches', { params: { item_id: id } }) as any) || []
+    outBatches.value = (await api.get<StockBatch[]>('/stock/batches', { params: { item_id: id } })) || []
     outAvailable.value = outBatches.value
       .filter((b: any) => ['正常', '近效期'].includes(b.status))
       .reduce((s: number, b: any) => s + Number(b.quantity || 0), 0)

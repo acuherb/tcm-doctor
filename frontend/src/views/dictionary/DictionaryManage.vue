@@ -182,6 +182,7 @@ import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '@/utils/api'
 import { useAuthStore } from '@/store/auth'
+import type { DictionaryTerm } from '@/types'
 
 // 游客只读：隐藏所有写操作
 const auth = useAuthStore()
@@ -329,7 +330,7 @@ const attributesText = ref('')
 
 async function loadTerms() {
   try {
-    const res = await api.get('/dictionaries', { params: { term_type: activeType.value } }) as any
+    const res = await api.get<DictionaryTerm[]>('/dictionaries', { params: { term_type: activeType.value } })
     let data = Array.isArray(res) ? res : []
     if (activeType.value === 'herb_tag') data = sortHerbTag(data)
     if (activeType.value === 'acupoint_tag') data = sortAcupointTag(data)

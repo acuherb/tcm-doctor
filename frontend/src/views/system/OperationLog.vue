@@ -139,6 +139,7 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Download, Delete } from '@element-plus/icons-vue'
 import api from '@/utils/api'
+import type { OperationLog as LogEntry } from '@/types'
 
 const logs = ref<any[]>([])
 const isMobile = ref(false)
@@ -161,7 +162,7 @@ const actionOptions = ref<string[]>([])
 
 async function loadMeta() {
   try {
-    const m = (await api.get('/system/logs/meta')) as any
+    const m = await api.get<Record<string, unknown>>('/system/logs/meta')
     userOptions.value = m?.users || []
     actionOptions.value = m?.actions || []
   } catch { /* 元数据失败不阻塞主列表 */ }
@@ -169,7 +170,7 @@ async function loadMeta() {
 
 async function loadStats() {
   try {
-    const s = (await api.get('/system/logs/stats')) as any
+    const s = await api.get<Record<string, unknown>>('/system/logs/stats')
     if (s) stats.value = s
   } catch { /* 统计失败不阻塞主列表 */ }
 }
@@ -225,7 +226,7 @@ async function load() {
   try {
     expandedId.value = null
     const params = { ...buildParams(), limit: PAGE_SIZE, offset: 0 }
-    const rows = ((await api.get('/system/logs', { params })) as any) || []
+    const rows = (await api.get<LogEntry[]>('/system/logs', { params })) || []
     logs.value = rows
     hasMore.value = rows.length >= PAGE_SIZE
     loadStats()
@@ -237,7 +238,7 @@ async function loadMore() {
   loadingMore.value = true
   try {
     const params = { ...buildParams(), limit: PAGE_SIZE, offset: logs.value.length }
-    const rows = ((await api.get('/system/logs', { params })) as any) || []
+    const rows = (await api.get<LogEntry[]>('/system/logs', { params })) || []
     // 追加前按 id 去重，避免期间有新日志写入导致 offset 偏移重复
     const seen = new Set(logs.value.map((r: any) => r.id))
     logs.value.push(...rows.filter((r: any) => !seen.has(r.id)))
@@ -247,7 +248,7 @@ async function loadMore() {
 }
 async function exportCsv() {
   try {
-    const res = await api.get('/system/logs/export', { params: buildParams(), responseType: 'blob' }) as any
+    const res = await api.get<Blob>('/system/logs/export', { params: buildParams(), responseType: 'blob' })
     const url = window.URL.createObjectURL(new Blob([res]))
     const link = document.createElement('a')
     link.href = url
@@ -259,7 +260,7 @@ async function exportCsv() {
 }
 async function clean() {
   try {
-    const r = await api.delete(`/system/logs/clean?days=${keepDays.value}`) as any
+    const r = await api.delete<{ message?: string }>(`/system/logs/clean?days=${keepDays.value}`)
     ElMessage.success(r.message || '已清理')
     load()
   } catch (e: any) { ElMessage.error('清理失败：' + (e?.response?.data?.detail || e?.message)) }

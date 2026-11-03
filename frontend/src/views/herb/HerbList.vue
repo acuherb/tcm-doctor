@@ -208,6 +208,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search, Upload, Download } from '@element-plus/icons-vue'
 import api from '@/utils/api'
 import { useAuthStore } from '@/store/auth'
+import type { Herb, DictionaryTerm } from '@/types'
 
 // 游客只读：隐藏所有写操作
 const auth = useAuthStore()
@@ -272,7 +273,7 @@ function xwTagStyle(name: string): Record<string, string> {
 }
 async function loadHerbTagColors() {
   try {
-    const list = (await api.get('/dictionaries', { params: { term_type: 'herb_tag' } })) as any[]
+    const list = await api.get<DictionaryTerm[]>('/dictionaries', { params: { term_type: 'herb_tag' } })
     const m: Record<string, string> = {}
     for (const t of (list || [])) if (t.name && t.color) m[t.name] = t.color
     herbTagColor.value = m
@@ -293,7 +294,7 @@ async function loadHerbs() {
     if (pregOnly.value) p.set('pregnancy_contraindicated', 'true')
     flavorFilters.value.forEach((v) => p.append('flavors', v))
     const qs = p.toString()
-    herbs.value = (await api.get('/herbs' + (qs ? '?' + qs : ''))) as any
+    herbs.value = await api.get<Herb[]>('/herbs' + (qs ? '?' + qs : ''))
   } catch {}
 }
 
