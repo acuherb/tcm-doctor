@@ -1,18 +1,24 @@
 <template>
   <div class="purchase-inbound">
-    <el-card shadow="hover">
+    <el-card shadow="hover" class="main-card">
       <template #header>
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-          <span>🛒 采购入库</span>
-          <el-button type="primary" size="small" @click="openCreate" v-if="editable"><el-icon><Plus /></el-icon> 新建采购单</el-button>
+        <div class="tcm-head">
+          <div class="tcm-head__title">
+            <span class="tcm-head__icon">🛒</span>
+            <span class="tcm-head__text">采购入库</span>
+            <el-tag size="small" effect="light" round class="tcm-head__count">{{ orders.length }} 单</el-tag>
+          </div>
+          <div class="tcm-head__actions">
+            <el-button v-if="editable" type="primary" @click="openCreate"><el-icon><Plus /></el-icon> 新建采购单</el-button>
+          </div>
         </div>
       </template>
 
-      <el-alert type="info" :closable="false" show-icon style="margin-bottom:12px;"
+      <el-alert type="info" :closable="false" show-icon class="page-alert"
         title="采购入库（正规采购流程）"
-        description="向供应商批量采购、生成采购单并自动入库时，请用本页「新建采购单」。零星到货、期初建账或库存调账，请到「出入库流水」页使用【手动入库】。" />
+        description="向供应商批量采购、生成采购单并自动入库时，请用本页「新建采购单」。零星到货、期初建账或库存调账，请到「库存流水」页使用【手动入库】。" />
 
-      <el-table :data="orders" stripe style="width:100%" empty-text="暂无采购单">
+      <el-table v-if="!isMobile" :data="orders" class="tcm-table" style="width:100%" empty-text="暂无采购单">
         <el-table-column type="expand">
           <template #default="{ row }">
             <el-table :data="row.items || []" size="small" :border="false">
@@ -33,8 +39,37 @@
         <el-table-column prop="note" label="备注" min-width="120" show-overflow-tooltip />
       </el-table>
 
+      <div v-if="isMobile" class="cards">
+        <div v-for="row in orders" :key="row.id" class="card">
+          <div class="card-head">
+            <span class="card-name">{{ row.order_no }}</span>
+            <span class="card-amount">¥{{ Number(row.total_amount).toFixed(2) }}</span>
+          </div>
+          <div class="card-body">
+            <div class="card-row"><span class="label">供应商</span><span class="value">{{ row.supplier_name || '-' }}</span></div>
+            <div class="card-row"><span class="label">日期</span><span class="value">{{ row.order_date || '-' }}</span></div>
+            <div class="card-row"><span class="label">操作人</span><span class="value">{{ row.operator || '-' }}</span></div>
+            <div class="card-row" v-if="row.note"><span class="label">备注</span><span class="value">{{ row.note }}</span></div>
+          </div>
+          <div v-if="(row.items || []).length" class="card-items">
+            <div v-for="(it, i) in row.items" :key="i" class="card-item">
+              <span class="ci-name">{{ it.item_name }}</span>
+              <span class="ci-meta">{{ it.quantity }} {{ it.unit }} × ¥{{ Number(it.unit_price).toFixed(2) }}</span>
+              <span class="ci-meta" v-if="it.batch_number">批号 {{ it.batch_number }}</span>
+              <span class="ci-meta" v-if="it.expiry_date">效期 {{ it.expiry_date }}</span>
+            </div>
+          </div>
+        </div>
+        <el-empty v-if="!orders.length" description="暂无采购单" />
+      </div>
+
+      <div v-if="isMobile && orders.length" class="load-more">
+        <el-button v-if="hasMore" size="small" :loading="loadingMore" @click="loadMore">加载更多</el-button>
+        <span v-else class="no-more">已加载全部 {{ orders.length }} 张采购单</span>
+      </div>
+
       <el-pagination
-        v-if="total > pageSize"
+        v-if="!isMobile && total > pageSize"
         style="margin-top:14px;justify-content:center;"
         layout="total, prev, pager, next"
         :total="total" :page-size="pageSize" :current-page="page"
@@ -45,14 +80,14 @@
     <el-dialog v-model="visible" title="🛒 新建采购单" width="760px" destroy-on-close>
       <el-form :model="form" label-width="84px" :rules="rules" ref="formRef">
         <el-row :gutter="12">
-          <el-col :span="12">
+          <el-col :xs="24" :sm="12">
             <el-form-item label="供应商" prop="supplier_id">
               <el-select v-model="form.supplier_id" filterable clearable placeholder="选择供应商" style="width:100%">
                 <el-option v-for="s in suppliers" :key="s.id" :label="s.name" :value="s.id" />
               </el-select>
             </el-form-item>
           </el-col>
-          <el-col :span="12">
+          <el-col :xs="24" :sm="12">
             <el-form-item label="采购日期">
               <el-date-picker v-model="form.order_date" type="date" value-format="YYYY-MM-DD" placeholder="选择日期" style="width:100%" />
             </el-form-item>
@@ -60,14 +95,18 @@
         </el-row>
         <el-divider content-position="left">采购明细</el-divider>
         <div v-for="(it, idx) in form.items" :key="idx" class="po-item">
-          <el-select v-model="it.item_id" filterable placeholder="物品" style="width:200px" @change="onItemPick(it)">
-            <el-option v-for="i in items" :key="i.id" :label="`${i.name}（${i.unit}）`" :value="i.id" />
-          </el-select>
-          <el-input v-model="it.batch_number" placeholder="批号" style="width:120px" />
-          <el-input-number v-model="it.quantity" :min="0.01" :precision="2" controls-position="right" style="width:130px" />
-          <el-input-number v-model="it.unit_price" :min="0" :precision="2" controls-position="right" style="width:130px" />
-          <el-date-picker v-model="it.expiry_date" type="date" value-format="YYYY-MM-DD" placeholder="效期" style="width:150px" />
-          <el-button link type="danger" @click="removeItem(idx)"><el-icon><Delete /></el-icon></el-button>
+          <div class="po-item-main">
+            <el-select v-model="it.item_id" filterable placeholder="物品" class="f-item" @change="onItemPick(it)">
+              <el-option v-for="i in items" :key="i.id" :label="`${i.name}（${i.unit}）`" :value="i.id" />
+            </el-select>
+            <el-input v-model="it.batch_number" placeholder="批号" class="f-batch" />
+            <el-input-number v-model="it.quantity" :min="0.01" :precision="2" controls-position="right" class="f-num" :placeholder="unitOf(it) ? '数量(' + unitOf(it) + ')' : '数量'" />
+            <span class="f-unit" v-if="unitOf(it)">{{ unitOf(it) }}</span>
+            <el-input-number v-model="it.unit_price" :min="0" :precision="2" controls-position="right" class="f-num" :placeholder="unitOf(it) ? '进价(元/' + unitOf(it) + ')' : '进价'" />
+            <span class="f-unit" v-if="unitOf(it)">元/{{ unitOf(it) }}</span>
+            <el-date-picker v-model="it.expiry_date" type="date" value-format="YYYY-MM-DD" placeholder="效期" class="f-date" />
+            <el-button link type="danger" class="f-del" @click="removeItem(idx)"><el-icon><Delete /></el-icon></el-button>
+          </div>
         </div>
         <el-button link type="primary" @click="addItem"><el-icon><Plus /></el-icon> 添加明细</el-button>
         <div class="po-total">采购总额：<b>¥{{ poTotal.toFixed(2) }}</b></div>
@@ -82,43 +121,73 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus, Delete } from '@element-plus/icons-vue'
 import api from '@/utils/api'
 import { useAuthStore } from '@/store/auth'
 
 const auth = useAuthStore()
-const editable = computed(() => !!auth.user?.is_admin)
+const isMobile = ref(false)
+function updateViewport() { isMobile.value = window.innerWidth < 768 }
+const editable = computed(() => auth.canWrite('stock'))
 const orders = ref<any[]>([])
 const suppliers = ref<any[]>([])
 const items = ref<any[]>([])
 const visible = ref(false)
 const submitting = ref(false)
-const formRef = ref()
 const page = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
+const hasMore = ref(false)
+const loadingMore = ref(false)
 
 const form = reactive({ supplier_id: null as number | null, order_date: '', note: '', items: [] as any[] })
 const rules = { supplier_id: [{ required: false }] }
 const poTotal = computed(() => form.items.reduce((s: number, it: any) => s + (Number(it.quantity) || 0) * (Number(it.unit_price) || 0), 0))
 
 async function load() {
+  loadingMore.value = false
+  page.value = 1
+  hasMore.value = true
   try {
     const res = (await api.get('/stock/purchases', { params: { page: page.value, page_size: pageSize.value } }) as any) || []
-    // 兼容：分页接口返回 {items,total,...}；旧全量接口返回数组
-    if (Array.isArray(res)) { orders.value = res; total.value = res.length }
-    else { orders.value = res.items || []; total.value = res.total || 0 }
+    if (Array.isArray(res)) {
+      orders.value = res
+      total.value = res.length
+      hasMore.value = false
+    } else {
+      orders.value = res.items || []
+      total.value = res.total || 0
+      hasMore.value = orders.value.length < total.value
+    }
     suppliers.value = (await api.get('/stock/suppliers') as any) || []
     items.value = (await api.get('/stock/items') as any) || []
   } catch (e: any) { ElMessage.error('加载失败：' + (e?.response?.data?.detail || e?.message)) }
+}
+async function loadMore() {
+  if (loadingMore.value || !hasMore.value) return
+  loadingMore.value = true
+  try {
+    const next = page.value + 1
+    const res = (await api.get('/stock/purchases', { params: { page: next, page_size: pageSize.value } }) as any) || []
+    const rows = Array.isArray(res) ? res : (res.items || [])
+    const seen = new Set(orders.value.map((o: any) => o.id))
+    orders.value.push(...rows.filter((r: any) => !seen.has(r.id)))
+    page.value = next
+    hasMore.value = orders.value.length < total.value
+  } catch (e: any) { ElMessage.error('加载失败：' + (e?.response?.data?.detail || e?.message)) }
+  finally { loadingMore.value = false }
 }
 function addItem() { form.items.push({ item_id: null, batch_number: '', quantity: 1, unit_price: null, expiry_date: '' }) }
 function removeItem(idx: number) { form.items.splice(idx, 1) }
 function onItemPick(it: any) {
   const i = items.value.find((x: any) => x.id === it.item_id)
   if (i && it.unit_price == null) it.unit_price = i.sell_price ? Number(i.sell_price) * 0.6 : null
+}
+function unitOf(it: any) {
+  const i = items.value.find((x: any) => x.id === it.item_id)
+  return i ? i.unit : ''
 }
 function openCreate() {
   form.supplier_id = null; form.order_date = new Date().toISOString().slice(0, 10)
@@ -141,12 +210,64 @@ async function submit() {
   finally { submitting.value = false }
 }
 
-onMounted(load)
+onMounted(() => {
+  updateViewport()
+  window.addEventListener('resize', updateViewport)
+  load()
+})
+onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
 </script>
 
 <style scoped lang="scss">
 .purchase-inbound {
-  .po-item { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
-  .po-total { margin: 8px 0; font-size: 15px; }
+  .main-card {
+    border-radius: 12px;
+    border: 1px solid #f0e4d6;
+
+    :deep(.el-card__header) { padding: 0; border-bottom: none; }
+  }
+
+  .page-alert { margin-bottom: 12px; }
+
+  .po-item { margin-bottom: 8px; }
+  .po-item-main { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .f-item { width: 200px; }
+  .f-batch { width: 120px; }
+  .f-num { width: 130px; }
+  .f-date { width: 150px; }
+  .f-unit { font-size: 12px; color: #8a7563; align-self: center; white-space: nowrap; }
+  .po-total { margin: 8px 0; font-size: 15px; color: #2c1810; font-variant-numeric: tabular-nums; }
+
+  .load-more { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 0 2px; }
+  .load-more .el-button { min-width: 140px; }
+  .load-more .no-more { font-size: 12px; color: #a08b76; font-variant-numeric: tabular-nums; }
+
+  .cards { display: flex; flex-direction: column; gap: 10px; }
+  .card { border: 1px solid #f0e4d6; border-radius: 10px; padding: 12px; background: #fff; box-shadow: 0 1px 3px rgba(44,24,16,.04); }
+  .card .card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+  .card .card-name { font-size: 16px; font-weight: 600; color: #2c1810; word-break: break-all; font-variant-numeric: tabular-nums; }
+  .card .card-amount { font-size: 15px; font-weight: 600; color: #8b5e34; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+  .card .card-row { display: flex; align-items: flex-start; font-size: 14px; line-height: 1.5; }
+  .card .card-row .label { flex-shrink: 0; width: 62px; color: #8a7563; }
+  .card .card-row .value { flex: 1; color: #4a3628; word-break: break-all; }
+  .card .card-items { margin-top: 8px; padding-top: 8px; border-top: 1px dashed #f0e4d6; display: flex; flex-direction: column; gap: 6px; }
+  .card .card-item { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 13px; color: #6b5644; }
+  .card .card-item .ci-name { font-weight: 600; color: #2c1810; width: 100%; }
+}
+
+@media (max-width: 767px) {
+  .purchase-inbound {
+    :deep(.el-card__header) { padding: 0; }
+    :deep(.el-card__body) { padding: 12px; }
+    :deep(.el-alert) { padding: 8px 10px; }
+    :deep(.el-alert__description) { font-size: 12px; line-height: 1.5; }
+    :deep(.el-pagination) { flex-wrap: wrap; row-gap: 6px; }
+
+    .f-item { width: 100%; }
+    .f-batch { width: calc(50% - 4px); }
+    .f-date { width: calc(50% - 4px); }
+    .f-num { width: calc(50% - 4px); }
+    .f-del { margin-left: auto; }
+  }
 }
 </style>

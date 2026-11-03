@@ -61,6 +61,10 @@ class Settings(BaseSettings):
     # 游客免密登录（仅浏览，写操作仍受限）；默认关闭，所有接口均需登录后访问
     allow_guest_login: bool = False
 
+    # 操作日志保留天数：启动时自动清理超期日志，防止日志表无限增长；
+    # 设为 0 表示不自动清理（仍可在界面手动清理）
+    log_retention_days: int = 180
+
     model_config = {
         "env_file": _get_env_file(),
         "env_file_encoding": "utf-8",

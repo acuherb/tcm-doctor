@@ -246,9 +246,20 @@ def m0006() -> None:
 
     db = SessionLocal()
     try:
+        # 幂等护栏：若上一轮迁移已部分落库（旧表仍在但 StockItem 已建），复用而非重复创建，
+        # 避免「数据已提交、删表前崩溃」导致重启重跑时造出重复库存数据。
+        existing_by_herb = {
+            si.herb_id: si.id
+            for si in db.query(StockItem).filter(StockItem.herb_id.isnot(None)).all()
+        }
+
         # 1) 药材 -> 物品(类型=中药, 单位=g)
         herb_to_item: dict = {}
+        new_herbs: list = []
         for h in db.query(Herb).all():
+            if h.id in existing_by_herb:
+                herb_to_item[h.id] = existing_by_herb[h.id]
+                continue
             si = StockItem(
                 item_type="中药", name=h.name, spec=h.grade, unit="g",
                 sell_price=h.price, herb_id=h.id, min_stock=h.min_stock, is_active=True,
@@ -256,8 +267,9 @@ def m0006() -> None:
             db.add(si)
             db.flush()
             herb_to_item[h.id] = si.id
+            new_herbs.append(h.id)
 
-        # 2) 批次 -> 批次
+        # 2) 批次 -> 批次（仅新建物品才建批次，复用物品不再重复造）
         inv_to_batch: dict = {}
         inv_rows = db.execute(_t(
             "SELECT id, herb_id, batch_number, quantity, unit_price, sale_price, "
@@ -267,59 +279,73 @@ def m0006() -> None:
         for r in inv_rows:
             (iid, hid, bn, qty, up, sp, pd, ed, sup, msk, loc, st) = r
             item_id = herb_to_item.get(hid)
-            if item_id is None:
+            if item_id is None or hid not in new_herbs:
                 continue
+            # 注：批次只保留进价(unit_price)，售价以物品级 sell_price 为准，故不映射 sale_price
             sb = StockBatch(
                 item_id=item_id, batch_number=bn, quantity=qty or 0, unit_price=up,
-                sale_price=sp, purchase_date=pd, expiry_date=ed, supplier=sup,
+                purchase_date=pd, expiry_date=ed, supplier=sup,
                 min_stock=msk, location=loc, status=st or "正常",
             )
             db.add(sb)
             db.flush()
             inv_to_batch[iid] = sb.id
 
-        # 3) 处方批次引用重映射
+        # 3) 处方批次引用重映射（覆盖写，重复执行无害）
         for old_id, new_id in inv_to_batch.items():
             db.execute(
                 _t("UPDATE prescription_items SET inventory_id=:nid WHERE inventory_id=:oid"),
                 {"nid": new_id, "oid": old_id},
             )
 
-        # 4) 流水 -> 流水
-        txn_rows = db.execute(_t(
-            "SELECT herb_id, transaction_type, quantity, before_quantity, after_quantity, "
-            "reference_id, note, operator, created_at FROM inventory_transactions"
-        )).fetchall()
-        for r in txn_rows:
-            (hid, ttype, qty, before, after, ref, note, operator, created) = r
-            item_id = herb_to_item.get(hid)
-            if item_id is None:
-                continue
-            if ttype == "出库":
-                ref_type = "处方" if ref else "手动"
-            elif ttype == "入库":
-                ref_type = "手动"
-            else:
-                ref_type = ttype  # 损耗
-            if isinstance(created, str):
-                try:
-                    created = _dt.fromisoformat(created.replace(" ", "T"))
-                except Exception:
-                    created = None
-            db.add(StockTransaction(
-                item_id=item_id, batch_id=None, transaction_type=ttype,
-                quantity=qty, before_quantity=before, after_quantity=after,
-                reference_id=ref, reference_type=ref_type, operator=operator,
-                note=note, created_at=created,
-            ))
+        # 4) 流水 -> 流水（仅新建物品才建流水）
+        if new_herbs:
+            txn_rows = db.execute(_t(
+                "SELECT herb_id, transaction_type, quantity, before_quantity, after_quantity, "
+                "reference_id, note, operator, created_at FROM inventory_transactions"
+            )).fetchall()
+            for r in txn_rows:
+                (hid, ttype, qty, before, after, ref, note, operator, created) = r
+                item_id = herb_to_item.get(hid)
+                if item_id is None or hid not in new_herbs:
+                    continue
+                if ttype == "出库":
+                    ref_type = "处方" if ref else "手动"
+                elif ttype == "入库":
+                    ref_type = "手动"
+                else:
+                    ref_type = ttype  # 损耗
+                if isinstance(created, str):
+                    try:
+                        created = _dt.fromisoformat(created.replace(" ", "T"))
+                    except Exception:
+                        created = None
+                db.add(StockTransaction(
+                    item_id=item_id, batch_id=None, transaction_type=ttype,
+                    quantity=qty, before_quantity=before, after_quantity=after,
+                    reference_id=ref, reference_type=ref_type, operator=operator,
+                    note=note, created_at=created,
+                ))
+        # 数据迁移一次性提交
         db.commit()
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()
 
-    # 5) 删除旧表
+    # 5) 删除旧表（独立步骤：即便此处失败，重启后 existing_by_herb 护栏也会阻止重复造数）
     with engine.begin() as conn:
         conn.execute(_t("DROP TABLE IF EXISTS herb_inventory"))
         conn.execute(_t("DROP TABLE IF EXISTS inventory_transactions"))
+
+
+@migration(
+    "0011",
+    "库存选项自定义颜色：为 stock_options 补 color 列，供类别/单位标签着色",
+)
+def m0011() -> None:
+    _add_column("stock_options", "color", "VARCHAR(20)")
 
 
 @migration(
@@ -473,6 +499,121 @@ def m0007() -> None:
         db.close()
 
 
+@migration(
+    "0012",
+    "多用户权限：users 增加 role/is_active，并按 is_admin 回填管理员角色",
+)
+def m0012() -> None:
+    """为 users 表补充角色与启用状态列。
+
+    role:    admin / doctor / pharmacist / viewer，决定业务模块读写权限；
+    is_active: 停用后拒绝登录，并使已发令牌失效。
+
+    回填策略：老库中 is_admin=1 的账号回填为 admin（保持既有权限，避免升级后
+    管理员突然失去写权限）；is_admin=0 的统一为 viewer。该迁移由 schema_migrations
+    版本表保证仅执行一次，后续管理员手动调整角色不会被覆盖。
+    """
+    _add_column("users", "role", "VARCHAR(20) NOT NULL DEFAULT 'viewer'")
+    _add_column("users", "is_active", "BOOLEAN NOT NULL DEFAULT 1")
+
+    # 仅在列刚补齐后回填一次（版本机制保证本函数不会重复执行）
+    with engine.begin() as conn:
+        conn.execute(text("UPDATE users SET role='admin' WHERE is_admin=1"))
+
+
+@migration(
+    "0013",
+    "操作日志增加 target 业务对象摘要列，便于直接看出改动落在哪条数据",
+)
+def m0013() -> None:
+    _add_column("operation_logs", "target", "VARCHAR(300)")
+
+
+@migration(
+    "0014",
+    "处方记录开方医师（doctor_id / doctor_name），打印按实际开方人署名",
+)
+def m0014() -> None:
+    _add_column("prescriptions", "doctor_id", "INTEGER")
+    _add_column("prescriptions", "doctor_name", "VARCHAR(50)")
+    # 存量处方无法可靠还原真实开方人（历史上只存了审核人），保持为空；
+    # 打印时回退到诊所唯一的医生账号，多处方暂不臆测，避免署名张冠李戴。
+
+
+@migration(
+    "0015",
+    "权限表化：users 增加 permissions 列（逗号分隔权限点），并按角色回填默认权限集",
+)
+def m0015() -> None:
+    """为 users 表补充 permissions 列。
+
+    权限模型由「写死四类角色」升级为「权限点表」：每个账号可逐项勾选权限。
+    回填策略：老库中 permissions 为空的账号，按其 role 套用 ROLE_DEFAULT_PERMSET，
+    保证升级后各角色权限不变；is_admin=1 的账号视为拥有全部权限（由代码逻辑保证，无需存值）。
+    """
+    _add_column("users", "permissions", "TEXT NOT NULL DEFAULT ''")
+
+    from app.database import SessionLocal
+    from app.models.user import User
+    from app.permissions import ROLE_DEFAULT_PERMSET
+
+    db = SessionLocal()
+    try:
+        users = db.query(User).all()
+        for u in users:
+            if not u.permissions:
+                u.permissions = ",".join(ROLE_DEFAULT_PERMSET.get(u.role, []))
+        db.commit()
+    finally:
+        db.close()
+
+
+
+def _sync_model_columns() -> None:
+    """兜底补齐：按 ORM 模型把库里缺失的列补上（幂等）。
+
+    背景：历史上部分列（如 prescription_items.inventory_id）仅通过 create_all
+    建表时落地，没有对应的编号迁移；老库在升级时这些列永远不会被补上，
+    导致查询时报 'no such column' 进而 500。此处遍历所有已注册模型，缺失即补。
+
+    说明：补列一律按「可空」追加（SQLite 对已有数据的表无法安全追加 NOT NULL 列
+    而不带默认值），非空约束交由 ORM 层在新写入时保证，不影响既有数据。
+    """
+    from app.models import (  # noqa: F401 触发全部模型注册到 Base.metadata
+        DictionaryTerm, Patient, FollowUp, FollowUpReminder, Visit, InquiryRecord,
+        Herb, StockItem, StockBatch, StockTransaction, StockOption, OperationLog,
+        ClassicFormula, Prescription, PrescriptionItem, KnowledgeEntry,
+        Conversation, Message, Acupoint, AcupointFormula, User, AuthToken,
+    )
+    from app.database import Base
+    from sqlalchemy import inspect as _inspect
+
+    insp = _inspect(engine)
+    existing_tables = set(insp.get_table_names())
+    log = logging.getLogger(__name__)
+    for table in Base.metadata.tables.values():
+        tname = table.name
+        if tname not in existing_tables:
+            continue
+        existing_cols = {c["name"] for c in insp.get_columns(tname)}
+        for col in table.columns:
+            if col.name in existing_cols:
+                continue
+            if col.primary_key:
+                # 已有数据的表无法安全追加主键列，跳过（极端情况）
+                continue
+            try:
+                try:
+                    col_type = col.type.compile(dialect=engine.dialect)
+                except Exception:
+                    col_type = "TEXT"
+                with engine.begin() as conn:
+                    conn.execute(text(f"ALTER TABLE {tname} ADD COLUMN {col.name} {col_type}"))
+                log.info("sync_model_columns: 补齐列 %s.%s (%s)", tname, col.name, col_type)
+            except Exception as e:  # 单列失败不影响其它列
+                log.warning("sync_model_columns: 跳过 %s.%s —— %s", tname, col.name, e)
+
+
 def run_migrations() -> None:
     """应用所有未执行过的迁移（幂等：以 schema_migrations 表记录为准）"""
     with engine.begin() as conn:
@@ -487,6 +628,10 @@ def run_migrations() -> None:
             row[0]
             for row in conn.execute(text("SELECT version FROM schema_migrations")).fetchall()
         }
+
+    # 先补齐缺失列：后续编号迁移（如 m0003 扫描 prescription_items）依赖目标列存在，
+    # 否则会在迁移阶段就抛 'no such column' 导致整套迁移中断。
+    _sync_model_columns()
 
     for fn in sorted(MIGRATIONS, key=lambda f: f._version):
         if fn._version in applied:

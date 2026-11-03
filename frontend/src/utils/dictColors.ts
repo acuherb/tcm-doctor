@@ -88,3 +88,34 @@ export function useDictColors() {
   }
   return { colorMap, termColor }
 }
+
+// 库存「物品类别」自定义色：模块级缓存，全应用共享一次选项拉取
+const STOCK_OPTION_DEFAULT_COLOR = '#909399'
+const stockCategoryColorMap = ref<Record<string, string>>({})
+let stockOptionsLoaded = false
+let stockOptionsLoadingPromise: Promise<void> | null = null
+
+export function useStockOptionColors() {
+  if (!stockOptionsLoaded && !stockOptionsLoadingPromise) {
+    stockOptionsLoadingPromise = (api.get('/stock/options') as Promise<any>).then((res: any) => {
+      const arr = Array.isArray(res) ? res : []
+      const m: Record<string, string> = {}
+      for (const o of arr) {
+        if (o.opt_type === 'category' && o.name) m[o.name] = o.color || STOCK_OPTION_DEFAULT_COLOR
+      }
+      stockCategoryColorMap.value = m
+      stockOptionsLoaded = true
+    }).catch(() => { stockOptionsLoaded = true })
+  }
+  // 取类别颜色：无自定义色时回退默认灰
+  function categoryColor(name: string): string {
+    return stockCategoryColorMap.value[name] || STOCK_OPTION_DEFAULT_COLOR
+  }
+  // 按类别颜色生成带可读前景色的标签样式
+  function categoryChipStyle(name: string): Record<string, string> {
+    const c = categoryColor(name)
+    const ink = readableInk(c)
+    return { color: ink, backgroundColor: c, borderColor: ink }
+  }
+  return { stockCategoryColorMap, categoryColor, categoryChipStyle }
+}

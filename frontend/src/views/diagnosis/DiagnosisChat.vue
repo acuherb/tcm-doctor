@@ -207,7 +207,7 @@ import PinchImage from '@/components/PinchImage.vue'
 
 // 游客只读：隐藏所有写操作
 const auth = useAuthStore()
-const editable = computed(() => !!auth.user?.is_admin)
+const editable = computed(() => auth.canWrite('diagnosis'))
 
 // ---- 移动端适配：侧边栏抽屉化 ----
 const isMobile = ref(false)

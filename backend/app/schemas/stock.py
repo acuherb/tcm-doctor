@@ -69,6 +69,7 @@ class StockBatchOut(StockBatchBase):
     item_id: int | None = None  # 出库时可选指定批次，否则 FIFO
     quantity: float = Field(..., gt=0, description="出库数量(须为正)")
     batch_id: int | None = None  # 指定扣减批次；为空则按批次顺序 FIFO
+    unit_price: float | None = Field(None, ge=0, description="出库单价(元/单位)；0 或留空表示赠送/内部领用，仅记录去向不计入收入")
     note: str | None = None
 
 
@@ -138,6 +139,7 @@ class StockOverview(BaseModel):
 class StockAlert(BaseModel):
     item_id: int
     item_name: str
+    item_type: str | None = None
     unit: str
     current_quantity: float
     min_stock: float | None = None
@@ -150,15 +152,10 @@ class StockAlert(BaseModel):
 
 # === 盘点 ===
 
-class StockCheckAdjustment(BaseModel):
-    batch_id: int
-    counted: float = Field(..., ge=0, description="实盘数量")
-
-
-class StockCheckIn(BaseModel):
+class StockAdjustIn(BaseModel):
     item_id: int
+    counted: float = Field(..., ge=0, description="实盘数量(按物品单位)")
     note: str | None = None
-    adjustments: list[StockCheckAdjustment] = Field(..., min_length=1, description="逐批次实盘调整")
 
 
 # === 供应商 ===
@@ -298,6 +295,7 @@ class SupplierPriceRow(BaseModel):
 class StockOptionBase(BaseModel):
     opt_type: str = Field(..., pattern="^(category|unit)$", description="类型: category 物品类别 / unit 计量单位")
     name: str = Field(..., min_length=1, max_length=60, description="选项名称")
+    color: str | None = Field(None, description="自定义颜色(HEX)，用于选项标签着色")
     is_active: bool = True
 
 
@@ -308,6 +306,7 @@ class StockOptionCreate(StockOptionBase):
 class StockOptionUpdate(BaseModel):
     opt_type: str | None = Field(None, pattern="^(category|unit)$")
     name: str | None = Field(None, min_length=1, max_length=60)
+    color: str | None = Field(None, description="自定义颜色(HEX)")
     is_active: bool | None = None
 
 

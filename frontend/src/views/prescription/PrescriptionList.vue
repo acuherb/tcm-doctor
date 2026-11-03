@@ -1,100 +1,124 @@
 <template>
   <div class="prescription-list">
-    <el-card shadow="hover">
+    <el-card shadow="hover" class="main-card">
       <template #header>
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-          <span>📋 处方列表</span>
-          <el-button v-if="editable" type="primary" size="small" @click="$router.push('/prescriptions/new')">
-            <el-icon><Plus /></el-icon> 开具处方
-          </el-button>
+        <div class="card-head-bar">
+          <div class="card-head-title">
+            <span class="head-icon">📋</span>
+            <span class="head-text">处方列表</span>
+            <el-tag v-if="prescriptions.length > 0" size="small" type="info" effect="plain" round class="head-count">
+              {{ prescriptions.length }} 张
+            </el-tag>
+          </div>
+          <div class="card-actions">
+            <el-button v-if="editable" type="primary" @click="$router.push('/prescriptions/new')">
+              <el-icon><Plus /></el-icon>开具处方
+            </el-button>
+          </div>
         </div>
       </template>
 
-      <el-form :inline="true" @submit.prevent="loadPrescriptions">
-        <el-form-item>
-          <el-select v-model="patientFilter" filterable remote reserve-keyword
-            :remote-method="searchPatients" :loading="patientsLoading" clearable
-            placeholder="患者" style="width:150px" @change="loadPrescriptions">
-            <el-option v-for="p in patients" :key="p.id" :label="p.name" :value="p.id" />
-          </el-select>
-        </el-form-item>
-        <el-form-item>
-          <el-select v-model="statusFilter" placeholder="状态筛选" clearable @change="loadPrescriptions" style="width:120px">
-            <el-option label="已开" value="已开" />
-            <el-option label="已审核" value="已审核" />
-            <el-option label="已发药" value="已发药" />
-            <el-option label="已取消" value="已取消" />
-          </el-select>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="loadPrescriptions">查询</el-button>
-        </el-form-item>
-      </el-form>
+      <div class="filter-bar">
+        <el-select v-model="patientFilter" filterable remote reserve-keyword
+          :remote-method="searchPatients" :loading="patientsLoading" clearable
+          placeholder="按患者筛选" class="filter-patient" @change="loadPrescriptions">
+          <el-option v-for="p in patients" :key="p.id" :label="p.name" :value="p.id" />
+        </el-select>
+        <el-select v-model="statusFilter" placeholder="全部状态" clearable class="filter-status" @change="loadPrescriptions">
+          <el-option label="已开" value="已开" />
+          <el-option label="已审核" value="已审核" />
+          <el-option label="已发药" value="已发药" />
+          <el-option label="已取消" value="已取消" />
+        </el-select>
+        <el-button type="primary" @click="loadPrescriptions">查询</el-button>
+        <el-button v-if="patientFilter || statusFilter" text class="reset-btn" @click="resetFilter">重置</el-button>
+      </div>
 
-      <el-table v-if="!isMobile" :data="prescriptions" stripe style="width:100%" empty-text="暂无处方记录">
-        <el-table-column prop="id" label="编号" width="70" />
-        <el-table-column label="患者" width="90">
-          <template #default="{ row }">{{ row.patient_name || '-' }}</template>
+      <el-table v-if="!isMobile" :data="prescriptions" class="rx-table" style="width:100%" empty-text="暂无处方记录">
+        <el-table-column prop="id" label="编号" width="76">
+          <template #default="{ row }">
+            <span class="rx-no">#{{ row.id }}</span>
+          </template>
         </el-table-column>
-        <el-table-column label="中药方" min-width="230">
+        <el-table-column label="患者" width="92">
+          <template #default="{ row }">
+            <span class="rx-patient">{{ row.patient_name || '-' }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="中药方" min-width="240">
           <template #default="{ row }">
             <template v-if="(row.items && row.items.length) || row.formula_name">
-              <div v-if="row.formula_name" class="acu-title">🌿 {{ row.formula_name }}</div>
+              <div v-if="row.formula_name" class="rx-formula-name">
+                <span class="rx-dot is-herb"></span>{{ row.formula_name }}
+              </div>
               <div class="herb-tags">
-                <el-tag v-for="item in (row.items || [])" :key="item.id" size="small" style="margin:2px;">
-                  {{ item.herb_name }} {{ item.dose }}g
-                  <span v-if="item.special_method" style="color:#8B4513;">({{ item.special_method }})</span>
+                <el-tag v-for="item in (row.items || [])" :key="item.id" size="small" round
+                  effect="plain" class="herb-tag" :class="{ 'is-king': item.is_king_herb }">
+                  {{ item.herb_name }}<em>{{ item.dose }}g</em>
+                  <span v-if="item.special_method" class="herb-method">（{{ item.special_method }}）</span>
                 </el-tag>
               </div>
-              <div v-if="row.preparation_method || row.doses || row.administration" class="acu-meta">
+              <div v-if="row.preparation_method || row.doses || row.administration" class="rx-meta">
                 <span v-if="row.preparation_method">{{ row.preparation_method }}</span>
-                <span v-if="row.doses"> · {{ row.doses }}剂</span>
+                <span v-if="row.doses"> · {{ row.doses }} 剂</span>
                 <span v-if="row.administration"> · {{ row.administration }}</span>
               </div>
             </template>
-            <span v-else style="color:#bbb;">—</span>
+            <span v-else class="rx-none">—</span>
           </template>
         </el-table-column>
-        <el-table-column label="针灸方" min-width="230">
+        <el-table-column label="针灸方" min-width="240">
           <template #default="{ row }">
             <template v-if="(row.acupoints && row.acupoints.length) || row.acupoint_formula_name">
-              <div v-if="row.acupoint_formula_name" class="acu-title">🪡 {{ row.acupoint_formula_name }}</div>
+              <div v-if="row.acupoint_formula_name" class="rx-formula-name">
+                <span class="rx-dot is-acu"></span>{{ row.acupoint_formula_name }}
+              </div>
               <div class="acu-tags">
-                <el-tag v-for="a in (row.acupoints || [])" :key="a.id" size="small" type="success" style="margin:2px;">
+                <el-tag v-for="a in (row.acupoints || [])" :key="a.id" size="small" round
+                  effect="plain" class="acu-tag">
                   {{ a.acupoint_name }}
                 </el-tag>
               </div>
-              <div v-if="row.treatment_frequency || row.treatment_days || row.acupoint_technique" class="acu-meta">
+              <div v-if="row.treatment_frequency || row.treatment_days || row.acupoint_technique" class="rx-meta">
                 <span v-if="row.acupoint_technique">{{ row.acupoint_technique }}</span>
                 <span v-if="row.treatment_frequency"> · {{ row.treatment_frequency }}</span>
-                <span v-if="row.treatment_days"> · {{ row.treatment_days }}天</span>
+                <span v-if="row.treatment_days"> · {{ row.treatment_days }} 天</span>
               </div>
             </template>
-            <span v-else style="color:#bbb;">—</span>
+            <span v-else class="rx-none">—</span>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="90">
+        <el-table-column label="开方医师" width="96">
           <template #default="{ row }">
-            <el-tag :type="statusType(row.status)" size="small">{{ row.status }}</el-tag>
+            <span v-if="row.doctor_name" class="rx-doctor">{{ row.doctor_name }}</span>
+            <span v-else class="rx-none">—</span>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="开具时间" width="160">
-          <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
-        </el-table-column>
-        <el-table-column label="金额" width="110">
+        <el-table-column prop="status" label="状态" width="86">
           <template #default="{ row }">
-            <span :style="{ fontWeight: 600, color: row.total_price != null ? '#8B4513' : '#bbb' }">
-              {{ row.total_price != null ? '¥' + Number(row.total_price).toFixed(2) : '—' }}
-            </span>
+            <el-tag :type="statusType(row.status)" size="small" effect="light" round>{{ row.status }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column prop="created_at" label="开具时间" width="150">
           <template #default="{ row }">
-            <el-button link type="primary" size="small" @click="viewDetail(row)">详情</el-button>
-            <el-button v-if="editable && row.status !== '已发药' && row.status !== '已取消'" link type="primary" size="small" @click="$router.push(`/prescriptions/new?id=${row.id}`)">编辑</el-button>
-            <el-button v-if="editable && row.status === '已开'" link type="success" size="small" @click="reviewPrescription(row)">审核</el-button>
-            <el-button v-if="editable && row.status === '已审核'" link type="warning" size="small" @click="dispensePrescription(row)">发药</el-button>
-            <el-button link type="info" size="small" @click="printPrescription(row)">打印</el-button>
+            <span class="rx-time">{{ formatTime(row.created_at) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="金额" width="104" align="right">
+          <template #default="{ row }">
+            <span class="rx-price" v-if="row.total_price != null">¥{{ Number(row.total_price).toFixed(2) }}</span>
+            <span v-else class="rx-none">—</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="184" fixed="right">
+          <template #default="{ row }">
+            <div class="rx-ops">
+              <el-button link type="primary" size="small" @click="viewDetail(row)">详情</el-button>
+              <el-button v-if="editable && row.status !== '已发药' && row.status !== '已取消'" link type="primary" size="small" @click="$router.push(`/prescriptions/new?id=${row.id}`)">编辑</el-button>
+              <el-button v-if="editable && row.status === '已开'" link type="success" size="small" @click="reviewPrescription(row)">审核</el-button>
+              <el-button v-if="editable && row.status === '已审核'" link type="warning" size="small" @click="dispensePrescription(row)">发药</el-button>
+              <el-button link type="info" size="small" @click="printPrescription(row)">打印</el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -110,31 +134,33 @@
           <div class="card-time">{{ formatTime(row.created_at) }}</div>
 
           <div v-if="row.formula_name || (row.items && row.items.length)" class="card-section">
-            <div class="acu-title">🌿 {{ row.formula_name || '自拟方' }}</div>
+            <div class="rx-formula-name"><span class="rx-dot is-herb"></span>{{ row.formula_name || '自拟方' }}</div>
             <div class="herb-tags">
-              <el-tag v-for="item in (row.items || [])" :key="item.id" size="small" style="margin:2px;">
-                {{ item.herb_name }} {{ item.dose }}g
-                <span v-if="item.special_method" style="color:#8B4513;">({{ item.special_method }})</span>
+              <el-tag v-for="item in (row.items || [])" :key="item.id" size="small" round
+                effect="plain" class="herb-tag" :class="{ 'is-king': item.is_king_herb }">
+                {{ item.herb_name }}<em>{{ item.dose }}g</em>
+                <span v-if="item.special_method" class="herb-method">（{{ item.special_method }}）</span>
               </el-tag>
             </div>
-            <div v-if="row.preparation_method || row.doses || row.administration" class="acu-meta">
+            <div v-if="row.preparation_method || row.doses || row.administration" class="rx-meta">
               <span v-if="row.preparation_method">{{ row.preparation_method }}</span>
-              <span v-if="row.doses"> · {{ row.doses }}剂</span>
+              <span v-if="row.doses"> · {{ row.doses }} 剂</span>
               <span v-if="row.administration"> · {{ row.administration }}</span>
             </div>
           </div>
 
           <div v-if="row.acupoint_formula_name || (row.acupoints && row.acupoints.length)" class="card-section">
-            <div class="acu-title">🪡 {{ row.acupoint_formula_name || '针灸方' }}</div>
+            <div class="rx-formula-name"><span class="rx-dot is-acu"></span>{{ row.acupoint_formula_name || '针灸方' }}</div>
             <div class="acu-tags">
-              <el-tag v-for="a in (row.acupoints || [])" :key="a.id" size="small" type="success" style="margin:2px;">
+              <el-tag v-for="a in (row.acupoints || [])" :key="a.id" size="small" round
+                effect="plain" class="acu-tag">
                 {{ a.acupoint_name }}
               </el-tag>
             </div>
-            <div v-if="row.treatment_frequency || row.treatment_days || row.acupoint_technique" class="acu-meta">
+            <div v-if="row.treatment_frequency || row.treatment_days || row.acupoint_technique" class="rx-meta">
               <span v-if="row.acupoint_technique">{{ row.acupoint_technique }}</span>
               <span v-if="row.treatment_frequency"> · {{ row.treatment_frequency }}</span>
-              <span v-if="row.treatment_days"> · {{ row.treatment_days }}天</span>
+              <span v-if="row.treatment_days"> · {{ row.treatment_days }} 天</span>
             </div>
           </div>
 
@@ -159,7 +185,8 @@
           <el-descriptions-item label="状态">
             <el-tag :type="statusType(currentPrescription.status)">{{ currentPrescription.status }}</el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="开具时间" :span="2">{{ formatTime(currentPrescription.created_at) }}</el-descriptions-item>
+          <el-descriptions-item label="开方医师">{{ currentPrescription.doctor_name || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="开具时间">{{ formatTime(currentPrescription.created_at) }}</el-descriptions-item>
         </el-descriptions>
 
         <!-- 中药方 -->
@@ -288,7 +315,7 @@
               </span>
             </p>
             <p v-if="currentPrescription.doctor_notes">医嘱: {{ currentPrescription.doctor_notes }}</p>
-            <p v-if="doctorName" class="print-doctor">医师: {{ doctorName }}</p>
+            <p v-if="printDoctor" class="print-doctor">医师: {{ printDoctor }}</p>
           </div>
         </template>
       </div>
@@ -304,13 +331,12 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Star } from '@element-plus/icons-vue'
-import { useRouter } from 'vue-router'
 import api from '@/utils/api'
 import { useAuthStore } from '@/store/auth'
 
 // 游客只读：隐藏所有写操作
 const auth = useAuthStore()
-const editable = computed(() => !!auth.user?.is_admin)
+const editable = computed(() => auth.canWrite('prescriptions'))
 
 // ---- 移动端适配 ----
 const isMobile = ref(false)
@@ -321,7 +347,6 @@ onMounted(updateViewport)
 onMounted(() => window.addEventListener('resize', updateViewport))
 onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
 
-const router = useRouter()
 const prescriptions = ref<any[]>([])
 const statusFilter = ref('')
 const patientFilter = ref<number | null>(null)
@@ -333,6 +358,9 @@ const currentPrescription = ref<any>(null)
 const printRef = ref<HTMLElement>()
 const clinicName = ref('')
 const doctorName = ref('')
+
+// 打印署名：优先用处方记录的开方医师（谁开的方打印谁），存量处方回退到系统设置中的旧配置
+const printDoctor = computed(() => currentPrescription.value?.doctor_name || doctorName.value || '')
 
 function statusType(status: string) {
   if (status === '已开') return 'info'
@@ -363,6 +391,12 @@ async function loadPrescriptions() {
     if (patientFilter.value) params.patient_id = patientFilter.value
     prescriptions.value = (await api.get('/prescriptions', { params })) as any
   } catch {}
+}
+
+function resetFilter() {
+  patientFilter.value = null
+  statusFilter.value = ''
+  loadPrescriptions()
 }
 
 async function loadPatients() {
@@ -461,28 +495,151 @@ onMounted(async () => {
 
 <style scoped lang="scss">
 .prescription-list {
-  .herb-tags {
+  .main-card {
+    :deep(.el-card__header) {
+      padding: 14px 18px;
+      background: linear-gradient(135deg, #fdf8f3 0%, #f7efe6 100%);
+      border-bottom: 1px solid #f0e4d6;
+    }
+  }
+  .card-head-bar {
     display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
     flex-wrap: wrap;
-    gap: 2px;
+  }
+  .card-head-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .head-icon { font-size: 18px; line-height: 1; }
+  .head-text { font-size: 16px; font-weight: 600; color: #2c1810; letter-spacing: .5px; }
+  .head-count { margin-left: 2px; background: #fff; border-color: #e6d9c9; color: #907a63; }
+  .card-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+  .filter-bar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    .filter-patient { width: 200px; }
+    .filter-status { width: 150px; }
+    .reset-btn { margin-left: -2px; }
   }
 
-  .acu-title {
+  .rx-table {
+    :deep(th.el-table__cell) {
+      background: #faf6f1;
+      color: #7a6553;
+      font-weight: 600;
+    }
+    :deep(.el-table__row) { transition: background .15s ease; }
+    :deep(td.el-table__cell) { vertical-align: top; padding: 10px 0; }
+  }
+
+  .rx-no {
+    font-size: 13px;
+    color: #a39484;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .rx-patient {
+    font-size: 14px;
     font-weight: 600;
-    color: #2e7d32;
-    margin-bottom: 2px;
+    color: #2c1810;
   }
 
+  .rx-doctor {
+    font-size: 13px;
+    color: #8b5e34;
+  }
+
+  .rx-time {
+    font-size: 13px;
+    color: #a39484;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .rx-price {
+    font-size: 14px;
+    font-weight: 600;
+    color: #8b4513;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .rx-none {
+    color: #c8bcae;
+    font-size: 13px;
+  }
+
+  .rx-formula-name {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #6b5644;
+    margin-bottom: 5px;
+
+    .rx-dot {
+      flex: none;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      &.is-herb { background: #a97b4f; }
+      &.is-acu { background: #7fa07c; }
+    }
+  }
+
+  .herb-tags,
   .acu-tags {
     display: flex;
     flex-wrap: wrap;
-    gap: 2px;
+    gap: 4px;
   }
 
-  .acu-meta {
+  .herb-tag {
+    background: #faf6f1;
+    border-color: #eddfd0;
+    color: #8b5e34;
+
+    em {
+      font-style: normal;
+      font-size: 11px;
+      color: #b08b62;
+      margin-left: 1px;
+    }
+
+    .herb-method { font-size: 11px; color: #b8956a; }
+
+    &.is-king {
+      background: #fdf3e7;
+      border-color: #ebcfab;
+      color: #a05c1f;
+      font-weight: 600;
+    }
+  }
+
+  .acu-tag {
+    background: #f7f9f6;
+    border-color: #dde8db;
+    color: #5f7f5c;
+  }
+
+  .rx-meta {
     font-size: 12px;
-    color: #909399;
-    margin-top: 2px;
+    color: #a39484;
+    margin-top: 4px;
+  }
+
+  .rx-ops {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 6px;
+
+    :deep(.el-button) {
+      margin-left: 0;
+      padding: 2px 0;
+    }
   }
 }
 
@@ -608,18 +765,19 @@ onMounted(async () => {
 
 /* ---- 移动端：搜索/筛选改为全宽纵向堆叠 ---- */
 @media (max-width: 767px) {
-  :deep(.el-form--inline .el-form-item) {
-    display: block;
-    margin-right: 0;
-    margin-bottom: 8px;
-  }
-  :deep(.el-form--inline .el-form-item__content) {
-    display: block;
-    max-width: 100%;
-  }
-  :deep(.el-form--inline .el-input),
-  :deep(.el-form--inline .el-select) {
-    width: 100% !important;
+  .prescription-list {
+    .card-head-bar { align-items: stretch; }
+    .card-actions { justify-content: flex-start; }
+
+    .filter-bar {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 8px;
+
+      .filter-patient,
+      .filter-status { width: 100%; }
+      .reset-btn { margin-left: 0; }
+    }
   }
 }
 </style>

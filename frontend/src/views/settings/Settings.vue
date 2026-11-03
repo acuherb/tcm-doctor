@@ -2,49 +2,86 @@
   <div class="settings-page">
     <el-row :gutter="20">
       <el-col :xs="24" :span="12">
-        <el-card shadow="hover">
-          <template #header><span>🏥 诊所信息</span></template>
+        <el-card shadow="hover" class="clinic-card main-card">
+          <template #header>
+            <div class="card-head-bar">
+              <div class="card-head-title">
+                <span class="head-icon">🏥</span>
+                <span class="head-text">诊所信息</span>
+                <el-tag v-if="!editable" size="small" type="info" effect="plain" round class="head-count">只读</el-tag>
+              </div>
+            </div>
+          </template>
+
+          <div class="clinic-brand" :class="{ 'is-readonly': !editable }">
+            <div class="clinic-logo-wrap">
+              <img v-if="clinicLogo" :src="clinicLogo" class="clinic-logo" alt="诊所Logo" />
+              <div v-else class="clinic-logo is-empty">
+                <el-icon :size="26"><OfficeBuilding /></el-icon>
+              </div>
+            </div>
+            <div class="clinic-brand-text">
+              <div class="clinic-brand-name">{{ clinicName || '未命名诊所' }}</div>
+              <div class="clinic-brand-sub">此名称与 Logo 将用于处方笺打印抬头</div>
+              <div v-if="editable" class="clinic-logo-actions">
+                <el-upload :auto-upload="false" :show-file-list="false" accept="image/*" :limit="1" @change="onLogoChange">
+                  <el-button size="small" type="primary" plain>上传 Logo</el-button>
+                </el-upload>
+                <el-button v-if="clinicLogo" size="small" text type="danger" @click="clinicLogo = ''">移除</el-button>
+              </div>
+            </div>
+          </div>
+
+          <el-divider />
+
           <el-form label-width="100px">
-            <el-form-item label="诊所 Logo" v-if="editable">
-              <div class="logo-upload">
-                <img v-if="clinicLogo" :src="clinicLogo" class="logo-preview" alt="诊所Logo" />
-                <div v-else class="logo-placeholder">尚未设置</div>
-                <div class="logo-actions">
-                  <el-upload :auto-upload="false" :show-file-list="false" accept="image/*" :limit="1" @change="onLogoChange">
-                    <el-button size="small" type="primary">上传</el-button>
-                  </el-upload>
-                  <el-button v-if="clinicLogo" size="small" @click="clinicLogo = ''">清除</el-button>
-                </div>
+            <el-form-item label="诊所名称">
+              <el-input v-model="clinicName" placeholder="如 张氏中医馆" :disabled="!editable" />
+            </el-form-item>
+            <el-form-item label="医师署名" class="doctor-hint-item">
+              <div class="doctor-hint">
+                <el-icon><InfoFilled /></el-icon>
+                <span>处方打印的医师署名取<i>开方账号</i>的显示名称，请到「账号管理」维护。</span>
               </div>
             </el-form-item>
-            <el-form-item label="诊所 Logo" v-else>
-              <img v-if="clinicLogo" :src="clinicLogo" class="logo-preview" alt="诊所Logo" />
-              <span v-else class="text-muted">尚未设置</span>
-            </el-form-item>
-            <el-form-item label="诊所名称"><el-input v-model="clinicName" placeholder="请输入诊所名称，如 张氏中医馆" /></el-form-item>
-            <el-form-item label="医师姓名"><el-input v-model="doctorName" placeholder="请输入开方医师姓名" /></el-form-item>
             <el-form-item v-if="editable">
               <el-button type="primary" @click="saveClinic" :loading="savingClinic">保存诊所信息</el-button>
             </el-form-item>
-            <el-alert v-else type="info" :closable="false" style="width:100%"
-                title="游客模式：诊所信息只读，如需修改请用管理员登录。"></el-alert>
-            <el-form-item>
-              <el-alert type="info" :closable="false" style="width:100%"
-                title="这些信息会用于处方笺打印抬头、落款（医师）等，保存后即生效。"></el-alert>
+            <el-form-item v-else>
+              <div class="doctor-hint">
+                <el-icon><Lock /></el-icon>
+                <span>游客模式：诊所信息只读，如需修改请用管理员登录。</span>
+              </div>
             </el-form-item>
           </el-form>
         </el-card>
       </el-col>
 
       <el-col :xs="24" :span="12">
-        <el-card shadow="hover">
-          <template #header><span>🤖 AI 配置</span></template>
-          <el-form label-width="100px">
+        <el-card shadow="hover" class="main-card">
+          <template #header>
+            <div class="card-head-bar">
+              <div class="card-head-title">
+                <span class="head-icon">🤖</span>
+                <span class="head-text">AI 配置</span>
+                <el-tag v-if="hasKey" size="small" type="success" effect="plain" round class="head-count">已配置</el-tag>
+                <el-tag v-else size="small" type="info" effect="plain" round class="head-count">未配置</el-tag>
+              </div>
+              <div class="card-actions">
+                <span class="conn-pill" :class="`is-${connectionStatus.type}`">{{ connectionStatus.text }}</span>
+              </div>
+            </div>
+          </template>
+
+          <el-form label-width="100px" class="config-form">
+            <div class="form-section-title">
+              <span class="sec-dot is-chat"></span>对话模型
+            </div>
             <el-form-item label="API Key">
               <el-input v-model="deepseekKey" type="password" show-password autocomplete="new-password" :placeholder="hasKey ? '已配置，输入新值可替换' : '输入 API Key'" />
             </el-form-item>
             <el-form-item label="对话模型">
-              <el-select v-model="deepseekModel" style="width:100%">
+              <el-select v-model="deepseekModel" class="full-width">
                 <el-option label="deepseek-chat" value="deepseek-chat" />
                 <el-option label="deepseek-reasoner" value="deepseek-reasoner" />
                 <el-option label="deepseek-v4-pro" value="deepseek-v4-pro" />
@@ -55,12 +92,17 @@
               <el-input v-model="deepseekBaseUrl" placeholder="https://api.deepseek.com" />
             </el-form-item>
 
-            <el-divider content-position="left">📷 图片识别（Vision）</el-divider>
+            <div class="form-section-title">
+              <span class="sec-dot is-vision"></span>图片识别
+              <el-tag v-if="visionConfigured" size="small" type="success" effect="plain" round>已启用</el-tag>
+              <el-tag v-else size="small" type="warning" effect="plain" round>未启用</el-tag>
+            </div>
+            <div class="section-hint">
+              <el-icon><InfoFilled /></el-icon>
+              <span>DeepSeek 官方 API 不支持图片识别，需配置第三方 Vision 端点（如硅基流动）</span>
+            </div>
             <el-form-item label="Vision 模型">
-              <el-input v-model="visionModel" placeholder="如 Pro/deepseek-ai/DeepSeek-VL2" style="width:100%" />
-              <div style="font-size:12px;color:#999;margin-top:4px;">
-                DeepSeek 官方 API 不支持图片识别，需配置第三方 Vision 端点（如硅基流动）
-              </div>
+              <el-input v-model="visionModel" placeholder="如 Pro/deepseek-ai/DeepSeek-VL2" />
             </el-form-item>
             <el-form-item label="Vision URL">
               <el-input v-model="visionBaseUrl" placeholder="如 https://api.siliconflow.cn/v1" />
@@ -68,64 +110,74 @@
             <el-form-item label="Vision Key">
               <el-input v-model="visionKey" type="password" show-password autocomplete="new-password" :placeholder="hasVisionKey ? '已配置，输入新值可替换' : '留空则复用上方 API Key'" />
             </el-form-item>
-            <el-form-item>
-              <el-tag v-if="visionConfigured" type="success" size="small">✅ 图片识别已启用</el-tag>
-              <el-tag v-else type="warning" size="small">⚠️ 未配置 Vision 模型，上传图片将仅作文字分析</el-tag>
-            </el-form-item>
 
-            <el-form-item v-if="editable">
-              <el-button type="primary" @click="saveConfig">保存配置</el-button>
-              <el-button @click="testConnection" :loading="testing">测试连接</el-button>
-            </el-form-item>
-            <el-alert v-else type="info" :closable="false" style="width:100%"
-                title="游客模式：AI 配置只读，如需修改请用管理员登录。"></el-alert>
-            <el-form-item>
-              <el-tag :type="connectionStatus.type" size="small">{{ connectionStatus.text }}</el-tag>
-            </el-form-item>
+            <div class="config-footer">
+              <div v-if="editable" class="footer-actions">
+                <el-button type="primary" @click="saveConfig" :loading="savingConfig">保存配置</el-button>
+                <el-button @click="testConnection" :loading="testing">测试连接</el-button>
+              </div>
+              <el-tag v-else type="info" size="small" effect="plain" round>游客模式：AI 配置只读</el-tag>
+            </div>
           </el-form>
         </el-card>
       </el-col>
     </el-row>
 
-    <el-row :gutter="20" style="margin-top: 20px;">
+    <el-row :gutter="20" class="settings-row">
       <el-col :xs="24" :span="12">
-        <el-card shadow="hover">
-          <template #header><span>💾 数据管理</span></template>
-          <el-form label-width="100px">
+        <el-card shadow="hover" class="main-card">
+          <template #header>
+            <div class="card-head-bar">
+              <div class="card-head-title">
+                <span class="head-icon">💾</span>
+                <span class="head-text">数据管理</span>
+              </div>
+            </div>
+          </template>
+          <el-form label-width="100px" class="config-form">
             <el-form-item label="数据备份">
-              <el-button v-if="editable" type="primary" @click="exportData" :loading="exporting">
-                <el-icon><Download /></el-icon> 导出备份
-              </el-button>
-              <span style="font-size:12px;color:#999;margin-left:8px;">导出为 SQLite 数据库文件</span>
+              <div class="row-action">
+                <el-button v-if="editable" type="primary" plain @click="exportData" :loading="exporting">
+                  <el-icon><Download /></el-icon>导出备份
+                </el-button>
+                <span class="row-hint">导出为 SQLite 数据库文件</span>
+              </div>
             </el-form-item>
             <el-form-item v-if="editable" label="数据恢复">
-              <el-upload
-                :auto-upload="false"
-                :show-file-list="false"
-                accept=".db,.json"
-                @change="onImportFile"
-              >
-                <el-button type="warning">
-                  <el-icon><Upload /></el-icon> 导入恢复
-                </el-button>
-              </el-upload>
-              <span style="font-size:12px;color:#999;margin-left:8px;">选择备份文件恢复数据</span>
+              <div class="row-action">
+                <el-upload :auto-upload="false" :show-file-list="false" accept=".db,.json" @change="onImportFile">
+                  <el-button type="warning" plain>
+                    <el-icon><Upload /></el-icon>导入恢复
+                  </el-button>
+                </el-upload>
+                <span class="row-hint">选择备份文件覆盖当前数据</span>
+              </div>
             </el-form-item>
             <el-form-item v-if="editable" label="重置数据">
-              <el-popconfirm title="确定要清空所有数据？此操作不可撤销！" @confirm="resetData">
-                <template #reference>
-                  <el-button type="danger">清空数据库</el-button>
-                </template>
-              </el-popconfirm>
+              <div class="row-action">
+                <el-popconfirm title="确定要清空所有数据？此操作不可撤销！" @confirm="resetData">
+                  <template #reference>
+                    <el-button type="danger" plain>清空数据库</el-button>
+                  </template>
+                </el-popconfirm>
+                <span class="row-hint">清空后不可恢复，请先备份</span>
+              </div>
             </el-form-item>
           </el-form>
         </el-card>
       </el-col>
 
       <el-col :xs="24" :span="12">
-        <el-card shadow="hover">
-          <template #header><span>ℹ️ 系统信息</span></template>
-          <el-descriptions :column="1" border>
+        <el-card shadow="hover" class="main-card">
+          <template #header>
+            <div class="card-head-bar">
+              <div class="card-head-title">
+                <span class="head-icon">ℹ️</span>
+                <span class="head-text">系统信息</span>
+              </div>
+            </div>
+          </template>
+          <el-descriptions :column="1" border class="sys-desc">
             <el-descriptions-item label="应用名称">中医诊所管理平台</el-descriptions-item>
             <el-descriptions-item label="版本">{{ appVersion ? 'v' + appVersion : '未获取' }}</el-descriptions-item>
             <el-descriptions-item label="技术栈">Electron + FastAPI + Vue3</el-descriptions-item>
@@ -133,16 +185,22 @@
               <span class="mono">{{ dbPath || '未知' }}</span>
             </el-descriptions-item>
             <el-descriptions-item label="数据概览">
-              患者 <b>{{ counts.patients || 0 }}</b> · 就诊 <b>{{ counts.visits || 0 }}</b> · 随访 <b>{{ counts.followups || 0 }}</b> · 处方 <b>{{ counts.prescriptions || 0 }}</b> · 问诊 <b>{{ counts.inquiries || 0 }}</b>
+              <div class="count-chips">
+                <span class="count-chip">患者 <b>{{ counts.patients || 0 }}</b></span>
+                <span class="count-chip">就诊 <b>{{ counts.visits || 0 }}</b></span>
+                <span class="count-chip">随访 <b>{{ counts.followups || 0 }}</b></span>
+                <span class="count-chip">处方 <b>{{ counts.prescriptions || 0 }}</b></span>
+                <span class="count-chip">问诊 <b>{{ counts.inquiries || 0 }}</b></span>
+              </div>
             </el-descriptions-item>
             <el-descriptions-item label="AI 引擎">
               <span class="status-retest" @click="testConnection" title="点击重新测试 DeepSeek 连接">
-                <el-tag :type="aiEngineStatus.type" size="small">{{ aiEngineStatus.text }}</el-tag>
-                <span class="retest-hint">↻ 重测</span>
+                <el-tag :type="aiEngineStatus.type" size="small" effect="light" round>{{ aiEngineStatus.text }}</el-tag>
+                <span class="retest-hint">重新测试</span>
               </span>
             </el-descriptions-item>
             <el-descriptions-item label="向量库">
-              <el-tag :type="vectorAvailable ? 'success' : 'info'" size="small">
+              <el-tag :type="vectorAvailable ? 'success' : 'info'" size="small" effect="light" round>
                 {{ vectorAvailable ? 'ChromaDB 已启用' : 'ChromaDB 未安装' }}
               </el-tag>
             </el-descriptions-item>
@@ -156,16 +214,15 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Download, Upload } from '@element-plus/icons-vue'
+import { Download, Upload, OfficeBuilding, InfoFilled, Lock } from '@element-plus/icons-vue'
 import api from '@/utils/api'
 import { useAuthStore } from '@/store/auth'
 
 // 游客（非管理员）隐藏所有写操作，只读浏览
 const auth = useAuthStore()
-const editable = computed(() => !!auth.user?.is_admin)
+const editable = computed(() => auth.can('system:write'))
 
 const clinicName = ref('')
-const doctorName = ref('')
 const clinicLogo = ref('')
 const deepseekKey = ref('')
 const hasKey = ref(false)
@@ -178,6 +235,7 @@ const hasVisionKey = ref(false)
 const visionConfigured = ref(false)
 const appVersion = ref('')
 const testing = ref(false)
+const savingConfig = ref(false)
 const exporting = ref(false)
 const vectorAvailable = ref(false)
 const savingClinic = ref(false)
@@ -203,7 +261,6 @@ onMounted(async () => {
     dbPath.value = res.db_path || ''
     counts.value = res.counts || {}
     clinicName.value = res.clinic_name || ''
-    doctorName.value = res.doctor_name || ''
     clinicLogo.value = res.clinic_logo || ''
     deepseekModel.value = res.deepseek_model || 'deepseek-chat'
     deepseekBaseUrl.value = res.deepseek_base_url || 'https://api.deepseek.com'
@@ -231,7 +288,6 @@ async function saveClinic() {
   try {
     await api.put('/config', {
       clinic_name: clinicName.value,
-      doctor_name: doctorName.value,
       clinic_logo: clinicLogo.value,
     })
     ElMessage.success('诊所信息已保存')
@@ -258,6 +314,7 @@ function onLogoChange(uploadFile: any) {
 }
 
 async function saveConfig() {
+  savingConfig.value = true
   try {
     const body: any = {
       deepseek_model: deepseekModel.value,
@@ -284,7 +341,11 @@ async function saveConfig() {
     if (visionKey.value) visionKey.value = ''
     ElMessage.success('配置已保存')
     connectionStatus.value = { type: 'success', text: '配置已保存' }
-  } catch {}
+  } catch {
+    ElMessage.error('保存失败，请检查配置')
+  } finally {
+    savingConfig.value = false
+  }
 }
 
 async function testConnection() {
@@ -386,6 +447,11 @@ async function resetData() {
     flex-direction: column;
     flex: 1;
   }
+  :deep(.el-card__header) {
+    padding: 14px 18px;
+    background: linear-gradient(135deg, #fdf8f3 0%, #f7efe6 100%);
+    border-bottom: 1px solid #f0e4d6;
+  }
   :deep(.el-card__body) {
     flex: 1;
     display: flex;
@@ -396,44 +462,192 @@ async function resetData() {
     display: flex;
     flex-direction: column;
   }
-  // 每张卡片底部操作区沉底，视觉更整齐
-  :deep(.el-card__body .el-form .el-form-item:last-child) {
-    margin-bottom: 0;
+
+  .settings-row { margin-top: 20px; }
+
+  .card-head-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .card-head-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .head-icon { font-size: 18px; line-height: 1; }
+  .head-text { font-size: 16px; font-weight: 600; color: #2c1810; letter-spacing: .5px; }
+  .head-count { margin-left: 2px; background: #fff; border-color: #e6d9c9; color: #907a63; }
+  .card-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+  .conn-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    line-height: 1.7;
+    border: 1px solid #e6d9c9;
+    background: #fff;
+    color: #907a63;
+
+    &.is-success { border-color: #cfe0cb; background: #f4f8f2; color: #5f7f5c; }
+    &.is-danger { border-color: #f0cdc6; background: #fdf4f2; color: #b5624f; }
+  }
+
+  .config-form {
+    .el-form-item { margin-bottom: 16px; }
+    .full-width { width: 100%; }
+  }
+
+  .form-section-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #6b5644;
+    padding-bottom: 8px;
+    margin-bottom: 12px;
+    border-bottom: 1px dashed #f0e4d6;
+
+    .sec-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #a97b4f;
+      &.is-vision { background: #7fa07c; }
+    }
+  }
+
+  .section-hint {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 8px 12px;
+    margin-bottom: 14px;
+    border: 1px dashed #e6d9c9;
+    border-radius: 8px;
+    background: #fdfaf7;
+    font-size: 12px;
+    line-height: 1.7;
+    color: #8a7a68;
+
+    .el-icon { flex: none; margin-top: 2px; color: #b89a76; font-size: 13px; }
+  }
+
+  .config-footer {
     margin-top: auto;
+    padding-top: 12px;
+
+    .footer-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  }
+
+  .row-action {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+
+    .row-hint { font-size: 12px; color: #a39484; }
+  }
+
+  .sys-desc {
+    :deep(.el-descriptions__label) {
+      background: #faf6f1;
+      color: #7a6553;
+      font-weight: 600;
+      width: 108px;
+    }
+    :deep(.el-descriptions__content) { color: #5c4a3a; }
+  }
+
+  .count-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+
+    .count-chip {
+      padding: 1px 8px;
+      border-radius: 6px;
+      background: #faf6f1;
+      border: 1px solid #eddfd0;
+      font-size: 12px;
+      color: #8b7a68;
+
+      b { color: #8b4513; font-variant-numeric: tabular-nums; }
+    }
   }
 }
-.logo-upload {
+
+.clinic-brand {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #fdf8f3 0%, #f7efe6 100%);
+  border: 1px solid #f0e4d6;
+  &.is-readonly { opacity: .85; }
 }
-.logo-preview {
-  width: 56px;
-  height: 56px;
+.clinic-logo-wrap { flex-shrink: 0; }
+.clinic-logo {
+  width: 72px;
+  height: 72px;
   object-fit: contain;
-  border: 1px solid #e8e0d8;
-  border-radius: 8px;
-  padding: 4px;
+  border-radius: 12px;
   background: #fff;
+  border: 1px solid #e8e0d8;
+  padding: 6px;
+  box-shadow: 0 2px 8px rgba(139, 94, 52, .08);
+  &.is-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #c9a882;
+    border-style: dashed;
+    box-shadow: none;
+  }
 }
-.logo-placeholder {
-  width: 56px;
-  height: 56px;
+.clinic-brand-text { min-width: 0; }
+.clinic-brand-name {
+  font-size: 17px;
+  font-weight: 600;
+  color: #2c1810;
+  letter-spacing: .5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.clinic-brand-sub { font-size: 12px; color: #9a8b7a; margin-top: 4px; }
+.clinic-logo-actions { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.doctor-hint-item { margin-bottom: 12px; }
+.doctor-hint {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #bbb;
-  font-size: 12px;
-  border: 1px dashed #dcd3c9;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: #8a7a68;
+  padding: 8px 12px;
   border-radius: 8px;
-}
-.logo-actions {
-  display: flex;
-  gap: 8px;
+  background: #faf6f1;
+  border: 1px dashed #e6d9c9;
+  .el-icon { margin-top: 3px; color: #b89a76; flex-shrink: 0; }
+  i { font-style: normal; color: #8b5e34; font-weight: 600; }
 }
 .text-muted { color: #aaa; font-size: 13px; }
 .status-retest { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
 .status-retest:hover .retest-hint { text-decoration: underline; }
-.retest-hint { font-size: 12px; color: #409eff; }
+.retest-hint { font-size: 12px; color: #b08753; }
 .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; word-break: break-all; color: #555; }
+
+@media (max-width: 767px) {
+  .settings-page {
+    .settings-row { margin-top: 16px; }
+    .card-head-bar { align-items: stretch; }
+    .card-actions { justify-content: flex-start; }
+    .config-footer .footer-actions :deep(.el-button) { flex: 1; }
+    .row-action { align-items: flex-start; flex-direction: column; gap: 6px; }
+    .sys-desc :deep(.el-descriptions__label) { width: 92px; }
+  }
+}
 </style>

@@ -1,40 +1,51 @@
 <template>
   <div class="statistics-page">
-    <el-card shadow="hover">
+    <el-card shadow="hover" class="main-card">
       <template #header>
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-          <span>📊 统计报表</span>
-          <el-radio-group v-model="period" size="small" @change="loadAll">
-            <el-radio-button :value="7">近7天</el-radio-button>
-            <el-radio-button :value="30">近30天</el-radio-button>
-            <el-radio-button :value="90">近90天</el-radio-button>
-          </el-radio-group>
+        <div class="tcm-head">
+          <div class="tcm-head__title">
+            <span class="tcm-head__icon">📊</span>
+            <span class="tcm-head__text">统计报表</span>
+            <el-tag size="small" effect="light" round class="tcm-head__count">近 {{ period }} 天</el-tag>
+          </div>
+          <div class="tcm-head__actions">
+            <el-radio-group v-model="period" size="small" @change="loadAll">
+              <el-radio-button :value="7">近7天</el-radio-button>
+              <el-radio-button :value="30">近30天</el-radio-button>
+              <el-radio-button :value="90">近90天</el-radio-button>
+            </el-radio-group>
+          </div>
         </div>
       </template>
 
       <el-tabs v-model="activeTab" @tab-change="onTabChange">
         <!-- 就诊统计 -->
         <el-tab-pane label="就诊趋势" name="visits">
-          <div ref="visitChartRef" style="height:350px;"></div>
-          <el-divider />
-          <h4>常见证型 TOP10</h4>
-          <el-table :data="syndromeStats" stripe size="small" v-if="syndromeStats.length">
-            <el-table-column type="index" label="排名" width="60" />
+          <div ref="visitChartRef" class="chart-lg"></div>
+          <div class="tcm-section-title section-gap">
+            <span class="tcm-section-title__dot"></span>
+            <span>常见证型 TOP10</span>
+          </div>
+          <el-table :data="syndromeStats" class="tcm-table" size="small" v-if="syndromeStats.length">
+            <el-table-column type="index" label="排名" width="60" class-name="tcm-num" />
             <el-table-column prop="name" label="证型" />
-            <el-table-column prop="count" label="频次" width="80" />
+            <el-table-column prop="count" label="频次" width="80" class-name="tcm-num" />
           </el-table>
           <el-empty v-else description="暂无数据" :image-size="60" />
         </el-tab-pane>
 
         <!-- 用药统计 -->
         <el-tab-pane label="用药分析" name="herbs">
-          <div ref="herbChartRef" style="height:350px;"></div>
-          <el-divider />
-          <el-table :data="herbUsage" stripe size="small">
-            <el-table-column type="index" label="排名" width="60" />
+          <div ref="herbChartRef" class="chart-lg"></div>
+          <div class="tcm-section-title section-gap">
+            <span class="tcm-section-title__dot"></span>
+            <span>药材使用明细</span>
+          </div>
+          <el-table :data="herbUsage" class="tcm-table" size="small">
+            <el-table-column type="index" label="排名" width="60" class-name="tcm-num" />
             <el-table-column prop="name" label="药味" width="120" />
-            <el-table-column prop="usage_count" label="使用次数" width="100" />
-            <el-table-column prop="total_dose" label="总用量(g)" width="100" />
+            <el-table-column prop="usage_count" label="使用次数" width="100" class-name="tcm-num" />
+            <el-table-column prop="total_dose" label="总用量(g)" width="100" class-name="tcm-num" />
           </el-table>
         </el-tab-pane>
 
@@ -42,14 +53,17 @@
         <el-tab-pane label="处方统计" name="prescriptions">
           <el-row :gutter="20">
             <el-col :xs="24" :span="12">
-              <div ref="prescriptionStatusRef" style="height:300px;"></div>
+              <div ref="prescriptionStatusRef" class="chart-md"></div>
             </el-col>
             <el-col :xs="24" :span="12">
-              <div ref="formulaChartRef" style="height:300px;"></div>
+              <div ref="formulaChartRef" class="chart-md"></div>
             </el-col>
           </el-row>
-          <el-divider />
-          <el-descriptions :column="3" border>
+          <div class="tcm-section-title section-gap">
+            <span class="tcm-section-title__dot"></span>
+            <span>统计汇总</span>
+          </div>
+          <el-descriptions :column="3" border class="stat-desc">
             <el-descriptions-item label="统计周期">近{{ period }}天</el-descriptions-item>
             <el-descriptions-item label="处方总数">{{ prescriptionStats.total || 0 }}</el-descriptions-item>
           </el-descriptions>
@@ -58,6 +72,53 @@
     </el-card>
   </div>
 </template>
+
+<style scoped>
+.statistics-page {
+  .main-card {
+    border-radius: 12px;
+    border: 1px solid #f0e4d6;
+
+    :deep(.el-card__header) {
+      padding: 0;
+      border-bottom: none;
+    }
+  }
+
+  .chart-lg { height: 350px; }
+  .chart-md { height: 300px; }
+
+  .section-gap { margin-top: 18px; }
+
+  :deep(.el-tabs__item) {
+    color: #7a6553;
+  }
+  :deep(.el-tabs__item.is-active) {
+    color: #8b4513;
+    font-weight: 600;
+  }
+  :deep(.el-tabs__active-bar) {
+    background-color: #8b4513;
+  }
+
+  :deep(.stat-desc .el-descriptions__label) {
+    background: #faf6f1;
+    color: #7a6553;
+    font-weight: 600;
+  }
+  :deep(.stat-desc .el-descriptions__content) {
+    color: #4a3628;
+  }
+}
+
+@media (max-width: 767px) {
+  .statistics-page {
+    .chart-lg { height: 240px; }
+    .chart-md { height: 220px; }
+    .chart-md + * { margin-top: 8px; }
+  }
+}
+</style>
 
 <script setup lang="ts">
 import { ref, onMounted, nextTick } from 'vue'

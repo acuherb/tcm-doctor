@@ -177,7 +177,7 @@ import { useAuthStore } from '@/store/auth'
 
 // 游客只读：隐藏所有写操作
 const auth = useAuthStore()
-const editable = computed(() => !!auth.user?.is_admin)
+const editable = computed(() => auth.canWrite('dictionaries'))
 
 // ---- 移动端适配 ----
 const isMobile = ref(false)

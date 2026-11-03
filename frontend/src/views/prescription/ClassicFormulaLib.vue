@@ -1,52 +1,82 @@
 <template>
   <div class="classic-formula-lib">
-    <el-card shadow="hover">
+    <el-card shadow="hover" class="main-card">
       <template #header>
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-          <span>📖 中药方库</span>
-          <div>
-            <el-button v-if="editable" type="primary" size="small" @click="openCreate">＋ 新增方剂</el-button>
-            <el-button v-if="editable" size="small" @click="importFileRef?.click()">📥 导入JSON</el-button>
-            <el-button v-if="editable" size="small" @click="exportFormulas">📤 导出JSON</el-button>
+        <div class="card-head-bar">
+          <div class="card-head-title">
+            <span class="head-icon">📖</span>
+            <span class="head-text">中药方库</span>
+            <el-tag v-if="formulas.length > 0" size="small" type="info" effect="plain" round class="head-count">
+              {{ formulas.length }} 首
+            </el-tag>
+          </div>
+          <div v-if="editable" class="card-actions">
+            <el-button type="primary" @click="openCreate">
+              <el-icon><Plus /></el-icon>新增方剂
+            </el-button>
+            <el-divider direction="vertical" />
+            <el-button :loading="importing" @click="importFileRef?.click()">
+              <el-icon><Upload /></el-icon>导入
+            </el-button>
+            <el-button @click="exportFormulas">
+              <el-icon><Download /></el-icon>导出
+            </el-button>
             <input ref="importFileRef" type="file" accept=".json,application/json"
               style="display:none" @change="onImportFile" />
           </div>
         </div>
       </template>
 
-      <el-form :inline="true" @submit.prevent="loadFormulas">
-        <el-form-item>
-          <el-input v-model="searchText" placeholder="搜索方名/功效" clearable @clear="loadFormulas" style="width:220px">
-            <template #prefix><el-icon><Search /></el-icon></template>
-          </el-input>
-        </el-form-item>
-        <el-form-item>
-          <el-select v-model="sourceFilter" placeholder="出处筛选" clearable @change="loadFormulas" style="width:140px">
-            <el-option v-for="s in sources" :key="s" :label="s" :value="s" />
-          </el-select>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="loadFormulas">查询</el-button>
-        </el-form-item>
-      </el-form>
+      <div class="filter-bar">
+        <el-input v-model="searchText" placeholder="搜索方名 / 功效" clearable class="search-input"
+          @clear="loadFormulas" @keyup.enter="loadFormulas">
+          <template #prefix><el-icon><Search /></el-icon></template>
+        </el-input>
+        <el-select v-model="sourceFilter" placeholder="全部出处" clearable class="source-select" @change="loadFormulas">
+          <el-option v-for="s in sources" :key="s" :label="s" :value="s" />
+        </el-select>
+        <el-button type="primary" @click="loadFormulas">查询</el-button>
+        <el-button v-if="searchText || sourceFilter" text class="reset-btn" @click="resetFilter">重置</el-button>
+      </div>
 
-      <el-row :gutter="16">
-        <el-col :span="8" :xs="24" v-for="formula in formulas" :key="formula.id">
-          <el-card shadow="hover" class="formula-card" @click="viewFormula(formula)">
-            <div class="formula-name">{{ formula.name }}</div>
-            <div class="formula-source" v-if="formula.source">
-              <el-tag size="small" type="info">{{ formula.source }}</el-tag>
-              <el-tag v-if="formula.composition?.meridian" size="small" type="success" style="margin-left:4px">{{ formula.composition.meridian }}</el-tag>
-            </div>
-            <div class="formula-efficacy" v-if="formula.efficacy">{{ formula.efficacy }}</div>
-            <div class="formula-composition" v-if="formula.composition?.herbs">
-              <span v-for="(h, idx) in formula.composition.herbs" :key="idx" class="herb-chip">
-                {{ h.herb }}{{ h.dose ? h.dose + 'g' : '' }}
-              </span>
-            </div>
-          </el-card>
-        </el-col>
-      </el-row>
+      <div v-loading="loading" class="formula-grid-wrap">
+        <el-row :gutter="14">
+          <el-col :xs="24" :sm="12" :md="8" :xl="6" v-for="formula in formulas" :key="formula.id">
+            <el-card shadow="never" class="formula-card" @click="viewFormula(formula)">
+              <div class="formula-head">
+                <div class="formula-name">{{ formula.name }}</div>
+                <el-tag v-if="formula.composition?.meridian" size="small" type="success" effect="light" round class="meridian-tag">
+                  {{ formula.composition.meridian }}
+                </el-tag>
+              </div>
+
+              <div class="formula-sub" v-if="formula.source">
+                <el-icon class="sub-icon"><Collection /></el-icon>{{ formula.source }}
+              </div>
+
+              <div class="formula-efficacy" v-if="formula.efficacy">{{ formula.efficacy }}</div>
+
+              <div class="formula-composition" v-if="formula.composition?.herbs?.length">
+                <span class="herb-label">组成</span>
+                <span v-for="(h, idx) in formula.composition.herbs" :key="idx" class="herb-chip"
+                  :class="{ 'is-king': h.is_king_herb }">
+                  {{ h.herb }}<em v-if="h.dose">{{ h.dose }}g</em>
+                </span>
+              </div>
+              <div class="formula-composition is-empty" v-else>
+                <span class="herb-label">组成</span>
+                <span class="herb-none">暂无药味</span>
+              </div>
+            </el-card>
+          </el-col>
+        </el-row>
+
+        <el-empty v-if="!formulas.length" :image-size="80">
+          <template #description>
+            <span>{{ searchText || sourceFilter ? '没有匹配的方剂，试试调整筛选条件' : '中药方库为空' }}</span>
+          </template>
+        </el-empty>
+      </div>
     </el-card>
 
     <!-- 方剂详情 -->
@@ -82,7 +112,7 @@
           <div class="formula-modifications">
             <div v-for="(mod, idx) in currentFormula.modifications.changes" :key="idx" class="mod-item">
               <div class="mod-condition">
-                <el-tag size="small" type="warning">{{ mod.condition || `变化${idx + 1}` }}</el-tag>
+                <el-tag size="small" type="warning">{{ mod.condition || `变化${Number(idx) + 1}` }}</el-tag>
               </div>
               <div class="mod-detail">
                 <span v-if="mod.add" class="mod-add">+ {{ mod.add }}</span>
@@ -164,20 +194,22 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search } from '@element-plus/icons-vue'
+import { Search, Plus, Upload, Download, Collection } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import api from '@/utils/api'
 import { useAuthStore } from '@/store/auth'
 
 // 游客只读：隐藏所有写操作
 const auth = useAuthStore()
-const editable = computed(() => !!auth.user?.is_admin)
+const editable = computed(() => auth.can('dict:write'))
 const router = useRouter()
 const formulas = ref<any[]>([])
 const searchText = ref('')
 const sourceFilter = ref('')
 const detailVisible = ref(false)
 const currentFormula = ref<any>(null)
+const loading = ref(false)
+const importing = ref(false)
 
 const meridians = ['太阳', '阳明', '少阳', '太阴', '少阴', '厥阴']
 const importFileRef = ref<HTMLInputElement | null>(null)
@@ -282,21 +314,18 @@ async function removeFormula(f: any) {
 async function exportFormulas() {
   try {
     const data: any = await api.get('/prescriptions/classic-formulas/export')
-    if (!Array.isArray(data)) {
-      // 兼容某些 axios 包装：取 data
-    }
-    const list = Array.isArray(data) ? data : (data as any)?.data || []
-    if (!list.length) {
+    const nl = Array.isArray(data) ? data : (data as any)?.data || []
+    if (!nl.length) {
       ElMessage.warning('当前方剂库为空')
       return
     }
-    const blob = new Blob([JSON.stringify(list, null, 2)], { type: 'application/json' })
+    const blob = new Blob([JSON.stringify(nl, null, 2)], { type: 'application/json' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
     a.download = `中药方库_${new Date().toISOString().slice(0, 10)}.json`
     a.click()
     URL.revokeObjectURL(a.href)
-    ElMessage.success(`已导出 ${list.length} 首方剂`)
+    ElMessage.success(`已导出 ${nl.length} 首方剂`)
   } catch (e: any) {
     ElMessage.error('导出失败')
   }
@@ -307,6 +336,7 @@ async function onImportFile(e: Event) {
   const file = input.files?.[0]
   input.value = ''
   if (!file) return
+  importing.value = true
   try {
     const text = await file.text()
     let data = JSON.parse(text)
@@ -325,6 +355,8 @@ async function onImportFile(e: Event) {
     await loadFormulas()
   } catch (e: any) {
     ElMessage.error('导入失败：' + (e?.message || '请检查JSON格式'))
+  } finally {
+    importing.value = false
   }
 }
 
@@ -334,12 +366,23 @@ const sources = computed(() => {
 })
 
 async function loadFormulas() {
+  loading.value = true
   try {
     const params: any = {}
     if (searchText.value) params.search = searchText.value
     if (sourceFilter.value) params.source = sourceFilter.value
     formulas.value = (await api.get('/prescriptions/classic-formulas', { params })) as any
-  } catch {}
+  } catch {
+    formulas.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
+function resetFilter() {
+  searchText.value = ''
+  sourceFilter.value = ''
+  loadFormulas()
 }
 
 function viewFormula(formula: any) {
@@ -358,43 +401,137 @@ onMounted(loadFormulas)
 
 <style scoped lang="scss">
 .classic-formula-lib {
-  .formula-card {
+  .main-card {
+    :deep(.el-card__header) {
+      padding: 14px 18px;
+      background: linear-gradient(135deg, #fdf8f3 0%, #f7efe6 100%);
+      border-bottom: 1px solid #f0e4d6;
+    }
+  }
+  .card-head-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .card-head-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .head-icon { font-size: 18px; line-height: 1; }
+  .head-text { font-size: 16px; font-weight: 600; color: #2c1810; letter-spacing: .5px; }
+  .head-count { margin-left: 2px; background: #fff; border-color: #e6d9c9; color: #907a63; }
+  .card-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    .el-divider--vertical { margin: 0 2px; }
+  }
+  .filter-bar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
     margin-bottom: 16px;
+    flex-wrap: wrap;
+    .search-input { width: 240px; }
+    .source-select { width: 170px; }
+    .reset-btn { margin-left: -2px; }
+  }
+  .formula-grid-wrap { min-height: 120px; }
+  .formula-card {
+    margin-bottom: 14px;
+    border: 1px solid #eee3d6;
+    border-radius: 10px;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all .2s ease;
 
     &:hover {
+      border-color: #d4a574;
+      box-shadow: 0 4px 14px rgba(139, 94, 52, .1);
       transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(139, 69, 19, 0.15);
+    }
+
+    :deep(.el-card__body) { padding: 14px 16px; }
+
+    .formula-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 6px;
     }
 
     .formula-name {
       font-size: 16px;
       font-weight: 700;
-      color: #8B4513;
-      margin-bottom: 6px;
+      color: #8b4513;
+      line-height: 1.4;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
-    .formula-source {
-      margin-bottom: 6px;
+    .meridian-tag { flex: none; }
+
+    .formula-sub {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+      color: #a39484;
+      margin-bottom: 8px;
+
+      .sub-icon { font-size: 12px; }
     }
 
     .formula-efficacy {
       font-size: 13px;
-      color: #666;
-      margin-bottom: 8px;
+      line-height: 1.7;
+      color: #6b5644;
+      margin-bottom: 10px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
     }
 
     .formula-composition {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 5px;
+      padding-top: 10px;
+      border-top: 1px dashed #efe5d9;
+
+      .herb-label { font-size: 12px; color: #a39484; margin-right: 2px; }
+
       .herb-chip {
         display: inline-block;
-        padding: 2px 6px;
-        background: #f5f0eb;
-        border-radius: 4px;
+        padding: 1px 8px;
+        background: #faf6f1;
+        border: 1px solid #eddfd0;
+        border-radius: 10px;
         font-size: 12px;
-        margin: 2px;
-        color: #8B4513;
+        line-height: 18px;
+        color: #8b5e34;
+
+        em {
+          font-style: normal;
+          font-size: 11px;
+          color: #b08b62;
+          margin-left: 1px;
+        }
+
+        &.is-king {
+          background: #fdf3e7;
+          border-color: #ebcfab;
+          color: #a05c1f;
+          font-weight: 600;
+
+          em { color: #c08a4e; }
+        }
       }
+
+      &.is-empty .herb-none { font-size: 12px; color: #bdb0a2; }
     }
   }
 }
@@ -425,21 +562,24 @@ onMounted(loadFormulas)
 
 /* ---- 移动端适配 ---- */
 @media (max-width: 767px) {
-  :deep(.el-form--inline .el-form-item) {
-    display: block;
-    margin-right: 0;
-    margin-bottom: 8px;
+  .classic-formula-lib {
+    .card-head-bar { align-items: stretch; }
+    .card-actions { justify-content: flex-start; }
+
+    .filter-bar {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 8px;
+
+      .search-input,
+      .source-select { width: 100%; }
+      .reset-btn { margin-left: 0; }
+    }
+
+    .formula-card { margin-bottom: 10px; }
   }
-  :deep(.el-form--inline .el-form-item__content) {
-    display: block;
-    max-width: 100%;
-  }
-  :deep(.el-form--inline .el-input),
-  :deep(.el-form--inline .el-select) {
-    width: 100% !important;
-  }
-  .formula-card {
-    margin-bottom: 8px;
-  }
+
+  .herb-row { flex-wrap: wrap; }
+  .herb-row :deep(.el-input) { width: 100% !important; }
 }
 </style>

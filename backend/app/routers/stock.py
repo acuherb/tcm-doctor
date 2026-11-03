@@ -22,7 +22,7 @@ from app.routers.auth import get_current_user
 from app.schemas.stock import (
     StockItemCreate, StockItemUpdate, StockItemResponse,
     StockBatchIn, StockBatchOut, StockBatchResponse, StockBatchUpdate,
-    StockTransactionResponse, StockOverview, StockAlert, StockCheckIn,
+    StockTransactionResponse, StockOverview, StockAlert, StockAdjustIn,
     SupplierCreate, SupplierUpdate, SupplierResponse,
     PurchaseOrderCreate, PurchaseOrderResponse, PurchaseItemResponse,
     ReportSummary, ReportProfitItem, ReportABCItem, ReportTurnover, SupplierPriceRow,
@@ -189,8 +189,8 @@ def list_batches(
     return _build(q.all())
 
 
-@router.post("/batches/in", response_model=StockBatchResponse, summary="入库(新增或累加批次, 记录成本)")
-def batch_in(data: StockBatchIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def _do_inbound(db: Session, data: StockBatchIn, operator: str) -> StockBatch:
+    """单物品入库核心(建/累加批次 + 入库流水)，不提交，由调用方统一 commit。"""
     item = db.query(StockItem).filter(StockItem.id == data.item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="物品不存在")
@@ -232,11 +232,27 @@ def batch_in(data: StockBatchIn, current_user: User = Depends(get_current_user),
         item_id=data.item_id, batch_id=batch.id, transaction_type="入库", quantity=data.quantity,
         before_quantity=before, after_quantity=float(batch.quantity),
         unit_cost=uc, cost_amount=cost_amount, revenue_amount=0.0,
-        reference_type="手动", operator=current_user.username, note=(data.note or note_prefix),
+        reference_type="手动", operator=operator, note=(data.note or note_prefix),
     ))
+    return batch
+
+
+@router.post("/batches/in", response_model=StockBatchResponse, summary="入库(新增或累加批次, 记录成本)")
+def batch_in(data: StockBatchIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    batch = _do_inbound(db, data, current_user.username)
     db.commit()
     db.refresh(batch)
     return _batch_resp(batch)
+
+
+@router.post("/batches/in/bulk", summary="批量入库(多物品逐条建批次+流水)")
+def batch_in_bulk(data: list[StockBatchIn], current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    done = 0
+    for entry in data:
+        _do_inbound(db, entry, current_user.username)
+        done += 1
+    db.commit()
+    return {"detail": f"已入库 {done} 项", "count": done}
 
 
 def _apply_out(db, batch: StockBatch, qty: float, reference_type: str, reference_id, note, unit_price_sold=None):
@@ -255,7 +271,7 @@ def _apply_out(db, batch: StockBatch, qty: float, reference_type: str, reference
         item_id=batch.item_id, batch_id=batch.id, transaction_type=("出库" if reference_type != "损耗" else "损耗"),
         quantity=qty, before_quantity=before, after_quantity=float(batch.quantity),
         unit_cost=uc, unit_price=unit_price_sold, cost_amount=cost_amount,
-        revenue_amount=rev if reference_type == "处方" else 0.0,
+        revenue_amount=rev,
         reference_id=reference_id, reference_type=reference_type,
         operator=note.get("operator"), note=note.get("note"),
     ))
@@ -276,7 +292,7 @@ def batch_out(data: StockBatchOut, current_user: User = Depends(get_current_user
             avail = float(batch.quantity)
             if avail < data.quantity:
                 raise HTTPException(status_code=400, detail=f"批次库存不足: 可用{avail}{item.unit}，需{data.quantity}{item.unit}")
-            _apply_out(db, batch, data.quantity, "手动", None, note_ctx)
+            _apply_out(db, batch, data.quantity, "手动", None, note_ctx, unit_price_sold=data.unit_price)
         else:
             batches = db.query(StockBatch).filter(
                 StockBatch.item_id == data.item_id, StockBatch.status.in_(["正常", "近效期"])
@@ -290,7 +306,7 @@ def batch_out(data: StockBatchOut, current_user: User = Depends(get_current_user
                     break
                 before_b = float(b.quantity)
                 d = min(before_b, remaining)
-                _apply_out(db, b, d, "手动", None, note_ctx)
+                _apply_out(db, b, d, "手动", None, note_ctx, unit_price_sold=data.unit_price)
                 remaining -= d
         db.commit()
     return {"message": "出库成功", "quantity": data.quantity}
@@ -474,7 +490,7 @@ def alerts(
         for i in items:
             t = totals.get(i.id, 0.0)
             if i.min_stock and t < float(i.min_stock):
-                out.append(StockAlert(item_id=i.id, item_name=i.name, unit=i.unit,
+                out.append(StockAlert(item_id=i.id, item_name=i.name, item_type=i.item_type, unit=i.unit,
                                      current_quantity=t, min_stock=float(i.min_stock),
                                      alert_type="低于最低库存", stock_value=values.get(i.id, 0.0)))
 
@@ -498,7 +514,7 @@ def alerts(
                     by_item[item_id] = (exp, left)
         for item_id, (exp, left) in by_item.items():
             i = next(x for x in items if x.id == item_id)
-            out.append(StockAlert(item_id=item_id, item_name=i.name, unit=i.unit,
+            out.append(StockAlert(item_id=item_id, item_name=i.name, item_type=i.item_type, unit=i.unit,
                                  current_quantity=totals.get(item_id, 0.0), min_stock=i.min_stock,
                                  alert_type="近效期", expiry_date=exp, days_to_expiry=left,
                                  stock_value=values.get(item_id, 0.0)))
@@ -517,7 +533,7 @@ def alerts(
             lt = last_map.get(i.id)
             last_days = (datetime.now() - lt).days if lt else 9999
             if last_days >= stagnant_days:
-                out.append(StockAlert(item_id=i.id, item_name=i.name, unit=i.unit,
+                out.append(StockAlert(item_id=i.id, item_name=i.name, item_type=i.item_type, unit=i.unit,
                                      current_quantity=t, min_stock=i.min_stock,
                                      alert_type="呆滞", last_move_days=last_days,
                                      stock_value=values.get(i.id, 0.0)))
@@ -527,7 +543,7 @@ def alerts(
         for i in items:
             v = values.get(i.id, 0.0)
             if v >= highvalue_threshold and totals.get(i.id, 0.0) > 0:
-                out.append(StockAlert(item_id=i.id, item_name=i.name, unit=i.unit,
+                out.append(StockAlert(item_id=i.id, item_name=i.name, item_type=i.item_type, unit=i.unit,
                                      current_quantity=totals.get(i.id, 0.0), min_stock=i.min_stock,
                                      alert_type="高价值积压", stock_value=v))
 
@@ -536,47 +552,80 @@ def alerts(
 
 # ── 盘点 ──
 
-@router.post("/check", summary="库房盘点(逐批次实盘调整, 可含损耗/盘盈, 记录金额)")
-def stock_check(data: StockCheckIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    item = db.query(StockItem).filter(StockItem.id == data.item_id).first()
-    if not item:
-        raise HTTPException(status_code=404, detail="物品不存在")
+def _weighted_avg_cost(batches: list) -> float | None:
+    tot_q = 0.0
+    tot_c = 0.0
+    for b in batches:
+        q = float(b.quantity or 0)
+        uc = float(b.unit_price) if b.unit_price is not None else None
+        if uc is not None and q > 0:
+            tot_q += q
+            tot_c += q * uc
+    return (tot_c / tot_q) if tot_q > 0 else None
+
+
+@router.post("/adjust/bulk", summary="批量盘点校准(按物品实盘总数, 自动 FIFO 调账)")
+def adjust_bulk(data: list[StockAdjustIn], current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """对每个物品按实盘总数校准：盘盈(实盘>当前)新增一个批次(取加权平均成本)，
+    盘亏(实盘<当前)按 FIFO 扣减批次；均记 transaction_type=盘点 的流水。
+    delta≈0 的物品自动跳过。后台仍保留批次(成本/效期)记录，但操作层面不暴露批次。"""
+    operator = current_user.username
+    done = 0
     with inventory_lock:
-        cur_total = float(
-            db.query(func.sum(StockBatch.quantity)).filter(StockBatch.item_id == data.item_id).scalar() or 0
-        )
-        total_diff = 0.0
-        for adj in data.adjustments:
-            batch = db.query(StockBatch).filter(
-                StockBatch.id == adj.batch_id, StockBatch.item_id == data.item_id
-            ).with_for_update().first()
-            if not batch:
-                raise HTTPException(status_code=400, detail=f"批次不存在或不属于该物品: {adj.batch_id}")
-            before = float(batch.quantity)
-            diff = float(adj.counted) - before
-            batch.quantity = float(adj.counted)
-            uc = float(batch.unit_price) if batch.unit_price is not None else None
-            if batch.quantity <= 0:
-                batch.quantity = 0.0
-                batch.status = "停用"
-            elif batch.status == "停用":
-                if batch.expiry_date and (datetime.strptime(batch.expiry_date, "%Y-%m-%d").date() - date.today()).days <= 90:
-                    batch.status = "近效期"
-                else:
-                    batch.status = "正常"
-            total_diff += diff
-            db.add(StockTransaction(
-                item_id=data.item_id, batch_id=batch.id, transaction_type="盘点", quantity=diff,
-                before_quantity=before, after_quantity=float(adj.counted),
-                unit_cost=uc, cost_amount=(diff * uc) if uc is not None else None,
-                revenue_amount=0.0, reference_type="盘点",
-                operator=current_user.username, note=data.note or "盘点调整",
-            ))
+        for entry in data:
+            item = db.query(StockItem).filter(StockItem.id == entry.item_id).first()
+            if not item:
+                continue
+            batches = db.query(StockBatch).filter(
+                StockBatch.item_id == entry.item_id
+            ).order_by(StockBatch.id).with_for_update().all()
+            current = float(sum((b.quantity or 0) for b in batches))
+            delta = float(entry.counted) - current
+            if abs(delta) < 1e-9:
+                continue
+            note = entry.note or "批量盘点调整"
+            if delta > 0:
+                avg = _weighted_avg_cost(batches)
+                batch = StockBatch(
+                    item_id=entry.item_id,
+                    batch_number=date.today().strftime("%Y%m%d") + "-PD",
+                    quantity=delta, unit_price=avg, status="正常",
+                )
+                db.add(batch)
+                db.flush()
+                if not batch.barcode:
+                    batch.barcode = _gen_barcode("BA", batch.id)
+                cost_amount = delta * avg if avg is not None else None
+                db.add(StockTransaction(
+                    item_id=entry.item_id, batch_id=batch.id, transaction_type="盘点", quantity=delta,
+                    before_quantity=current, after_quantity=current + delta,
+                    unit_cost=avg, cost_amount=cost_amount, revenue_amount=0.0,
+                    reference_type="盘点", operator=operator, note=note,
+                ))
+            else:
+                remain = -delta
+                for b in batches:
+                    if remain <= 0:
+                        break
+                    take = min(float(b.quantity or 0), remain)
+                    if take <= 0:
+                        continue
+                    before = float(b.quantity)
+                    b.quantity = before - take
+                    if b.quantity <= 0:
+                        b.quantity = 0.0
+                        b.status = "停用"
+                    remain -= take
+                    uc = float(b.unit_price) if b.unit_price is not None else None
+                    db.add(StockTransaction(
+                        item_id=entry.item_id, batch_id=b.id, transaction_type="盘点", quantity=-take,
+                        before_quantity=before, after_quantity=float(b.quantity),
+                        unit_cost=uc, cost_amount=-(take * uc) if uc is not None else None,
+                        revenue_amount=0.0, reference_type="盘点", operator=operator, note=note,
+                    ))
+            done += 1
         db.commit()
-    return {
-        "message": "盘点完成", "item_id": data.item_id,
-        "before_quantity": cur_total, "after_quantity": cur_total + total_diff,
-    }
+    return {"detail": f"已盘点 {done} 项", "count": done}
 
 
 # ── 供应商 ──
@@ -933,7 +982,7 @@ def create_option(
 ):
     if db.query(StockOption).filter(StockOption.opt_type == data.opt_type, StockOption.name == data.name).first():
         raise HTTPException(status_code=400, detail=f"选项「{data.name}」已存在")
-    opt = StockOption(opt_type=data.opt_type, name=data.name, is_active=data.is_active)
+    opt = StockOption(opt_type=data.opt_type, name=data.name, color=data.color, is_active=data.is_active)
     db.add(opt)
     db.commit()
     db.refresh(opt)
@@ -958,6 +1007,8 @@ def update_option(
         ).first():
             raise HTTPException(status_code=400, detail=f"选项「{data.name}」已存在")
         opt.name = data.name
+    if "color" in data.model_fields_set:
+        opt.color = data.color
     if data.is_active is not None:
         opt.is_active = data.is_active
     db.commit()

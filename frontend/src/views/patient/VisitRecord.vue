@@ -18,10 +18,17 @@
       <!-- 左: 四诊信息 -->
       <el-col :xs="24" :lg="12" class="left-col">
         <el-card shadow="hover" class="tcm-visit-card">
-          <template #header><span>🔍 四诊信息</span></template>
+          <template #header>
+            <div class="tcm-head compact">
+              <div class="tcm-head__title">
+                <span class="tcm-head__icon">🔍</span>
+                <span class="tcm-head__text">四诊信息</span>
+              </div>
+            </div>
+          </template>
           <div v-if="lastVisitHint || lastVisit" class="visit-type-hint">
             <template v-if="lastVisitHint">{{ lastVisitHint }}</template>
-            <el-button v-if="lastVisit && currentVisitId == null" size="small" type="warning" style="margin-left:8px;" @click="applyLastVisitDraft">📋 参照上次</el-button>
+            <el-button v-if="lastVisit && currentVisitId == null" size="small" type="warning" plain @click="applyLastVisitDraft">📋 参照上次</el-button>
             <span v-if="lastVisit && lastVisit.prescriptions && lastVisit.prescriptions.length" class="vit-last-rx">
               上次处方：{{ lastVisit.prescriptions.map((r: any) => r.formula_name || r.id).join('、') }}
             </span>
@@ -133,11 +140,16 @@
 
         <el-card shadow="hover" class="tcm-visit-card right-col-equal">
           <template #header>
-            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-              <span>🩺 辨证论治 (理法方药)</span>
-              <el-button type="primary" size="small" @click="aiAssist" :loading="aiLoading">
-                <el-icon><ChatDotRound /></el-icon> AI辅助辨证
-              </el-button>
+            <div class="tcm-head compact">
+              <div class="tcm-head__title">
+                <span class="tcm-head__icon">🩺</span>
+                <span class="tcm-head__text">辨证论治（理法方药）</span>
+              </div>
+              <div class="tcm-head__actions">
+                <el-button type="primary" @click="aiAssist" :loading="aiLoading">
+                  <el-icon><ChatDotRound /></el-icon> AI辅助辨证
+                </el-button>
+              </div>
             </div>
           </template>
           <el-form :model="form" label-width="80px" label-position="top">
@@ -165,11 +177,14 @@
         <!-- 其他资料补充：独立于四诊与辨证论治，按需上传纸质/影像资料 -->
         <el-card shadow="hover" class="tcm-visit-card other-files-card">
           <template #header>
-            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-              <span>📎 其他资料补充</span>
-              <div style="display:flex;gap:8px;">
-                <el-button size="small" @click="triggerVisitImage('lab','camera')">📷 拍摄</el-button>
-                <el-button size="small" @click="triggerVisitImage('lab','album')">🖼 相册</el-button>
+            <div class="tcm-head compact">
+              <div class="tcm-head__title">
+                <span class="tcm-head__icon">📎</span>
+                <span class="tcm-head__text">其他资料补充</span>
+              </div>
+              <div class="tcm-head__actions">
+                <el-button @click="triggerVisitImage('lab','camera')">📷 拍摄</el-button>
+                <el-button @click="triggerVisitImage('lab','album')">🖼 相册</el-button>
               </div>
             </div>
           </template>
@@ -185,7 +200,14 @@
       <!-- 右: 问诊十问 -->
       <el-col :xs="24" :lg="12" class="right-col">
         <el-card shadow="hover" class="tcm-visit-card">
-          <template #header><span>🪷 问诊十问（经方家辨证）</span></template>
+          <template #header>
+            <div class="tcm-head compact">
+              <div class="tcm-head__title">
+                <span class="tcm-head__icon">🪷</span>
+                <span class="tcm-head__text">问诊十问（经方家辨证）</span>
+              </div>
+            </div>
+          </template>
           <TenAspectsPanel ref="tenAspectsRef" :patient-id="patientId" :visit-id="currentVisitId" :initial="initialIq" />
         </el-card>
 
@@ -206,7 +228,7 @@
 
     <!-- 隐藏的图片上传 input：拍摄(相机) + 相册(选择) -->
     <input ref="visitFileInputRef" type="file" accept="image/*" style="display:none" @change="onVisitImageSelect" />
-    <input ref="visitCameraInputRef" type="file" accept="image/*" capture="camera" style="display:none" @change="onVisitImageSelect" />
+    <input ref="visitCameraInputRef" type="file" accept="image/*" capture="environment" style="display:none" @change="onVisitImageSelect" />
 
     <!-- 桌面端拍摄：网页摄像头捕捉 -->
     <el-dialog v-model="showCamera" title="📷 拍摄照片" width="420px" append-to-body class="camera-dialog" @closed="stopCamera">
@@ -266,10 +288,10 @@
             <span v-if="f.preparation" class="formula-prep">· {{ f.preparation }}</span>
           </div>
           <div class="formula-row" v-if="f.herbs?.length"><span class="formula-label">组成</span>
-            <span><template v-for="(h, hi) in f.herbs" :key="hi">{{ h.name }}{{ h.dose ? ' ' + h.dose : '' }}<template v-if="h.method">（{{ h.method }}）</template><template v-if="hi < f.herbs.length - 1">、</template></template></span>
+            <span><template v-for="(h, hi) in f.herbs" :key="hi">{{ h.name }}{{ h.dose ? ' ' + h.dose : '' }}<template v-if="h.method">（{{ h.method }}）</template><template v-if="Number(hi) < f.herbs.length - 1">、</template></template></span>
           </div>
           <div class="formula-row" v-if="f.modifications?.length"><span class="formula-label">加减</span>
-            <span><template v-for="(m, mi) in f.modifications" :key="mi">{{ m.label }}<template v-if="mi < f.modifications.length - 1">；</template></template></span>
+            <span><template v-for="(m, mi) in f.modifications" :key="mi">{{ m.label }}<template v-if="Number(mi) < f.modifications.length - 1">；</template></template></span>
           </div>
           <el-button size="small" type="success" @click="goPrescribeWithFormula(f)">去开药（带入该方）</el-button>
         </div>
@@ -533,7 +555,7 @@ function applyLastVisitDraft() {
   const lv = lastVisit.value
   if (!lv) return
   const setIfEmpty = (key: string, val: any) => {
-    if (val && !form.value[key]) form.value[key] = val
+    if (val && !(form.value as Record<string, any>)[key]) (form.value as Record<string, any>)[key] = val
   }
   setIfEmpty('present_illness', lv.present_illness)
   setIfEmpty('observation', lv.observation)
@@ -974,13 +996,9 @@ async function loadExistingVisit(visitId: number) {
   box-shadow: 0 2px 12px rgba(120, 80, 40, 0.06);
 
   :deep(.el-card__header) {
-    padding: 13px 18px;
-    background: linear-gradient(90deg, #fbf4ea 0%, #f4e7d3 100%);
-    border-bottom: 1px solid #efe2d0;
-    font-weight: 700;
-    font-size: 15px;
-    color: #6b4423;
-    letter-spacing: 0.5px;
+    padding: 0;
+    background: linear-gradient(135deg, #fdf8f3, #f7efe6);
+    border-bottom: 1px solid #f0e4d6;
   }
   :deep(.el-card__body) {
     padding: var(--el-card-padding);

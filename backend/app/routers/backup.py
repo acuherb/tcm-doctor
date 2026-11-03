@@ -22,7 +22,7 @@ def export_backup(
     current_user: "User" = Depends(get_current_user),
 ):
     """导出 SQLite 数据库文件（含患者隐私，仅管理员可操作）"""
-    if not current_user.is_admin:
+    if not has_perm(current_user, "system:write"):
         raise HTTPException(status_code=403, detail="仅管理员可导出数据备份")
     db_path = settings.database_url.replace("sqlite:///", "")
     if not os.path.exists(db_path):
@@ -52,7 +52,7 @@ async def import_backup(
     current_user: User = Depends(get_current_user),
 ):
     """导入 SQLite 数据库文件恢复数据（校验合法性 + 原子替换 + 重载连接）"""
-    if not current_user.is_admin:
+    if not has_perm(current_user, "system:write"):
         raise HTTPException(status_code=403, detail="仅管理员可导入数据恢复")
     if not file.filename.endswith(('.db', '.sqlite', '.sqlite3')):
         raise HTTPException(status_code=400, detail="请上传 .db 格式的备份文件")
@@ -102,7 +102,7 @@ def reset_data(
     current_user: User = Depends(get_current_user),
 ):
     """清空所有数据（保留表结构）— 显式要求管理员权限"""
-    if not current_user.is_admin:
+    if not has_perm(current_user, "system:write"):
         raise HTTPException(status_code=403, detail="仅管理员可清空数据")
     from app.models.herb import Herb
     from app.models.stock import (

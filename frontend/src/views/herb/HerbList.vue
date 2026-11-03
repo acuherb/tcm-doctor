@@ -1,17 +1,21 @@
 <template>
   <div class="herb-list">
-    <el-card shadow="hover">
+    <el-card shadow="hover" class="main-card">
       <template #header>
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-          <span>💊 药材字典</span>
-          <div>
-            <el-button v-if="editable" size="small" @click="triggerImport">
+        <div class="tcm-head">
+          <div class="tcm-head__title">
+            <span class="tcm-head__icon">💊</span>
+            <span class="tcm-head__text">药材字典</span>
+            <el-tag size="small" effect="light" round class="tcm-head__count">{{ herbs.length }} 味</el-tag>
+          </div>
+          <div class="tcm-head__actions">
+            <el-button v-if="editable" @click="triggerImport">
               <el-icon><Upload /></el-icon> 导入JSON
             </el-button>
-            <el-button v-if="editable" size="small" @click="exportHerbs">
+            <el-button v-if="editable" @click="exportHerbs">
               <el-icon><Download /></el-icon> 导出JSON
             </el-button>
-            <el-button v-if="editable" type="primary" size="small" @click="openAdd">
+            <el-button v-if="editable" type="primary" @click="openAdd">
               <el-icon><Plus /></el-icon> 新增药材
             </el-button>
             <input ref="fileInput" type="file" accept=".json,application/json" style="display:none" @change="onImportFile" />
@@ -20,44 +24,36 @@
       </template>
 
       <!-- 多维标签筛选 -->
-      <el-form :inline="true" @submit.prevent="loadHerbs" class="filter-form">
-        <el-form-item>
-          <el-input v-model="searchText" placeholder="搜索药名/异名/功效" clearable @clear="loadHerbs" style="width:200px">
-            <template #prefix><el-icon><Search /></el-icon></template>
-          </el-input>
-        </el-form-item>
-        <el-form-item label="四气">
-          <el-select v-model="natureFilter" placeholder="全部" clearable @change="loadHerbs" style="width:110px">
-            <el-option v-for="opt in dimOptions('nature')" :key="opt.value" :label="opt.label" :value="opt.value">
-              <span class="opt-dot" :style="{ backgroundColor: xwColor(opt.value) }"></span>
-              <span>{{ opt.label }}</span>
-              <el-tooltip v-if="opt.description" :content="opt.description" placement="right" :teleported="true">
-                <span class="opt-hint-dot"></span>
-              </el-tooltip>
-            </el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="五味">
-          <el-select v-model="flavorFilters" multiple collapse-tags clearable placeholder="多选" @change="loadHerbs" style="width:150px">
-            <el-option v-for="opt in dimOptions('flavors')" :key="opt.value" :label="opt.label" :value="opt.value">
-              <span class="opt-dot" :style="{ backgroundColor: xwColor(opt.value) }"></span>
-              <span>{{ opt.label }}</span>
-              <el-tooltip v-if="opt.description" :content="opt.description" placement="right" :teleported="true">
-                <span class="opt-hint-dot"></span>
-              </el-tooltip>
-            </el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item>
-          <el-checkbox v-model="pregOnly" @change="loadHerbs">仅看孕妇禁忌</el-checkbox>
-        </el-form-item>
-        <el-form-item>
+      <div class="tcm-filter">
+        <el-input v-model="searchText" placeholder="搜索药名/异名/功效" clearable class="filter-search" @clear="loadHerbs">
+          <template #prefix><el-icon><Search /></el-icon></template>
+        </el-input>
+        <el-select v-model="natureFilter" placeholder="全部四气" clearable class="filter-sel" @change="loadHerbs">
+          <el-option v-for="opt in dimOptions('nature')" :key="opt.value" :label="opt.label" :value="opt.value">
+            <span class="opt-dot" :style="{ backgroundColor: xwColor(opt.value) }"></span>
+            <span>{{ opt.label }}</span>
+            <el-tooltip v-if="opt.description" :content="opt.description" placement="right" :teleported="true">
+              <span class="opt-hint-dot"></span>
+            </el-tooltip>
+          </el-option>
+        </el-select>
+        <el-select v-model="flavorFilters" multiple collapse-tags clearable placeholder="五味（可多选）" class="filter-wide" @change="loadHerbs">
+          <el-option v-for="opt in dimOptions('flavors')" :key="opt.value" :label="opt.label" :value="opt.value">
+            <span class="opt-dot" :style="{ backgroundColor: xwColor(opt.value) }"></span>
+            <span>{{ opt.label }}</span>
+            <el-tooltip v-if="opt.description" :content="opt.description" placement="right" :teleported="true">
+              <span class="opt-hint-dot"></span>
+            </el-tooltip>
+          </el-option>
+        </el-select>
+        <el-checkbox v-model="pregOnly" class="filter-check" @change="loadHerbs">仅看孕妇禁忌</el-checkbox>
+        <div class="filter-actions">
           <el-button type="primary" @click="loadHerbs">查询</el-button>
           <el-button @click="resetFilters">重置</el-button>
-        </el-form-item>
-      </el-form>
+        </div>
+      </div>
 
-      <el-table v-if="!isMobile" :data="herbs" stripe style="width:100%">
+      <el-table v-if="!isMobile" :data="herbs" class="tcm-table" style="width:100%">
         <el-table-column prop="name" label="正名" width="100" />
         <el-table-column prop="aliases" label="异名" width="150">
           <template #default="{ row }">
@@ -215,7 +211,7 @@ import { useAuthStore } from '@/store/auth'
 
 // 游客只读：隐藏所有写操作
 const auth = useAuthStore()
-const editable = computed(() => !!auth.user?.is_admin)
+const editable = computed(() => auth.canWrite('herbs'))
 
 const herbs = ref<any[]>([])
 const searchText = ref('')
@@ -422,8 +418,29 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
 </script>
 
 <style scoped>
-.text-muted { color: #c0c4cc; }
-.unit { margin-left: 2px; color: #909399; font-size: 12px; }
+.herb-list {
+  .main-card {
+    border-radius: 12px;
+    border: 1px solid #f0e4d6;
+
+    :deep(.el-card__header) {
+      padding: 0;
+      border-bottom: none;
+    }
+  }
+
+  .filter-search { width: 230px; }
+  .filter-sel { width: 120px; }
+  .filter-wide { width: 170px; }
+  .filter-check { margin: 0; }
+  .filter-actions {
+    display: flex;
+    gap: 8px;
+  }
+}
+
+.text-muted { color: #a08b76; }
+.unit { margin-left: 2px; color: #907a63; font-size: 12px; }
 .tag-cell { margin: 1px 2px; }
 
 /* 药材性味五行本色标签 */

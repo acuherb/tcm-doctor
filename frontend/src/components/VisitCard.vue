@@ -28,8 +28,8 @@
           <PinchImage :src="visit.face_image" thumb-class="visit-thumb" />
         </div>
         <div v-for="(img, i) in (visit.lab_report_images || [])" :key="i" class="visit-img-item">
-          <span class="img-label">化验单{{ (visit.lab_report_images || []).length > 1 ? i + 1 : '' }}</span>
-          <PinchImage :src="img" :list="visit.lab_report_images || []" :index="i" thumb-class="visit-thumb" />
+          <span class="img-label">化验单{{ (visit.lab_report_images || []).length > 1 ? Number(i) + 1 : '' }}</span>
+          <PinchImage :src="img" :list="visit.lab_report_images || []" :index="Number(i)" thumb-class="visit-thumb" />
         </div>
       </div>
     </div>
@@ -124,9 +124,9 @@
             <span v-if="f.preparation" class="ai-formula-prep">· {{ f.preparation }}</span>
           </div>
           <div class="ai-formula-herbs">
-            <template v-for="(h, hi) in (f.herbs || [])" :key="hi">{{ h.name }}{{ h.dose ? ' ' + h.dose : '' }}<template v-if="h.method">（{{ h.method }}）</template><template v-if="hi < f.herbs.length - 1">、</template></template>
+            <template v-for="(h, hi) in (f.herbs || [])" :key="hi">{{ h.name }}{{ h.dose ? ' ' + h.dose : '' }}<template v-if="h.method">（{{ h.method }}）</template><template v-if="Number(hi) < f.herbs.length - 1">、</template></template>
           </div>
-          <div v-if="f.modifications?.length" class="ai-formula-mods">加减：<template v-for="(m, mi) in f.modifications" :key="mi">{{ m.label }}<template v-if="mi < f.modifications.length - 1">；</template></template></div>
+          <div v-if="f.modifications?.length" class="ai-formula-mods">加减：<template v-for="(m, mi) in f.modifications" :key="mi">{{ m.label }}<template v-if="Number(mi) < f.modifications.length - 1">；</template></template></div>
           <el-button link type="success" size="small" style="flex:none;" @click="goPrescribeWithFormula(f)">去开药（带入该方）</el-button>
         </div>
       </div>
@@ -268,7 +268,7 @@ function iqSuggestionParts(iq: any): { name: string; text: string }[] {
   if (!sug) return []
   const primary: string[] = iq?.result?.detail?.primary_meridians || []
   const parts = sug.split(' · ').filter(Boolean)
-  return parts.map((text, i) => {
+  return parts.map((text: string, i: number) => {
     // 优先用 detail 里命中的主经名；多段不足时按顺序对应 primary
     const m = primary[i] || primary[primary.length - 1] || ''
     return { name: IQ_MERIDIAN_NAMES[m] || m || '', text }
@@ -386,7 +386,7 @@ function parseAiFormulas(visit: any): any[] {
       const cm = b.match(/组成[：:]\s*(.+)/)
       if (cm) herbs.push(...splitHerbs(cm[1]))
       const mods: any[] = []
-      const modLines = b.split('\n').filter(l => /^\s*-\s*/.test(l))
+      const modLines = b.split('\n').filter((l: string) => /^\s*-\s*/.test(l))
       for (const l of modLines) {
         const mm = l.match(/-\s*(.+?)[：:]\s*加\s*(.+?)(?:；|;|$)/)
         if (!mm) continue
@@ -394,7 +394,7 @@ function parseAiFormulas(visit: any): any[] {
         const add = splitHerbs(mm[2])
         let remove: string[] = []
         const rm = l.match(/减\s*([^；;]+)/)
-        if (rm) remove = rm[1].split(/[、,，]/).map(s => s.trim()).filter(Boolean)
+        if (rm) remove = rm[1].split(/[、,，]/).map((s: string) => s.trim()).filter(Boolean)
         mods.push({ label, add, remove })
       }
       if (name) out.push({ name, role, preparation: prep, herbs, modifications: mods })

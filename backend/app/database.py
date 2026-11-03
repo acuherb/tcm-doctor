@@ -9,7 +9,9 @@ from app.config import settings
 engine = create_engine(
     settings.database_url,
     echo=False,
-    connect_args={"check_same_thread": False},  # SQLite 需要
+    # SQLite 需要 check_same_thread=False；timeout=30 提供 busy timeout，
+    # 多 worker / 并发写时降低「database is locked」失败概率（配合进程内 inventory_lock 使用）。
+    connect_args={"check_same_thread": False, "timeout": 30},
 )
 
 # 库存变更（发药/出库）进程内互斥锁：SQLite 不支撑行级 FOR UPDATE，

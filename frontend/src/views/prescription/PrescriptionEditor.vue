@@ -335,7 +335,7 @@
         </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus, Delete } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -349,7 +349,7 @@ const router = useRouter()
 
 // 游客只读：隐藏所有写操作
 const auth = useAuthStore()
-const editable = computed(() => !!auth.user?.is_admin)
+const editable = computed(() => auth.canWrite('prescriptions'))
 
 // 是否已添加配穴（用于支持纯针灸处方）
 const hasAcupointContent = computed(() =>
@@ -375,11 +375,6 @@ const techniques = ['毫针泻法', '毫针补法', '平补平泻', '温针灸',
 const treatmentFrequencies = ['每日', '隔日', '每周', '隔周', '每三日']
 const acupointOptions = ref<any[]>([])
 const meridianFilter = ref<string>('')
-const meridians = computed(() => {
-  const set = new Set<string>()
-  acupointOptions.value.forEach((a: any) => a.meridian && set.add(a.meridian))
-  return Array.from(set).sort()
-})
 const filteredAcupoints = computed(() => {
   if (!meridianFilter.value) return acupointOptions.value
   return acupointOptions.value.filter((a: any) => a.meridian === meridianFilter.value)

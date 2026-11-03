@@ -15,7 +15,14 @@
       <!-- 概览 -->
       <el-tab-pane label="概览" name="overview">
         <el-card v-if="patient" shadow="hover" class="health-overview">
-          <template #header><span>🩺 健康速览</span></template>
+          <template #header>
+            <div class="tcm-head compact">
+              <div class="tcm-head__title">
+                <span class="tcm-head__icon">🩺</span>
+                <span class="tcm-head__text">健康速览</span>
+              </div>
+            </div>
+          </template>
           <el-row :gutter="12">
             <el-col :xs="12" :sm="6">
               <div class="ho-block">
@@ -49,7 +56,14 @@
           </div>
         </el-card>
         <el-card shadow="hover">
-          <template #header><span>📋 基本信息</span></template>
+          <template #header>
+            <div class="tcm-head compact">
+              <div class="tcm-head__title">
+                <span class="tcm-head__icon">📋</span>
+                <span class="tcm-head__text">基本信息</span>
+              </div>
+            </div>
+          </template>
           <el-descriptions :column="1" border size="small" v-if="patient">
             <el-descriptions-item label="姓名">{{ patient.name }}</el-descriptions-item>
             <el-descriptions-item label="性别">{{ patient.gender }}</el-descriptions-item>
@@ -97,7 +111,14 @@
       <!-- 就诊记录 -->
       <el-tab-pane label="就诊记录" name="visits">
         <el-card shadow="hover">
-          <template #header><span>🏥 就诊记录</span></template>
+          <template #header>
+            <div class="tcm-head compact">
+              <div class="tcm-head__title">
+                <span class="tcm-head__icon">🏥</span>
+                <span class="tcm-head__text">就诊记录</span>
+              </div>
+            </div>
+          </template>
           <!-- 筛选条件：关键词 / 病种 / 日期范围 -->
           <div v-if="visits.length > 0" class="visit-filter">
             <el-input v-model="visitKeyword" clearable placeholder="搜索 病名/主诉/证型/症状" class="vf-key" />
@@ -181,8 +202,15 @@
         <!-- 随访提醒：处方用药后自动生成；逾期/到期在工作台待办提醒 -->
         <el-card shadow="hover" class="reminder-card">
           <template #header>
-            <span>⏰ 随访提醒</span>
-            <span class="reminder-hint">处方用药后会自动生成；时间到了会在工作台待办提醒</span>
+            <div class="tcm-head compact">
+              <div class="tcm-head__title">
+                <span class="tcm-head__icon">⏰</span>
+                <span class="tcm-head__text">随访提醒</span>
+              </div>
+              <div class="tcm-head__actions">
+                <span class="reminder-hint">处方用药后自动生成，到期显示在工作台待办</span>
+              </div>
+            </div>
           </template>
           <div v-if="reminders.length" class="reminder-list">
             <div
@@ -218,8 +246,15 @@
         </el-card>
         <el-card shadow="hover">
           <template #header>
-            <span>📈 病情跟踪（全病程恢复轨迹）</span>
-            <el-button v-if="editable" link type="primary" size="small" style="float:right;height:auto;" @click="openFollowupDialog()">+ 新增跟踪</el-button>
+            <div class="tcm-head compact">
+              <div class="tcm-head__title">
+                <span class="tcm-head__icon">📈</span>
+                <span class="tcm-head__text">病情跟踪（全病程恢复轨迹）</span>
+              </div>
+              <div class="tcm-head__actions">
+                <el-button v-if="editable" @click="openFollowupDialog()">+ 新增跟踪</el-button>
+              </div>
+            </div>
           </template>
           <div v-if="allFollowups.length" class="fu-summary">
             <span>共 {{ allFollowups.length }} 次随访</span>
@@ -365,8 +400,8 @@
             <PinchImage :src="viewVisit.face_image" thumb-class="visit-thumb" />
           </div>
           <div v-for="(img, i) in (viewVisit.lab_report_images || [])" :key="i" class="visit-img-item">
-            <span class="img-label">化验单{{ (viewVisit.lab_report_images || []).length > 1 ? i + 1 : '' }}</span>
-            <PinchImage :src="img" :list="viewVisit.lab_report_images || []" :index="i" thumb-class="visit-thumb" />
+            <span class="img-label">化验单{{ (viewVisit.lab_report_images || []).length > 1 ? Number(i) + 1 : '' }}</span>
+            <PinchImage :src="img" :list="viewVisit.lab_report_images || []" :index="Number(i)" thumb-class="visit-thumb" />
           </div>
         </div>
       </div>
@@ -547,7 +582,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { Edit, EditPen, TrendCharts } from '@element-plus/icons-vue'
+import { Edit, EditPen } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import api from '@/utils/api'
 import { useAuthStore } from '@/store/auth'
@@ -561,7 +596,7 @@ import { useDictColors, readableInk } from '@/utils/dictColors'
 
 // 游客只读：隐藏所有写操作
 const auth = useAuthStore()
-const editable = computed(() => !!auth.user?.is_admin)
+const editable = computed(() => auth.canWrite('patients'))
 
 // 字典色标签：证型/舌象/脉象按字典色着色（缺失回退默认色），文字按亮度自适应
 const { termColor } = useDictColors()

@@ -1,54 +1,53 @@
 <template>
   <div class="book-library">
-    <el-card shadow="hover">
+    <el-card shadow="hover" class="main-card">
       <template #header>
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-          <span>📚 医籍文库</span>
-          <span class="total-count" v-if="total > 0">共 {{ total }} 条</span>
+        <div class="card-head-bar">
+          <div class="card-head-title">
+            <span class="head-icon">📚</span>
+            <span class="head-text">医籍文库</span>
+            <el-tag v-if="total > 0" size="small" type="info" effect="plain" round class="head-count">{{ total }} 条</el-tag>
+          </div>
+          <div v-if="editable" class="card-actions">
+            <el-button type="primary" @click="openEdit()">
+              <el-icon><Plus /></el-icon>新增条目
+            </el-button>
+            <el-divider direction="vertical" />
+            <el-upload accept=".json" :on-change="onImportFile" :show-file-list="false" class="import-upload">
+              <el-button :loading="importing">
+                <el-icon><Upload /></el-icon>导入
+              </el-button>
+            </el-upload>
+            <el-button @click="onExport">
+              <el-icon><Download /></el-icon>导出
+            </el-button>
+          </div>
         </div>
       </template>
 
-      <!-- 筛选栏 / 操作栏 -->
+      <!-- 筛选栏 -->
       <div class="filter-bar">
-        <el-select v-model="activeCategory" placeholder="全部分类" clearable @change="onFilterChange" style="width:150px">
-          <el-option v-for="cat in categories" :key="cat.name" :label="`${cat.name} (${cat.count})`" :value="cat.name" />
-        </el-select>
-        <el-select v-model="sourceFilter" placeholder="全部出处" clearable @change="onFilterChange" style="width:170px">
-          <el-option v-for="s in sources" :key="s.name" :label="`${s.name} (${s.count})`" :value="s.name" />
-        </el-select>
-        <el-input v-model="searchText" placeholder="搜索标题/内容" clearable @clear="onFilterChange" style="width:220px"
-          @keyup.enter="onFilterChange">
+        <el-input v-model="searchText" placeholder="搜索标题 / 内容" clearable class="search-input"
+          @clear="onFilterChange" @keyup.enter="onFilterChange">
           <template #prefix><el-icon><Search /></el-icon></template>
         </el-input>
+        <el-select v-model="activeCategory" placeholder="全部分类" clearable class="filter-select" @change="onFilterChange">
+          <el-option v-for="cat in categories" :key="cat.name" :label="`${cat.name} (${cat.count})`" :value="cat.name" />
+        </el-select>
+        <el-select v-model="sourceFilter" placeholder="全部出处" clearable class="filter-select source-select" @change="onFilterChange">
+          <el-option v-for="s in sources" :key="s.name" :label="`${s.name} (${s.count})`" :value="s.name" />
+        </el-select>
         <el-button type="primary" @click="onFilterChange">查询</el-button>
-
-        <span class="flex-spacer"></span>
-
-        <el-upload
-          v-if="editable"
-          accept=".json"
-          :on-change="onImportFile"
-          style="display:inline-block;"
-        >
-          <el-button type="success" plain :loading="importing">
-            <el-icon><Upload /></el-icon> 导入 JSON
-          </el-button>
-        </el-upload>
-        <el-button v-if="editable" type="warning" plain @click="onExport">
-          <el-icon><Download /></el-icon> 导出
-        </el-button>
-        <el-button v-if="editable" type="primary" plain @click="openEdit()">
-          <el-icon><Plus /></el-icon> 新增条目
-        </el-button>
         <el-popconfirm
           v-if="editable && selectedIds.length"
           title="确定删除选中的条目？"
           confirm-button-text="删除"
+          width="240"
           @confirm="batchDelete"
         >
           <template #reference>
-            <el-button type="danger" plain>
-              <el-icon><Delete /></el-icon> 批量删除({{ selectedIds.length }})
+            <el-button type="danger" plain class="batch-btn">
+              <el-icon><Delete /></el-icon>批量删除 ({{ selectedIds.length }})
             </el-button>
           </template>
         </el-popconfirm>
@@ -61,19 +60,28 @@
         v-loading="loading"
         stripe
         highlight-current-row
+        class="entry-table"
         style="width:100%;"
         :max-height="tableMaxHeight"
         @row-click="viewDetail"
         @selection-change="onSelectionChange"
       >
-        <el-table-column v-if="editable" type="selection" width="42" />
-        <el-table-column prop="title" label="标题" width="170" show-overflow-tooltip />
-        <el-table-column prop="category" label="分类" width="100">
+        <el-table-column v-if="editable" type="selection" width="46" />
+        <el-table-column prop="title" label="标题" width="200" show-overflow-tooltip>
           <template #default="{ row }">
-            <el-tag size="small" :type="categoryTagType(row.category)">{{ row.category }}</el-tag>
+            <span class="title-cell">{{ row.title }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="source" label="出处" width="130" show-overflow-tooltip />
+        <el-table-column prop="category" label="分类" width="110" align="center">
+          <template #default="{ row }">
+            <el-tag size="small" :type="categoryTagType(row.category)" effect="light" round>{{ row.category }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="source" label="出处" width="140" show-overflow-tooltip>
+          <template #default="{ row }">
+            <span class="source-cell">{{ row.source || '—' }}</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="content_preview" label="内容预览" min-width="300">
           <template #default="{ row }">
             <el-popover placement="top-start" :width="520" trigger="hover" :show-after="250" @show="loadFull(row)">
@@ -178,9 +186,9 @@ import { renderMarkdown } from '@/utils/markdown'
 import { useAuthStore } from '@/store/auth'
 import type { UploadFile } from 'element-plus'
 
-// 游客（非管理员）隐藏所有写操作，只读浏览
+// 医籍文库由管理员维护：非管理员隐藏全部写操作（页面入口本身也已只对管理员开放）
 const auth = useAuthStore()
-const editable = computed(() => !!auth.user?.is_admin)
+const editable = computed(() => auth.canWrite('knowledge'))
 
 // ---- 移动端适配 ----
 const isMobile = ref(false)
@@ -464,22 +472,67 @@ onUnmounted(() => {
 
 <style scoped lang="scss">
 .book-library {
-  .total-count {
-    font-size: 14px;
-    color: #999;
-    font-weight: 400;
+  .main-card {
+    :deep(.el-card__header) {
+      padding: 14px 18px;
+      background: linear-gradient(135deg, #fdf8f3 0%, #f7efe6 100%);
+      border-bottom: 1px solid #f0e4d6;
+    }
   }
+
+  .card-head-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .card-head-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .head-icon { font-size: 18px; line-height: 1; }
+
+  .head-text {
+    font-size: 16px;
+    font-weight: 600;
+    color: #2c1810;
+    letter-spacing: .5px;
+  }
+
+  .head-count {
+    margin-left: 2px;
+    background: #fff;
+    border-color: #e6d9c9;
+    color: #907a63;
+  }
+
+  .card-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+
+    .el-divider--vertical { margin: 0 2px; }
+  }
+
+  .import-upload { display: inline-block; }
 
   .filter-bar {
     display: flex;
-    gap: 12px;
+    gap: 10px;
     align-items: center;
-    margin-bottom: 16px;
+    margin-bottom: 14px;
     flex-wrap: wrap;
 
-    .flex-spacer {
-      flex: 1;
-    }
+    .search-input { width: 240px; }
+    .filter-select { width: 150px; }
+    .source-select { width: 170px; }
+    .batch-btn { margin-left: auto; }
   }
 
   .pagination-wrap {
@@ -488,11 +541,24 @@ onUnmounted(() => {
     margin-top: 16px;
   }
 
+  .entry-table {
+    :deep(th.el-table__cell) {
+      background: #faf6f1;
+      color: #6b5644;
+      font-weight: 600;
+    }
+    :deep(.el-table__row) { cursor: pointer; }
+    .title-cell { font-weight: 600; color: #2c1810; }
+    .source-cell { color: #8a7563; font-size: 13px; }
+  }
+
   .preview-cell {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     cursor: default;
+    color: #5a5049;
+    font-size: 13.5px;
   }
 
   :global(.preview-md) {
@@ -644,13 +710,21 @@ onUnmounted(() => {
 
 /* ---- 移动端：筛选栏纵向堆叠、控件全宽 ---- */
 @media (max-width: 767px) {
-  :deep(.filter-bar) {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  :deep(.filter-bar .el-select),
-  :deep(.filter-bar .el-input) {
-    width: 100% !important;
+  .book-library {
+    .card-head-bar { align-items: stretch; }
+    .card-actions { justify-content: flex-start; }
+
+    .filter-bar {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 8px;
+
+      .search-input,
+      .filter-select {
+        width: 100%;
+      }
+      .batch-btn { margin-left: 0; }
+    }
   }
   .pagination-wrap { justify-content: center; }
 }

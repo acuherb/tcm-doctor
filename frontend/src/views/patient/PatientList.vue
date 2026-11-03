@@ -1,56 +1,50 @@
 <template>
   <div class="patient-list">
-    <el-card shadow="hover">
+    <el-card shadow="hover" class="main-card">
       <template #header>
-        <div class="card-header">
-          <span>👥 患者管理</span>
-          <el-button v-if="editable" type="primary" @click="showAddDialog = true">
-            <el-icon><Plus /></el-icon> 新增患者
-          </el-button>
+        <div class="tcm-head">
+          <div class="tcm-head__title">
+            <span class="tcm-head__icon">👥</span>
+            <span class="tcm-head__text">患者管理</span>
+            <el-tag size="small" effect="light" round class="tcm-head__count">{{ total }} 位</el-tag>
+          </div>
+          <div class="tcm-head__actions">
+            <el-button v-if="editable" type="primary" @click="showAddDialog = true">
+              <el-icon><Plus /></el-icon> 新增患者
+            </el-button>
+          </div>
         </div>
       </template>
 
       <!-- 搜索/筛选栏 -->
-      <el-form :inline="true" @submit.prevent="onSearch">
-        <el-form-item label="搜索">
-          <el-input v-model="searchText" placeholder="姓名/电话" clearable @clear="onSearch" style="width: 200px;">
-            <template #prefix><el-icon><Search /></el-icon></template>
-          </el-input>
-        </el-form-item>
-        <el-form-item label="体质">
-          <el-select v-model="filterConstitution" placeholder="全部" clearable style="width: 140px;" @change="onFilterChange">
-            <el-option v-for="c in constitutionOptions" :key="c" :label="c" :value="c" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="标签">
-          <el-select v-model="filterTag" placeholder="全部" clearable style="width: 150px;" @change="onFilterChange">
-            <el-option v-for="t in tagOptions" :key="t.name" :label="t.name" :value="t.name" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="过敏">
-          <el-select v-model="filterAllergy" placeholder="全部" clearable style="width: 100px;" @change="onFilterChange">
-            <el-option label="有" value="yes" /><el-option label="无" value="no" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="最近改善">
-          <el-select v-model="filterImprovement" placeholder="全部" clearable style="width: 130px;" @change="onFilterChange">
-            <el-option v-for="s in IMPROVE_LIST" :key="s" :label="s" :value="s" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="排序">
-          <el-select v-model="sortOrder" placeholder="默认" clearable style="width: 130px;" @change="onFilterChange">
-            <el-option label="最近就诊↓" value="desc" /><el-option label="最近就诊↑" value="asc" />
-          </el-select>
-        </el-form-item>
-        <el-form-item>
+      <div class="tcm-filter">
+        <el-input v-model="searchText" placeholder="按姓名/电话搜索" clearable class="filter-search" @clear="onSearch">
+          <template #prefix><el-icon><Search /></el-icon></template>
+        </el-input>
+        <el-select v-model="filterConstitution" placeholder="全部体质" clearable class="filter-sel" @change="onFilterChange">
+          <el-option v-for="c in constitutionOptions" :key="c" :label="c" :value="c" />
+        </el-select>
+        <el-select v-model="filterTag" placeholder="全部标签" clearable class="filter-sel" @change="onFilterChange">
+          <el-option v-for="t in tagOptions" :key="t.name" :label="t.name" :value="t.name" />
+        </el-select>
+        <el-select v-model="filterAllergy" placeholder="过敏情况" clearable class="filter-mini" @change="onFilterChange">
+          <el-option label="有" value="yes" /><el-option label="无" value="no" />
+        </el-select>
+        <el-select v-model="filterImprovement" placeholder="改善情况" clearable class="filter-sel" @change="onFilterChange">
+          <el-option v-for="s in IMPROVE_LIST" :key="s" :label="s" :value="s" />
+        </el-select>
+        <el-select v-model="sortOrder" placeholder="默认排序" clearable class="filter-sel" @change="onFilterChange">
+          <el-option label="最近就诊↓" value="desc" /><el-option label="最近就诊↑" value="asc" />
+        </el-select>
+        <div class="filter-actions">
           <el-button type="primary" @click="onSearch">查询</el-button>
           <el-button @click="onReset">重置</el-button>
-        </el-form-item>
-      </el-form>
+        </div>
+      </div>
 
       <!-- 患者表格 -->
-      <el-table v-if="!isMobile" :data="patients" stripe style="width: 100%" @row-click="goDetail">
-        <el-table-column prop="id" label="ID" width="60" />
+      <el-table v-if="!isMobile" :data="patients" class="tcm-table" style="width: 100%" @row-click="goDetail">
+        <el-table-column prop="id" label="ID" width="60" class-name="tcm-num" />
         <el-table-column prop="name" label="姓名" width="100" />
         <el-table-column prop="gender" label="性别" width="60" />
         <el-table-column label="年龄" width="60">
@@ -86,7 +80,7 @@
         <el-table-column label="风险" width="150">
           <template #default="{ row }">
             <el-tag v-if="row.allergy_history" type="danger" size="small" effect="dark">过敏</el-tag>
-            <el-tag v-if="(row.tags || []).includes('不遵医嘱')" type="warning" size="small" effect="dark">不遵医嘱</el-tag>
+            <el-tag v-if="(row.tags || []).includes('不遵医嘱')" type="warning" size="small" effect="dark" class="risk-gap">不遵医嘱</el-tag>
             <span v-if="!row.allergy_history && !((row.tags || []).includes('不遵医嘱'))" class="text-muted">—</span>
           </template>
         </el-table-column>
@@ -143,7 +137,7 @@
             <span class="label">状态</span>
             <span class="value">
               <el-tag size="small" :type="statusTag(row.active_status)">{{ row.active_status || '—' }}</el-tag>
-              <el-tag v-if="row.allergy_history" type="danger" size="small" effect="dark" style="margin-left:4px;">过敏</el-tag>
+              <el-tag v-if="row.allergy_history" type="danger" size="small" effect="dark" class="risk-gap">过敏</el-tag>
             </span>
           </div>
           <div class="card-actions">
@@ -261,7 +255,7 @@ import { calcAge, calcBmi, bodyType } from '@/utils/health'
 
 // 游客只读：隐藏所有写操作
 const auth = useAuthStore()
-const editable = computed(() => !!auth.user?.is_admin)
+const editable = computed(() => auth.canWrite('patients'))
 
 // ---- 移动端适配 ----
 const isMobile = ref(false)
@@ -427,21 +421,38 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.patient-list {
+  .main-card {
+    border-radius: 12px;
+    border: 1px solid #f0e4d6;
+
+    :deep(.el-card__header) {
+      padding: 0;
+      border-bottom: none;
+    }
+  }
+
+  .filter-search { width: 220px; }
+  .filter-sel { width: 140px; }
+  .filter-mini { width: 110px; }
+  .filter-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .risk-gap { margin-left: 4px; }
 }
+
 .pagination-wrapper {
   display: flex;
   justify-content: flex-end;
   margin-top: 16px;
 }
 .text-muted {
-  color: #c0c4cc;
+  color: #a08b76;
   font-size: 13px;
 }
-.overdue { color: #f56c6c; font-weight: 600; }
+.overdue { color: #b5624f; font-weight: 600; }
 .tag-picker { display: flex; flex-wrap: wrap; gap: 8px; }
 .tag-option { cursor: pointer; user-select: none; transition: all .15s; }
 .tag-option:hover { opacity: .85; }
@@ -505,21 +516,6 @@ onMounted(async () => {
 
 /* ---- 移动端：搜索改为全宽 ---- */
 @media (max-width: 767px) {
-  :deep(.el-form--inline .el-form-item) {
-    display: block;
-    margin-right: 0;
-    margin-bottom: 8px;
-  }
-  :deep(.el-form--inline .el-form-item__content) {
-    display: block;
-    max-width: 100%;
-  }
-  :deep(.el-form--inline .el-input) {
-    width: 100% !important;
-  }
-  :deep(.el-form--inline .el-select) {
-    width: 100% !important;
-  }
   .pagination-wrapper {
     justify-content: center;
   }

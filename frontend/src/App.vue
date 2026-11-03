@@ -1,12 +1,14 @@
 <template>
   <el-container class="app-container">
     <router-view />
+    <ForceChangePassword />
   </el-container>
 </template>
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import api from '@/utils/api'
+import ForceChangePassword from '@/views/auth/ForceChangePassword.vue'
 
 // 启动时按系统配置刷新浏览器标签标题与图标（诊所名称 / 诊所 Logo）
 onMounted(async () => {

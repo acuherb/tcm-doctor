@@ -48,6 +48,16 @@ def test_force_change_password_blocks_then_allows(client, db_session):
     assert client.get("/api/v1/patients", headers=h2).status_code == 200
 
 
+def test_permissions_catalog_requires_auth(client):
+    # 权限目录接口曾匿名可访问（泄露完整 RBAC 目录）；应要求登录
+    assert client.get("/api/v1/auth/permissions").status_code == 401
+    # 登录后可正常获取
+    tok = _login(client, "admin", "admin123").json()["token"]
+    r = client.get("/api/v1/auth/permissions", headers={"Authorization": f"Bearer {tok}"})
+    assert r.status_code == 200
+    assert "groups" in r.json()
+
+
 def test_normal_user_read_allowed_write_forbidden(client, db_session):
     user = User(
         username="doc",

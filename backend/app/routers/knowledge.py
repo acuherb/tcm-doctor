@@ -87,7 +87,7 @@ def create_entry(
     current_user: User = Depends(get_current_user),
 ):
     """新增知识条目（需管理员）"""
-    if not current_user.is_admin:
+    if not has_perm(current_user, "dict:write"):
         raise HTTPException(status_code=403, detail="仅管理员可管理知识库")
     entry = KnowledgeEntry(
         title=title,
@@ -138,7 +138,7 @@ def update_entry(
     current_user: User = Depends(get_current_user),
 ):
     """更新知识条目（需管理员）"""
-    if not current_user.is_admin:
+    if not has_perm(current_user, "dict:write"):
         raise HTTPException(status_code=403, detail="仅管理员可管理知识库")
     entry = db.query(KnowledgeEntry).filter(KnowledgeEntry.id == entry_id).first()
     if not entry:
@@ -161,7 +161,7 @@ def batch_delete_entry(
     current_user: User = Depends(get_current_user),
 ):
     """批量删除知识条目（需管理员）"""
-    if not current_user.is_admin:
+    if not has_perm(current_user, "dict:write"):
         raise HTTPException(status_code=403, detail="仅管理员可管理知识库")
     if not ids:
         return {"deleted": 0}
@@ -180,7 +180,7 @@ def delete_entry(
     current_user: User = Depends(get_current_user),
 ):
     """删除知识条目（需管理员）"""
-    if not current_user.is_admin:
+    if not has_perm(current_user, "dict:write"):
         raise HTTPException(status_code=403, detail="仅管理员可管理知识库")
     entry = db.query(KnowledgeEntry).filter(KnowledgeEntry.id == entry_id).first()
     if not entry:
@@ -224,7 +224,7 @@ def import_knowledge(
     current_user: User = Depends(get_current_user),
 ):
     """批量导入知识条目（需管理员）"""
-    if not current_user.is_admin:
+    if not has_perm(current_user, "dict:write"):
         raise HTTPException(status_code=403, detail="仅管理员可管理知识库")
     """按 title 做 upsert：已存在则更新，否则新增。返回统计。"""
     added = 0
@@ -332,7 +332,7 @@ def rebuild_index(
     current_user: User = Depends(get_current_user),
 ):
     """重建向量索引（需管理员）"""
-    if not current_user.is_admin:
+    if not has_perm(current_user, "dict:write"):
         raise HTTPException(status_code=403, detail="仅管理员可管理知识库")
     """重建 ChromaDB 向量索引"""
     try:

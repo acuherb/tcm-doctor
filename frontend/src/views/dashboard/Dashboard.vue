@@ -18,21 +18,33 @@
     </el-row>
 
     <!-- 图表区 -->
-    <el-row :gutter="20" style="margin-top:20px;">
+    <el-row :gutter="20" class="section-row">
       <el-col :xs="24" :span="14">
-        <el-card shadow="hover">
-          <template #header><span>📈 近7日就诊趋势</span></template>
-          <div ref="visitChartRef" style="height:280px;"></div>
+        <el-card shadow="hover" class="main-card">
+          <template #header>
+            <div class="tcm-head">
+              <div class="tcm-head__title">
+                <span class="tcm-head__icon">📈</span>
+                <span class="tcm-head__text">近7日就诊趋势</span>
+              </div>
+            </div>
+          </template>
+          <div ref="visitChartRef" class="chart-box"></div>
         </el-card>
       </el-col>
       <el-col :xs="24" :span="10">
-        <el-card shadow="hover">
+        <el-card shadow="hover" class="main-card">
           <template #header>
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-              <span>⚠️ 库存预警</span>
-              <el-tag :type="alerts.length > 0 ? 'danger' : 'success'" size="small">
-                {{ alerts.length > 0 ? `${alerts.length} 项预警` : '库存正常' }}
-              </el-tag>
+            <div class="tcm-head">
+              <div class="tcm-head__title">
+                <span class="tcm-head__icon">⚠️</span>
+                <span class="tcm-head__text">库存预警</span>
+              </div>
+              <div class="tcm-head__actions">
+                <el-tag :type="alerts.length > 0 ? 'danger' : 'success'" size="small" effect="light" round>
+                  {{ alerts.length > 0 ? `${alerts.length} 项预警` : '库存正常' }}
+                </el-tag>
+              </div>
             </div>
           </template>
           <el-empty v-if="alerts.length === 0" description="暂无预警" :image-size="60" />
@@ -49,10 +61,17 @@
     </el-row>
 
     <!-- 快捷操作 + 待办 -->
-    <el-row :gutter="20" style="margin-top:20px;">
+    <el-row :gutter="20" class="section-row">
       <el-col :xs="24" :span="14">
-        <el-card shadow="hover">
-          <template #header><span>🏥 快捷操作</span></template>
+        <el-card shadow="hover" class="main-card">
+          <template #header>
+            <div class="tcm-head">
+              <div class="tcm-head__title">
+                <span class="tcm-head__icon">🏥</span>
+                <span class="tcm-head__text">快捷操作</span>
+              </div>
+            </div>
+          </template>
           <el-row :gutter="16">
             <el-col :xs="12" :span="6" v-for="action in quickActions" :key="action.title">
               <div class="quick-action" @click="$router.push(action.route)">
@@ -65,10 +84,13 @@
         </el-card>
       </el-col>
       <el-col :xs="24" :span="10">
-        <el-card shadow="hover">
+        <el-card shadow="hover" class="main-card">
           <template #header>
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-              <span>📋 待办事项</span>
+            <div class="tcm-head">
+              <div class="tcm-head__title">
+                <span class="tcm-head__icon">📋</span>
+                <span class="tcm-head__text">待办事项</span>
+              </div>
             </div>
           </template>
           <div class="todo-list">
@@ -108,7 +130,6 @@
 <script setup lang="ts">
 import { ref, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import { User, FirstAidKit, Document, ChatDotRound, Warning } from '@element-plus/icons-vue'
 import api from '@/utils/api'
 
 const router = useRouter()
@@ -212,7 +233,36 @@ onMounted(loadDashboard)
 
 <style scoped lang="scss">
 .dashboard {
+  .section-row {
+    margin-top: 20px;
+    row-gap: 20px;
+  }
+
+  .main-card {
+    height: 100%;
+    border-radius: 12px;
+    border: 1px solid #f0e4d6;
+
+    :deep(.el-card__header) {
+      padding: 0;
+      border-bottom: none;
+    }
+  }
+
+  .chart-box {
+    height: 280px;
+  }
+
   .stat-card {
+    border-radius: 12px;
+    border: 1px solid #f0e4d6;
+    transition: transform .2s ease, box-shadow .2s ease;
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 18px rgba(139, 69, 19, .08);
+    }
+
     .stat-card-body {
       display: flex;
       align-items: center;
@@ -229,15 +279,19 @@ onMounted(loadDashboard)
       }
 
       .stat-info {
+        min-width: 0;
+
         .stat-value {
           font-size: 24px;
           font-weight: 700;
-          color: #333;
+          color: #2c1810;
+          line-height: 1.2;
+          font-variant-numeric: tabular-nums;
         }
         .stat-title {
           font-size: 12px;
-          color: #999;
-          margin-top: 2px;
+          color: #907a63;
+          margin-top: 4px;
         }
       }
     }
@@ -253,48 +307,90 @@ onMounted(loadDashboard)
     transition: all 0.2s;
 
     &:hover {
-      background: #f5f0eb;
+      background: #fdf8f3;
       transform: translateY(-2px);
     }
 
     .action-title {
       font-size: 13px;
       font-weight: 600;
+      color: #3d2a1c;
       margin-top: 6px;
     }
 
     .action-desc {
       font-size: 11px;
-      color: #999;
+      color: #a08b76;
       margin-top: 2px;
     }
   }
 
-  .alert-list, .todo-list {
-    .alert-item, .todo-item {
+  .alert-list,
+  .todo-list {
+    .alert-item,
+    .todo-item {
       display: flex;
       align-items: center;
       gap: 8px;
-      padding: 8px 0;
-      border-bottom: 1px solid #f0f0f0;
+      padding: 9px 0;
+      border-bottom: 1px dashed #f0e4d6;
 
-      .alert-herb, span:nth-child(2) {
+      &:last-child {
+        border-bottom: none;
+      }
+
+      .alert-herb,
+      span:nth-child(2) {
         font-weight: 500;
+        color: #3d2a1c;
         flex: 1;
       }
 
       .alert-qty {
         font-size: 13px;
-        color: #999;
+        color: #907a63;
+        font-variant-numeric: tabular-nums;
       }
     }
 
     .todo-followup {
       cursor: pointer;
-      .todo-name { font-weight: 500; }
-      .todo-date { font-size: 13px; color: #666; }
-      .todo-note { font-size: 12px; color: #999; }
-      &:hover { background: #f7faff; }
+      border-radius: 6px;
+
+      .todo-name {
+        font-weight: 500;
+        color: #3d2a1c;
+      }
+      .todo-date {
+        font-size: 13px;
+        color: #7a6553;
+        font-variant-numeric: tabular-nums;
+      }
+      .todo-note {
+        font-size: 12px;
+        color: #a08b76;
+      }
+
+      &:hover {
+        background: #fdf8f3;
+      }
+    }
+  }
+}
+
+@media (max-width: 767px) {
+  .dashboard {
+    .section-row {
+      margin-top: 12px;
+      row-gap: 12px;
+    }
+
+    .chart-box {
+      height: 220px;
+    }
+
+    .stat-card .stat-card-body .stat-info .stat-value {
+      font-size: 20px;
     }
   }
 }

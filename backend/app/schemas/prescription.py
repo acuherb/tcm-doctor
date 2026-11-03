@@ -131,6 +131,8 @@ class PrescriptionResponse(BaseModel):
     acupuncture_fee: float | None = None
     status: str
     reviewed_by: int | None
+    doctor_id: int | None = None
+    doctor_name: str | None = None
     created_at: datetime | None
     items: list[PrescriptionItemResponse] = []
     acupoints: list[AcupointPrescriptionResponse] = []

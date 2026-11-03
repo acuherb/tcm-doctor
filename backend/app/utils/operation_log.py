@@ -31,6 +31,7 @@ def write_log(
     error_detail: str | None = None,
     ip: str | None = None,
     duration_ms: float | None = None,
+    target: str | None = None,
 ) -> None:
     """写入一条操作日志；独立会话，写库失败不影响主流程。"""
     # 脱敏 + 截断：message 限 500 字（与列长一致）；error_detail 仅 5xx 场景传入，截到 4000 防日志表膨胀
@@ -38,12 +39,16 @@ def write_log(
         message = _mask_sensitive(message)[:500]
     if error_detail:
         error_detail = _mask_sensitive(error_detail)[:4000]
+    if target:
+        target = _mask_sensitive(target)[:300]
+    if action:
+        action = action[:100]
     db = SessionLocal()
     try:
         db.add(OperationLog(
             level=level, user_id=user_id, username=username, action=action,
             endpoint=endpoint, method=method, status_code=status_code, success=success,
-            message=message, error_detail=error_detail, ip=ip, duration_ms=duration_ms,
+            message=message, target=target, error_detail=error_detail, ip=ip, duration_ms=duration_ms,
             created_at=datetime.now(),
         ))
         db.commit()

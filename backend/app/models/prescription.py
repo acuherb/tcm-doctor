@@ -49,6 +49,8 @@ class Prescription(Base):
     acupuncture_fee: Mapped[float | None] = mapped_column(Numeric(8, 2), comment="针灸费用(元)")
     status: Mapped[str] = mapped_column(String(20), default="已开", comment="状态")
     reviewed_by: Mapped[int | None] = mapped_column(Integer, comment="审核人")
+    doctor_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"), comment="开方医师账号")
+    doctor_name: Mapped[str | None] = mapped_column(String(50), comment="开方医师姓名快照（账号改名前打印仍正确）")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
 
     # 关系

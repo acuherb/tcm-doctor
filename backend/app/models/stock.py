@@ -10,7 +10,7 @@
 from datetime import datetime
 
 from sqlalchemy import (
-    String, Text, DateTime, Boolean, Integer, Numeric, ForeignKey, Date, UniqueConstraint,
+    String, Text, DateTime, Boolean, Integer, Numeric, ForeignKey, Date, UniqueConstraint, Index,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -45,7 +45,7 @@ class StockBatch(Base):
     __tablename__ = "stock_batches"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    item_id: Mapped[int] = mapped_column(Integer, ForeignKey("stock_items.id"), nullable=False)
+    item_id: Mapped[int] = mapped_column(Integer, ForeignKey("stock_items.id"), nullable=False, index=True)
     batch_number: Mapped[str | None] = mapped_column(String(50), comment="批号")
     quantity: Mapped[float] = mapped_column(Numeric(12, 3), nullable=False, default=0, comment="数量(按物品单位)")
     unit_price: Mapped[float | None] = mapped_column(Numeric(10, 2), comment="进价(单位成本, 按单位)")
@@ -96,6 +96,11 @@ class StockTransaction(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
 
     item: Mapped["StockItem"] = relationship(back_populates="transactions")
+
+    # 报表/流水查询高频按「物品 + 时间」范围检索，复合索引覆盖该类查询
+    __table_args__ = (
+        Index("ix_stock_transactions_item_created", "item_id", "created_at"),
+    )
 
     def __repr__(self):
         return f"<StockTransaction(item_id={self.item_id}, type='{self.transaction_type}', qty={self.quantity})>"
@@ -164,6 +169,7 @@ class StockOption(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     opt_type: Mapped[str] = mapped_column(String(20), nullable=False, index=True, comment="类型: category/unit")
     name: Mapped[str] = mapped_column(String(60), nullable=False, comment="选项名称")
+    color: Mapped[str | None] = mapped_column(String(20), comment="自定义颜色(HEX)，用于选项标签着色")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, comment="是否启用")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
 

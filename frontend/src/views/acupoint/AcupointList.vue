@@ -1,39 +1,58 @@
 <template>
   <div class="acupoint-list">
-    <!-- 工具栏：搜索 + 来源 + 分部 + 查询 -->
-    <div class="toolbar">
-      <div class="left">
-        <el-input v-model="filter.search" placeholder="搜索穴名" clearable style="width: 200px" @keyup.enter="loadAcupoints" @clear="loadAcupoints" />
-        <el-select v-model="filter.source" placeholder="来源" clearable style="width: 150px" @change="loadAcupoints">
+    <el-card class="main-card" shadow="never">
+      <template #header>
+        <div class="tcm-head">
+          <div class="tcm-head__title">
+            <span class="tcm-head__icon">🪡</span>
+            <span class="tcm-head__text">针灸穴位</span>
+            <el-tag size="small" effect="light" round class="tcm-head__count">{{ acupoints.length }} 个</el-tag>
+          </div>
+          <div class="tcm-head__actions">
+            <el-button v-if="editable" @click="exportData">
+              <el-icon><Download /></el-icon> 导出JSON
+            </el-button>
+            <el-button v-if="editable" @click="importVisible = true">
+              <el-icon><Upload /></el-icon> 导入JSON
+            </el-button>
+            <el-button v-if="editable" type="primary" @click="openCreate">
+              <el-icon><Plus /></el-icon> 新增穴位
+            </el-button>
+          </div>
+        </div>
+      </template>
+
+      <!-- 筛选栏 -->
+      <div class="tcm-filter">
+        <el-input v-model="filter.search" placeholder="按穴名搜索" clearable class="filter-search" @keyup.enter="loadAcupoints" @clear="loadAcupoints">
+          <template #prefix><el-icon><Search /></el-icon></template>
+        </el-input>
+        <el-select v-model="filter.source" placeholder="全部来源" clearable class="filter-sel" @change="loadAcupoints">
           <el-option label="全部来源" value="" />
           <el-option v-for="opt in dimOptions('source')" :key="opt.value" :label="opt.label" :value="opt.value">
-            <span v-if="opt.color" :style="{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: opt.color, marginRight: '6px', verticalAlign: 'middle' }"></span>
+            <span v-if="opt.color" class="opt-dot" :style="{ backgroundColor: opt.color }"></span>
             <span>{{ opt.label }}</span>
             <el-tooltip v-if="opt.description" :content="opt.description" placement="right" :teleported="true">
               <span class="opt-hint-dot"></span>
             </el-tooltip>
           </el-option>
         </el-select>
-        <el-select v-model="filter.meridian" placeholder="归经" clearable style="width: 160px" @change="loadAcupoints">
+        <el-select v-model="filter.meridian" placeholder="全部归经" clearable class="filter-sel" @change="loadAcupoints">
           <el-option label="全部归经" value="" />
           <el-option v-for="opt in dimOptions('meridian')" :key="opt.value" :label="opt.label" :value="opt.value" />
         </el-select>
-        <el-select v-model="filter.region" placeholder="部位" clearable style="width: 130px" @change="loadAcupoints">
+        <el-select v-model="filter.region" placeholder="全部部位" clearable class="filter-sel" @change="loadAcupoints">
           <el-option label="全部部位" value="" />
           <el-option v-for="opt in dimOptions('region')" :key="opt.value" :label="opt.label" :value="opt.value" />
         </el-select>
-        <el-button type="primary" @click="loadAcupoints">查询</el-button>
+        <div class="filter-actions">
+          <el-button type="primary" @click="loadAcupoints">查询</el-button>
+          <el-button @click="resetFilters">重置</el-button>
+        </div>
       </div>
-      <div class="right">
-        <el-button type="success" @click="openCreate">新增穴位</el-button>
-        <el-button @click="exportData">导出</el-button>
-        <el-button @click="importVisible = true">导入</el-button>
-      </div>
-    </div>
 
-    <!-- 桌面端表格：7 列（穴名 / 来源 / 分部 / 类型 / 定位 / 功效 / 操作） -->
-    <el-card class="table-card" shadow="never">
-      <el-table :data="acupoints" v-loading="loading" border stripe>
+      <!-- 桌面端表格：7 列（穴名 / 来源 / 分部 / 类型 / 定位 / 功效 / 操作） -->
+      <el-table :data="acupoints" v-loading="loading" class="tcm-table" border>
         <el-table-column prop="name" label="穴名" width="110" fixed />
         <el-table-column label="来源" width="130">
           <template #default="{ row }"><span class="src-pill" :style="tagStyle('source', row.source)">{{ row.source || '—' }}</span></template>
@@ -49,7 +68,7 @@
         </el-table-column>
         <el-table-column prop="location" label="定位" min-width="240" show-overflow-tooltip />
         <el-table-column prop="efficacy" label="功效" min-width="220" show-overflow-tooltip />
-        <el-table-column label="操作" width="140" fixed="right">
+        <el-table-column v-if="editable" label="操作" width="140" fixed="right">
           <template #default="{ row }">
             <el-button size="small" @click="openEdit(row)">编辑</el-button>
             <el-button size="small" type="danger" plain @click="del(row)">删除</el-button>
@@ -71,7 +90,7 @@
         <div class="m-row"><span class="m-label">类型</span><span class="m-val">{{ a.point_type || '—' }}</span></div>
         <div class="m-row"><span class="m-label">定位</span><span class="m-val">{{ a.location || '—' }}</span></div>
         <div class="m-row"><span class="m-label">功效</span><span class="m-val">{{ a.efficacy || '—' }}</span></div>
-        <div class="m-actions">
+        <div class="m-actions" v-if="editable">
           <el-button size="small" @click="openEdit(a)">编辑</el-button>
           <el-button size="small" type="danger" plain @click="del(a)">删除</el-button>
         </div>
@@ -149,9 +168,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '@/utils/api'
+import { useAuthStore } from '@/store/auth'
+
+const auth = useAuthStore()
+const editable = computed(() => auth.canWrite('acupoints'))
 
 interface Acupoint {
   id: number
@@ -177,6 +200,15 @@ const importText = ref('')
 const editId = ref<number | null>(null)
 
 const filter = reactive({ search: '', source: '', meridian: '', region: '' })
+
+// 重置筛选条件并重新加载（供模板「重置」按钮调用）
+function resetFilters() {
+  filter.search = ''
+  filter.source = ''
+  filter.meridian = ''
+  filter.region = ''
+  loadAcupoints()
+}
 
 // 字典维度选项（来自 /acupoints/tags/meta）
 interface TagOption {
@@ -343,25 +375,40 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.acupoint-list { padding: 8px 0; }
-.toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
-.toolbar .left { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-.table-card { margin-bottom: 12px; }
-.summary { margin-top: 10px; font-size: 12px; color: #909399; }
+.acupoint-list { padding: 0; }
+.main-card {
+  margin-bottom: 12px;
+  border-radius: 12px;
+  border: 1px solid #f0e4d6;
+
+  :deep(.el-card__header) {
+    padding: 0;
+    border-bottom: none;
+  }
+}
+.filter-search { width: 200px; }
+.filter-sel { width: 140px; }
+.filter-actions { display: flex; gap: 8px; }
+.opt-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+.summary { margin-top: 10px; font-size: 12px; color: #907a63; }
 .src-pill { display: inline-block; padding: 0 8px; font-size: 12px; line-height: 20px; border: 1px solid transparent; border-radius: 10px; white-space: nowrap; }
 
 /* 移动端卡片 */
 .mobile-cards { display: none; }
-.m-card { margin-bottom: 10px; }
+.m-card {
+  margin-bottom: 10px;
+  border-radius: 10px;
+  border: 1px solid #f0e4d6;
+}
 .m-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-.m-name { font-weight: 600; font-size: 15px; }
-.m-row { display: flex; font-size: 13px; margin: 2px 0; }
-.m-label { width: 42px; color: #909399; flex: none; }
-.m-val { color: #303133; flex: 1; }
+.m-name { font-weight: 600; font-size: 15px; color: #2c1810; }
+.m-row { display: flex; font-size: 13px; margin: 3px 0; line-height: 1.6; }
+.m-label { width: 42px; color: #907a63; flex: none; }
+.m-val { color: #4a3628; flex: 1; word-break: break-all; }
 .m-actions { margin-top: 8px; display: flex; gap: 8px; }
 
 @media (max-width: 768px) {
-  .table-card { display: none; }
+  .main-card { display: none; }
   .mobile-cards { display: block; }
 }
 </style>

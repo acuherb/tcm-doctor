@@ -116,6 +116,153 @@ body {
   background-color: var(--el-color-primary);
 }
 
+/* ---------- 页面统一框架 ---------- */
+
+/* 卡片页头：渐变底 + 图标 + 标题 + 计数 + 操作组 */
+.tcm-card__header {
+  padding: 14px 18px;
+  background: linear-gradient(135deg, #fdf8f3 0%, #f7efe6 100%);
+  border-bottom: 1px solid #f0e4d6;
+}
+
+.tcm-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* 用于内层卡片页头，自带内边距，无需外层再包容器 */
+.tcm-head.compact {
+  padding: 13px 18px;
+}
+
+.tcm-head__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.tcm-head__icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.tcm-head__text {
+  font-size: 16px;
+  font-weight: 600;
+  color: #2c1810;
+  letter-spacing: .5px;
+}
+
+.tcm-head__count {
+  margin-left: 2px;
+  background: #fff;
+  border-color: #e6d9c9;
+  color: #907a63;
+}
+
+.tcm-head__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* 提示条：虚线框，替代页头下方的 el-alert */
+.tcm-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 8px 12px;
+  margin-bottom: 14px;
+  border: 1px dashed #e6d9c9;
+  border-radius: 8px;
+  background: #fdfaf7;
+  font-size: 12px;
+  line-height: 1.7;
+  color: #8a7a68;
+}
+
+/* 筛选栏：替代 el-form :inline */
+.tcm-filter {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+/* 分段小标题：替代 el-divider */
+.tcm-section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b5644;
+  padding-bottom: 8px;
+  margin-bottom: 12px;
+  border-bottom: 1px dashed #f0e4d6;
+}
+
+.tcm-section-title__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #a97b4f;
+}
+
+/* 表格：统一表头与单元格间距 */
+.tcm-table {
+  th.el-table__cell {
+    background: #faf6f1 !important;
+    color: #7a6553;
+    font-weight: 600;
+  }
+  td.el-table__cell {
+    vertical-align: middle;
+  }
+}
+
+/* 数字列：等宽对齐 */
+.tcm-num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 表格内操作按钮组：去掉 Element 默认左边距 */
+.tcm-ops {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 6px;
+
+  .el-button {
+    margin-left: 0;
+    padding: 2px 0;
+  }
+}
+
+/* 移动端：页头与筛选栏纵向堆叠 */
+@media (max-width: 767px) {
+  .tcm-head {
+    align-items: stretch;
+  }
+  .tcm-head__actions {
+    justify-content: flex-start;
+  }
+  .tcm-filter {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+
+    > * {
+      width: 100% !important;
+    }
+  }
+}
+
 /* ---------- 移动端通用适配 ---------- */
 @media (max-width: 767px) {
   /* 对话框：窄屏下贴近全宽，避免内容溢出屏幕 */

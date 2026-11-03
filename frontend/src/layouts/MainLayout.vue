@@ -4,16 +4,16 @@
     <div v-show="isMobile && mobileOpen" class="mobile-mask" @click="mobileOpen = false"></div>
 
     <!-- 侧边栏 -->
-    <el-aside :width="isCollapsed ? '64px' : '210px'" class="sidebar" :class="{ 'sidebar-mobile-open': mobileOpen }">
+    <el-aside :width="isMobile ? '190px' : (isCollapsed ? '64px' : '210px')" class="sidebar" :class="{ 'sidebar-mobile-open': mobileOpen }">
       <div class="sidebar-logo" @click="$router.push('/dashboard')">
         <img v-if="clinicLogo" :src="clinicLogo" class="logo-img" alt="诊所Logo" />
         <span v-else class="logo-icon">🌿</span>
-        <span v-show="!isCollapsed" class="logo-text">{{ clinicName || '中医诊所管理' }}</span>
+        <span v-show="!isCollapsed || isMobile" class="logo-text">{{ clinicName || '中医诊所管理' }}</span>
       </div>
 
       <el-menu
         :default-active="currentRoute"
-        :collapse="isCollapsed"
+        :collapse="isCollapsed && !isMobile"
         :collapse-transition="false"
         background-color="#2C1810"
         text-color="#E8D5C4"
@@ -77,7 +77,7 @@
           <template #title>知识检索</template>
         </el-menu-item>
 
-        <el-menu-item index="/book-library">
+        <el-menu-item v-if="auth.can('dict:write')" index="/book-library">
           <el-icon><Reading /></el-icon>
           <template #title>医籍文库</template>
         </el-menu-item>
@@ -87,13 +87,17 @@
           <template #title>智能问诊</template>
         </el-menu-item>
 
-        <el-menu-item index="/settings">
+        <el-menu-item v-if="auth.can('system:write')" index="/settings">
           <el-icon><Setting /></el-icon>
           <template #title>系统设置</template>
         </el-menu-item>
-        <el-menu-item index="/system/logs">
+        <el-menu-item v-if="auth.can('log:read')" index="/system/logs">
           <el-icon><Document /></el-icon>
           <template #title>操作日志</template>
+        </el-menu-item>
+        <el-menu-item v-if="auth.can('user:write')" index="/system/users">
+          <el-icon><UserFilled /></el-icon>
+          <template #title>账号管理</template>
         </el-menu-item>
       </el-menu>
 
@@ -142,7 +146,7 @@
       <el-descriptions :column="1" border class="profile-desc">
         <el-descriptions-item label="用户名">{{ auth.user?.username }}</el-descriptions-item>
         <el-descriptions-item label="显示名称">{{ auth.user?.display_name || '—' }}</el-descriptions-item>
-        <el-descriptions-item label="角色">{{ auth.user?.is_admin ? '管理员' : '普通用户' }}</el-descriptions-item>
+        <el-descriptions-item label="角色">{{ auth.roleLabel }}</el-descriptions-item>
       </el-descriptions>
 
       <el-divider content-position="left">修改密码</el-divider>
@@ -170,8 +174,8 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   HomeFilled, User, FirstAidKit, Document, Search,
-  ChatDotRound, Setting, Fold, Expand, TrendCharts, Box, Goods, Tickets, Checked, Notebook, DataAnalysis, Reading,
-  OfficeBuilding, ShoppingCart, DataLine, UserFilled, ArrowDown,
+  ChatDotRound, Setting, Fold, Expand, Box, DataAnalysis, Reading,
+  UserFilled, ArrowDown,
 } from '@element-plus/icons-vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { useAuthStore } from '@/store/auth'
@@ -206,8 +210,8 @@ function onMenuSelect(index: string) {
 onMounted(() => {
   updateViewport()
   window.addEventListener('resize', updateViewport)
-  // 拉取诊所信息用于侧边栏展示
-  api.get('/config').then((res: any) => {
+  // 拉取诊所信息用于侧边栏展示（诊所名/logo 对所有角色开放；失败静默，不打扰用户）
+  api.get('/config', { silent: true } as any).then((res: any) => {
     clinicName.value = res.clinic_name?.trim() || ''
     clinicLogo.value = res.clinic_logo || ''
   }).catch(() => {})
@@ -254,10 +258,15 @@ async function onChangePassword() {
         old_password: pwdForm.value.oldPassword,
         new_password: pwdForm.value.newPassword,
       })
-      ElMessage.success('密码已修改，请重新登录')
+      // 后端已保留当前会话，刷新用户信息即可（must_change_password 已置否）
+      // 响应拦截器已返回 response.data，故此处直接取用户对象（勿再 .data，否则得到 undefined）
+      const me = await api.get('/auth/me')
+      auth.setUser(me)
+      ElMessage.success('密码已修改')
       profileVisible.value = false
-      await auth.logout()
-      router.replace('/login')
+      pwdForm.value.oldPassword = ''
+      pwdForm.value.newPassword = ''
+      pwdForm.value.confirmPassword = ''
     } catch {
       /* 错误提示由拦截器处理 */
     } finally {
@@ -414,15 +423,25 @@ async function onUserCommand(command: string) {
     top: 0;
     left: 0;
     bottom: 0;
-    width: 210px !important;
+    width: 190px !important;
     transform: translateX(-100%);
     transition: transform 0.25s ease;
     z-index: 2000;
     box-shadow: 2px 0 12px rgba(0, 0, 0, 0.35);
+
+    :deep(.el-menu-item),
+    :deep(.el-sub-menu__title) {
+      padding-left: 12px !important;
+      padding-right: 12px !important;
+    }
   }
 
   .sidebar.sidebar-mobile-open {
     transform: translateX(0);
+  }
+
+  .sidebar-toggle {
+    display: none;
   }
 
   .mobile-mask {

@@ -20,6 +20,7 @@ from app.config import settings, build_display_version
 from app.database import engine, Base, SessionLocal
 from app.migrations import run_migrations
 from app.models.user import User, AuthToken
+from app.permissions import has_read, has_write, has_perm
 from app.routers import patient, herb, prescription, knowledge, diagnosis, dictionaries, acupuncture
 from app.routers import acupoint_formula
 from app.routers import stats, backup, auth, followup_reminders, stock
@@ -27,6 +28,30 @@ from app.routers import system_log
 from app.routers.auth import get_current_user
 
 WRITE_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
+
+
+def _purge_expired_logs() -> None:
+    """按 LOG_RETENTION_DAYS 清理超期操作日志；0 表示关闭自动清理。失败不影响启动。"""
+    days = int(getattr(settings, "log_retention_days", 0) or 0)
+    if days <= 0:
+        return
+    from datetime import timedelta
+    from app.models.log import OperationLog
+    db = SessionLocal()
+    try:
+        cutoff = datetime.now() - timedelta(days=days)
+        deleted = db.query(OperationLog).filter(OperationLog.created_at < cutoff).delete()
+        db.commit()
+        if deleted:
+            logger.info(f"已自动清理 {deleted} 条超过 {days} 天的操作日志")
+    except Exception as e:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        logger.warning(f"自动清理操作日志失败（不影响启动）: {e}")
+    finally:
+        db.close()
 
 
 @asynccontextmanager
@@ -41,6 +66,9 @@ async def lifespan(app: FastAPI):
     # 首次启动时导入药材、经典方剂数据
     from app.seed import seed_all
     seed_all()
+
+    # 启动时自动清理超期操作日志，避免日志表随使用无限增长（可用 LOG_RETENTION_DAYS 调整）
+    _purge_expired_logs()
 
     # 语义检索索引（开启 enable_semantic_search 时自动重建；否则降级为关键词检索）
     if settings.enable_semantic_search:
@@ -136,7 +164,8 @@ def _is_password_change_path(path: str) -> bool:
 async def require_admin_for_writes(request: Request, call_next):
     """统一鉴权中间件：
     - /api/v1 下除 /api/v1/auth 外，所有请求都必须携带有效 token（不再允许游客匿名访问）；
-    - 写操作（POST/PUT/DELETE/PATCH）额外要求管理员权限；
+    - 按角色权限矩阵校验：写操作要求该业务域为 RW；管理域（备份/系统日志）仅管理员可读；
+    - 账号停用后拒绝任何已发令牌；
     - 用户处于“必须改密”状态时，除改密/登出/当前用户外一律拒绝（403）；
     - 游客登录关闭后，任何遗留 guest 令牌一并拒绝。
     """
@@ -162,15 +191,28 @@ async def require_admin_for_writes(request: Request, call_next):
             # 既避免每次请求重复查库，又让 5xx ERROR 日志不再匿名（审计追责可用）
             request.state.user_id = user.id
             request.state.username = user.username
+            client_ip = request.client.host if request.client else "unknown"
             # 游客登录已关闭：拒绝任何遗留 guest 令牌
             if not settings.allow_guest_login and user.username == "guest":
                 return JSONResponse({"detail": "游客登录已禁用"}, status_code=403)
             # 强制改密：除改密/登出/当前用户信息外一律拦截
+            # 注：账号停用(is_active)的校验统一交给 get_current_user（同时覆盖 /auth 域），
+            # 此处不再重复，避免两处逻辑分叉。
             if user.must_change_password and not _is_password_change_path(path):
                 return JSONResponse({"detail": "请先修改初始密码后再使用系统"}, status_code=403)
-            # 写操作需管理员
-            if is_write and not user.is_admin:
-                return JSONResponse({"detail": "权限不足，仅管理员可修改数据"}, status_code=403)
+            # 按权限点校验：写操作要求该业务域的写权限点；管理域只读也需对应读权限点
+            if is_write:
+                if not has_write(path, user):
+                    write_log(level="WARN", user_id=user.id, username=user.username,
+                              action=path, endpoint=path, method=method, status_code=403,
+                              success=False, message="越权访问被拒绝", ip=client_ip)
+                    return JSONResponse({"detail": "权限不足，当前账号无权修改该数据"}, status_code=403)
+            else:
+                if not has_read(path, user):
+                    write_log(level="WARN", user_id=user.id, username=user.username,
+                              action=path, endpoint=path, method=method, status_code=403,
+                              success=False, message="越权访问被拒绝", ip=client_ip)
+                    return JSONResponse({"detail": "权限不足，当前账号无权访问该数据"}, status_code=403)
         finally:
             db.close()
 
@@ -188,22 +230,102 @@ _ACTION_MAP = {
     "/api/v1/stock/batches/out": "出库",
     "/api/v1/stock/batches/writeoff": "报损核销",
     "/api/v1/stock/purchases": "采购入库",
-    "/api/v1/stock/check": "盘点",
+    "/api/v1/stock/adjust/bulk": "批量盘点校准",
     "/api/v1/stock/items": "物品管理",
     "/api/v1/stock/batches": "批次管理",
     "/api/v1/stock/transactions": "出入库流水",
     "/api/v1/stock/alerts": "库存预警",
     "/api/v1/prescriptions": "处方",
+    "/api/v1/prescriptions/classic-formulas": "中药方库",
     "/api/v1/backup/export": "数据备份",
     "/api/v1/backup/import": "数据恢复",
     "/api/v1/backup/reset": "数据清空",
+    "/api/v1/patients": "患者",
+    "/api/v1/visits": "就诊记录",
+    "/api/v1/herbs": "药材字典",
+    "/api/v1/acupoints": "针灸穴位",
+    "/api/v1/acupoint-formulas": "针灸方库",
+    "/api/v1/dictionaries": "数据字典",
+    "/api/v1/suppliers": "供应商",
+    "/api/v1/config": "系统配置",
+    "/api/v1/stock/overview": "库存总览",
+    "/api/v1/stock/options": "库存选项",
+    "/api/v1/stock/suppliers": "供应商",
+    "/api/v1/stock/purchases": "采购入库",
+    "/api/v1/stock/reports": "进销存报表",
+    "/api/v1/stats/dashboard": "工作台统计",
+    "/api/v1/stats": "统计报表",
+    "/api/v1/system/logs": "操作日志",
+    "/api/v1/diagnosis": "智能问诊",
+    "/api/v1/book-library": "医籍文库",
+    "/api/v1/knowledge": "知识检索",
 }
 _EXPLICIT_AUDIT_PATHS = {
     "/api/v1/auth/login", "/api/v1/auth/logout", "/api/v1/auth/guest",
 }
 
+# 方法 → 动作前缀，让「查看/新增/修改/删除」区分开，而不是全堆成路径名
+_METHOD_VERB = {"GET": "查看", "POST": "新增", "PUT": "修改", "PATCH": "修改", "DELETE": "删除"}
 
-def _deferred_log(token, ip, method, path, status_code, level, success, action, message, duration_ms, user_id=None, username=None):
+# 路径段 → 中文名词：兜底时逐段翻译，避免出现「修改 items」这类半英文动作
+_SEGMENT_CN = {
+    "items": "物品", "batches": "批次", "suppliers": "供应商", "purchases": "采购单",
+    "transactions": "流水", "alerts": "预警", "overview": "总览", "options": "选项",
+    "reports": "报表", "summary": "汇总", "profit": "利润", "turnover": "周转",
+    "tags": "标签", "meta": "元数据", "classic-formulas": "经典方", "formulas": "处方",
+    "herbs": "药材", "acupoints": "穴位", "acupoint-formulas": "针灸方",
+    "patients": "患者", "visits": "就诊", "dictionaries": "字典", "config": "配置",
+    "stats": "统计", "dashboard": "工作台", "logs": "日志", "export": "导出",
+    "import": "导入", "reset": "重置", "check": "盘点", "in": "入库", "out": "出库",
+    "writeoff": "报损", "password": "密码", "settings": "设置", "backup": "备份",
+    "diagnosis": "问诊", "knowledge": "知识", "csv": "CSV", "{id}": "详情",
+}
+
+
+def _is_cn(s: str) -> bool:
+    return any("\u4e00" <= ch <= "\u9fff" for ch in s)
+
+
+def _resolve_action(method: str, path: str) -> str:
+    """把请求解析成人类可读的中文动作名。
+
+    优先命中 _ACTION_MAP（含前缀匹配，兼容 /stock/items/12 这类带 ID 的路径）；
+    未命中时逐段翻译路径为中文，保证任何接口都不会出现裸英文动作名。
+    """
+    if path in _ACTION_MAP:
+        return _ACTION_MAP[path]
+    # 前缀匹配：取最长命中，避免 /stock/items 抢走 /stock/items/xxx 的具体语义
+    best = None
+    for key in _ACTION_MAP:
+        if path.startswith(key + "/") and (best is None or len(key) > len(best)):
+            best = key
+    if best:
+        # 命中前缀后，额外段（如 /items/45/xxx）继续翻译，不再拼英文
+        rest = path[len(best):].strip("/")
+        extra = [s for s in rest.split("/") if s]
+        extra_cn = [s for s in (_SEGMENT_CN.get(re.sub(r"^\d+$", "{id}", p), "") for p in extra) if s]
+        base = _ACTION_MAP[best]
+        return f"{base}·{'·'.join(extra_cn)}" if extra_cn else base
+    parts = [re.sub(r"^\d+$", "{id}", p) for p in path.split("/") if p not in ("", "api", "v1")]
+    # 逐段翻译；未收录段原样保留，段间用 / 分隔，便于看出是待补充映射的接口
+    cn = [_SEGMENT_CN.get(p, p) for p in parts]
+    cn = [c for c in cn if c]
+    verb = _METHOD_VERB.get(method, method)
+    if not cn:
+        return f"{verb}接口"
+    # 末尾若是详情/单条路径，去掉它让动词更自然（如「查看 物品」而非「查看 物品 详情」）
+    if cn[-1] == "详情":
+        cn = cn[:-1]
+    if not cn:
+        return f"{verb}详情"
+    # 中文段直接相连，未收录的英文段之间保留 /，避免拼成「unknownxyz」
+    joined = cn[0]
+    for prev, cur in zip(cn, cn[1:]):
+        joined += cur if (_is_cn(prev) and _is_cn(cur)) else f"/{cur}"
+    return f"{verb}{joined}"
+
+
+def _deferred_log(token, ip, method, path, status_code, level, success, action, message, duration_ms, user_id=None, username=None, target=None):
     """响应返回后再写日志：若鉴权中间件已写入 request.state 则直接复用，否则按需用 token 反查；
     入库不占用接口响应时间。"""
     if user_id is None and token:
@@ -219,8 +341,57 @@ def _deferred_log(token, ip, method, path, status_code, level, success, action, 
     write_log(
         level=level, user_id=user_id, username=username, action=action,
         endpoint=path, method=method, status_code=status_code, success=success,
-        message=message, ip=ip, duration_ms=duration_ms,
+        message=message, target=target, ip=ip, duration_ms=duration_ms,
     )
+
+
+# 业务对象提取：仅取白名单字段，密码/证件等一律不记录。
+# 这些字段覆盖了系统主要写操作（患者、药材、处方、出入库、穴位、方剂）的关键标识。
+_TARGET_NAME_KEYS = ("name", "patient_name", "herb_name", "item_name", "formula_name", "username")
+_TARGET_QTY_KEYS = ("quantity", "qty", "amount", "count")
+_TARGET_EXCLUDE = {"password", "old_password", "new_password", "id_card", "phone", "token"}
+
+
+def _extract_target(body: bytes | None) -> str | None:
+    """从请求体提取业务对象摘要，如「三七 +50」；解析失败或无可识别字段则返回 None。
+
+    只读白名单字段：即便请求体里含密码/身份证等，也不会进入日志，避免敏感信息落库。
+    """
+    if not body:
+        return None
+    try:
+        data = json.loads(body)
+    except Exception:
+        return None
+    if not isinstance(data, dict):
+        return None
+
+    name = None
+    for key in _TARGET_NAME_KEYS:
+        val = data.get(key)
+        if isinstance(val, str) and val.strip():
+            name = val.strip()
+            break
+    qty = None
+    for key in _TARGET_QTY_KEYS:
+        val = data.get(key)
+        if isinstance(val, (int, float)) and not isinstance(val, bool):
+            qty = val
+            break
+        if isinstance(val, str) and val.strip():
+            qty = val.strip()
+            break
+
+    if not name and qty is None:
+        # 无名称时退化：记录 id（修改/删除单条时通常有 id，能定位是哪条数据）
+        rid = data.get("id")
+        return f"#{rid}" if isinstance(rid, int) else None
+    parts = []
+    if name:
+        parts.append(name)
+    if qty is not None:
+        parts.append(f"{'+' if len(parts) else ''}{qty}")
+    return " ".join(parts) if parts else None
 
 
 @app.middleware("http")
@@ -235,6 +406,17 @@ async def operation_log_middleware(request: Request, call_next):
     method = request.method
     ip = request.client.host if request.client else "unknown"
     token = _extract_token(request)
+
+    # 写请求才提取业务对象：只读 GET 的 body 无意义，且避免额外开销。
+    # Starlette 的 request.body() 会把原始字节缓存在 request._body，下游路由再次读取时可复用，
+    # 因此这里预读不会导致请求体丢失。
+    target = None
+    if method in ("POST", "PUT", "PATCH", "DELETE"):
+        try:
+            raw = await request.body()
+            target = _extract_target(raw)
+        except Exception:
+            target = None
 
     # 优先复用鉴权中间件写入的 request.state（已在鉴权时查过用户，避免每次请求重复查库）
     uid = getattr(request.state, "user_id", None)
@@ -279,24 +461,26 @@ async def operation_log_middleware(request: Request, call_next):
         raise
 
     duration = round((time.perf_counter() - start) * 1000, 1)
+    # 鉴权中间件在内层执行后才写 request.state，故响应返回后回读一次，避免已登录用户被误判为匿名
+    if uid is None:
+        uid = getattr(request.state, "user_id", None)
+        uname = getattr(request.state, "username", None)
     if status_code >= 500:
         level, success = "ERROR", False
+    elif status_code == 401 and uid is None:
+        # 匿名访问触发 401 多为未登录前端轮询配置，属噪音：降为 DEBUG，默认「关键操作」视图不可见
+        level, success = "DEBUG", False
     elif status_code >= 400:
         level, success = "WARN", False
     else:
         level, success = "INFO", True
-    action = _ACTION_MAP.get(path)
-    if not action:
-        # 取路径语义段作为动作描述，并把数字段（如 ID）归一化为 {id}，便于按动作聚合
-        parts = [p for p in path.split("/") if p and p != "api" and p != "v1"]
-        parts = [re.sub(r"^\d+$", "{id}", p) for p in parts]
-        action = "/".join(parts[-2:]) if len(parts) >= 2 else (parts[0] if parts else path)
+    action = _resolve_action(method, path)
 
     # 5xx 由全局异常处理器统一记 ERROR(含堆栈)，此处不再重复；
     # 其余按级别记录，但放到后台任务——响应先返回，日志随后写，对接口耗时零影响。
     if status_code < 500:
         response.background = BackgroundTask(
-            _deferred_log, token, ip, method, path, status_code, level, success, action, message, duration, uid, uname
+            _deferred_log, token, ip, method, path, status_code, level, success, action, message, duration, uid, uname, target
         )
     return response
 
@@ -325,7 +509,7 @@ def health_check():
 
 
 @app.get("/api/v1/config", tags=["系统"])
-def get_config():
+def get_config(current_user: User = Depends(get_current_user)):
     """获取系统配置"""
     # 数据库文件路径（解析为绝对路径，便于排查数据落盘位置）
     raw_db = str(engine.url.database) if engine.url and engine.url.database else ""
@@ -367,8 +551,9 @@ def get_config():
         "deepseek_vision_model": settings.deepseek_vision_model,
         "deepseek_vision_base_url": settings.deepseek_vision_base_url,
         "vision_key_configured": bool(settings.deepseek_vision_api_key),
-        "db_path": db_path,
-        "counts": counts,
+        # 数据库路径与各表条数属运维信息，仅 system:read 可见，避免向普通账号暴露服务器路径
+        "db_path": db_path if has_perm(current_user, "system:read") else None,
+        "counts": counts if has_perm(current_user, "system:read") else {},
     }
 
 
@@ -388,8 +573,8 @@ class ConfigUpdate(BaseModel):
 @app.put("/api/v1/config", tags=["系统"])
 def update_config(payload: ConfigUpdate, current_user: User = Depends(get_current_user)):
     """更新系统配置 — 同时写入 .env 文件持久化（密钥不回显、文件权限 600）"""
-    if not current_user.is_admin:
-        return JSONResponse({"detail": "仅管理员可修改系统配置"}, status_code=403)
+    if not has_perm(current_user, "system:write"):
+        return JSONResponse({"detail": "权限不足，仅 system:write 账号可修改系统配置"}, status_code=403)
     data = payload.model_dump(exclude_unset=True)
     clinic_name = data.get("clinic_name")
     doctor_name = data.get("doctor_name")

@@ -4,6 +4,10 @@
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
     "types": ["vite/client"],
 
+    /* 路径别名：与 vite.config.ts 的 resolve.alias 保持一致，否则 vue-tsc 无法解析 @/ 导入、生产构建门禁失效。
+       现代 TypeScript 允许 paths 不带 baseUrl（按配置所在目录解析），避免 baseUrl 在 TS 7.0 被废弃。 */
+    "paths": { "@/*": ["./src/*"] },
+
     /* Linting */
     "noUnusedLocals": true,
     "noUnusedParameters": true,

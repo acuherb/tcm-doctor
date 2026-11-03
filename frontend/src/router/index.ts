@@ -1,5 +1,6 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
+import { useAuthStore } from '@/store/auth'
 
 // 全部改为静态引入：避免 dev 模式下按需编译/依赖重新预打包导致的
 // 「首次访问某菜单卡顿」以及「客户端跳转被中止、地址变但视图不切换、需刷新」的问题。
@@ -30,6 +31,7 @@ import DiagnosisChat from '@/views/diagnosis/DiagnosisChat.vue'
 import DictionaryManage from '@/views/dictionary/DictionaryManage.vue'
 import Settings from '@/views/settings/Settings.vue'
 import OperationLog from '@/views/system/OperationLog.vue'
+import UserManage from '@/views/system/UserManage.vue'
 
 const routes: RouteRecordRaw[] = [
   {
@@ -101,7 +103,7 @@ const routes: RouteRecordRaw[] = [
         path: 'stock/transactions',
         name: 'StockTransactions',
         component: StockTransactions,
-        meta: { title: '出入库流水', icon: 'Tickets' },
+        meta: { title: '库存流水', icon: 'Tickets' },
       },
       {
         path: 'stock/check',
@@ -167,7 +169,7 @@ const routes: RouteRecordRaw[] = [
         path: 'book-library',
         name: 'BookLibrary',
         component: BookLibrary,
-        meta: { title: '医籍文库', icon: 'Reading' },
+        meta: { title: '医籍文库', icon: 'Reading', perm: 'dict:write' },
       },
       {
         path: 'diagnosis',
@@ -185,13 +187,19 @@ const routes: RouteRecordRaw[] = [
         path: 'settings',
         name: 'Settings',
         component: Settings,
-        meta: { title: '系统设置', icon: 'Setting' },
-      },
+        meta: { title: '系统设置', icon: 'Setting', perm: 'system:write' },
+        },
       {
         path: 'system/logs',
         name: 'OperationLog',
         component: OperationLog,
-        meta: { title: '操作日志', icon: 'Document' },
+        meta: { title: '操作日志', icon: 'Document', perm: 'log:read' },
+        },
+      {
+        path: 'system/users',
+        name: 'UserManage',
+        component: UserManage,
+        meta: { title: '账号管理', icon: 'UserFilled', perm: 'user:write' },
       },
     ],
   },
@@ -250,6 +258,26 @@ router.beforeEach((to) => {
   }
   if (!token) {
     return { path: '/login', query: to.fullPath !== '/' ? { redirect: to.fullPath } : {} }
+  }
+  // 仅管理员可访问的页面（兼容旧 adminOnly 标记）
+  if (to.meta.adminOnly) {
+    let role = ''
+    let isAdmin = false
+    try {
+      const u = JSON.parse(localStorage.getItem('tcm_user') || 'null')
+      role = u?.role || ''
+      isAdmin = role ? role === 'admin' : !!u?.is_admin
+    } catch { /* 忽略解析异常 */ }
+    if (!isAdmin) {
+      return { path: '/dashboard' }
+    }
+  }
+  // 细粒度权限页：user 加载完成后无权限则回退（未加载时不拦截，避免首屏误判）
+  if (to.meta.perm) {
+    const auth = useAuthStore()
+    if (auth.user && !auth.can(to.meta.perm as string)) {
+      return { path: '/dashboard' }
+    }
   }
   return true
 })

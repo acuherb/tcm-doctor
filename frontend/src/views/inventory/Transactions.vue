@@ -1,55 +1,53 @@
 <template>
   <div class="stock-txn">
-    <el-card shadow="hover">
+    <el-card shadow="hover" class="main-card">
       <template #header>
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-          <span>🔄 出入库流水</span>
-          <div style="display:flex;gap:8px;">
-            <el-button v-if="editable" type="success" size="small" @click="openStockIn"
+        <div class="tcm-head">
+          <div class="tcm-head__title">
+            <span class="tcm-head__icon">🔄</span>
+            <span class="tcm-head__text">库存流水</span>
+            <el-tag size="small" effect="light" round class="tcm-head__count">{{ total }} 条</el-tag>
+          </div>
+          <div class="tcm-head__actions">
+            <el-button v-if="editable" @click="openStockIn"
               title="零星到货 / 期初建账 / 库存调账登记（向供应商批量采购请走「采购入库」）">
               <el-icon><Upload /></el-icon> 手动入库
             </el-button>
-            <el-button v-if="editable" type="warning" size="small" @click="openStockOut">
+            <el-button v-if="editable" type="warning" plain @click="openStockOut">
               <el-icon><Download /></el-icon> 出库
             </el-button>
-            <el-button v-if="editable" type="danger" size="small" @click="openStockWriteoff">
+            <el-button v-if="editable" type="danger" plain @click="openStockWriteoff">
               <el-icon><Delete /></el-icon> 报损
             </el-button>
           </div>
         </div>
       </template>
 
-      <el-form :inline="true" @submit.prevent="loadTransactions">
-        <el-form-item>
-          <el-select v-model="typeFilter" placeholder="类型" clearable @change="loadTransactions" style="width:120px">
-            <el-option label="全部" value="" />
-            <el-option label="入库" value="入库" />
-            <el-option label="出库" value="出库" />
-            <el-option label="盘点" value="盘点" />
-            <el-option label="调整" value="调整" />
-            <el-option label="报损" value="损耗" />
-          </el-select>
-        </el-form-item>
-        <el-form-item>
-          <el-select v-model="refFilter" placeholder="来源" clearable @change="loadTransactions" style="width:120px">
-            <el-option label="全部" value="" />
-            <el-option label="手动" value="手动" />
-            <el-option label="处方" value="处方" />
-            <el-option label="盘点" value="盘点" />
-          </el-select>
-        </el-form-item>
-        <el-form-item>
-          <el-input v-model="searchText" placeholder="物品名称" clearable @clear="loadTransactions(true)" style="width:180px">
-            <template #prefix><el-icon><Search /></el-icon></template>
-          </el-input>
-        </el-form-item>
-        <el-form-item>
+      <div class="tcm-filter">
+        <el-select v-model="typeFilter" placeholder="全部类型" clearable class="filter-mini" @change="loadTransactions">
+          <el-option label="全部" value="" />
+          <el-option label="入库" value="入库" />
+          <el-option label="出库" value="出库" />
+          <el-option label="盘点" value="盘点" />
+          <el-option label="调整" value="调整" />
+          <el-option label="报损" value="损耗" />
+        </el-select>
+        <el-select v-model="refFilter" placeholder="全部来源" clearable class="filter-mini" @change="loadTransactions">
+          <el-option label="全部" value="" />
+          <el-option label="手动" value="手动" />
+          <el-option label="处方" value="处方" />
+          <el-option label="盘点" value="盘点" />
+        </el-select>
+        <el-input v-model="searchText" placeholder="按物品名称搜索" clearable class="filter-search" @clear="loadTransactions(true)">
+          <template #prefix><el-icon><Search /></el-icon></template>
+        </el-input>
+        <div class="filter-actions">
           <el-button type="primary" @click="loadTransactions(true)">查询</el-button>
-        </el-form-item>
-      </el-form>
+        </div>
+      </div>
 
-      <el-table v-if="!isMobile" :data="transactions" stripe style="width:100%" empty-text="暂无流水">
-        <el-table-column prop="created_at" label="时间" width="160" />
+      <el-table v-if="!isMobile" :data="transactions" class="tcm-table" style="width:100%" empty-text="暂无流水">
+        <el-table-column prop="created_at" label="时间" width="160" class-name="tcm-num" />
         <el-table-column prop="item_name" label="物品" min-width="130" show-overflow-tooltip />
         <el-table-column prop="transaction_type" label="类型" width="90">
           <template #default="{ row }">
@@ -64,10 +62,10 @@
           </template>
         </el-table-column>
         <el-table-column prop="before_quantity" label="变动前" width="100">
-          <template #default="{ row }">{{ row.before_quantity != null ? row.before_quantity : '-' }}</template>
+          <template #default="{ row }">{{ row.before_quantity != null ? row.before_quantity + ' ' + row.unit : '-' }}</template>
         </el-table-column>
         <el-table-column prop="after_quantity" label="变动后" width="100">
-          <template #default="{ row }">{{ row.after_quantity != null ? row.after_quantity : '-' }}</template>
+          <template #default="{ row }">{{ row.after_quantity != null ? row.after_quantity + ' ' + row.unit : '-' }}</template>
         </el-table-column>
         <el-table-column prop="batch_number" label="批号" width="120">
           <template #default="{ row }">{{ row.batch_number || '-' }}</template>
@@ -75,7 +73,7 @@
         <el-table-column label="成本金额" width="120">
           <template #default="{ row }">
             <span v-if="row.cost_amount != null" :class="Number(row.cost_amount) < 0 ? 'out-qty' : 'in-qty'">
-              {{ Number(row.cost_amount) < 0 ? '-' : '+' }}¥{{ Math.abs(Number(row.cost_amount)).toFixed(2) }}
+              {{ Number(row.cost_amount) < 0 ? '-' : '' }}¥{{ Math.abs(Number(row.cost_amount)).toFixed(2) }}
             </span>
             <span v-else>-</span>
           </template>
@@ -102,7 +100,7 @@
           <div class="card-body">
             <div class="card-row"><span class="label">变动</span>
               <span class="value" :class="row.transaction_type === '出库' ? 'out-qty' : 'in-qty'">
-                {{ row.transaction_type === '出库' ? '-' : '+' }}{{ row.quantity }} {{ row.unit }}（前{{ row.before_quantity ?? '-' }}→后{{ row.after_quantity ?? '-' }}）
+                {{ row.transaction_type === '出库' ? '-' : '+' }}{{ row.quantity }} {{ row.unit }}（前{{ row.before_quantity ?? '-' }}→后{{ row.after_quantity ?? '-' }} {{ row.unit }}）
               </span>
             </div>
             <div class="card-row"><span class="label">批号</span><span class="value">{{ row.batch_number || '-' }}</span></div>
@@ -115,8 +113,13 @@
         <el-empty v-if="!transactions.length" description="暂无流水" />
       </div>
 
+      <div v-if="isMobile && total > 0" class="load-more">
+        <el-button v-if="transactions.length < total" size="small" :loading="loadingMore" @click="loadMoreTransactions">加载更多</el-button>
+        <span v-else class="no-more">已加载全部 {{ total }} 条</span>
+      </div>
+
       <el-pagination
-        v-if="total > pageSize"
+        v-if="!isMobile && total > pageSize"
         style="margin-top:14px;justify-content:center;"
         layout="total, prev, pager, next"
         :total="total" :page-size="pageSize" :current-page="page"
@@ -133,12 +136,19 @@
           </el-select>
         </el-form-item>
         <el-form-item label="入库量" prop="quantity">
-          <el-input-number v-model="stockInForm.quantity" :min="0.01" :precision="2" style="width:100%" />
+          <div style="display:flex;align-items:center;gap:8px;width:100%">
+            <el-input-number v-model="stockInForm.quantity" :min="0.01" :precision="2" style="flex:1" />
+            <span style="white-space:nowrap;color:#8a7563;font-size:13px;flex-shrink:0">{{ stockInUnit || '（选物品后显示）' }}</span>
+          </div>
         </el-form-item>
         <el-row :gutter="12">
           <el-col :span="12">
             <el-form-item label="进价">
-              <el-input-number v-model="stockInForm.unit_price" :min="0" :precision="2" :controls="false" style="width:100%" />
+              <div style="display:flex;align-items:center;gap:8px;width:100%">
+                <el-input-number v-model="stockInForm.unit_price" :min="0" :precision="2" :controls="false" style="flex:1" />
+                <span style="white-space:nowrap;color:#8a7563;font-size:13px;flex-shrink:0">{{ stockInUnit ? '元/' + stockInUnit : '（选物品后显示）' }}</span>
+              </div>
+              <div v-if="stockInAmount" style="font-size:12px;color:#8a7563;margin-top:4px">合计金额：¥{{ stockInAmount }}</div>
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -193,8 +203,15 @@
         <el-form-item label="出库量" prop="quantity">
           <el-input-number v-model="stockOutForm.quantity" :min="0.01" :precision="2" style="width:100%" />
         </el-form-item>
-        <el-form-item label="备注">
-          <el-input v-model="stockOutForm.note" type="textarea" :rows="2" placeholder="出库原因" />
+        <el-form-item label="出库价格">
+          <div style="display:flex;align-items:center;gap:8px;width:100%">
+            <el-input-number v-model="stockOutForm.unit_price" :min="0" :precision="2" :controls="false" style="flex:1" />
+            <span style="color:#8a7563;font-size:13px;white-space:nowrap">元/{{ outUnit || '单位' }}</span>
+          </div>
+          <div style="font-size:12px;color:#8a7563;margin-top:2px">0 或留空 = 赠送/内部领用（仅记去向，不计收入）；填价 = 销售（记收入）</div>
+        </el-form-item>
+        <el-form-item label="备注/去向">
+          <el-input v-model="stockOutForm.note" type="textarea" :rows="2" placeholder="出库原因 / 去向，如：卖给张三 / 赠送 / 样品" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -243,7 +260,7 @@ import api from '@/utils/api'
 import { useAuthStore } from '@/store/auth'
 
 const auth = useAuthStore()
-const editable = computed(() => !!auth.user?.is_admin)
+const editable = computed(() => auth.canWrite('stock'))
 const route = useRoute()
 
 const transactions = ref<any[]>([])
@@ -258,6 +275,7 @@ const pageSize = ref(100)
 const total = ref(0)
 
 const isMobile = ref(false)
+const loadingMore = ref(false)
 function updateViewport() { isMobile.value = window.innerWidth < 768 }
 onMounted(() => { updateViewport(); window.addEventListener('resize', updateViewport) })
 onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
@@ -270,7 +288,7 @@ function typeTag(t: string) {
 }
 
 async function loadTransactions(resetPage = false) {
-  if (resetPage) page.value = 1
+  if (resetPage) { page.value = 1; loadingMore.value = false }
   try {
     const params: any = { page: page.value, page_size: pageSize.value }
     if (route.query.item_id) params.item_id = Number(route.query.item_id)
@@ -285,6 +303,25 @@ async function loadTransactions(resetPage = false) {
     ElMessage.error('流水加载失败：' + (e?.response?.data?.detail || e?.message || '未知错误'))
   }
 }
+async function loadMoreTransactions() {
+  if (loadingMore.value || transactions.value.length >= total.value) return
+  loadingMore.value = true
+  try {
+    const next = page.value + 1
+    const params: any = { page: next, page_size: pageSize.value }
+    if (route.query.item_id) params.item_id = Number(route.query.item_id)
+    if (typeFilter.value) params.transaction_type = typeFilter.value
+    if (refFilter.value) params.reference_type = refFilter.value
+    if (searchText.value) params.search = searchText.value
+    const res = (await api.get('/stock/transactions', { params }) as any) || []
+    const rows = Array.isArray(res) ? res : (res.items || [])
+    const seen = new Set(transactions.value.map((r: any) => r.id))
+    transactions.value.push(...rows.filter((r: any) => !seen.has(r.id)))
+    page.value = next
+  } catch (e: any) {
+    ElMessage.error('加载失败：' + (e?.response?.data?.detail || e?.message || '未知错误'))
+  } finally { loadingMore.value = false }
+}
 async function loadItems() {
   try { items.value = (await api.get('/stock/items') as any) || [] } catch {}
 }
@@ -294,23 +331,30 @@ async function loadSuppliers() {
 
 // ── 入库 ──
 const stockInVisible = ref(false)
-const stockInFormRef = ref()
 const stockInForm = ref({
   item_id: null as number | null, quantity: 1,
   unit_price: null as number | null, supplier_id: null as number | null,
   batch_number: '', purchase_date: '', expiry_date: '', supplier: '', note: '',
 })
+const stockInUnit = ref('')  // 选中物品后带出其单位，用于数量/进价提示
+const stockInAmount = computed(() => {
+  const q = stockInForm.value.quantity
+  const p = stockInForm.value.unit_price
+  return q && p ? +(q * p).toFixed(2) : 0
+})
 const stockInRules = {
   item_id: [{ required: true, message: '请选择物品', trigger: 'change' }],
   quantity: [{ required: true, message: '请输入入库量', trigger: 'blur' }],
 }
-function openStockIn() {
-  stockInForm.value = { item_id: null, quantity: 1, unit_price: null, supplier_id: null, batch_number: '', purchase_date: '', expiry_date: '', supplier: '', note: '' }
+function openStockIn(presetItemId: number | null = null) {
+  stockInForm.value = { item_id: presetItemId, quantity: 1, unit_price: null, supplier_id: null, batch_number: '', purchase_date: '', expiry_date: '', supplier: '', note: '' }
+  stockInUnit.value = ''
+  if (presetItemId) onItemSelect(presetItemId)
   stockInVisible.value = true
 }
 function onItemSelect(id: number) {
   const i = items.value.find((x: any) => x.id === id)
-  if (i) stockInForm.value.supplier_id = i.default_supplier_id || null
+  if (i) { stockInForm.value.supplier_id = i.default_supplier_id || null; stockInUnit.value = i.unit || '' }
 }
 async function submitStockIn() {
   if (!stockInForm.value.item_id) { ElMessage.warning('请选择物品'); return }
@@ -332,8 +376,7 @@ async function submitStockIn() {
 
 // ── 出库 ──
 const stockOutVisible = ref(false)
-const stockOutFormRef = ref()
-const stockOutForm = ref({ item_id: null as number | null, batch_id: null as number | null, quantity: 1, note: '' })
+const stockOutForm = ref({ item_id: null as number | null, batch_id: null as number | null, quantity: 1, unit_price: 0, note: '' })
 const stockOutRules = {
   item_id: [{ required: true, message: '请选择物品', trigger: 'change' }],
   quantity: [{ required: true, message: '请输入出库量', trigger: 'blur' }],
@@ -343,7 +386,7 @@ const outAvailable = ref(0)
 const outUnit = ref('')
 
 function openStockOut() {
-  stockOutForm.value = { item_id: null, batch_id: null, quantity: 1, note: '' }
+  stockOutForm.value = { item_id: null, batch_id: null, quantity: 1, unit_price: 0, note: '' }
   outBatches.value = []; outAvailable.value = 0; outUnit.value = ''
   stockOutVisible.value = true
 }
@@ -376,7 +419,6 @@ async function submitStockOut() {
 
 // ── 报损 ──
 const writeoffVisible = ref(false)
-const writeoffFormRef = ref()
 const writeoffForm = ref({ item_id: null as number | null, batch_id: null as number | null, quantity: 1, note: '' })
 function openStockWriteoff() {
   writeoffForm.value = { item_id: null, batch_id: null, quantity: 1, note: '' }
@@ -399,29 +441,49 @@ async function submitStockWriteoff() {
   }
 }
 
-onMounted(() => { loadTransactions(true); loadItems(); loadSuppliers() })
+onMounted(async () => {
+  await loadTransactions(true)
+  await loadItems()
+  loadSuppliers()
+  const presetId = route.query.item_id ? Number(route.query.item_id) : null
+  if (route.query.open === 'in' && editable.value) {
+    openStockIn(presetId)
+  }
+})
 </script>
 
 <style scoped lang="scss">
 .stock-txn {
-  .in-qty { color: #67c23a; font-weight: 600; }
-  .out-qty { color: #e6a23c; font-weight: 600; }
+  .main-card {
+    border-radius: 12px;
+    border: 1px solid #f0e4d6;
+
+    :deep(.el-card__header) {
+      padding: 0;
+      border-bottom: none;
+    }
+  }
+
+  .filter-mini { width: 130px; }
+  .filter-search { width: 200px; }
+  .filter-actions { display: flex; gap: 8px; }
+
+  .in-qty { color: #5f8b56; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .out-qty { color: #c0764f; font-weight: 600; font-variant-numeric: tabular-nums; }
 }
 .cards { display: flex; flex-direction: column; gap: 10px; }
 .card {
-  background: #fff; border: 1px solid #e8e0d8; border-radius: 10px; padding: 12px 14px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  background: #fff; border: 1px solid #f0e4d6; border-radius: 10px; padding: 12px 14px;
+  box-shadow: 0 1px 3px rgba(44,24,16,.04);
 }
-.card .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-.card .card-name { font-size: 17px; font-weight: 600; color: #2C1810; }
+.card .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; gap: 8px; }
+.card .card-name { font-size: 16px; font-weight: 600; color: #2c1810; }
 .card .card-body { display: flex; flex-direction: column; gap: 6px; }
 .card .card-row { display: flex; align-items: flex-start; font-size: 14px; line-height: 1.5; }
 .card .card-row .label { flex-shrink: 0; width: 54px; color: #8a7563; }
-.card .card-row .value { flex: 1; color: #333; word-break: break-all; }
+.card .card-row .value { flex: 1; color: #4a3628; word-break: break-all; }
 
-@media (max-width: 767px) {
-  :deep(.el-form--inline .el-form-item) { display: block; margin-right: 0; margin-bottom: 8px; }
-  :deep(.el-form--inline .el-form-item__content) { display: block; max-width: 100%; }
-  :deep(.el-form--inline .el-input), :deep(.el-form--inline .el-select) { width: 100% !important; }
-}
+.load-more { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 0 2px; }
+.load-more .el-button { min-width: 140px; }
+.load-more .no-more { font-size: 12px; color: #a08b76; font-variant-numeric: tabular-nums; }
 </style>

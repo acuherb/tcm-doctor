@@ -184,6 +184,14 @@ def delete_classic_formula(formula_id: int, current_user: User = Depends(get_cur
 
 # ── 处方 CRUD ──
 
+def _doctor_snapshot(user: User) -> tuple[int | None, str | None]:
+    """开方医师信息：优先用账号姓名，回退登录名，保证打印有值。"""
+    if user is None:
+        return None, None
+    name = (getattr(user, "display_name", None) or "").strip() or user.username
+    return user.id, name
+
+
 @router.get("", response_model=list[PrescriptionResponse], summary="处方列表")
 def list_prescriptions(
     patient_id: int | None = Query(None),
@@ -250,9 +258,12 @@ def create_prescription(data: PrescriptionCreate, current_user: User = Depends(g
     herb_map = {h.id: h for h in herbs}
 
     # 创建处方
+    doctor_id, doctor_name = _doctor_snapshot(current_user)
     prescription = Prescription(
         visit_id=data.visit_id,
         patient_id=data.patient_id,
+        doctor_id=doctor_id,
+        doctor_name=doctor_name,
         formula_name=data.formula_name,
         is_classic=data.is_classic,
         classic_formula_id=data.classic_formula_id,
@@ -368,6 +379,9 @@ def update_prescription(prescription_id: int, data: PrescriptionCreate, current_
     # 更新处方主信息
     prescription.visit_id = data.visit_id
     prescription.patient_id = data.patient_id
+    # 仅补填存量处方的医师信息；已记录的医师不被后来的编辑者覆盖（谁开的方就打印谁）
+    if not prescription.doctor_name:
+        prescription.doctor_id, prescription.doctor_name = _doctor_snapshot(current_user)
     prescription.formula_name = data.formula_name
     prescription.is_classic = data.is_classic
     prescription.classic_formula_id = data.classic_formula_id

@@ -1,17 +1,24 @@
 <template>
   <div class="supplier-manage">
-    <el-card shadow="hover">
+    <el-card shadow="hover" class="main-card">
       <template #header>
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-          <span>🏭 供应商管理</span>
-          <div style="display:flex;gap:8px;">
-            <el-input v-model="searchText" placeholder="搜索名称/联系人" clearable @clear="load" style="width:180px" />
-            <el-button type="primary" size="small" @click="openCreate" v-if="editable"><el-icon><Plus /></el-icon> 新增</el-button>
+        <div class="tcm-head">
+          <div class="tcm-head__title">
+            <span class="tcm-head__icon">🏭</span>
+            <span class="tcm-head__text">供应商管理</span>
+            <el-tag size="small" effect="light" round class="tcm-head__count">{{ suppliers.length }} 家</el-tag>
+          </div>
+          <div class="tcm-head__actions">
+            <el-input v-model="searchText" placeholder="搜索名称/联系人" clearable class="filter-search" @clear="load">
+              <template #prefix><el-icon><Search /></el-icon></template>
+            </el-input>
+            <el-button type="primary" @click="load">查询</el-button>
+            <el-button v-if="editable" @click="openCreate"><el-icon><Plus /></el-icon> 新增</el-button>
           </div>
         </div>
       </template>
 
-      <el-table :data="suppliers" stripe style="width:100%" empty-text="暂无供应商">
+      <el-table v-if="!isMobile" :data="suppliers" class="tcm-table" style="width:100%" empty-text="暂无供应商">
         <el-table-column prop="name" label="名称" min-width="140" />
         <el-table-column prop="contact" label="联系人" width="110" />
         <el-table-column prop="phone" label="电话" width="140" />
@@ -26,6 +33,31 @@
           </template>
         </el-table-column>
       </el-table>
+
+      <div v-if="isMobile" class="cards">
+        <div v-for="row in pagedSuppliers" :key="row.id" class="card">
+          <div class="card-head">
+            <span class="card-name">{{ row.name }}</span>
+            <el-tag :type="row.is_active ? 'success' : 'info'" size="small">{{ row.is_active ? '启用' : '停用' }}</el-tag>
+          </div>
+          <div class="card-body">
+            <div class="card-row"><span class="label">联系人</span><span class="value">{{ row.contact || '-' }}</span></div>
+            <div class="card-row"><span class="label">电话</span><span class="value">{{ row.phone || '-' }}</span></div>
+            <div class="card-row"><span class="label">地址</span><span class="value">{{ row.address || '-' }}</span></div>
+            <div class="card-row" v-if="row.note"><span class="label">备注</span><span class="value">{{ row.note }}</span></div>
+          </div>
+          <div v-if="editable" class="card-actions">
+            <el-button link type="primary" size="small" @click="openEdit(row)">编辑</el-button>
+            <el-button link type="danger" size="small" @click="remove(row)" :disabled="row._inuse">删除</el-button>
+          </div>
+        </div>
+        <el-empty v-if="!suppliers.length" description="暂无供应商" />
+      </div>
+
+      <div v-if="isMobile && suppliers.length > cardPageSize" class="load-more">
+        <el-button v-if="shownCount < suppliers.length" size="small" @click="loadMoreSuppliers">加载更多</el-button>
+        <span v-else class="no-more">已显示全部 {{ suppliers.length }} 个供应商</span>
+      </div>
     </el-card>
 
     <el-dialog v-model="visible" :title="isEdit ? '编辑供应商' : '新增供应商'" width="480px" destroy-on-close>
@@ -50,21 +82,28 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Search } from '@element-plus/icons-vue'
 import api from '@/utils/api'
 import { useAuthStore } from '@/store/auth'
 
 const auth = useAuthStore()
-const editable = computed(() => !!auth.user?.is_admin)
+const isMobile = ref(false)
+function updateViewport() { isMobile.value = window.innerWidth < 768 }
+const editable = computed(() => auth.canWrite('stock'))
 const suppliers = ref<any[]>([])
+const cardPageSize = 20
+const shownCount = ref(cardPageSize)
+const pagedSuppliers = computed(() => (isMobile.value ? suppliers.value.slice(0, shownCount.value) : suppliers.value))
+function loadMoreSuppliers() {
+  shownCount.value = Math.min(shownCount.value + cardPageSize, suppliers.value.length)
+}
 const searchText = ref('')
 const visible = ref(false)
 const isEdit = ref(false)
 const activeId = ref<number | null>(null)
 const submitting = ref(false)
-const formRef = ref()
 
 const form = ref({ name: '', contact: '', phone: '', address: '', note: '', is_active: true })
 const rules = { name: [{ required: true, message: '请输入名称', trigger: 'blur' }] }
@@ -76,6 +115,7 @@ async function load() {
     const list = (await api.get('/stock/suppliers', { params }) as any) || []
     // 标记是否已被进货使用（前端无法精确判断，交给后端删除校验）
     suppliers.value = list
+    shownCount.value = cardPageSize
   } catch (e: any) { ElMessage.error('加载失败：' + (e?.response?.data?.detail || e?.message)) }
 }
 function openCreate() {
@@ -108,9 +148,39 @@ async function remove(row: any) {
   } catch (e: any) { if (e !== 'cancel') ElMessage.error('删除失败：' + (e?.response?.data?.detail || e?.message)) }
 }
 
-onMounted(load)
+onMounted(() => {
+  updateViewport()
+  window.addEventListener('resize', updateViewport)
+  load()
+})
+onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
 </script>
 
 <style scoped lang="scss">
-.supplier-manage { .el-table { margin-top: 8px; } }
+.supplier-manage {
+  .main-card {
+    border-radius: 12px;
+    border: 1px solid #f0e4d6;
+
+    :deep(.el-card__header) {
+      padding: 0;
+      border-bottom: none;
+    }
+  }
+
+  .filter-search { width: 200px; }
+
+  .cards { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+  .card { border: 1px solid #f0e4d6; border-radius: 10px; padding: 12px; background: #fff; box-shadow: 0 1px 3px rgba(44,24,16,.04); }
+  .card .card-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .card .card-name { font-size: 16px; font-weight: 600; color: #2c1810; word-break: break-all; }
+  .card .card-row { display: flex; align-items: flex-start; font-size: 14px; line-height: 1.5; }
+  .card .card-row .label { flex-shrink: 0; width: 54px; color: #8a7563; }
+  .card .card-row .value { flex: 1; color: #4a3628; word-break: break-all; }
+  .card .card-actions { display: flex; justify-content: flex-end; gap: 4px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #f0e4d6; }
+
+  .load-more { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 0 2px; }
+  .load-more .el-button { min-width: 140px; }
+  .load-more .no-more { font-size: 12px; color: #a08b76; font-variant-numeric: tabular-nums; }
+}
 </style>

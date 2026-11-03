@@ -18,6 +18,10 @@ backend/backups/
 backend/*_colors_backup.json
 backend/*_backup.json
 
+# 切勿入库：管理员密码哈希备份（含凭据，离线爆破风险）
+admin_hash_backup.txt
+*_hash_backup.txt
+
 # ---- Node / 前端构建 ----
 node_modules/
 dist/
