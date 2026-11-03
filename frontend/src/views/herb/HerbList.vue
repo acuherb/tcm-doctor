@@ -221,8 +221,8 @@ const flavorFilters = ref<string[]>([])
 const pregOnly = ref(false)
 
 // 标签维度与受控词表（来自后端 /herbs/tags/meta）
-interface HerbMeta { dimensions: Record<string, { options: string[] }>; tag_suggestions: string[] }
-const meta = ref<HerbMeta>({ dimensions: {}, tag_suggestions: [] })
+interface HerbMeta { dimensions: Record<string, { options: string[] }> }
+const meta = ref<HerbMeta>({ dimensions: {} })
 function dimOptions(dim: string): string[] {
   return meta.value.dimensions[dim]?.options || []
 }

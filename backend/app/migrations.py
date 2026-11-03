@@ -442,6 +442,8 @@ def m0009() -> None:
     "进销存财务化：为已有表补充金额列/条码列(suppliers/purchase_* 由 create_all 新建)，并回填流水成本收入与生成条码",
 )
 def m0007() -> None:
+    # 注意：m0009 与本函数补的列完全相同，属历史补漏兜底（某些现网库 m0007 版本号已登记但补列体未生效）。
+    # 二者靠 _add_column 幂等共存，请勿为“去重”而删除 m0009，否则上述老库会重新出现 'no such column'。
     # 已存在表补列（create_all 不会给存量表加列）；全新库这些列已由 create_all 创建，_add_column 会自动跳过
     _add_column("stock_items", "barcode", "VARCHAR(40)")
     _add_column("stock_items", "default_supplier_id", "INTEGER")
