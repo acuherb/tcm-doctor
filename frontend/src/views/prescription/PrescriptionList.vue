@@ -332,6 +332,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Star } from '@element-plus/icons-vue'
 import api from '@/utils/api'
+import type { Patient, Prescription, AppConfig } from '@/types'
 import { useAuthStore } from '@/store/auth'
 
 // 游客只读：隐藏所有写操作
@@ -389,7 +390,7 @@ async function loadPrescriptions() {
     const params: any = { limit: 100 }
     if (statusFilter.value) params.status = statusFilter.value
     if (patientFilter.value) params.patient_id = patientFilter.value
-    prescriptions.value = (await api.get('/prescriptions', { params })) as any
+    prescriptions.value = (await api.get<Paginated<Prescription>>('/prescriptions', { params }))
   } catch {}
 }
 
@@ -402,7 +403,7 @@ function resetFilter() {
 async function loadPatients() {
   patientsLoading.value = true
   try {
-    const res = await api.get('/patients', { params: { page_size: 100 } }) as any
+    const res = await api.get<Patient[]>(`/patients`, { params: { page_size: 100 } })
     patients.value = res.items || res || []
   } catch {}
   patientsLoading.value = false
@@ -412,7 +413,7 @@ async function searchPatients(query: string) {
   if (!query.trim()) { loadPatients(); return }
   patientsLoading.value = true
   try {
-    const res = await api.get('/patients', { params: { search: query, page_size: 50 } }) as any
+    const res = await api.get<Patient[]>(`/patients`, { params: { search: query, page_size: 50 } })
     patients.value = res.items || res || []
   } catch {}
   patientsLoading.value = false
@@ -484,7 +485,7 @@ function doPrint() {
 
 onMounted(async () => {
   try {
-    const res = await api.get('/config') as any
+    const res = await api.get<AppConfig>('/config')
     clinicName.value = res.clinic_name || ''
     doctorName.value = res.doctor_name || ''
   } catch {}

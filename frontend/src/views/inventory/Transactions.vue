@@ -264,9 +264,9 @@ const auth = useAuthStore()
 const editable = computed(() => auth.canWrite('stock'))
 const route = useRoute()
 
-const transactions = ref<any[]>([])
-const items = ref<any[]>([])
-const suppliers = ref<any[]>([])
+const transactions = ref<StockTransaction[]>([])
+const items = ref<StockItem[]>([])
+const suppliers = ref<Supplier[]>([])
 const typeFilter = ref('')
 const refFilter = ref('')
 const searchText = ref('')
@@ -382,7 +382,7 @@ const stockOutRules = {
   item_id: [{ required: true, message: '请选择物品', trigger: 'change' }],
   quantity: [{ required: true, message: '请输入出库量', trigger: 'blur' }],
 }
-const outBatches = ref<any[]>([])
+const outBatches = ref<StockBatch[]>([])
 const outAvailable = ref(0)
 const outUnit = ref('')
 

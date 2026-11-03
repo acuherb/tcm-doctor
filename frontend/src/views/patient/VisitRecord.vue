@@ -311,6 +311,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ChatDotRound, Close } from '@element-plus/icons-vue'
 import api from '@/utils/api'
+import type { Patient, Visit, InquiryRecord, Prescription, DictionaryTerm } from '@/types'
 import { renderMarkdown } from '@/utils/markdown'
 import { compressImageFile } from '@/utils/image'
 import { TEN_QUESTIONS } from '@/utils/tenAspectsQuestions'
@@ -339,7 +340,7 @@ const effectiveVisitId = props.visitId ?? (route.query.visit_id ? Number(route.q
 // 患者标签：用于在治疗页提示（如"不遵医瞩"→慎用峻药）
 const patientTags = ref<string[]>([])
 // 患者基本信息（性别/出生日期/身高/体重），用于 AI 辨证时个体化剂量
-const patient = ref<any>(null)
+const patient = ref<Patient | null>(null)
 // 根据字典释义匹配患者标签，进入就诊页时提醒医生
 const patientTagInfos = computed(() => {
   return patientTags.value
@@ -357,12 +358,12 @@ const submitting = ref(false)
 const aiLoading = ref(false)
 const currentVisitId = ref<number | null>(null)
 // 二次编辑时回填上一次问诊十问（选项/自填/结果）
-const initialIq = ref<any>(null)
+const initialIq = ref<InquiryRecord | null>(null)
 const showAiResult = ref(false)
 const showAiConfirm = ref(false)
 const aiResultText = ref('')
 const aiResultWarnings = ref<string[]>([])
-const aiResultFormulas = ref<any[]>([])
+const aiResultFormulas = ref<unknown[]>([])
 const aiBasisText = ref('')
 // 待分析上下文（点击「开始分析」后再真正请求；避免未核对的误请求）
 let pendingAiPayload: any = null
@@ -408,7 +409,7 @@ function findId(termType: string, name: string, aspect?: string): number | null 
 
 async function loadDictionary() {
   try {
-    const res = await api.get('/dictionaries') as any
+    const res = await api.get<DictionaryTerm[]>('/dictionaries')
     dictTerms.value = Array.isArray(res) ? res : []
   } catch { /* 后端不可用时回退为空选项 */ }
 }
@@ -420,21 +421,21 @@ onMounted(async () => {
     patientTags.value = props.patientTags ?? props.patient.tags ?? []
   } else {
     try {
-      const p = (await api.get(`/patients/${patientId}`)) as any
+      const p = (await api.get<Patient>(`/patients/${patientId}`))
       patient.value = p
       patientTags.value = props.patientTags ?? p.tags ?? []
     } catch {}
   }
   // 加载既有就诊记录，用于自动推断初诊/复诊
   try {
-    const vl = (await api.get(`/patients/${patientId}/visits`)) as any
+    const vl = (await api.get<Visit[]>(`/patients/${patientId}/visits`))
     visits.value = vl || []
   } catch {}
   if (effectiveVisitId != null) {
     await loadExistingVisit(effectiveVisitId)
     // 取该就诊已存的问诊十问，回填到右侧面板，避免二次编辑从头重选
     try {
-      const iqs = (await api.get(`/patients/${patientId}/inquiries`, { params: { visit_id: effectiveVisitId } })) as any
+      const iqs = (await api.get<InquiryRecord[]>(`/patients/${patientId}/inquiries`, { params: { visit_id: effectiveVisitId } }))
       if (iqs && iqs.length) initialIq.value = iqs[0]
     } catch {}
   }
@@ -446,7 +447,7 @@ onMounted(async () => {
 function applyParentVisit(p: any) {
   form.value.visit_type = '复诊'
   form.value.parent_visit_id = p.id
-  const set = (k: string, v: any) => { if (v != null && v !== '') (form.value as any)[k] = v }
+  const set = (k: string, v: any) => { if (v != null && v !== '') (form.value as Record<string, unknown>)[k] = v }
   set('present_illness', p.present_illness)
   set('observation', p.observation)
   set('auscultation', p.auscultation)
@@ -462,10 +463,10 @@ function applyParentVisit(p: any) {
 }
 
 // 同患者既往就诊（用于初诊/复诊自动判断）
-const visits = ref<any[]>([])
+const visits = ref<Visit[]>([])
 const lastVisitHint = ref('')
 // 上次同病种就诊（复诊时作为四诊/证型/处方的参照底稿）
-const lastVisit = ref<any>(null)
+const lastVisit = ref<Visit | null>(null)
 
 // 可作为「本次复诊」父节点的初诊列表（parent_visit_id 为空者），供用户明确选择归属
 const rootVisits = computed<any[]>(() => {
@@ -545,7 +546,7 @@ watch(
 // 预取上次就诊处方作参考
 async function loadLastPrescription(vid: number) {
   try {
-    const rxs = (await api.get(`/prescriptions?visit_id=${vid}`)) as any[]
+    const rxs = (await api.get<Prescription[]>(`/prescriptions?visit_id=${vid}`))
     if (lastVisit.value) lastVisit.value = { ...lastVisit.value, prescriptions: rxs || [] }
   } catch {}
 }
@@ -614,7 +615,7 @@ async function uploadImageFile(file: File) {
   try {
     const formData = new FormData()
     formData.append('file', f)
-    const res = await api.post('/diagnosis/upload-image', formData) as any
+    const res = await api.post<Record<string, unknown>>('/diagnosis/upload-image', formData)
     const target = visitImageTarget.value
     if (target === 'lab') {
       visitImages.value.lab.push(res.data_url)
@@ -810,7 +811,7 @@ async function doAiAnalyze() {
   aiLoading.value = true
   showAiConfirm.value = false
   try {
-    const res = await api.post('/diagnosis/analyze', pendingAiPayload) as any
+    const res = await api.post<Record<string, unknown>>('/diagnosis/analyze', pendingAiPayload)
     if (res.tcm_disease) form.value.tcm_disease = res.tcm_disease
     if (res.tcm_syndrome) form.value.tcm_syndrome = res.tcm_syndrome
     if (res.treatment_method) form.value.treatment_method = res.treatment_method
@@ -868,7 +869,7 @@ async function saveAiIntoRecord() {
         face_image: visitImages.value.face || null,
         lab_report_images: visitImages.value.lab.length ? visitImages.value.lab : null,
       }
-      const res = await api.post(`/patients/${patientId}/visits`, payload, { silent: true }) as any
+      const res = await api.post<Visit>(`/patients/${patientId}/visits`, payload, { silent: true })
       currentVisitId.value = res.id
       if (props.embedded) emit('saved', res)
       ElMessage.success('已存入本就诊 AI 诊断库')
@@ -910,12 +911,12 @@ async function submitVisit() {
     }
     // 已有就诊则更新（完善/补充病历），否则新建，避免重复建就诊
     if (currentVisitId.value != null) {
-      const res = await api.put(`/patients/${patientId}/visits/${currentVisitId.value}`, payload, { silent: true }) as any
+      const res = await api.put<Visit>(`/patients/${patientId}/visits/${currentVisitId.value}`, payload, { silent: true })
       ElMessage.success('就诊记录已更新')
       if (props.embedded) emit('saved', res)
       return res
     }
-    const res = await api.post(`/patients/${patientId}/visits`, payload, { silent: true }) as any
+    const res = await api.post<Visit>(`/patients/${patientId}/visits`, payload, { silent: true })
     currentVisitId.value = res.id
     ElMessage.success(props.embedded ? '就诊记录已保存' : '就诊记录已保存，可在右侧完成本次问诊十问，或下方去开药')
     if (props.embedded) emit('saved', res)
@@ -944,7 +945,7 @@ function onPulseChange() {
 // 编辑已有就诊：从病历详情页带入 visit_id 时加载并填充表单，便于完善病例报告
 async function loadExistingVisit(visitId: number) {
   try {
-    const res = await api.get(`/patients/${patientId}/visits/${visitId}`) as any
+    const res = await api.get<Visit>(`/patients/${patientId}/visits/${visitId}`)
     currentVisitId.value = res.id
     const { pulse, ...rest } = res
     Object.assign(form.value, rest)

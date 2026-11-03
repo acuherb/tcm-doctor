@@ -132,12 +132,12 @@ const herbChartRef = ref<HTMLElement>()
 const prescriptionStatusRef = ref<HTMLElement>()
 const formulaChartRef = ref<HTMLElement>()
 
-const dailyStats = ref<any[]>([])
-const syndromeStats = ref<any[]>([])
-const herbUsage = ref<any[]>([])
-const prescriptionStats = ref<any>({ total: 0, status_stats: [], formula_stats: [] })
+const dailyStats = ref<unknown[]>([])
+const syndromeStats = ref<unknown[]>([])
+const herbUsage = ref<unknown[]>([])
+const prescriptionStats = ref<Record<string, unknown>>({ total: 0, status_stats: [], formula_stats: [] })
 
-const chartInstances: any[] = []
+const chartInstances: unknown[] = []
 
 async function loadAll() {
   await Promise.all([
@@ -149,7 +149,7 @@ async function loadAll() {
 
 async function loadVisitStats() {
   try {
-    const res = await api.get('/stats/visits', { params: { days: period.value } }) as any
+    const res = await api.get<Record<string, unknown>>('/stats/visits', { params: { days: period.value } })
     dailyStats.value = res.daily_stats || []
     syndromeStats.value = res.syndrome_stats || []
     await nextTick()
@@ -159,7 +159,7 @@ async function loadVisitStats() {
 
 async function loadHerbStats() {
   try {
-    const res = await api.get('/stats/herbs', { params: { days: period.value } }) as any
+    const res = await api.get<Record<string, unknown>>('/stats/herbs', { params: { days: period.value } })
     herbUsage.value = res.herb_usage || []
     if (activeTab.value === 'herbs') {
       await nextTick()
@@ -170,7 +170,7 @@ async function loadHerbStats() {
 
 async function loadPrescriptionStats() {
   try {
-    const res = await api.get('/stats/prescriptions', { params: { days: period.value } }) as any
+    const res = await api.get<Record<string, unknown>>('/stats/prescriptions', { params: { days: period.value } })
     prescriptionStats.value = res || {}
     if (activeTab.value === 'prescriptions') {
       await nextTick()

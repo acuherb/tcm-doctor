@@ -197,6 +197,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Plus, Upload, Download, Collection } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import api from '@/utils/api'
+import type { ClassicFormula } from '@/types'
 import { useAuthStore } from '@/store/auth'
 
 // 游客只读：隐藏所有写操作
@@ -314,7 +315,7 @@ async function removeFormula(f: any) {
 async function exportFormulas() {
   try {
     const data: any = await api.get('/prescriptions/classic-formulas/export')
-    const nl = Array.isArray(data) ? data : (data as any)?.data || []
+    const nl = Array.isArray(data) ? data : (data as Paginated<ClassicFormula>)?.data || []
     if (!nl.length) {
       ElMessage.warning('当前方剂库为空')
       return
@@ -371,7 +372,7 @@ async function loadFormulas() {
     const params: any = {}
     if (searchText.value) params.search = searchText.value
     if (sourceFilter.value) params.source = sourceFilter.value
-    formulas.value = (await api.get('/prescriptions/classic-formulas', { params })) as any
+    formulas.value = (await api.get<Paginated<ClassicFormula>>('/prescriptions/classic-formulas', { params }))
   } catch {
     formulas.value = []
   } finally {

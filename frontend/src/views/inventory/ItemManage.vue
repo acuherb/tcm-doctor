@@ -171,9 +171,9 @@ const { categoryColor, categoryChipStyle } = useStockOptionColors()
 const auth = useAuthStore()
 const editable = computed(() => auth.canWrite('stock'))
 
-const items = ref<any[]>([])
-const herbs = ref<any[]>([])
-const suppliers = ref<any[]>([])
+const items = ref<StockItem[]>([])
+const herbs = ref<Herb[]>([])
+const suppliers = ref<Supplier[]>([])
 const searchText = ref('')
 const typeFilter = ref('')
 const submitting = ref(false)
@@ -238,8 +238,8 @@ async function loadSuppliers() {
 }
 
 // 物品类别 / 计量单位 改为从「库存选项」表读取（受控，可在界面增删，不再硬编码）
-const categories = ref<any[]>([])
-const units = ref<any[]>([])
+const categories = ref<StockOption[]>([])
+const units = ref<StockOption[]>([])
 async function loadOptions() {
   try {
     const res = (await api.get<StockOption[]>('/stock/options')) || []

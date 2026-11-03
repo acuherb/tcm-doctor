@@ -348,6 +348,7 @@ import { ElMessage } from 'element-plus'
 import { Plus, Delete } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '@/utils/api'
+import type { Herb, StockBatch, Patient, ClassicFormula, AcupointFormula, Acupoint, Prescription } from '@/types'
 import HerbSelector from '@/components/HerbSelector.vue'
 import AiFormulaImportDialog from '@/components/AiFormulaImportDialog.vue'
 import { useAuthStore } from '@/store/auth'
@@ -612,7 +613,7 @@ const herbCache = new Map<number, any>()
 async function getHerbCache(id: number) {
   if (herbCache.has(id)) return herbCache.get(id)
   try {
-    const herb = await api.get(`/herbs/${id}`) as any
+    const herb = await api.get<Herb>(`/herbs/${id}`)
     herbCache.set(id, herb)
     return herb
   } catch { return null }
@@ -724,7 +725,7 @@ const herbCacheList = ref<any[]>([])
 const inventoryBatches = ref<any[]>([])
 async function loadInventoryBatches() {
   try {
-    inventoryBatches.value = (await api.get('/stock/batches') as any) || []
+    inventoryBatches.value = (await api.get<StockBatch[]>('/stock/batches')) || []
   } catch {}
 }
 // 某药材的可用批次（正常/近效期，余量>0），供开方选择
@@ -834,7 +835,7 @@ function applyPrescription(p: any) {
 async function loadPatients() {
   patientsLoading.value = true
   try {
-    const res = await api.get('/patients', { params: { page_size: 100 } }) as any
+    const res = await api.get<Patient[]>(`/patients`, { params: { page_size: 100 } })
     patients.value = res.items || res || []
   } catch {} finally {
     patientsLoading.value = false
@@ -845,7 +846,7 @@ async function searchPatients(query: string) {
   if (!query) { loadPatients(); return }
   patientsLoading.value = true
   try {
-    const res = await api.get('/patients', { params: { search: query, page_size: 50 } }) as any
+    const res = await api.get<Patient[]>(`/patients`, { params: { search: query, page_size: 50 } })
     patients.value = res.items || res || []
   } catch {} finally {
     patientsLoading.value = false
@@ -854,33 +855,33 @@ async function searchPatients(query: string) {
 
 async function loadFormulas() {
   try {
-    classicFormulas.value = (await api.get('/prescriptions/classic-formulas') as any) || []
+    classicFormulas.value = (await api.get<ClassicFormula[]>('/prescriptions/classic-formulas')) || []
   } catch {}
 }
 
 async function loadAcupointFormulas() {
   try {
-    acupointFormulas.value = (await api.get('/acupoint-formulas') as any) || []
+    acupointFormulas.value = (await api.get<AcupointFormula[]>('/acupoint-formulas')) || []
   } catch {}
 }
 
 async function loadHerbList() {
   try {
-    herbCacheList.value = (await api.get('/herbs') as any) || []
+    herbCacheList.value = (await api.get<Herb[]>('/herbs')) || []
     herbCacheList.value.forEach((h: any) => herbCache.set(h.id, h))
   } catch {}
 }
 
 async function loadAcupoints() {
   try {
-    acupointOptions.value = (await api.get('/acupoints') as any) || []
+    acupointOptions.value = (await api.get<Acupoint[]>('/acupoints')) || []
   } catch {}
 }
 
 // 从针灸方库「引入到处方编辑器」：预填针灸方 4 字段与配穴
 async function applyAcupointFormulaById(id: number) {
   try {
-    const f = await api.get(`/acupoint-formulas/${id}`) as any
+    const f = await api.get<AcupointFormula>(`/acupoint-formulas/${id}`)
     form.value.acupoint_formula_name = f.name
     if (f.technique) form.value.acupoint_technique = f.technique
     if (f.treatment_frequency) form.value.treatment_frequency = f.treatment_frequency
@@ -911,7 +912,7 @@ onMounted(async () => {
   if (q.id) {
     prescriptionId.value = Number(q.id)
     try {
-      const p = await api.get(`/prescriptions/${prescriptionId.value}`) as any
+      const p = await api.get<Prescription>(`/prescriptions/${prescriptionId.value}`)
       applyPrescription(p)
     } catch {}
     // 编辑态下仍允许叠加引入针灸方
@@ -935,7 +936,7 @@ onMounted(async () => {
       if (f) selectFormula(f)
     } else {
       try {
-        const f = await api.get(`/prescriptions/classic-formulas/${fid}`) as any
+        const f = await api.get<ClassicFormula>(`/prescriptions/classic-formulas/${fid}`)
         if (f) selectFormula(f)
       } catch {}
     }

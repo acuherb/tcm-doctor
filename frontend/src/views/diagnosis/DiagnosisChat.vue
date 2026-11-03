@@ -200,6 +200,7 @@ import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Close } from '@element-plus/icons-vue'
 import api from '@/utils/api'
+import type { AppConfig, DictionaryTerm, Conversation, Message } from '@/types'
 import { useAuthStore } from '@/store/auth'
 import { renderMarkdown } from '@/utils/markdown'
 import { compressImageFile } from '@/utils/image'
@@ -335,7 +336,7 @@ function dotColor(type: 'tongue' | 'pulse', name: string): string {
 
 async function loadDictionary() {
   try {
-    const res = await api.get('/dictionaries') as any
+    const res = await api.get<DictionaryTerm[]>('/dictionaries')
     dictTerms.value = Array.isArray(res) ? res : []
   } catch { /* 后端不可用时回退到硬编码兜底 */ }
 }
@@ -343,11 +344,11 @@ async function loadDictionary() {
 onMounted(async () => {
   await loadDictionary()
   try {
-    const res = await api.get('/config') as any
+    const res = await api.get<AppConfig>('/config')
     apiConfigured.value = res.deepseek_configured
     visionAvailable.value = res.vision_configured || false
     try {
-      const status = await api.get('/diagnosis/status') as any
+      const status = await api.get<Record<string, unknown>>('/diagnosis/status')
       vectorAvailable.value = status.vector_store_available || false
     } catch {}
   } catch {}
@@ -356,7 +357,7 @@ onMounted(async () => {
 
 async function loadConversations() {
   try {
-    const res = await api.get('/diagnosis/conversations') as any
+    const res = await api.get<Conversation[]>('/diagnosis/conversations')
     conversations.value = res.items || []
   } catch { /* ignore */ }
 }
@@ -366,7 +367,7 @@ async function switchConversation(uuid: string) {
   activeConvId.value = uuid
   messages.value = []
   try {
-    const res = await api.get(`/diagnosis/conversations/${uuid}/messages`) as any
+    const res = await api.get<Message[]>(`/diagnosis/conversations/${uuid}/messages`)
     for (const m of res.items || []) {
       const imgs = m.images?.map((i: any) => typeof i === 'string' ? i : i.url).filter(Boolean)
       messages.value.push({
@@ -384,7 +385,7 @@ async function switchConversation(uuid: string) {
 
 async function newConversation() {
   try {
-    const res = await api.post('/diagnosis/conversations', {}) as any
+    const res = await api.post<Conversation>('/diagnosis/conversations', {})
     activeConvId.value = res.uuid
     messages.value = [GREETING]
     await loadConversations()
@@ -434,7 +435,7 @@ async function onImageSelect(event: Event) {
   try {
     const formData = new FormData()
     formData.append('file', f)
-    const res = await api.post('/diagnosis/upload-image', formData) as any
+    const res = await api.post<Record<string, unknown>>('/diagnosis/upload-image', formData)
     pendingImages.value.push(res.data_url)
   } catch { ElMessage.error('图片上传失败') }
   input.value = ''
@@ -457,7 +458,7 @@ async function onAnalyzeImageSelect(event: Event) {
   try {
     const formData = new FormData()
     formData.append('file', f)
-    const res = await api.post('/diagnosis/upload-image', formData) as any
+    const res = await api.post<Record<string, unknown>>('/diagnosis/upload-image', formData)
     const target = analyzeImageTarget.value
     if (target === 'lab') analyzeImages.value.lab.push(res.data_url)
     else analyzeImages.value[target] = res.data_url
@@ -530,7 +531,7 @@ async function submitAnalyze() {
   messages.value.push({
     role: 'user',
     content: `【四诊分析请求】\n主诉: ${form.chief_complaint || '未记录'}\n望诊: ${form.observation || '未记录'}\n问诊: ${form.inquiry || '未记录'}\n舌象: ${form.tongue_body || '未记录'} ${form.tongue_coat || ''}\n脉象: ${form.pulse || '未记录'}${imgs.tongue ? '\n[附舌象照片]' : ''}${imgs.face ? '\n[附面色照片]' : ''}${imgs.lab.length ? '\n[附化验单]' : ''}`,
-    images: [imgs.tongue, imgs.face, ...imgs.lab].filter(Boolean) as string[] | undefined as any,
+    images: [imgs.tongue, imgs.face, ...imgs.lab].filter(Boolean) as string[],
   })
   messages.value.push({ role: 'assistant', content: '', warnings: [] })
   const msgIdx = messages.value.length - 1

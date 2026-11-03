@@ -179,6 +179,7 @@ import {
   Search, Close, Refresh, InfoFilled, QuestionFilled, MagicStick, Aim,
 } from '@element-plus/icons-vue'
 import api from '@/utils/api'
+import type { KnowledgeEntry } from '@/types'
 import { useAuthStore } from '@/store/auth'
 import { renderMarkdown } from '@/utils/markdown'
 
@@ -186,12 +187,12 @@ const auth = useAuthStore()
 
 const searchText = ref('')
 const categoryFilter = ref('')
-const results = ref<any[]>([])
+const results = ref<KnowledgeEntry[]>([])
 const searching = ref(false)
 const searched = ref(false)
-const stats = ref<any>({ total_entries: 0, categories: [], vector_store: {} })
+const stats = ref<Record<string, unknown>>({ total_entries: 0, categories: [], vector_store: {} })
 const detailVisible = ref(false)
-const currentEntry = ref<any>(null)
+const currentEntry = ref<KnowledgeEntry | null>(null)
 
 // 向量索引是否启用：由后端 /knowledge/stats 返回，决定界面展示的检索模式
 const semanticOn = computed(() => !!stats.value.vector_store?.available)
@@ -205,7 +206,7 @@ async function doSearch() {
   try {
     const params: any = { q: searchText.value, limit: 20 }
     if (categoryFilter.value) params.category = categoryFilter.value
-    results.value = (await api.get('/knowledge/search', { params })) as any
+    results.value = (await api.get<KnowledgeEntry[]>('/knowledge/search', { params }))
   } catch {} finally {
     searching.value = false
   }
@@ -215,7 +216,7 @@ async function viewDetail(r: any) {
   try {
     // 如果是知识库条目，获取完整内容
     if (r.id && typeof r.id === 'number') {
-      currentEntry.value = await api.get(`/knowledge/entries/${r.id}`) as any
+      currentEntry.value = await api.get<KnowledgeEntry>(`/knowledge/entries/${r.id}`)
     } else {
       currentEntry.value = r
     }
@@ -228,13 +229,13 @@ async function viewDetail(r: any) {
 
 async function loadStats() {
   try {
-    stats.value = (await api.get('/knowledge/stats')) as any
+    stats.value = (await api.get<Record<string, unknown>>('/knowledge/stats'))
   } catch {}
 }
 
 async function rebuildIndex() {
   try {
-    const res = await api.post('/knowledge/rebuild-index') as any
+    const res = await api.post<{ message?: string }>('/knowledge/rebuild-index')
     ElMessage.success(res.message || '索引重建完成')
     loadStats()
   } catch {}

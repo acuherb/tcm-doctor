@@ -155,6 +155,7 @@ import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Check } from '@element-plus/icons-vue'
 import api from '@/utils/api'
+import type { StockItem, Supplier, StockBatch } from '@/types'
 import { useAuthStore } from '@/store/auth'
 
 const auth = useAuthStore()
@@ -162,9 +163,9 @@ const editable = computed(() => auth.canWrite('stock'))
 const route = useRoute()
 
 const mode = ref<'check' | 'fix'>('check')
-const items = ref<any[]>([])
+const items = ref<StockItem[]>([])
 const selectedItemId = ref<number | null>(null)
-const batchRows = ref<any[]>([])
+const batchRows = ref<StockBatch[]>([])
 const itemCounted = ref(0)
 const checkNote = ref('')
 const submitting = ref(false)
@@ -201,17 +202,17 @@ onMounted(() => { updateViewport(); window.addEventListener('resize', updateView
 onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
 
 async function loadItems() {
-  try { items.value = (await api.get('/stock/items') as any) || [] } catch {}
+  try { items.value = (await api.get<StockItem[]>('/stock/items')) || [] } catch {}
 }
-const suppliers = ref<any[]>([])
+const suppliers = ref<Supplier[]>([])
 async function loadSuppliers() {
-  try { suppliers.value = (await api.get('/stock/suppliers') as any) || [] } catch {}
+  try { suppliers.value = (await api.get<Supplier[]>('/stock/suppliers')) || [] } catch {}
 }
 async function loadBatches() {
   if (!selectedItemId.value) { batchRows.value = []; return }
   fixShown.value = fixPageSize
   try {
-    const rows = (await api.get('/stock/batches', { params: { item_id: selectedItemId.value, include_inactive: true } }) as any) || []
+    const rows = (await api.get<StockBatch[]>('/stock/batches', { params: { item_id: selectedItemId.value, include_inactive: true } })) || []
     batchRows.value = rows.map((b: any) => ({ ...b, counted: Number(b.quantity || 0) }))
     itemCounted.value = totalBefore.value
   } catch (e: any) {

@@ -141,7 +141,7 @@ import { Download, Delete } from '@element-plus/icons-vue'
 import api from '@/utils/api'
 import type { OperationLog as LogEntry } from '@/types'
 
-const logs = ref<any[]>([])
+const logs = ref<LogEntry[]>([])
 const isMobile = ref(false)
 const hasMore = ref(false)
 const loadingMore = ref(false)

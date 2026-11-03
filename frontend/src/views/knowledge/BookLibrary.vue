@@ -182,6 +182,7 @@ import { ref, computed, onMounted, onUnmounted, onBeforeUnmount } from 'vue'
 import { Search, Plus, Upload, Download, Delete } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import api from '@/utils/api'
+import type { KnowledgeEntry, KnowledgeSource } from '@/types'
 import { renderMarkdown } from '@/utils/markdown'
 import { useAuthStore } from '@/store/auth'
 import type { UploadFile } from 'element-plus'
@@ -225,7 +226,7 @@ const sources = ref<SourceItem[]>([])
 const categories = ref<CategoryItem[]>([])
 
 const detailVisible = ref(false)
-const currentEntry = ref<any>(null)
+const currentEntry = ref<KnowledgeEntry | null>(null)
 const selectedIds = ref<number[]>([])
 const fullContentMap = ref<Record<number, string>>({})
 
@@ -278,14 +279,14 @@ function onPageSizeChange(size: number) {
 
 async function loadStats() {
   try {
-    const stats = (await api.get('/knowledge/stats')) as any
+    const stats = (await api.get<Record<string, unknown>>('/knowledge/stats'))
     categories.value = stats.categories || []
   } catch {}
 }
 
 async function loadSources() {
   try {
-    sources.value = (await api.get('/knowledge/sources')) as any
+    sources.value = (await api.get<KnowledgeSource[]>('/knowledge/sources'))
   } catch {}
 }
 
@@ -299,7 +300,7 @@ async function loadEntries() {
     if (activeCategory.value) params.category = activeCategory.value
     if (sourceFilter.value) params.source = sourceFilter.value
     if (searchText.value) params.search = searchText.value
-    const res = (await api.get('/knowledge/entries', { params })) as any
+    const res = (await api.get<Paginated<KnowledgeEntry>>('/knowledge/entries', { params }))
     entries.value = res.items || []
     total.value = res.total || 0
   } catch {
@@ -388,7 +389,7 @@ function onSelectionChange(sel: any[]) {
 async function loadFull(row: any) {
   if (!row?.id || fullContentMap.value[row.id]) return
   try {
-    const e = await api.get(`/knowledge/entries/${row.id}`) as any
+    const e = await api.get<KnowledgeEntry>(`/knowledge/entries/${row.id}`)
     fullContentMap.value[row.id] = e.content || ''
   } catch { /* 忽略 */ }
 }
@@ -396,7 +397,7 @@ async function loadFull(row: any) {
 async function batchDelete() {
   if (!selectedIds.value.length) return
   try {
-    const res = (await api.delete('/knowledge/entries/batch', { data: selectedIds.value })) as any
+    const res = (await api.delete<{ message?: string }>('/knowledge/entries/batch', { data: selectedIds.value }))
     ElMessage.success(`已删除 ${res.deleted || 0} 条`)
     selectedIds.value = []
     loadStats()
@@ -413,7 +414,7 @@ async function onExport() {
     const params: any = {}
     if (activeCategory.value) params.category = activeCategory.value
     if (sourceFilter.value) params.source = sourceFilter.value
-    const data = (await api.get('/knowledge/export', { params })) as any[]
+    const data = await api.get<Blob>('/knowledge/export', { params })
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -441,7 +442,7 @@ async function onImportFile(file: UploadFile) {
         return
       }
       importing.value = true
-      const res = (await api.post('/knowledge/import', list)) as any
+      const res = (await api.post<{ message?: string }>('/knowledge/import', list))
       ElMessage.success(`导入完成：新增 ${res.added}，更新 ${res.updated}`)
       loadStats()
       loadSources()

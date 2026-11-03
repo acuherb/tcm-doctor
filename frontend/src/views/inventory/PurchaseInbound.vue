@@ -125,15 +125,16 @@ import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus, Delete } from '@element-plus/icons-vue'
 import api from '@/utils/api'
+import type { Supplier, StockItem, PurchaseOrder, PurchaseItem } from '@/types'
 import { useAuthStore } from '@/store/auth'
 
 const auth = useAuthStore()
 const isMobile = ref(false)
 function updateViewport() { isMobile.value = window.innerWidth < 768 }
 const editable = computed(() => auth.canWrite('stock'))
-const orders = ref<any[]>([])
-const suppliers = ref<any[]>([])
-const items = ref<any[]>([])
+const orders = ref<PurchaseOrder[]>([])
+const suppliers = ref<Supplier[]>([])
+const items = ref<StockItem[]>([])
 const visible = ref(false)
 const submitting = ref(false)
 const page = ref(1)
@@ -142,7 +143,7 @@ const total = ref(0)
 const hasMore = ref(false)
 const loadingMore = ref(false)
 
-const form = reactive({ supplier_id: null as number | null, order_date: '', note: '', items: [] as any[] })
+const form = reactive({ supplier_id: null as number | null, order_date: '', note: '', items: [] as PurchaseItem[] })
 const rules = { supplier_id: [{ required: false }] }
 const poTotal = computed(() => form.items.reduce((s: number, it: any) => s + (Number(it.quantity) || 0) * (Number(it.unit_price) || 0), 0))
 
@@ -151,7 +152,7 @@ async function load() {
   page.value = 1
   hasMore.value = true
   try {
-    const res = (await api.get('/stock/purchases', { params: { page: page.value, page_size: pageSize.value } }) as any) || []
+    const res = (await api.get<Paginated<PurchaseOrder>>('/stock/purchases', { params: { page: page.value, page_size: pageSize.value } })) || []
     if (Array.isArray(res)) {
       orders.value = res
       total.value = res.length
@@ -161,8 +162,8 @@ async function load() {
       total.value = res.total || 0
       hasMore.value = orders.value.length < total.value
     }
-    suppliers.value = (await api.get('/stock/suppliers') as any) || []
-    items.value = (await api.get('/stock/items') as any) || []
+    suppliers.value = (await api.get<Supplier[]>('/stock/suppliers')) || []
+    items.value = (await api.get<StockItem[]>('/stock/items')) || []
   } catch (e: any) { ElMessage.error('加载失败：' + (e?.response?.data?.detail || e?.message)) }
 }
 async function loadMore() {
@@ -170,7 +171,7 @@ async function loadMore() {
   loadingMore.value = true
   try {
     const next = page.value + 1
-    const res = (await api.get('/stock/purchases', { params: { page: next, page_size: pageSize.value } }) as any) || []
+    const res = (await api.get<Paginated<PurchaseOrder>>('/stock/purchases', { params: { page: next, page_size: pageSize.value } })) || []
     const rows = Array.isArray(res) ? res : (res.items || [])
     const seen = new Set(orders.value.map((o: any) => o.id))
     orders.value.push(...rows.filter((r: any) => !seen.has(r.id)))

@@ -39,7 +39,7 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response.data,
   (error) => {
-    const cfg = error.config as any
+    const cfg = error.config
     const status = error.response?.status
     const isAuthCall = cfg?.url?.includes('/auth/')
     // 401 未登录/过期 → 清理登录态（localStorage + axios 头 + Pinia）并跳转登录页

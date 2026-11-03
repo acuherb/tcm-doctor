@@ -157,18 +157,18 @@ const quickActions = [
   { title: '系统设置', desc: '配置管理', route: '/settings', icon: 'Setting', color: '#999' },
 ]
 
-const alerts = ref<any[]>([])
+const alerts = ref<Array<Record<string, unknown>>>([])
 const pendingCount = ref(0)
 const pendingFollowups = ref(0)
-const followupReminders = ref<any[]>([])
+const followupReminders = ref<unknown[]>([])
 const visitChartRef = ref<HTMLElement>()
-const visitTrend = ref<any[]>([])
+const visitTrend = ref<unknown[]>([])
 
 async function loadDashboard() {
   try {
     const [dashData, alertsData] = await Promise.all([
-      api.get('/stats/dashboard') as any,
-      api.get('/stock/alerts') as any,
+      api.get<Record<string, unknown>>('/stats/dashboard'),
+      api.get<Array<Record<string, unknown>>>('/stock/alerts'),
     ])
     statCards.value[0].value = dashData.today_visits || 0
     statCards.value[1].value = dashData.total_patients || 0

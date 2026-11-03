@@ -250,7 +250,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
 import api from '@/utils/api'
-import type { Patient } from '@/types'
+import type { Patient, DictionaryTerm } from '@/types'
 import { useAuthStore } from '@/store/auth'
 import { calcAge, calcBmi, bodyType } from '@/utils/health'
 
@@ -268,7 +268,7 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
 onMounted(() => window.addEventListener('resize', updateViewport))
 
 const router = useRouter()
-const patients = ref<any[]>([])
+const patients = ref<Patient[]>([])
 
 function ageOf(row: any): string {
   const a = calcAge(row.birth_date)
@@ -287,7 +287,7 @@ const searchText = ref('')
 const showAddDialog = ref(false)
 const submitting = ref(false)
 // 字典中的患者标签（供新增表单选择 + 列表筛选）
-const tagOptions = ref<any[]>([])
+const tagOptions = ref<DictionaryTerm[]>([])
 
 // 列表筛选条件
 const filterConstitution = ref('')
@@ -416,7 +416,7 @@ async function deletePatient(row: any) {
 onMounted(async () => {
   loadPatients()
   try {
-    tagOptions.value = (await api.get('/dictionaries', { params: { term_type: 'tag', is_active: true } })) as any
+    tagOptions.value = (await api.get<DictionaryTerm[]>('/dictionaries', { params: { term_type: 'tag', is_active: true } }))
   } catch {}
 })
 </script>

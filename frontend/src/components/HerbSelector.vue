@@ -40,6 +40,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import api from '@/utils/api'
+import type { Herb } from '@/types'
 
 const props = withDefaults(defineProps<{
   modelValue?: number | null
@@ -63,13 +64,13 @@ const emit = defineEmits<{
 }>()
 
 const selectedHerbId = ref<number | null>(props.modelValue)
-const allHerbs = ref<any[]>([])
-const filteredHerbs = ref<any[]>([])
+const allHerbs = ref<Herb[]>([])
+const filteredHerbs = ref<Herb[]>([])
 const searchLoading = ref(false)
 
 async function loadAllHerbs() {
   try {
-    allHerbs.value = (await api.get('/herbs') as any) || []
+    allHerbs.value = (await api.get<Herb[]>('/herbs')) || []
     filteredHerbs.value = allHerbs.value.filter((h: any) => !props.excludeIds.includes(h.id))
   } catch {}
 }

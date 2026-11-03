@@ -1,4 +1,4 @@
-<template>
+🤖 AI 配置<template>
   <div class="user-manage">
     <el-card shadow="hover" class="main-card">
       <template #header>
@@ -147,6 +147,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus, InfoFilled, WarningFilled } from '@element-plus/icons-vue'
 import api from '@/utils/api'
+import type { TcmUser } from '@/types'
 import { useAuthStore } from '@/store/auth'
 
 interface AccountRow {
@@ -223,7 +224,7 @@ function roleTagType(role: string) {
   const map: Record<string, string> = {
     admin: 'danger', doctor: 'success', pharmacist: 'warning', viewer: 'info',
   }
-  return (map[role] || 'info') as any
+  return (map[role] || 'info') as string
 }
 
 function isGuest(row: AccountRow) {
@@ -238,7 +239,7 @@ function avatarText(row: AccountRow) {
 
 async function load() {
   try {
-    users.value = (await api.get('/auth/users')) as any
+    users.value = (await api.get<TcmUser[]>('/auth/users'))
   } catch (e: any) {
     ElMessage.error(e?.response?.data?.detail || '加载账号失败')
   }
@@ -247,7 +248,7 @@ async function load() {
 // 权限目录（权限点分组 + 角色默认集），仅用于渲染勾选表，失败不影响账号列表
 async function loadCatalog() {
   try {
-    const res = (await api.get('/auth/permissions')) as any
+    const res = (await api.get<Record<string, unknown>>('/auth/permissions'))
     permCatalog.value = { groups: res.groups || [], role_defaults: res.role_defaults || {} }
   } catch {
     /* 权限目录加载失败不影响账号管理 */
@@ -292,7 +293,7 @@ async function save() {
         permissions: form.permissions,
       })
       if (editId.value === auth.user?.id) {
-        const me = (await api.get('/auth/me')) as any
+        const me = (await api.get<TcmUser>('/auth/me'))
         auth.setUser(me)
       }
       ElMessage.success('账号已更新')

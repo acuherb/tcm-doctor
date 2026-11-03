@@ -2,45 +2,47 @@
 
 以《伤寒论》《金匮要略》与**倪海厦经方体系**为核心的诊所管理平台：从问诊十问辨证，到六经推荐经方、一键开方发药，全流程闭环。
 
+> ⚠️ **免责声明与本项目定位**
+>
+> - **仅供学习与临床辅助**：AI 辨证与方剂推荐结果仅供参考，不构成诊疗建议；处方须由具备执业资质的医师亲自审核签发。
+> - **内容来源**：内置药材、方剂、穴位与医籍内容整理自中医经典文献及倪海厦人纪系列，版权归原作者及出版方所有，仅用于学习研究。
+> - **合规提示**：正式临床使用请遵循当地《医疗机构管理条例》《中医病历书写规范》等相关法规。
+> - **数据分发**：知识类数据（药材 / 穴位 / 方剂 / 典籍）后续将独立为可导入的 JSON 数据包，与代码仓库分离发布（详见[数据模板](#数据模板规划中)）。
+
 ## 系统架构
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    Electron 主进程                        │
-│  ┌──────────────┐  ┌──────────────┐  ┌───────────────┐  │
-│  │ BrowserWindow │  │ PythonRunner │  │  Preload 桥接  │  │
-│  │  (Chromium)   │  │ (子进程管理)  │  │ (IPC 通信)    │  │
-│  └──────┬───────┘  └──────┬───────┘  └───────────────┘  │
-└─────────┼─────────────────┼─────────────────────────────┘
-          │                 │
-          ▼                 ▼
-┌──────────────────┐  ┌──────────────────────────────────┐
-│   Vue3 前端 SPA   │  │        FastAPI 后端 (8765)        │
-│ ┌──────────────┐ │  │ ┌──────────────────────────────┐ │
-│ │ Element Plus │ │  │ │          Routers              │ │
-│ │ ECharts      │ │  │ │  /patients  /herbs  /rx     │ │
-│ │ Pinia        │ │  │ │  /diagnosis  /knowledge      │ │
-│ │ Vue Router   │ │  │ │  /stats  /backup  /config    │ │
-│ └──────────────┘ │  │ └──────────────────────────────┘ │
-│ ┌──────────────┐ │  │ ┌──────────────────────────────┐ │
-│ │   api.ts     │ │  │ │         Services              │ │
-│ │ (axios 请求) │ │──│ │  AI辨证  配伍检查  体质评估   │ │
-│ └──────────────┘ │  │ │  向量检索  库存管理           │ │
-└──────────────────┘  │ └──────────────────────────────┘ │
-                      │ ┌──────────────────────────────┐ │
-                      │ │      Data Layer               │ │
-                      │ │  SQLite + SQLAlchemy 2.0      │ │
-                      │ │  ChromaDB (可选)              │ │
-                      │ └──────────────────────────────┘ │
-                      └──────────┬───────────────────────┘
-                                 │
-                    ┌────────────┼────────────┐
-                    ▼            ▼            ▼
-              ┌──────────┐ ┌──────────┐ ┌──────────┐
-              │ DeepSeek │ │ 硅基流动  │ │ 知识库JSON│
-              │  API     │ │  Vision  │ │  (29部)  │
-              │(文字对话) │ │(图片识别)│ │          │
-              └──────────┘ └──────────┘ └──────────┘
+```mermaid
+graph TB
+    subgraph E["Electron 主进程"]
+        direction LR
+        W["BrowserWindow<br/>Chromium"] --- P["PythonRunner<br/>子进程管理"] --- I["Preload 桥接<br/>IPC 通信"]
+    end
+
+    subgraph F["Vue3 前端 SPA"]
+        direction TB
+        UI["Element Plus · ECharts<br/>Pinia · Vue Router"]
+        API["api.ts<br/>axios 请求"]
+        UI --> API
+    end
+
+    subgraph B["FastAPI 后端 8765"]
+        direction TB
+        R["Routers<br/>patients / prescriptions / herbs<br/>acupuncture / diagnosis / knowledge<br/>stock / system_logs / auth<br/>stats / backup / config"]
+        S["Services<br/>AI 辨证 · 处方安全检查<br/>体质评估 · 向量检索<br/>操作审计 · 库存管理"]
+        D["Data Layer<br/>SQLite + SQLAlchemy 2.0<br/>ChromaDB 可选"]
+        R --> S
+        S --> D
+    end
+
+    DS["DeepSeek API<br/>文字对话"]
+    SF["硅基流动 Vision<br/>图片识别"]
+    KD["知识类数据 JSON 包<br/>29 部典籍"]
+
+    E --> F
+    API --> R
+    D --> DS
+    D --> SF
+    D --> KD
 ```
 
 ## 技术栈
@@ -50,9 +52,11 @@
 | 桌面壳 | Electron 28 |
 | 前端 | Vue 3 + Element Plus + TypeScript + Pinia + ECharts |
 | 后端 | Python FastAPI + SQLAlchemy 2.0 + SQLite |
+| 权限 | 5 种角色 + 17 个细粒度权限点（见[权限模型](#权限模型)） |
 | AI 文字 | DeepSeek API (deepseek-chat / deepseek-reasoner) |
 | AI 图片 | 硅基流动 Vision API (Kimi-K2.6) |
-| 知识检索 | RAG 多路召回 (关键词 + ChromaDB 语义向量) |
+| 知识检索 | RAG 多路召回 (关键词 + ChromaDB 语义向量，可降级) |
+| 审计 | 全接口操作日志（DEBUG / INFO / WARN / ERROR 四级） |
 | 打包 | electron-builder (NSIS) + PyInstaller |
 
 ## 快速开始
@@ -63,31 +67,40 @@
 - Node.js 18+
 - npm
 
-### 安装与启动
+### 方式一：一键启动（推荐）
 
 ```bash
-# 1. 克隆项目
 git clone https://github.com/acuherb/tcm-doctor.git
 cd tcm-doctor
+chmod +x start.sh
+./start.sh
+```
 
-# 2. 安装后端依赖
+脚本会自动完成：检查依赖 → 安装前后端依赖 → 建表并初始化管理员账号 → 同时拉起后端 (8765) 与前端 (5173)。
+
+浏览器访问 `http://localhost:5173`。首次登录请使用初始化生成的管理员账号，进入「系统设置」配置 DeepSeek API Key 即可启用 AI 辨证。
+
+### 方式二：手动启动
+
+```bash
+# 1. 安装后端依赖
 cd backend
 pip install fastapi uvicorn sqlalchemy pydantic-settings httpx python-multipart
 
-# 3. 安装前端依赖
+# 2. 安装前端依赖
 cd ../frontend
 npm install
 
-# 4. 启动后端（端口 8765）
+# 3. 启动后端（端口 8765）
 cd ../backend
 python -m uvicorn app.main:app --reload --port 8765
 
-# 5. 启动前端（端口 5173，自动代理 /api → 后端）
-cd ../frontend
+# 4. 新开终端，启动前端（端口 5173，自动代理 /api → 后端）
+cd frontend
 npm run dev
 ```
 
-浏览器访问 `http://localhost:5173`，进入系统设置配置 DeepSeek API Key 即可使用。
+> **生产部署提示**：后端登录限流为进程内内存计数，**必须单 worker 运行**（不要使用 `--workers N`），否则暴力破解防护会失效。建议置于反向代理后并启用 HTTPS。
 
 ### API Key 配置
 
@@ -103,6 +116,8 @@ npm run dev
 > 图片识别为可选功能。未配置 Vision 时，上传图片不会报错，AI 将基于文字描述进行分析。
 
 ### 桌面端打包
+
+> ⚠️ **必须在 Windows 机器上执行**。PyInstaller 不能跨平台交叉编译——在 Linux/macOS 上打包出的后端可执行文件无法在 Windows 上运行，而 `electron-builder.yml` 与 `python-runner.ts` 中的后端路径写死为 `tcm-backend.exe`。
 
 ```bash
 # 1. 编译 Electron 主进程
@@ -122,6 +137,16 @@ npx electron-builder --win --x64
 
 产出：`dist-electron/tcm-doctor-setup-0.1.0.exe`
 
+安装包内**只包含后端可执行文件**，不携带任何数据库或业务数据。数据目录位置：
+
+| 部署形态 | 数据目录 |
+|---------|---------|
+| 桌面安装（Windows） | `%APPDATA%\tcm-doctor\`（数据库、`.env`、Chroma 向量库） |
+| Docker / 容器 | `DATA_DIR` 挂载点（默认 `/data`） |
+| 开发模式 | 项目根目录（`backend/tcm_doctor.db`） |
+
+> 桌面端首次启动会在用户目录下自动建库并初始化内置知识数据，不会向安装目录写入——避免 `Program Files` 只读导致的启动失败。后续数据模板功能落地后，知识数据将改为运行时从数据目录加载，不再打进安装包。
+
 ## 功能模块
 
 ### 患者管理
@@ -135,8 +160,17 @@ npx electron-builder --win --x64
 
 ### 药品管理
 - 药材字典（229 味，覆盖 18 个分类，支持异名搜索 + 批量导入/导出 JSON）
-- 库存管理（入库/出库/预警/仓位/批次）
-- 处方安全检查（仅超剂量 / 毒性 / 孕妇禁忌提醒，按《本经》三品标注；十八反·十九畏已不再做硬性校验）
+- **库存管理全景**（独立模块，9 个页面）：
+  - 库存总览（预警与总览双卡片、批量操作）
+  - 物品管理（增删改查 + 多维筛选）
+  - 出入库流水（多维筛选、金额配色区分）
+  - 库存盘点（全量 / 抽盘两种模式 + 批次纠错）
+  - 采购入库（采购单 + 明细展开）
+  - 供应商管理
+  - 库存选项（物品类别 + 计量单位维护）
+  - 进销存报表（汇总 / 利润 / ABC 分析 / 周转率 / 供应商价格）
+- 处方安全检查（仅超剂量 / 毒性 / 孕妇禁忌提醒，按《本经》三品标注）
+- **十八反·十九畏校验已完全移除**（代码中仅保留说明性注释，不再做硬性拦截，后续亦无计划恢复）
 
 ### 针灸穴位库
 - 腧穴字典（170 穴，合并倪师穴位索引 + 针灸 164 项，按十四经 / 任督 / 奇穴归类，带定位详情）
@@ -174,10 +208,42 @@ npx electron-builder --win --x64
 
 ### 系统管理
 - 系统设置（API 配置 + 连接测试 + 持久化到 .env）
-- 登录与权限：支持**游客免密登录**（`ALLOW_GUEST_LOGIN`，默认开启）仅浏览；所有**导出 / 写操作仅限管理员（admin）**——前端对游客隐藏全部导出入口，后端 `/backup/export` 等接口对游客返回 403，防止患者隐私（PII）泄露
-- 数据备份/恢复（SQLite 导出/导入/重置，仅 admin）
+- **账号管理**（用户增删改查、显示名称、角色分配、启用 / 禁用、自定义权限点）
+- **操作日志**（全接口审计，见下节）
+- 数据备份/恢复（SQLite 导出/导入/重置，仅 `backup:manage` 权限）
+
+#### 权限模型
+
+系统采用 **5 种角色 + 17 个细粒度权限点**，管理员可为任意账号单独勾选权限点（自定义权限优先于角色模板）。
+
+| 角色 | 说明 | 典型权限 |
+|------|------|----------|
+| `admin` | 管理员 | 全部权限，含账号管理与备份 |
+| `doctor` | 医师 | 患者、就诊、处方读写，AI 辨证 |
+| `pharmacist` | 药师 / 药房 | 库存、发药，**不可开方** |
+| `viewer` | 只读 | 仅查看，所有写操作与导出被拒 |
+| `custom` | 自定义 | 由管理员逐项勾选 |
+
+> **游客登录**：`ALLOW_GUEST_LOGIN` **默认关闭**（`false`）。如需临时演示，可在 `.env` 中显式开启，此时游客仅能浏览，所有导出 / 写接口在后端返回 403，前端同步隐藏全部导出入口，防止患者隐私（PII）泄露。
+
+#### 操作日志
+
+所有经过后端的请求统一记录到 `operation_logs` 表，用于审计与排障：
+
+| 能力 | 说明 |
+|------|------|
+| 分级 | `DEBUG` / `INFO` / `WARN` / `ERROR`，按 HTTP 状态码与异常自动归类 |
+| 内容 | 操作人、角色、方法、路径、操作对象、状态码、IP、耗时、时间 |
+| 对象提取 | 自动从请求体提取对象名称（患者姓名 / 药名 / 方名 / 穴名 / 账号 / 供应商等），敏感字段（密码、身份证、手机号、token）自动脱敏 |
+| 过滤 | 按操作人、方法、等级、时间区间、关键词检索 |
+| 导出 | CSV 导出（受 `log:export` 权限控制） |
+| 清理 | 支持一键清空（`DELETE /system/logs/clean`） |
+
+> 日志通过 `BackgroundTask` 异步落库，**对接口响应耗时无影响**；默认保留 180 天，超期自动清理防止表膨胀。
 
 ## 数据概况
+
+> 下表为**完整数据安装后**的数量。当前版本内置数据随代码一同发布；后续版本会将知识类数据独立为可导入的 JSON 数据包（见下节）。
 
 | 数据类别 | 数量 |
 |----------|------|
@@ -185,7 +251,7 @@ npx electron-builder --win --x64
 | 经典方剂 | 146 首（伤寒论 112 + 金匮要略 + 后世方，0 缺失，六经归档） |
 | 针灸方库 | 6 首（安神定志 / 健脾和胃 / 腰痛 / 疏风解表 / 调经 / 醒脑开窍，来源标注倪海厦·针灸 / 通用） |
 | 穴位 | 170 穴（倪师穴位索引 + 针灸 164 项，按归经/奇穴归类） |
-| 处方安全检查 | 超剂量 / 毒性 / 孕妇禁忌（十八反·十九畏已移除） |
+| 处方安全检查 | 超剂量 / 毒性 / 孕妇禁忌（**十八反·十九畏已移除**） |
 | 知识库条目 | 1313 条 |
 | 知识库来源 | 29 部中医经典 |
 
@@ -198,6 +264,48 @@ npx electron-builder --win --x64
 | 针灸 | 中医针灸学、针灸甲乙经 |
 | 医案 | 临证指南医案、黄煌经方医案、岳美中医案集、蒲辅周医案、经方实验录 |
 | 综合 | 医学衷中参西录 |
+
+## 数据模板（规划中）
+
+> 本节描述**后续版本**的数据分发方式，当前版本的数据仍随代码内置。
+
+### 为什么要拆
+
+知识类数据（药材、穴位、方剂、典籍）具有三个特点：体量大、更新频繁、有明确的版权归属。将其与业务代码捆绑会带来三个问题：
+
+1. **仓库膨胀**——典籍全文与方剂数据占据绝大部分仓库体积；
+2. **版权边界模糊**——整理自倪海厦人纪及中医经典的内容随代码分发，授权范围难以界定；
+3. **schema 耦合**——药材表新增字段（如毒性等级）会导致旧数据包整体失效。
+
+### 两种安装形态
+
+| 形态 | 适用 | 说明 |
+|------|------|------|
+| **纯框架模式** | 已有自建药材库 / 方库的诊所 | 仅包含系统骨架（账号、字典、权限），知识数据按需自行导入 |
+| **模板导入模式** | 新开诊所、快速上手 | 导入官方整理的 JSON 数据包，开箱即用 |
+
+### 数据包设计
+
+按**依赖关系**拆分为三个层级（而非按业务类别平铺，避免方剂引用药材时悬空）：
+
+```
+templates/
+├── manifest.json          # 清单：版本 / 来源 / 条目数 / sha256 / 依赖
+├── core/                  # 药材 + 穴位 + 基础字典（必装，体积小）
+├── formulas/              # 中药方库 + 针灸方库（依赖 core）
+└── books/                 # 医籍文库（体积最大，可选）
+```
+
+每包配一份 manifest，声明 `schema_version`（防止结构漂移）、`sha256`（防止传输损坏）、`depends_on`（防止引用悬空）。
+
+### 导入约束
+
+- **仅白名单表**——数据包只含参考知识，`patients`、`prescriptions`、`stock_batches` 等业务数据**永不打包**，避免误冲用户数据；
+- **幂等 upsert**——按唯一键（药名 / 穴名 / 方名）增量写入，重复导入不产生重复数据；
+- **预检确认**——先 `dry_run` 输出「新增 N / 更新 M / 跳过 K」，用户确认后才真正落库；
+- **与整库恢复隔离**——数据包导入面向「补充知识」，备份恢复面向「灾难还原」，两条路径互不复用。
+
+> 实现时建议采用 **JSONL**（每行一个对象）存储大包，便于流式解析与定位错误行；小包可用普通 JSON。
 
 ## 项目结构
 
@@ -213,35 +321,45 @@ tcm-doctor/
 │   │   ├── layouts/        # 主布局（侧边栏导航）
 │   │   ├── views/          # 页面组件
 │   │   │   ├── dashboard/  # 工作台 + 统计报表
-│   │   │   ├── patient/    # 患者管理 + 就诊记录 + 问诊十问
-│   │   │   ├── herb/       # 药材字典 + 库存管理
-│   │   │   ├── prescription/ # 处方编辑 + 经典方库
+│   │   │   ├── patient/    # 患者列表/详情/就诊记录/体质评估
+│   │   │   ├── herb/       # 药材字典
+│   │   │   ├── prescription/ # 处方列表/编辑器 + 经典方库
+│   │   │   ├── acupoint/   # 穴位 + 针灸方库
 │   │   │   ├── knowledge/  # 知识检索 + 医籍文库
-│   │   │   ├── diagnosis/  # 智能问诊（AI + 图片识别）
+│   │   │   ├── inventory/  # 库存总览/物品/流水/盘点/采购/供应商/选项/报表
+│   │   │   ├── dictionary/ # 数据字典维护
+│   │   │   ├── system/     # 账号管理 + 操作日志
 │   │   │   └── settings/   # 系统设置
 │   │   ├── components/     # 公共组件（药材选择器/配伍警报）
 │   │   ├── utils/          # api.ts（axios 封装）
-│   │   └── styles/         # 中医暖色主题
+│   │   └── styles/         # 中医暖色主题（tcm-theme.scss 统一页面骨架）
 │   └── vite.config.ts
 ├── backend/                 # FastAPI 后端
 │   ├── app/
-│   │   ├── main.py         # FastAPI 入口 + CORS + 配置API
+│   │   ├── main.py         # FastAPI 入口 + CORS + 审计中间件
 │   │   ├── config.py       # pydantic_settings 配置管理
 │   │   ├── database.py     # SQLAlchemy 引擎 + 会话
-│   │   ├── models/         # ORM 模型（患者/就诊/药材/方剂/知识库）
+│   │   ├── migrations.py   # 轻量迁移（自动补列）
+│   │   ├── permissions.py  # 角色模板 + 17 个权限点定义
+│   │   ├── models/         # ORM 模型（患者/就诊/药材/方剂/知识/库存/日志）
 │   │   ├── schemas/        # Pydantic 请求/响应模型
-│   │   ├── routers/        # API 路由（患者/药品/处方/针灸方库/针灸/知识/问诊/统计/备份/设置等模块）
+│   │   ├── routers/        # API 路由（patients/prescriptions/herbs/acupuncture/
+│   │   │                   #   diagnosis/knowledge/stock/auth/system_log/
+│   │   │                   #   stats/backup/config 等）
 │   │   ├── services/       # 业务逻辑
-│   │   │   ├── ai_diagnosis_service.py  # AI 辨证（DeepSeek + Vision + RAG）
+│   │   │   ├── ai_diagnosis_service.py   # AI 辨证（DeepSeek + Vision + RAG）
 │   │   │   ├── incompatibility_checker.py # 处方安全检查（超剂量/毒性/孕妇禁忌）
 │   │   │   ├── constitution_evaluator.py  # 问诊十问/六经辨证评估
-│   │   │   └── vector_store.py            # ChromaDB 向量检索
-│   │   └── data/           # 种子数据 + 29 部典籍 JSON
+│   │   │   ├── operation_log.py           # 操作日志写入与对象提取
+│   │   │   └── vector_store.py            # ChromaDB 向量检索（可降级）
+│   │   ├── data/           # 内置知识数据（后续将独立为数据包）
+│   │   └── seed.py         # 首次启动种子初始化
 │   ├── run.py              # PyInstaller 入口
 │   ├── build.spec          # PyInstaller 配置
-│   ├── tcm_doctor.db       # SQLite 数据库（运行时由种子脚本生成，已被 .gitignore 忽略，不入库）
+│   ├── tcm_doctor.db       # SQLite 数据库（运行时生成，已 .gitignore）
 │   └── pyproject.toml
 ├── resources/               # 应用图标
+├── start.sh                 # 一键启动脚本
 ├── electron-builder.yml     # electron-builder 打包配置
 └── package.json             # Electron 根配置
 ```
@@ -256,8 +374,18 @@ tcm-doctor/
 | 患者 | `/api/v1/patients/{id}/visits` | 就诊记录 |
 | 患者 | `/api/v1/patients/{id}/constitution` | 问诊十问 / 体质辨识（支持 `visit_id` 绑定到具体就诊） |
 | 药品 | `/api/v1/herbs` | 药材字典 + 详情 |
-| 药品 | `/api/v1/herbs/inventory/*` | 库存管理（入库/出库/预警/汇总） |
 | 药品 | `/api/v1/herbs/tags/meta` | 药材标签维度与受控词表 |
+| 针灸 | `/api/v1/acupuncture` | 穴位字典 + 增删改查 + 导入 |
+| 库存 | `/api/v1/stock/items` | 库存物品 CRUD |
+| 库存 | `/api/v1/stock/items/{id}/batches` | 批次管理（入库 / 出库 / 报损） |
+| 库存 | `/api/v1/stock/transactions` | 出入库流水查询 |
+| 库存 | `/api/v1/stock/overview`、`/api/v1/stock/alerts` | 库存总览与预警 |
+| 库存 | `/api/v1/stock/adjust/bulk` | 批量校准 |
+| 库存 | `/api/v1/stock/suppliers` | 供应商管理 |
+| 库存 | `/api/v1/stock/purchases` | 采购入库单 |
+| 库存 | `/api/v1/stock/lookup` | 物品 / 单位 / 类别选项 |
+| 库存 | `/api/v1/stock/options` | 物品类别与计量单位维护 |
+| 库存 | `/api/v1/stock/report/*` | 进销存报表（汇总 / 利润 / ABC / 周转 / 供应商价格） |
 | 处方 | `/api/v1/prescriptions` | 处方 CRUD + 审核 + 发药（含 `acupoint_formula_name` / `acupoint_technique` / `treatment_frequency` / `treatment_days` 四个针灸方顶层字段） |
 | 处方 | `/api/v1/prescriptions/classic-formulas` | 经典方剂库 |
 | 处方 | `/api/v1/acupoint-formulas` | 针灸方库 CRUD（搜索 / 出处筛选 / 导入 / 导出） |
@@ -275,15 +403,23 @@ tcm-doctor/
 | 随访 | `/api/v1/followup-reminders/{id}` | 随访提醒更新（标记完成·取消·改期）/ 删除 |
 | 备份 | `/api/v1/backup/export` | 导出备份 |
 | 备份 | `/api/v1/backup/import` | 导入恢复 |
+| 备份 | `POST /api/v1/backup/reset` | 重置数据库（仅 admin） |
+| 账号 | `/api/v1/auth/login`、`/logout`、`/me` | 登录 / 登出 / 当前用户 |
+| 账号 | `/api/v1/auth/users` | 账号 CRUD（管理员） |
+| 账号 | `/api/v1/auth/permissions` | 权限点与角色模板元数据 |
+| 审计 | `GET /api/v1/system/logs` | 操作日志查询（分页 + 多维过滤） |
+| 审计 | `GET /api/v1/system/logs/meta` | 筛选项元数据（操作人 / 方法 / 等级） |
+| 审计 | `GET /api/v1/system/logs/stats` | 日志统计 |
+| 审计 | `GET /api/v1/system/logs/export` | CSV 导出 |
+| 审计 | `DELETE /api/v1/system/logs/clean` | 清空日志 |
 
-## 快速启动
+## 开发模式启动
 
 ```bash
-# 方式一：一键脚本（自动检查/安装依赖、生成 .env、启动前后端）
 ./start.sh            # 前后端开发模式（后端 :8765 + 前端 vite）
 ./start.sh electron   # Electron 桌面壳开发模式
 
-# 方式二：手动（项目根目录）
+# 或手动（项目根目录）
 npm install           # 根依赖（concurrently / electron / typescript）
 cd frontend && npm install && cd ..
 cd backend && python3 -m pip install -e ".[ai]"   # 含 chromadb / openai
@@ -313,12 +449,13 @@ docker save tcm-doctor:latest -o tcm-doctor-image.tar
 - 选中镜像 → **运行**，在向导里配置：
   - **端口**：本地 `8765` → 容器 `8765`（TCP）。务必手动指定，勿用随机端口，否则外网/反代会连错。
   - **卷（关键）**：本地目录（如 `docker/tcm-data`）→ 容器 `/data`。数据库与 `.env` 配置都在此，挂载后**删容器重建也不丢数据**。
-  - 环境变量（可选）：`PORT`（默认 8765）、`DATA_DIR`（默认 `/data`）、`ALLOW_GUEST_LOGIN`（默认 `true` 开启游客浏览）。
+  - 环境变量（可选）：`PORT`（默认 8765）、`DATA_DIR`（默认 `/data`）、`ALLOW_GUEST_LOGIN`（**默认 `false` 关闭**，需要游客浏览时显式设为 `true`）。
 
 ### 3. 首次启动
 
-- 容器启动后自动建表并灌入种子数据（药材 229 味、经典方 146 首、穴位 170、知识库 1313 条），首次约需 10–20 秒。
-- 浏览器访问 `http://<主机IP>:8765`，默认账号 `admin / admin123`（首次登录建议改密）；也可「游客登录（仅浏览）」。
+- 容器启动后自动建表，并初始化内置知识数据（药材 229 味、经典方 146 首、穴位 170、知识库 1313 条）与管理员账号，首次约需 10–20 秒。
+  > 规划中：后续版本将改为「空框架 + 按需导入 JSON 数据包」，届时首次启动只建表并创建管理员账号。
+- 浏览器访问 `http://<主机IP>:8765`，默认账号 `admin / admin123`（**首次登录请立即改密**）。
 - 「系统设置」填入 DeepSeek API Key 即启用 AI 辨证。
 
 ### 4. 更新镜像（保留数据）
@@ -349,6 +486,24 @@ docker save tcm-doctor:latest -o tcm-doctor-image.tar
 
 > 应用首次启动由 `app/main.py` 的 lifespan 调用 `app/seed.py → seed_all()` 自动完成建表与种子导入；
 > 如手动运行请使用 `python -m app.seed`（在 `backend/` 目录下），它会自动建表并幂等导入，不会清空既有数据。
+
+## 已知限制
+
+以下为当前版本**明确未实现**的能力，使用前请评估是否可接受：
+
+| 类别 | 现状 | 影响 |
+|------|------|------|
+| 收费与结算 | 无诊疗收费、处方划价、支付记录、日报对账 | 收费需线下另行记录 |
+| 挂号与排班 | 无挂号、候诊队列、医生排班、叫号 | 多医生坐诊时需纸质辅助 |
+| 处方防篡改 | 处方可修改且不保留历史版本 | 无法自证处方未被事后更改 |
+| 病历电子签名 | 无医师资质证书号与签名留痕 | 处方笺项目可能不满足规范要求 |
+| 备份加密 | 备份为明文 SQLite 文件，且仅支持手动导出 | 备份文件外流即等同于患者信息泄露 |
+| 会话管理 | 令牌有效期 30 天，无强制下线 / 在线会话列表 | 账号异常时需删库令牌 |
+| 并发控制 | 无乐观锁版本号 | 多人同时编辑同一记录会相互覆盖 |
+| 语义检索 | `ENABLE_SEMANTIC_SEARCH` 默认关闭 | 未开启时仅关键词精确匹配 |
+| AI 成本统计 | 无 token 消耗与费用统计 | 无法预估 API 账单 |
+
+> **部署必读**：后端登录限流为进程内内存计数，**必须单 worker 运行**；SQLite 适合单诊所（数个并发用户）场景，不建议多人高并发使用。
 
 ## 致谢
 

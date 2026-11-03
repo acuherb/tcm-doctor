@@ -4,6 +4,8 @@
 import sys
 from pathlib import Path
 
+from PyInstaller.utils.hooks import collect_submodules
+
 block_cipher = None
 
 # 收集所有隐式依赖
@@ -26,33 +28,9 @@ hiddenimports = [
     'httpx',
     'anyio',
     'sniffio',
-    'app.main',
-    'app.config',
-    'app.database',
-    'app.models',
-    'app.models.patient',
-    'app.models.visit',
-    'app.models.herb',
-    'app.models.prescription',
-    'app.models.knowledge',
-    'app.routers',
-    'app.routers.patient',
-    'app.routers.herb',
-    'app.routers.prescription',
-    'app.routers.knowledge',
-    'app.routers.diagnosis',
-    'app.routers.stats',
-    'app.routers.backup',
-    'app.schemas',
-    'app.schemas.patient',
-    'app.schemas.herb',
-    'app.schemas.prescription',
-    'app.schemas.diagnosis',
-    'app.services',
-    'app.services.constitution_evaluator',
-    'app.services.ai_diagnosis_service',
-    'app.services.vector_store',
 ]
+
+hiddenimports += collect_submodules('app')
 
 # 数据文件
 backend_dir = Path(SPECPATH)

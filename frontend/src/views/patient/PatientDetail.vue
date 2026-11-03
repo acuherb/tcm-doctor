@@ -585,6 +585,7 @@ import { useRoute } from 'vue-router'
 import { Edit, EditPen } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import api from '@/utils/api'
+import type { Patient, Visit, InquiryRecord, Prescription, FollowUp, DictionaryTerm } from '@/types'
 import { useAuthStore } from '@/store/auth'
 import { renderMarkdown } from '@/utils/markdown'
 import { calcAge, calcBmi, bodyType } from '@/utils/health'
@@ -608,10 +609,10 @@ function chipStyle(name: string, type: 'tongue' | 'pulse' | 'syndrome'): Record<
 
 const route = useRoute()
 const patientId = Number(route.params.id)
-const patient = ref<any>(null)
-const visits = ref<any[]>([])
-const inquiries = ref<any[]>([])
-const prescriptions = ref<any[]>([])
+const patient = ref<Patient | null>(null)
+const visits = ref<Visit[]>([])
+const inquiries = ref<InquiryRecord[]>([])
+const prescriptions = ref<Prescription[]>([])
 const loading = ref(false)
 
 // —— 就诊记录筛选 + 按病种分组（方案A）——
@@ -687,8 +688,8 @@ function toggleEpisode(id: number) {
 }
 
 // 病情跟踪
-const followups = ref<any[]>([])
-const reminders = ref<any[]>([])
+const followups = ref<FollowUp[]>([])
+const reminders = ref<unknown[]>([])
 const followupVisible = ref(false)
 // 随访提醒：新增表单
 const newReminderDate = ref('')
@@ -697,7 +698,7 @@ const savingReminder = ref(false)
 const savingFollowup = ref(false)
 const followupForm = ref<any>({ id: null, followup_date: '', treatment_type: '', improvement: '', feedback: '', visit_id: null })
 // 字典中的患者标签（供编辑表单选择）
-const tagOptions = ref<any[]>([])
+const tagOptions = ref<DictionaryTerm[]>([])
 
 // 按就诊聚合：处方与十问分别归到对应的 visit_id 下
 const rxByVisit = computed<Record<number, any[]>>(() => {
@@ -781,11 +782,11 @@ const savingEdit = ref(false)
 const editForm = ref<any>({})
 
 const showVisitDialog = ref(false)
-const viewVisit = ref<any>(null)
+const viewVisit = ref<Visit | null>(null)
 const showIqDialog = ref(false)
-const viewIq = ref<any>(null)
+const viewIq = ref<InquiryRecord | null>(null)
 const showRxDialog = ref(false)
-const viewRx = ref<any>(null)
+const viewRx = ref<Prescription | null>(null)
 
 // 新增/编辑就诊：抽屉式，复用 VisitRecord（embedded），保留详情上下文
 const activeTab = ref('overview')
@@ -906,7 +907,7 @@ async function saveEdit() {
 
 // ── 病情跟踪 ──
 async function loadFollowups() {
-  followups.value = (await api.get(`/patients/${patientId}/followups`)) as any
+  followups.value = (await api.get<FollowUp[]>(`/patients/${patientId}/followups`))
 }
 
 function openFollowupDialog(fu?: any, visit?: any) {
@@ -951,26 +952,26 @@ async function deleteFollowup(fu: any) {
 
 async function loadPatientData() {
   const [p, v, iq, rx, fus, tags, rms] = await Promise.all([
-    api.get(`/patients/${patientId}`),
-    api.get(`/patients/${patientId}/visits`),
-    api.get(`/patients/${patientId}/inquiries`),
-    api.get(`/prescriptions?patient_id=${patientId}`),
-    api.get(`/patients/${patientId}/followups`),
-    api.get('/dictionaries', { params: { term_type: 'tag', is_active: true } }),
-    api.get(`/followup-reminders?patient_id=${patientId}`),
+    api.get<Patient>(`/patients/${patientId}`),
+    api.get<Visit[]>(`/patients/${patientId}/visits`),
+    api.get<InquiryRecord[]>(`/patients/${patientId}/inquiries`),
+    api.get<Prescription[]>(`/prescriptions?patient_id=${patientId}`),
+    api.get<FollowUp[]>(`/patients/${patientId}/followups`),
+    api.get<DictionaryTerm[]>(`/dictionaries`, { params: { term_type: 'tag', is_active: true } }),
+    api.get<unknown[]>(`/followup-reminders?patient_id=${patientId}`),
   ])
   patient.value = p
-  visits.value = v as any
-  inquiries.value = iq as any
-  prescriptions.value = rx as any
-  followups.value = fus as any
-  tagOptions.value = tags as any
-  reminders.value = (rms || []) as any
+  visits.value = v
+  inquiries.value = iq
+  prescriptions.value = rx
+  followups.value = fus
+  tagOptions.value = tags
+  reminders.value = rms || []
 }
 
 async function loadReminders() {
   try {
-    reminders.value = (await api.get(`/followup-reminders?patient_id=${patientId}`)) as any
+    reminders.value = (await api.get<unknown[]>(`/followup-reminders?patient_id=${patientId}`)) || []
   } catch {}
 }
 async function addReminder() {

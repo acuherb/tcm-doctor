@@ -120,6 +120,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import api from '@/utils/api'
+import type { StockOption } from '@/types'
 
 const DEFAULT_COLOR = '#909399'
 
@@ -154,7 +155,7 @@ const previewColor = computed(() => form.value.color || DEFAULT_COLOR)
 
 async function load() {
   try {
-    const res = (await api.get('/stock/options') as any) || []
+    const res = (await api.get<StockOption[]>('/stock/options')) || []
     categories.value = res.filter((o: any) => o.opt_type === 'category')
     units.value = res.filter((o: any) => o.opt_type === 'unit')
   } catch {

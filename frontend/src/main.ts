@@ -10,7 +10,11 @@ import router from './router'
 import { useAuthStore } from './store/auth'
 
 import './styles/tcm-theme.scss'
+import { initTheme } from './utils/theme'
 import { ElMessage } from 'element-plus'
+
+// 主题必须在挂载前应用，避免首屏闪回默认配色
+initTheme()
 
 const app = createApp(App)
 

@@ -6,15 +6,23 @@ from pydantic_settings import BaseSettings
 
 
 # 容器内统一数据目录：数据库与 .env 配置都落在此处，挂载该目录即可持久化。
-# 开发 / 桌面模式不设置 DATA_DIR，数据落在项目目录内。
+# 开发模式不设置 DATA_DIR，数据落在项目目录内。
+# 桌面（PyInstaller frozen）模式默认落到用户目录，避免写入安装目录（Windows 下 Program Files 只读）。
 _DATA_DIR = os.environ.get("DATA_DIR", "")
 
+if not _DATA_DIR and getattr(sys, "frozen", False):
+    _base = os.environ.get("APPDATA") or os.path.expanduser(
+        "~/Library/Application Support" if sys.platform == "darwin" else "~/.local/share"
+    )
+    _DATA_DIR = os.path.join(_base, "tcm-doctor")
+    os.makedirs(_DATA_DIR, exist_ok=True)
+
 def _get_env_file() -> str:
-    """PyInstaller 打包后 .env 在 exe 同目录；容器内部优先放 DATA_DIR；开发时项目根目录"""
-    if getattr(sys, 'frozen', False):
-        return os.path.join(os.path.dirname(sys.executable), '.env')
+    """PyInstaller 打包后 .env 优先放数据目录，其次 exe 同目录；容器内部优先放 DATA_DIR；开发时项目根目录"""
     if _DATA_DIR:
         return os.path.join(_DATA_DIR, '.env')
+    if getattr(sys, 'frozen', False):
+        return os.path.join(os.path.dirname(sys.executable), '.env')
     return ".env"
 
 
@@ -36,6 +44,9 @@ class Settings(BaseSettings):
     doctor_name: str = ""
     # 诊所 logo（data URL，如 data:image/png;base64,xxx），用于浏览器标签图标/登录页展示
     clinic_logo: str = ""
+
+    # 界面风格（herbal 本草 / ink 墨色 / vermilion 朱砂 / jade 青玉）
+    ui_theme: str = "herbal"
 
     # 数据库（容器内默认落到 DATA_DIR=/data，挂载后持久化；开发/桌面默认项目内）
     database_url: str = (

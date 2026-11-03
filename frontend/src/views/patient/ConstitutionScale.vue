@@ -286,7 +286,7 @@ async function submitScale() {
       else if ((notes.value[q.key] || '').trim()) payloadAnswers[q.key] = 'custom'
     }
     const endpoint = patientId.value ? `/patients/${patientId.value}/constitution` : '/diagnosis/analyze'
-    const res = await api.post(endpoint, { answers: payloadAnswers, notes: notes.value }) as any
+    const res = await api.post<Record<string, unknown>>(endpoint, { answers: payloadAnswers, notes: notes.value })
     result.value = res
     ElMessage.success(patientId.value ? '评估完成，已存入病历' : '评估完成')
   } catch (e: any) {

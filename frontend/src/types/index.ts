@@ -232,5 +232,34 @@ export interface AppConfig {
   brand_name?: string
   brand_color?: string
   allow_guest_login?: boolean
+  clinic_name?: string
+  clinic_logo?: string
+  ui_theme?: string
+  [key: string]: any
+}
+
+// 消息
+export interface Message {
+  id?: number
+  conversation_id?: string
+  role?: string
+  content?: string
+  [key: string]: any
+}
+
+// 采购明细
+export interface PurchaseItem {
+  id?: number
+  purchase_id?: number
+  item_id?: number
+  quantity?: number
+  price?: number
+  [key: string]: any
+}
+
+// 知识来源
+export interface KnowledgeSource {
+  id?: number
+  title?: string
   [key: string]: any
 }

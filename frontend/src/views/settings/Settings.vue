@@ -216,6 +216,7 @@ import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Download, Upload, OfficeBuilding, InfoFilled, Lock } from '@element-plus/icons-vue'
 import api from '@/utils/api'
+import type { AppConfig } from '@/types'
 import { useAuthStore } from '@/store/auth'
 
 // 游客（非管理员）隐藏所有写操作，只读浏览
@@ -240,7 +241,7 @@ const exporting = ref(false)
 const vectorAvailable = ref(false)
 const savingClinic = ref(false)
 const dbPath = ref('')
-const counts = ref<any>({})
+const counts = ref<Record<string, unknown>>({})
 
 const connectionStatus = ref({ type: 'info' as 'success' | 'danger' | 'info', text: '未测试' })
 
@@ -256,7 +257,7 @@ const aiEngineStatus = computed(() => {
 
 onMounted(async () => {
   try {
-    const res = await api.get('/config') as any
+    const res = await api.get<AppConfig>('/config')
     appVersion.value = res.version || ''
     dbPath.value = res.db_path || ''
     counts.value = res.counts || {}
@@ -278,7 +279,7 @@ onMounted(async () => {
   } catch {}
 
   try {
-    const res = await api.get('/diagnosis/status') as any
+    const res = await api.get<Record<string, unknown>>('/diagnosis/status')
     vectorAvailable.value = res.vector_store_available || false
   } catch {}
 })
@@ -369,7 +370,7 @@ async function testConnection() {
     await api.put('/config', body)
 
     // 发送简单消息测试
-    const res = await api.post('/diagnosis/chat', { message: '你好' }) as any
+    const res = await api.post<Record<string, unknown>>('/diagnosis/chat', { message: '你好' })
     if (res.reply && !res.reply.includes('未配置') && !res.reply.includes('失败')) {
       connectionStatus.value = { type: 'success', text: '✅ 连接成功' }
       ElMessage.success('DeepSeek API 连接成功')
@@ -389,7 +390,7 @@ async function testConnection() {
 async function exportData() {
   exporting.value = true
   try {
-    const res = await api.get('/backup/export', { responseType: 'blob' }) as any
+    const res = await api.get<Blob>('/backup/export', { responseType: 'blob' })
     const url = window.URL.createObjectURL(new Blob([res]))
     const link = document.createElement('a')
     link.href = url

@@ -2,17 +2,17 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import api from '@/utils/api'
 import { setLogoutHandler } from './authBus'
-import type { AuthLoginResult, TcmUser } from '@/types'
+import type { AuthLoginResult, AppConfig, TcmUser } from '@/types'
+import { applyTheme, isThemeKey } from '@/utils/theme'
 
-interface UserInfo {
-  id: number
-  username: string
-  display_name: string | null
-  is_admin: boolean
-  role: string
-  permissions: string[]
-  is_active: boolean
-  must_change_password: boolean
+// 登录态就绪后同步服务端界面风格（多终端统一）；失败静默，沿用本地已应用主题
+async function syncTheme() {
+  try {
+    const res = await api.get<AppConfig>('/config', { silent: true })
+    if (res.ui_theme && isThemeKey(res.ui_theme)) applyTheme(res.ui_theme)
+  } catch {
+    /* 无权限或后端不可用 */
+  }
 }
 
 // 业务域 → 权限点（与后端 permissions.DOMAIN_PERMS 对应，用于 UI 按钮级灰显）
@@ -36,7 +36,7 @@ const USER_KEY = 'tcm_user'
 export const useAuthStore = defineStore('auth', () => {
   // 令牌仅存于内存（配合后端 httpOnly Cookie 作同域防御纵深），不再落 localStorage，避免 XSS 窃取
   const token = ref<string>('')
-  const user = ref<UserInfo | null>(
+  const user = ref<TcmUser | null>(
     JSON.parse(localStorage.getItem(USER_KEY) || 'null')
   )
 
@@ -53,6 +53,7 @@ export const useAuthStore = defineStore('auth', () => {
     authorize(res.token)
     user.value = res.user
     localStorage.setItem(USER_KEY, JSON.stringify(res.user))
+    await syncTheme()
     return res.user
   }
 
@@ -64,6 +65,7 @@ export const useAuthStore = defineStore('auth', () => {
         const me = await api.get<TcmUser>('/auth/me')
         user.value = me
         localStorage.setItem(USER_KEY, JSON.stringify(me))
+        await syncTheme()
         return true
       } catch {
         logout()
@@ -72,9 +74,10 @@ export const useAuthStore = defineStore('auth', () => {
     }
     // 内存无令牌：尝试用后端下发的 httpOnly Cookie（同域）静默恢复会话，前端无需持有令牌
     try {
-      const me = (await api.get('/auth/me')) as any
+      const me = await api.get<TcmUser>('/auth/me')
       user.value = me
       localStorage.setItem(USER_KEY, JSON.stringify(me))
+      await syncTheme()
       return true
     } catch {
       return false

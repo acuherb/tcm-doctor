@@ -161,7 +161,7 @@ async function evaluate() {
       answers: payloadAnswers,
       notes: notes.value,
       visit_id: props.visitId ?? null,
-    }, { silent: true }) as any
+    }, { silent: true })
     ElMessage.success('十问辨证完成，已归档到病历')
     await loadRecommend(result.value)
   } catch (e: any) {
@@ -192,7 +192,7 @@ async function loadRecommend(r: any) {
   try {
     const groups = []
     for (const m of meridians) {
-      const g = await api.get('/prescriptions/classic-formulas/recommend', { params: { meridian: m } }) as any
+      const g = await api.get<Record<string, unknown>>('/prescriptions/classic-formulas/recommend', { params: { meridian: m } })
       if (g) groups.push({ label: m, ...g })
     }
     recommend.value = groups.length === 1 ? groups[0]

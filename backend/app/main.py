@@ -563,6 +563,7 @@ def get_config(current_user: User = Depends(get_current_user)):
         "clinic_name": settings.clinic_name,
         "doctor_name": settings.doctor_name,
         "clinic_logo": settings.clinic_logo,
+        "ui_theme": settings.ui_theme,
         "deepseek_configured": bool(settings.deepseek_api_key),
         "deepseek_model": settings.deepseek_model,
         "deepseek_base_url": settings.deepseek_base_url,
@@ -581,6 +582,7 @@ class ConfigUpdate(BaseModel):
     clinic_name: str | None = None
     doctor_name: str | None = None
     clinic_logo: str | None = None
+    ui_theme: str | None = None
     deepseek_api_key: str | None = None
     deepseek_model: str | None = None
     deepseek_base_url: str | None = None
@@ -598,6 +600,7 @@ def update_config(payload: ConfigUpdate, current_user: User = Depends(get_curren
     clinic_name = data.get("clinic_name")
     doctor_name = data.get("doctor_name")
     clinic_logo = data.get("clinic_logo")
+    ui_theme = data.get("ui_theme")
     deepseek_api_key = data.get("deepseek_api_key")
     deepseek_model = data.get("deepseek_model")
     deepseek_base_url = data.get("deepseek_base_url")
@@ -629,6 +632,12 @@ def update_config(payload: ConfigUpdate, current_user: User = Depends(get_curren
     if clinic_logo is not None:
         settings.clinic_logo = clinic_logo
         env_lines["CLINIC_LOGO"] = clinic_logo
+    # 界面风格：仅接受已知主题，非法值忽略（防止写入无效 CSS 选择器）
+    if ui_theme is not None:
+        allowed_themes = {"herbal", "ink", "vermilion", "jade"}
+        if ui_theme in allowed_themes:
+            settings.ui_theme = ui_theme
+            env_lines["UI_THEME"] = ui_theme
     if deepseek_api_key:
         settings.deepseek_api_key = deepseek_api_key
         env_lines["DEEPSEEK_API_KEY"] = deepseek_api_key

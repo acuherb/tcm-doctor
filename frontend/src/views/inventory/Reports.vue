@@ -168,17 +168,17 @@ async function loadAll() {
   if (range.value && range.value.length === 2) { params.start = range.value[0]; params.end = range.value[1] }
   try {
     const [s, p, a, t, pr] = await Promise.all([
-      api.get('/stock/report/summary', { params }),
-      api.get('/stock/report/profit', { params }),
-      api.get('/stock/report/abc'),
-      api.get('/stock/report/turnover', { params }),
-      api.get('/stock/report/supplier-price'),
+      api.get<Record<string, unknown>>('/stock/report/summary', { params }),
+      api.get<unknown[]>('/stock/report/profit', { params }),
+      api.get<unknown[]>('/stock/report/abc'),
+      api.get<unknown[]>('/stock/report/turnover', { params }),
+      api.get<unknown[]>('/stock/report/supplier-price'),
     ])
-    summary.value = s as any
-    profit.value = (p as any) || []
-    abc.value = (a as any) || []
-    turnover.value = (t as any) || []
-    prices.value = (pr as any) || []
+    summary.value = s
+    profit.value = p || []
+    abc.value = a || []
+    turnover.value = t || []
+    prices.value = pr || []
     shownCounts.value = {}
   } catch (e: any) { ElMessage.error('加载失败：' + (e?.response?.data?.detail || e?.message)) }
 }

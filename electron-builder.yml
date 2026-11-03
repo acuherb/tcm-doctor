@@ -14,12 +14,6 @@ files:
 extraResources:
   - from: backend/dist/tcm-backend.exe
     to: backend/tcm-backend.exe
-  - from: backend/tcm_doctor.db
-    to: backend/tcm_doctor.db
-  - from: backend/app/data
-    to: backend/data
-    filter:
-      - "**/*.json"
 
 win:
   target:

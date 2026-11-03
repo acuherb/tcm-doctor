@@ -29,6 +29,13 @@ dist-electron/
 release/
 *.local
 
+# ---- 打包产物（PyInstaller 后端可执行文件，勿入库）----
+backend/dist/
+backend/build/
+*.spec.bak
+tcm-backend
+tcm-backend.exe
+
 # ---- 环境变量 / 密钥 ----
 .env
 .env.*

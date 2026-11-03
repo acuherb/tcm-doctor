@@ -1,6 +1,9 @@
 /* 中医诊所管理平台 — 全局主题 */
 
-:root {
+/* ---------- 主题预设 ----------
+   通过 documentElement 的 data-theme 属性切换；默认 herbal（本草）。 */
+:root,
+[data-theme="herbal"] {
   --tcm-primary: #8B4513;        /* 深褐色 — 中药色调 */
   --tcm-primary-light: #A0522D;
   --tcm-primary-dark: #6B3410;
@@ -9,21 +12,69 @@
   --tcm-sidebar-bg: #2C1810;     /* 深褐侧边栏 */
   --tcm-sidebar-text: #E8D5C4;
   --tcm-sidebar-active: #D4A574;
+  --tcm-header-bg: #F5F0EB;
+  --tcm-card-bg: #FFFFFF;
+}
+
+[data-theme="ink"] {
+  --tcm-primary: #2F4858;        /* 墨青 */
+  --tcm-primary-light: #3E5C6E;
+  --tcm-primary-dark: #22343F;
+  --tcm-accent: #7FB3C7;
+  --tcm-bg: #F3F5F6;
+  --tcm-sidebar-bg: #1E282D;
+  --tcm-sidebar-text: #C9D6DB;
+  --tcm-sidebar-active: #7FB3C7;
+  --tcm-header-bg: #F3F5F6;
+  --tcm-card-bg: #FFFFFF;
+}
+
+[data-theme="vermilion"] {
+  --tcm-primary: #A0362A;        /* 朱砂 */
+  --tcm-primary-light: #B85244;
+  --tcm-primary-dark: #822A20;
+  --tcm-accent: #E0A080;
+  --tcm-bg: #FAF6F3;
+  --tcm-sidebar-bg: #3D1D18;
+  --tcm-sidebar-text: #F0DCD5;
+  --tcm-sidebar-active: #E0A080;
+  --tcm-header-bg: #FAF6F3;
+  --tcm-card-bg: #FFFFFF;
+}
+
+[data-theme="jade"] {
+  --tcm-primary: #4A7C59;        /* 青玉 */
+  --tcm-primary-light: #5E9070;
+  --tcm-primary-dark: #3A6347;
+  --tcm-accent: #A8CBAF;
+  --tcm-bg: #F4F7F4;
+  --tcm-sidebar-bg: #22372A;
+  --tcm-sidebar-text: #D4E4D8;
+  --tcm-sidebar-active: #A8CBAF;
+  --tcm-header-bg: #F4F7F4;
+  --tcm-card-bg: #FFFFFF;
+}
+
+/* 通用语义色（不随主题变化） */
+:root {
   --tcm-success: #52C41A;
   --tcm-warning: #FAAD14;
   --tcm-danger: #F5222D;
   --tcm-info: #1890FF;
 }
 
-/* 覆盖 Element Plus 主题色 */
+/* 覆盖 Element Plus 主题色（依赖上面的主题变量，故不重复声明） */
 :root {
-  --el-color-primary: #8B4513;
-  --el-color-primary-light-3: #A0522D;
-  --el-color-primary-light-5: #B8784A;
-  --el-color-primary-light-7: #CFA07A;
-  --el-color-primary-light-9: #E8CDB5;
-  --el-color-primary-dark-2: #6B3410;
+  --el-color-primary: var(--tcm-primary);
 }
+
+/* 各主题下同步 Element Plus 主色梯度 */
+[data-theme] {
+  --el-color-primary: var(--tcm-primary);
+  --el-color-primary-light-3: var(--tcm-primary-light);
+  --el-color-primary-dark-2: var(--tcm-primary-dark);
+}
+
 
 * {
   margin: 0;

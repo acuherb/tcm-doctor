@@ -64,6 +64,7 @@ import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { User, Lock } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/store/auth'
 import api from '@/utils/api'
+import type { AppConfig } from '@/types'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -73,7 +74,7 @@ const clinicLogo = ref('')
 
 onMounted(async () => {
   try {
-    const res = await api.get('/config') as any
+    const res = await api.get<AppConfig>('/config')
     clinicName.value = res.clinic_name?.trim() || ''
     clinicLogo.value = res.clinic_logo || ''
     document.title = clinicName.value || '中医诊所管理平台'
@@ -99,6 +100,7 @@ const rules: FormRules = {
 }
 
 async function doLogin(username: string, password: string) {
+  // auth.login 内部已在登录成功后同步服务端主题（多终端统一风格）
   await auth.login(username, password)
   ElMessage.success('登录成功')
   router.replace('/dashboard')

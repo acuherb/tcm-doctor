@@ -245,6 +245,7 @@ import { useRouter } from 'vue-router'
 import { Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import api from '@/utils/api'
+import type { StockOption } from '@/types'
 import { useStockOptionColors } from '@/utils/dictColors'
 
 const { categoryColor, categoryChipStyle } = useStockOptionColors()
@@ -258,7 +259,7 @@ const searchText = ref('')
 const categories = ref<any[]>([])
 async function loadOptions() {
   try {
-    const res = (await api.get('/stock/options') as any) || []
+    const res = (await api.get<StockOption[]>('/stock/options')) || []
     categories.value = res.filter((o: any) => o.opt_type === 'category')
   } catch {}
 }
@@ -312,7 +313,7 @@ async function loadOverview() {
     if (typeFilter.value) params.item_type = typeFilter.value
     if (alertOnly.value) params.alert_only = true
     if (searchText.value) params.search = searchText.value
-    overview.value = (await api.get('/stock/overview', { params }) as any) || []
+    overview.value = (await api.get<Record<string, unknown>>('/stock/overview', { params })) || {}
     overviewShown.value = overviewPageSize
   } catch (e: any) {
     console.error(e)
@@ -320,7 +321,7 @@ async function loadOverview() {
 }
 async function loadAlerts() {
   try {
-    alerts.value = (await api.get('/stock/alerts') as any) || []
+    alerts.value = (await api.get<Array<Record<string, unknown>>>('/stock/alerts')) || []
     alertShown.value = alertPageSize
   } catch {}
 }
