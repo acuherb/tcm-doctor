@@ -197,7 +197,7 @@ const currentEntry = ref<KnowledgeEntry | null>(null)
 // 向量索引是否启用：由后端 /knowledge/stats 返回，决定界面展示的检索模式
 const semanticOn = computed(() => !!stats.value.vector_store?.available)
 
-const categories = computed(() => (stats.value.categories || []).map((c: any) => c.name))
+const categories = computed(() => ((stats.value.categories as Array<{ name: string }>) || []).map((c: { name: string }) => c.name))
 
 async function doSearch() {
   if (!searchText.value.trim()) return
@@ -212,7 +212,7 @@ async function doSearch() {
   }
 }
 
-async function viewDetail(r: any) {
+async function viewDetail(r: KnowledgeEntry) {
   try {
     // 如果是知识库条目，获取完整内容
     if (r.id && typeof r.id === 'number') {

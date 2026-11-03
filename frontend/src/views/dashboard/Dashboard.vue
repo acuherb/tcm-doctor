@@ -131,6 +131,7 @@
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '@/utils/api'
+import type { ECharts } from 'echarts'
 import { onThemeChange, themeVar } from '@/utils/theme'
 
 const router = useRouter()
@@ -163,7 +164,7 @@ const pendingCount = ref(0)
 const pendingFollowups = ref(0)
 const followupReminders = ref<unknown[]>([])
 const visitChartRef = ref<HTMLElement>()
-const visitTrend = ref<unknown[]>([])
+const visitTrend = ref<Array<{ date: string; count: number }>>([])
 
 async function loadDashboard() {
   try {
@@ -182,7 +183,7 @@ async function loadDashboard() {
     alerts.value = alertsData || []
     pendingFollowups.value = dashData.pending_followups || 0
     followupReminders.value = dashData.followup_reminders || []
-    visitTrend.value = dashData.visit_trend || []
+    visitTrend.value = (dashData.visit_trend as Array<{ date: string; count: number }>) || []
 
     // 绘制图表
     await nextTick()
@@ -192,8 +193,8 @@ async function loadDashboard() {
   }
 }
 
-let visitChart: any = null
-let echartsLib: any = null
+let visitChart: ECharts | null = null
+let echartsLib: typeof import('echarts') | null = null
 let chartResizeHandler: (() => void) | null = null
 
 async function renderVisitChart() {
@@ -202,7 +203,7 @@ async function renderVisitChart() {
   if (!echartsLib) {
     echartsLib = await import('echarts')
   }
-  const echarts = echartsLib
+  const echarts = echartsLib!
 
   if (!visitChart) {
     visitChart = echarts.init(visitChartRef.value)
@@ -219,7 +220,7 @@ async function renderVisitChart() {
     grid: { left: 40, right: 20, top: 20, bottom: 30 },
     xAxis: {
       type: 'category',
-      data: visitTrend.value.map((d: any) => d.date),
+      data: visitTrend.value.map((d) => d.date),
       axisLabel: { color: '#666' },
     },
     yAxis: {
@@ -229,7 +230,7 @@ async function renderVisitChart() {
     },
     series: [{
       type: 'bar',
-      data: visitTrend.value.map((d: any) => d.count),
+      data: visitTrend.value.map((d) => d.count),
       itemStyle: {
         color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
           { offset: 0, color: primary },

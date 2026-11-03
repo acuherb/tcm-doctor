@@ -224,13 +224,14 @@ const HERB_TAG_ORDER: Record<string, string[]> = {
   '四气': ['寒', '微寒', '平', '微温', '温'],
   '五味': ['酸', '苦', '甘', '辛', '咸', '淡'],
 }
-function sortHerbTag(list: any[]): any[] {
+interface TagItem { category?: string; name?: string }
+function sortHerbTag(list: TagItem[]): TagItem[] {
   return [...list].sort((a, b) => {
-    const ca = herbTagDimensions.indexOf(a.category)
-    const cb = herbTagDimensions.indexOf(b.category)
+    const ca = herbTagDimensions.indexOf(a.category ?? '')
+    const cb = herbTagDimensions.indexOf(b.category ?? '')
     if (ca !== cb) return ca - cb
-    const oa = HERB_TAG_ORDER[a.category]?.indexOf(a.name) ?? 999
-    const ob = HERB_TAG_ORDER[b.category]?.indexOf(b.name) ?? 999
+    const oa = HERB_TAG_ORDER[a.category ?? '']?.indexOf(a.name ?? '') ?? 999
+    const ob = HERB_TAG_ORDER[b.category ?? '']?.indexOf(b.name ?? '') ?? 999
     return oa - ob
   })
 }
@@ -241,13 +242,13 @@ const ACUPOINT_TAG_ORDER: Record<string, string[]> = {
   '部位': ['头面', '上肢', '下肢', '前胸', '后背', '腰骶', '一一部位', '二二部位', '三三部位', '四四部位', '五五部位', '六六部位', '七七部位', '八八部位', '九九部位', '十十部位', '胸腹部位', '后背部位'],
   '类型': ['井穴', '荥穴', '输穴', '经穴', '合穴', '原穴', '络穴', '郄穴', '募穴', '背俞穴', '八会穴', '八脉交会穴', '下合穴', '经外奇穴', '特效穴', '常用要穴'],
 }
-function sortAcupointTag(list: any[]): any[] {
+function sortAcupointTag(list: TagItem[]): TagItem[] {
   return [...list].sort((a, b) => {
-    const ca = acupointTagDimensions.indexOf(a.category)
-    const cb = acupointTagDimensions.indexOf(b.category)
+    const ca = acupointTagDimensions.indexOf(a.category ?? '')
+    const cb = acupointTagDimensions.indexOf(b.category ?? '')
     if (ca !== cb) return ca - cb
-    const oa = ACUPOINT_TAG_ORDER[a.category]?.indexOf(a.name) ?? 999
-    const ob = ACUPOINT_TAG_ORDER[b.category]?.indexOf(b.name) ?? 999
+    const oa = ACUPOINT_TAG_ORDER[a.category ?? '']?.indexOf(a.name ?? '') ?? 999
+    const ob = ACUPOINT_TAG_ORDER[b.category ?? '']?.indexOf(b.name ?? '') ?? 999
     return oa - ob
   })
 }
@@ -292,19 +293,19 @@ function readableInk(hex: string): string {
   const L = (0.299 * r + 0.587 * g + 0.114 * b) / 255
   return L > 0.6 ? '#333333' : '#ffffff'
 }
-function defaultColorForTerm(term: any): string {
-  const t = term?.term_type || activeType.value
-  if (t === 'herb_tag') return HERB_TAG_DEFAULT_COLOR[term?.name] || '#909399'
+function defaultColorForTerm(term: Record<string, unknown>): string {
+  const t = String(term?.term_type || activeType.value)
+  if (t === 'herb_tag') return HERB_TAG_DEFAULT_COLOR[String(term?.name || '')] || '#909399'
   if (t === 'syndrome') {
-    const m = (term?.meridian || '').split(',')[0]?.trim()
+    const m = String(term?.meridian || '').split(',')[0]?.trim()
     return SYNDROME_MERIDIAN_COLOR[m] || '#7f8c8d'
   }
-  if (t === 'pulse') return PULSE_TYPE_COLOR[term?.pulse_type] || '#7f8c8d'
-  if (t === 'tongue') return tongueColor(term?.name || '')
+  if (t === 'pulse') return PULSE_TYPE_COLOR[String(term?.pulse_type || '')] || '#7f8c8d'
+  if (t === 'tongue') return tongueColor(String(term?.name || ''))
   return '#909399'
 }
-function tagChipStyle(term: any): Record<string, string> {
-  const c = term?.color || defaultColorForTerm(term)
+function tagChipStyle(term: Record<string, unknown>): Record<string, string> {
+  const c = String(term?.color || defaultColorForTerm(term))
   const ink = readableInk(c)
   return { color: ink, backgroundColor: c, borderColor: ink }
 }
@@ -321,7 +322,20 @@ const previewColor = computed(() => {
 const dialogVisible = ref(false)
 const editingId = ref<number | null>(null)
 const saving = ref(false)
-const form = reactive<any>({
+interface DictionaryForm {
+  term_type: string
+  name: string
+  description: string
+  meridian: string[]
+  category: string | null
+  aspect: string
+  attributes: string | null
+  pulse_type: string | null
+  clinical_meaning: string | null
+  color: string | null
+  is_active: boolean
+}
+const form = reactive<DictionaryForm>({
   term_type: 'syndrome', name: '', description: '',
   meridian: [], category: null, aspect: '舌质', attributes: null,
   pulse_type: null, clinical_meaning: null, color: null, is_active: true,

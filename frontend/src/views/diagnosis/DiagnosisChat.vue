@@ -315,11 +315,12 @@ function tongueColor(name: string): string {
   for (const [kw, col] of TONGUE_KEYWORD_COLOR) if (name.includes(kw)) return col
   return '#909399'
 }
-function defaultColorForTerm(t: any): string {
-  if (t.term_type === 'tongue') return tongueColor(t.name || '')
-  if (t.term_type === 'pulse') return PULSE_TYPE_COLOR[t.pulse_type] || '#7f8c8d'
-  if (t.term_type === 'syndrome') {
-    const mer = (t.meridian || '').split(',')[0]?.trim()
+function defaultColorForTerm(t: Record<string, unknown>): string {
+  const termType = String(t.term_type || '')
+  if (termType === 'tongue') return tongueColor(String(t.name || ''))
+  if (termType === 'pulse') return PULSE_TYPE_COLOR[String(t.pulse_type || '')] || '#7f8c8d'
+  if (termType === 'syndrome') {
+    const mer = String(t.meridian || '').split(',')[0]?.trim()
     return SYNDROME_MERIDIAN_COLOR[mer] || '#7f8c8d'
   }
   return '#909399'
@@ -369,7 +370,7 @@ async function switchConversation(uuid: string) {
   try {
     const res = await api.get<Message[]>(`/diagnosis/conversations/${uuid}/messages`)
     for (const m of res.items || []) {
-      const imgs = m.images?.map((i: any) => typeof i === 'string' ? i : i.url).filter(Boolean)
+      const imgs = (m.images as unknown[])?.map((i: unknown) => typeof i === 'string' ? i : (i as { url: string }).url).filter(Boolean) as string[]
       messages.value.push({
         role: m.role,
         content: m.content,

@@ -60,7 +60,7 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   (e: 'update:modelValue', val: number | null): void
-  (e: 'select', herb: any): void
+  (e: 'select', herb: Herb | null): void
 }>()
 
 const selectedHerbId = ref<number | null>(props.modelValue)
@@ -71,17 +71,17 @@ const searchLoading = ref(false)
 async function loadAllHerbs() {
   try {
     allHerbs.value = (await api.get<Herb[]>('/herbs')) || []
-    filteredHerbs.value = allHerbs.value.filter((h: any) => !props.excludeIds.includes(h.id))
+    filteredHerbs.value = allHerbs.value.filter((h: Herb) => !props.excludeIds.includes(h.id))
   } catch {}
 }
 
 function searchHerbs(query: string) {
   if (!query) {
-    filteredHerbs.value = allHerbs.value.filter((h: any) => !props.excludeIds.includes(h.id))
+    filteredHerbs.value = allHerbs.value.filter((h: Herb) => !props.excludeIds.includes(h.id))
     return
   }
   const q = query.toLowerCase()
-  filteredHerbs.value = allHerbs.value.filter((h: any) => {
+  filteredHerbs.value = allHerbs.value.filter((h: Herb) => {
     if (props.excludeIds.includes(h.id)) return false
     // 搜索正名
     if (h.name.toLowerCase().includes(q)) return true
@@ -96,7 +96,7 @@ function searchHerbs(query: string) {
 function onSelect(herbId: number | null) {
   emit('update:modelValue', herbId)
   if (herbId) {
-    const herb = allHerbs.value.find((h: any) => h.id === herbId)
+    const herb = allHerbs.value.find((h: Herb) => h.id === herbId)
     emit('select', herb || null)
   } else {
     emit('select', null)
@@ -106,7 +106,7 @@ function onSelect(herbId: number | null) {
 // 监听外部 excludeIds 变化
 import { watch } from 'vue'
 watch(() => props.excludeIds, () => {
-  filteredHerbs.value = allHerbs.value.filter((h: any) => !props.excludeIds.includes(h.id))
+  filteredHerbs.value = allHerbs.value.filter((h: Herb) => !props.excludeIds.includes(h.id))
 }, { deep: true })
 
 watch(() => props.modelValue, (val) => {

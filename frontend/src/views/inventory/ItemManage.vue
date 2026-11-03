@@ -161,7 +161,7 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
-import api from '@/utils/api'
+import api, { errMsg } from '@/utils/api'
 import { useAuthStore } from '@/store/auth'
 import type { StockItem, Herb, Supplier, Paginated, StockOption } from '@/types'
 import { useStockOptionColors } from '@/utils/dictColors'
@@ -184,7 +184,7 @@ const total = ref(0)
 // 后端已按 类别/搜索 过滤并分页，前端不再二次过滤
 const filteredItems = computed(() => items.value)
 
-function isLow(row: any) {
+function isLow(row: StockItem) {
   return row.min_stock != null && row.min_stock > 0 && Number(row.total_quantity) < Number(row.min_stock)
 }
 
@@ -209,8 +209,8 @@ async function loadItems(resetPage = false) {
       items.value = res.items || []
       total.value = res.total || 0
     }
-  } catch (e: any) {
-    ElMessage.error('物品加载失败：' + (e?.response?.data?.detail || e?.message || '未知错误'))
+  } catch (e) {
+    ElMessage.error('物品加载失败：' + errMsg(e))
   }
 }
 async function loadMoreItems() {
@@ -218,16 +218,16 @@ async function loadMoreItems() {
   loadingMore.value = true
   try {
     const next = page.value + 1
-    const params: any = { page: next, page_size: pageSize.value }
+    const params: Record<string, unknown> = { page: next, page_size: pageSize.value }
     if (typeFilter.value) params.item_type = typeFilter.value
     if (searchText.value) params.search = searchText.value
     const res = (await api.get<Paginated<StockItem>>('/stock/items', { params })) || []
     const rows = Array.isArray(res) ? res : (res.items || [])
-    const seen = new Set(items.value.map((r: any) => r.id))
-    items.value.push(...rows.filter((r: any) => !seen.has(r.id)))
+    const seen = new Set(items.value.map((r: StockItem) => r.id))
+    items.value.push(...rows.filter((r: StockItem) => !seen.has(r.id)))
     page.value = next
-  } catch (e: any) {
-    ElMessage.error('加载失败：' + (e?.response?.data?.detail || e?.message || '未知错误'))
+  } catch (e) {
+    ElMessage.error('加载失败：' + errMsg(e))
   } finally { loadingMore.value = false }
 }
 async function loadHerbs() {
@@ -243,8 +243,8 @@ const units = ref<StockOption[]>([])
 async function loadOptions() {
   try {
     const res = (await api.get<StockOption[]>('/stock/options')) || []
-    categories.value = res.filter((o: any) => o.opt_type === 'category')
-    units.value = res.filter((o: any) => o.opt_type === 'unit')
+    categories.value = res.filter((o: StockOption) => o.opt_type === 'category')
+    units.value = res.filter((o: StockOption) => o.opt_type === 'unit')
   } catch {}
 }
 
@@ -270,7 +270,7 @@ function openCreate() {
   itemForm.value = { item_type: '中药', name: '', spec: '', unit: 'g', sell_price: null, min_stock: null, herb_id: null, default_supplier_id: null, barcode: '' }
   itemVisible.value = true
 }
-function openEdit(row: any) {
+function openEdit(row: StockItem) {
   isEdit.value = true
   activeItemId.value = row.id
   itemForm.value = {
@@ -299,14 +299,14 @@ async function saveItem() {
       }
       itemVisible.value = false
       loadItems()
-    } catch (e: any) {
-      ElMessage.error('保存失败：' + (e?.response?.data?.detail || e?.message || '未知错误'))
+    } catch (e) {
+      ElMessage.error('保存失败：' + errMsg(e))
     } finally {
       submitting.value = false
     }
   })
 }
-async function removeItem(row: any) {
+async function removeItem(row: StockItem) {
   try {
     await ElMessageBox.confirm(`确认删除物品「${row.name}」？其下批次与流水将一并删除，且不可恢复。`, '删除确认', { type: 'warning' })
   } catch { return }
@@ -314,8 +314,8 @@ async function removeItem(row: any) {
     await api.delete(`/stock/items/${row.id}`)
     ElMessage.success('已删除')
     loadItems()
-  } catch (e: any) {
-    ElMessage.error('删除失败：' + (e?.response?.data?.detail || e?.message || '未知错误'))
+  } catch (e) {
+    ElMessage.error('删除失败：' + errMsg(e))
   }
 }
 

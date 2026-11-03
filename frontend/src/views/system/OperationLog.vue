@@ -138,7 +138,7 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Download, Delete } from '@element-plus/icons-vue'
-import api from '@/utils/api'
+import api, { errMsg } from '@/utils/api'
 import type { OperationLog as LogEntry } from '@/types'
 
 const logs = ref<LogEntry[]>([])
@@ -153,7 +153,7 @@ const level = ref('')
 const userId = ref('')
 const action = ref('')
 const keyword = ref('')
-const range = ref<any>(null)
+const range = ref<Array<Date | string> | null>(null)
 const keepDays = ref(90)
 
 const stats = ref({ total: 0, abnormal: 0, failed: 0, active_users: 0 })
@@ -200,7 +200,7 @@ const METHOD_VERB: Record<string, string> = { GET: '查看', POST: '新增', PUT
 
 const FULL_ACTIONS = new Set(['登录', '登录失败', '登出', '登出失败', '重建索引', '导入', '导出'])
 
-function humanize(row: any) {
+function humanize(row: LogEntry) {
   const verb = METHOD_VERB[row.method] || row.method || ''
   const action = row.action || ''
   if (!action) return `${verb} ${row.endpoint || ''}`
@@ -231,7 +231,7 @@ async function load() {
     hasMore.value = rows.length >= PAGE_SIZE
     loadStats()
     loadMeta()
-  } catch (e: any) { ElMessage.error('加载失败：' + (e?.response?.data?.detail || e?.message)) }
+  } catch (e) { ElMessage.error('加载失败：' + errMsg(e)) }
 }
 async function loadMore() {
   if (loadingMore.value || !hasMore.value) return
@@ -240,10 +240,10 @@ async function loadMore() {
     const params = { ...buildParams(), limit: PAGE_SIZE, offset: logs.value.length }
     const rows = (await api.get<LogEntry[]>('/system/logs', { params })) || []
     // 追加前按 id 去重，避免期间有新日志写入导致 offset 偏移重复
-    const seen = new Set(logs.value.map((r: any) => r.id))
-    logs.value.push(...rows.filter((r: any) => !seen.has(r.id)))
+    const seen = new Set(logs.value.map((r: LogEntry) => r.id))
+    logs.value.push(...rows.filter((r: LogEntry) => !seen.has(r.id)))
     hasMore.value = rows.length >= PAGE_SIZE
-  } catch (e: any) { ElMessage.error('加载失败：' + (e?.response?.data?.detail || e?.message)) }
+  } catch (e) { ElMessage.error('加载失败：' + errMsg(e)) }
   finally { loadingMore.value = false }
 }
 async function exportCsv() {
@@ -256,16 +256,16 @@ async function exportCsv() {
     link.click()
     window.URL.revokeObjectURL(url)
     ElMessage.success('已导出 CSV')
-  } catch (e: any) { ElMessage.error('导出失败：' + (e?.response?.data?.detail || e?.message)) }
+  } catch (e) { ElMessage.error('导出失败：' + errMsg(e)) }
 }
 async function clean() {
   try {
     const r = await api.delete<{ message?: string }>(`/system/logs/clean?days=${keepDays.value}`)
     ElMessage.success(r.message || '已清理')
     load()
-  } catch (e: any) { ElMessage.error('清理失败：' + (e?.response?.data?.detail || e?.message)) }
+  } catch (e) { ElMessage.error('清理失败：' + errMsg(e)) }
 }
-function rowCls({ row }: any) {
+function rowCls({ row }: { row: LogEntry }) {
   return row.level === 'ERROR' ? 'row-error' : row.level === 'WARN' ? 'row-warn' : ''
 }
 function onScroll() {

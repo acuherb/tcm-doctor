@@ -214,16 +214,17 @@ import type { Herb, DictionaryTerm } from '@/types'
 const auth = useAuthStore()
 const editable = computed(() => auth.canWrite('herbs'))
 
-const herbs = ref<any[]>([])
+const herbs = ref<Herb[]>([])
 const searchText = ref('')
 const natureFilter = ref('')
 const flavorFilters = ref<string[]>([])
 const pregOnly = ref(false)
 
 // 标签维度与受控词表（来自后端 /herbs/tags/meta）
-const meta = ref<any>({ dimensions: {}, tag_suggestions: [] })
-function dimOptions(dim: string): any[] {
-  return meta.value?.dimensions?.[dim]?.options || []
+interface HerbMeta { dimensions: Record<string, { options: string[] }>; tag_suggestions: string[] }
+const meta = ref<HerbMeta>({ dimensions: {}, tag_suggestions: [] })
+function dimOptions(dim: string): string[] {
+  return meta.value.dimensions[dim]?.options || []
 }
 
 const showDialog = ref(false)
@@ -313,7 +314,7 @@ function openAdd() {
   showDialog.value = true
 }
 
-function openEdit(row: any) {
+function openEdit(row: Herb) {
   isEdit.value = true
   editingId.value = row.id
   form.value = {
@@ -363,7 +364,7 @@ async function submitForm() {
   } catch {}
 }
 
-async function removeHerb(row: any) {
+async function removeHerb(row: Herb) {
   try {
     await ElMessageBox.confirm(`确定删除药材「${row.name}」？`, '提示', { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
   } catch { return }
@@ -379,8 +380,8 @@ const fileInput = ref<HTMLInputElement | null>(null)
 function triggerImport() {
   if (fileInput.value) { fileInput.value.value = ''; fileInput.value.click() }
 }
-async function onImportFile(e: any) {
-  const f = e.target.files?.[0]
+async function onImportFile(e: Event) {
+  const f = (e.target as HTMLInputElement).files?.[0]
   if (!f) return
   try {
     const text = await f.text()

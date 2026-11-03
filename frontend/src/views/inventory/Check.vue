@@ -154,7 +154,7 @@ import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Check } from '@element-plus/icons-vue'
-import api from '@/utils/api'
+import api, { errMsg } from '@/utils/api'
 import type { StockItem, Supplier, StockBatch } from '@/types'
 import { useAuthStore } from '@/store/auth'
 
@@ -170,7 +170,7 @@ const itemCounted = ref(0)
 const checkNote = ref('')
 const submitting = ref(false)
 
-const selectedItem = computed(() => items.value.find((i: any) => i.id === selectedItemId.value) || null)
+const selectedItem = computed(() => items.value.find((i: StockItem) => i.id === selectedItemId.value) || null)
 const unit = computed(() => selectedItem.value?.unit || '')
 const totalBefore = computed(() => batchRows.value.reduce((s: number, b: any) => s + Number(b.quantity || 0), 0))
 
@@ -181,7 +181,7 @@ function loadMoreFix() {
   fixShown.value = Math.min(fixShown.value + fixPageSize, batchRows.value.length)
 }
 
-function diffOf(row: any) {
+function diffOf(row: StockItem) {
   return Math.round((Number(row.counted ?? 0) - Number(row.quantity || 0)) * 100) / 100
 }
 function diffClass(row: any) {
@@ -213,10 +213,10 @@ async function loadBatches() {
   fixShown.value = fixPageSize
   try {
     const rows = (await api.get<StockBatch[]>('/stock/batches', { params: { item_id: selectedItemId.value, include_inactive: true } })) || []
-    batchRows.value = rows.map((b: any) => ({ ...b, counted: Number(b.quantity || 0) }))
+    batchRows.value = rows.map((b: StockBatch) => ({ ...b, counted: Number(b.quantity || 0) }))
     itemCounted.value = totalBefore.value
-  } catch (e: any) {
-    ElMessage.error('批次加载失败：' + (e?.response?.data?.detail || e?.message || '未知错误'))
+  } catch (e) {
+    ElMessage.error('批次加载失败：' + errMsg(e))
   }
 }
 async function submitCheck() {
@@ -228,8 +228,8 @@ async function submitCheck() {
     await api.post('/stock/adjust/bulk', [{ item_id: selectedItemId.value, counted, note: checkNote.value }])
     ElMessage.success('盘点完成，已按实盘调整库存')
     loadBatches()
-  } catch (e: any) {
-    ElMessage.error('盘点失败：' + (e?.response?.data?.detail || e?.message || '未知错误'))
+  } catch (e) {
+    ElMessage.error('盘点失败：' + errMsg(e))
   } finally {
     submitting.value = false
   }
@@ -242,7 +242,7 @@ const fixForm = ref<any>({
   batch_number: '', unit_price: null, expiry_date: '', supplier_id: null,
   location: '', status: '正常', reason: '', quantity: null,
 })
-function openFix(row: any) {
+function openFix(row: StockBatch) {
   if (!editable.value) { ElMessage.warning('无操作权限'); return }
   fixBatchId.value = row.id
   fixForm.value = {
@@ -275,8 +275,8 @@ async function submitFix() {
     ElMessage.success('批次属性已更正')
     fixVisible.value = false
     loadBatches()
-  } catch (e: any) {
-    ElMessage.error('纠错失败：' + (e?.response?.data?.detail || e?.message || '未知错误'))
+  } catch (e) {
+    ElMessage.error('纠错失败：' + errMsg(e))
   } finally {
     fixSubmitting.value = false
   }

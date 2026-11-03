@@ -404,6 +404,9 @@ async function onUserCommand(command: string) {
   transition: width 0.2s;
   display: flex;
   flex-direction: column;
+  /* 强制独立合成层：Chromium/Edge 在滚动容器内对复杂 SVG 路径（如齿轮图标）偶发光栅化丢失 */
+  transform: translateZ(0);
+  backface-visibility: hidden;
 
   .sidebar-logo {
     display: flex;
@@ -433,7 +436,7 @@ async function onUserCommand(command: string) {
     }
   }
 
-  .el-menu {
+  :deep(.el-menu) {
     border-right: none;
     flex: 1;
     background-color: transparent;

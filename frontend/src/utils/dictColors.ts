@@ -40,15 +40,16 @@ export function tongueColor(name: string): string {
 }
 
 // 默认色（字典无该色时回退），extra 携带 meridian/pulse_type 等定位字段
-export function defaultColorForType(termType: string, name: string, extra?: any): string {
+export function defaultColorForType(termType: string, name: string, extra?: Record<string, unknown>): string {
+  const ex = extra as { meridian?: string; pulse_type?: string } | undefined
   if (termType === 'herb_tag') return HERB_TAG_DEFAULT_COLOR[name] || '#909399'
   if (termType === 'syndrome') {
-    const mer = (extra?.meridian || '').split(',')[0]?.trim()
+    const mer = (ex?.meridian || '').split(',')[0]?.trim()
     return SYNDROME_MERIDIAN_COLOR[mer] || '#7f8c8d'
   }
   if (termType === 'tongue') return tongueColor(name)
   if (termType === 'pulse') {
-    const pt = extra?.pulse_type || PULSE_NAME_KEYWORD.find(([k]) => name.includes(k))?.[1]
+    const pt = ex?.pulse_type || PULSE_NAME_KEYWORD.find(([k]) => name.includes(k))?.[1]
     return PULSE_TYPE_COLOR[pt || ''] || '#7f8c8d'
   }
   return '#909399'
@@ -72,19 +73,19 @@ let loadingPromise: Promise<void> | null = null
 
 export function useDictColors() {
   if (!loaded && !loadingPromise) {
-    loadingPromise = (api.get('/dictionaries') as Promise<any>).then((res: any) => {
+    loadingPromise = api.get<Array<{ name?: string; color?: string; term_type?: string }>>('/dictionaries').then((res) => {
       const arr = Array.isArray(res) ? res : []
       const m: Record<string, string> = {}
       for (const t of arr) {
-        if (t.name) m[t.name] = t.color || defaultColorForType(t.term_type, t.name, t)
+        if (t.name) m[t.name] = t.color || defaultColorForType(t.term_type || '', t.name, t as Record<string, unknown>)
       }
       colorMap.value = m
       loaded = true
     }).catch(() => { loaded = true })
   }
   // 取词条颜色：字典色优先，缺失回退默认色
-  function termColor(name: string, termType: string, extra?: any): string {
-    return colorMap.value[name] || defaultColorForType(termType, name, extra)
+  function termColor(name: string, termType: string, extra?: unknown): string {
+    return colorMap.value[name] || defaultColorForType(termType, name, extra as Record<string, unknown> | undefined)
   }
   return { colorMap, termColor }
 }
@@ -97,7 +98,7 @@ let stockOptionsLoadingPromise: Promise<void> | null = null
 
 export function useStockOptionColors() {
   if (!stockOptionsLoaded && !stockOptionsLoadingPromise) {
-    stockOptionsLoadingPromise = (api.get('/stock/options') as Promise<any>).then((res: any) => {
+    stockOptionsLoadingPromise = api.get<Array<{ opt_type?: string; name?: string; color?: string }>>('/stock/options').then((res) => {
       const arr = Array.isArray(res) ? res : []
       const m: Record<string, string> = {}
       for (const o of arr) {

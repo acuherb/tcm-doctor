@@ -124,7 +124,7 @@
 import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus, Delete } from '@element-plus/icons-vue'
-import api from '@/utils/api'
+import api, { errMsg } from '@/utils/api'
 import type { Supplier, StockItem, PurchaseOrder, PurchaseItem } from '@/types'
 import { useAuthStore } from '@/store/auth'
 
@@ -164,7 +164,7 @@ async function load() {
     }
     suppliers.value = (await api.get<Supplier[]>('/stock/suppliers')) || []
     items.value = (await api.get<StockItem[]>('/stock/items')) || []
-  } catch (e: any) { ElMessage.error('加载失败：' + (e?.response?.data?.detail || e?.message)) }
+  } catch (e) { ElMessage.error('加载失败：' + (e?.response?.data?.detail || e?.message)) }
 }
 async function loadMore() {
   if (loadingMore.value || !hasMore.value) return
@@ -173,21 +173,21 @@ async function loadMore() {
     const next = page.value + 1
     const res = (await api.get<Paginated<PurchaseOrder>>('/stock/purchases', { params: { page: next, page_size: pageSize.value } })) || []
     const rows = Array.isArray(res) ? res : (res.items || [])
-    const seen = new Set(orders.value.map((o: any) => o.id))
+    const seen = new Set(orders.value.map((o: PurchaseOrder) => o.id))
     orders.value.push(...rows.filter((r: any) => !seen.has(r.id)))
     page.value = next
     hasMore.value = orders.value.length < total.value
-  } catch (e: any) { ElMessage.error('加载失败：' + (e?.response?.data?.detail || e?.message)) }
+  } catch (e) { ElMessage.error('加载失败：' + (e?.response?.data?.detail || e?.message)) }
   finally { loadingMore.value = false }
 }
 function addItem() { form.items.push({ item_id: null, batch_number: '', quantity: 1, unit_price: null, expiry_date: '' }) }
 function removeItem(idx: number) { form.items.splice(idx, 1) }
-function onItemPick(it: any) {
-  const i = items.value.find((x: any) => x.id === it.item_id)
+function onItemPick(it: PurchaseItem) {
+  const i = items.value.find((x: StockItem) => x.id === it.item_id)
   if (i && it.unit_price == null) it.unit_price = i.sell_price ? Number(i.sell_price) * 0.6 : null
 }
-function unitOf(it: any) {
-  const i = items.value.find((x: any) => x.id === it.item_id)
+function unitOf(it: PurchaseItem) {
+  const i = items.value.find((x: StockItem) => x.id === it.item_id)
   return i ? i.unit : ''
 }
 function openCreate() {
@@ -197,7 +197,7 @@ function openCreate() {
 }
 async function submit() {
   if (!form.items.length) { ElMessage.warning('请至少添加一条明细'); return }
-  if (form.items.some((it: any) => !it.item_id || !(it.quantity > 0) || !(it.unit_price >= 0))) {
+  if (form.items.some((it: PurchaseItem) => !it.item_id || !(it.quantity > 0) || !(it.unit_price >= 0))) {
     ElMessage.warning('明细需填写物品、数量与进价'); return
   }
   submitting.value = true
@@ -207,7 +207,7 @@ async function submit() {
     visible.value = false
     page.value = 1
     load()
-  } catch (e: any) { ElMessage.error('提交失败：' + (e?.response?.data?.detail || e?.message)) }
+  } catch (e) { ElMessage.error('提交失败：' + (e?.response?.data?.detail || e?.message)) }
   finally { submitting.value = false }
 }
 

@@ -170,7 +170,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import api from '@/utils/api'
+import api, { errMsg } from '@/utils/api'
 import { useAuthStore } from '@/store/auth'
 
 const auth = useAuthStore()
@@ -324,8 +324,8 @@ async function save() {
     }
     dialogVisible.value = false
     loadAcupoints()
-  } catch (e: any) {
-    ElMessage.error(e?.response?.data?.detail || '保存失败')
+  } catch (e) {
+    ElMessage.error(errMsg(e) || '保存失败')
   }
 }
 
@@ -363,8 +363,8 @@ async function importData() {
     importVisible.value = false
     importText.value = ''
     loadAcupoints()
-  } catch (e: any) {
-    ElMessage.error(e?.message || '导入失败')
+  } catch (e) {
+    ElMessage.error(errMsg(e) || '导入失败')
   }
 }
 

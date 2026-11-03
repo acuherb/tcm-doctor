@@ -319,9 +319,9 @@ async function viewDetail(row: EntryItem) {
 }
 
 // ---- 编辑 / 新增 ----
-async function openEdit(row?: any) {
+async function openEdit(row?: KnowledgeEntry) {
   editingId.value = row?.id ?? null
-  let entry: any = row || null
+  let entry: KnowledgeEntry | null = row || null
   // 列表项只有 content_preview，编辑需要完整 content，缺失时先拉详情
   if (entry && !entry.content) {
     try {
@@ -382,11 +382,11 @@ async function onDelete(row: EntryItem) {
   }
 }
 
-function onSelectionChange(sel: any[]) {
+function onSelectionChange(sel: KnowledgeEntry[]) {
   selectedIds.value = sel.map((s) => s.id)
 }
 
-async function loadFull(row: any) {
+async function loadFull(row: KnowledgeEntry) {
   if (!row?.id || fullContentMap.value[row.id]) return
   try {
     const e = await api.get<KnowledgeEntry>(`/knowledge/entries/${row.id}`)
@@ -436,7 +436,7 @@ async function onImportFile(file: UploadFile) {
   reader.onload = async () => {
     try {
       const data = JSON.parse(String(reader.result))
-      const list: any[] = Array.isArray(data) ? data : (data.items || [])
+      const list: Array<{ id: number }> = Array.isArray(data) ? data : (data.items || [])
       if (!list.length) {
         ElMessage.warning('文件中没有可导入的数据')
         return

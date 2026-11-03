@@ -213,7 +213,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox, type UploadFile } from 'element-plus'
 import { Download, Upload, OfficeBuilding, InfoFilled, Lock } from '@element-plus/icons-vue'
 import api from '@/utils/api'
 import type { AppConfig } from '@/types'
@@ -300,7 +300,7 @@ async function saveClinic() {
   }
 }
 
-function onLogoChange(uploadFile: any) {
+function onLogoChange(uploadFile: UploadFile) {
   const raw = uploadFile?.raw
   if (!raw) return
   if (raw.size > 2 * 1024 * 1024) {
@@ -406,7 +406,7 @@ async function exportData() {
   }
 }
 
-async function onImportFile(file: any) {
+async function onImportFile(file: UploadFile) {
   try {
     await ElMessageBox.confirm('导入数据将覆盖当前数据，确定继续？', '数据恢复确认', {
       confirmButtonText: '确定导入',

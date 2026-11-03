@@ -3,7 +3,7 @@
     :model-value="visible"
     :title="`带入开方 · ${formula?.name || ''}`"
     width="680px"
-    @update:model-value="(v: any) => { if (!v) emit('close') }"
+    @update:model-value="(v: boolean) => { if (!v) emit('close') }"
   >
     <div v-if="formula" class="ai-imp">
       <div class="ai-imp-head">
@@ -36,7 +36,7 @@
             <el-checkbox :value="m.label">
               <span class="ai-imp-mod-label">{{ m.label }}</span>
               <span v-if="m.add && m.add.length" class="ai-imp-mod-add">
-                ＋ {{ m.add.map((a: any) => a.name + (a.dose ? ' ' + a.dose : '') + (a.method ? '（' + a.method + '）' : '')).join('、') }}
+                ＋ {{ m.add.map((a: AiHerb) => a.name + (a.dose ? ' ' + a.dose : '') + (a.method ? '（' + a.method + '）' : '')).join('、') }}
               </span>
               <span v-if="m.remove && m.remove.length" class="ai-imp-mod-del">
                 － {{ m.remove.join('、') }}
@@ -64,12 +64,17 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 
+interface HerbLike { id: number; name: string; aliases?: string[] }
+interface AiHerb { name: string; dose?: string; method?: string; herb_id?: number | null; unknown?: boolean }
+interface AiMod { label: string; add?: AiHerb[]; remove?: string[] }
+interface AiFormula { name?: string; role?: string; preparation?: string; herbs?: AiHerb[]; modifications?: AiMod[] }
+
 const props = defineProps<{
   visible: boolean
-  formula: any
-  herbList: any[]
+  formula: AiFormula
+  herbList: HerbLike[]
 }>()
-const emit = defineEmits<{ confirm: [any]; close: [] }>()
+const emit = defineEmits<{ confirm: [AiFormula]; close: [] }>()
 
 const selected = ref<string[]>([])
 
@@ -80,28 +85,28 @@ watch(
   { immediate: true },
 )
 
-function matchHerb(name: string): any {
+function matchHerb(name: string): HerbLike | null {
   const n = (name || '').trim()
   if (!n) return null
   return props.herbList.find(
-    (h: any) => h.name === n || (h.aliases || []).some((a: string) => a === n),
-  )
+    (h: HerbLike) => h.name === n || (h.aliases || []).some((a: string) => a === n),
+  ) || null
 }
 
 // 合并：基础组成 + 勾选加减的 add；再应用勾选加减的 remove
 const finalHerbs = computed(() => {
-  const list = (props.formula?.herbs || []).map((h: any) => ({ ...h }))
+  const list = (props.formula?.herbs || []).map((h: AiHerb) => ({ ...h }))
   const mods = props.formula?.modifications || []
   for (const m of mods) {
     if (selected.value.includes(m.label)) {
       for (const a of m.add || []) list.push({ ...a })
       for (const r of m.remove || []) {
-        const idx = list.findIndex((x: any) => x.name === r)
+        const idx = list.findIndex((x: AiHerb) => x.name === r)
         if (idx >= 0) list.splice(idx, 1)
       }
     }
   }
-  return list.map((h: any) => {
+  return list.map((h: AiHerb) => {
     const hit = matchHerb(h.name)
     return {
       name: h.name,
@@ -113,7 +118,7 @@ const finalHerbs = computed(() => {
   })
 })
 
-const unknownCount = computed(() => finalHerbs.value.filter((h: any) => h.unknown).length)
+const unknownCount = computed(() => finalHerbs.value.filter((h: AiHerb) => h.unknown).length)
 
 function onConfirm() {
   emit('confirm', {

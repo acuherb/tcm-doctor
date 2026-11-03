@@ -6,6 +6,20 @@ import type { ApiResponse, Paginated } from '@/types'
 
 export type { ApiResponse, Paginated }
 
+// 从 unknown 错误里提取可读信息（替代 catch (e: any) 内的 e?.response?.data?.detail 写法）
+export function errMsg(e: unknown): string {
+  if (e && typeof e === 'object') {
+    const o = e as Record<string, unknown>
+    const resp = o.response as Record<string, unknown> | undefined
+    const data = resp?.data as Record<string, unknown> | undefined
+    if (typeof data?.detail === 'string') return data.detail
+    if (typeof data?.message === 'string') return data.message
+    if (typeof o.message === 'string') return o.message
+  }
+  if (typeof e === 'string') return e
+  return '操作失败'
+}
+
 // 扩展 axios 请求配置，支持本 api 层自定义的 silent 选项（静默错误、不弹全局提示）。
 // 此前未在类型中声明，导致所有传 { silent: true } 的调用均报 TS2353；类型检查门禁恢复后才暴露。
 declare module 'axios' {
@@ -76,9 +90,9 @@ interface HttpClient {
   delete: HttpMethod
   head: HttpMethod
   options: HttpMethod
-  post: <T = any>(url: string, data?: any, config?: AxiosRequestConfig) => Promise<T>
-  put: <T = any>(url: string, data?: any, config?: AxiosRequestConfig) => Promise<T>
-  patch: <T = any>(url: string, data?: any, config?: AxiosRequestConfig) => Promise<T>
+  post: <T = any>(url: string, data?: unknown, config?: AxiosRequestConfig) => Promise<T>
+  put: <T = any>(url: string, data?: unknown, config?: AxiosRequestConfig) => Promise<T>
+  patch: <T = any>(url: string, data?: unknown, config?: AxiosRequestConfig) => Promise<T>
   request: <T = any>(config: AxiosRequestConfig) => Promise<T>
   defaults: AxiosInstance['defaults']
   interceptors: AxiosInstance['interceptors']

@@ -124,6 +124,7 @@
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import api from '@/utils/api'
 import { onThemeChange, themeVar } from '@/utils/theme'
+import type { ECharts } from 'echarts'
 
 const period = ref(30)
 const activeTab = ref('visits')
@@ -133,18 +134,19 @@ const herbChartRef = ref<HTMLElement>()
 const prescriptionStatusRef = ref<HTMLElement>()
 const formulaChartRef = ref<HTMLElement>()
 
-const dailyStats = ref<unknown[]>([])
+const dailyStats = ref<Array<{ date: string; count: number }>>([])
 const syndromeStats = ref<unknown[]>([])
-const herbUsage = ref<unknown[]>([])
-const prescriptionStats = ref<Record<string, unknown>>({ total: 0, status_stats: [], formula_stats: [] })
+const herbUsage = ref<Array<{ name: string; usage_count: number }>>([])
+interface PrescriptionStats { total: number; status_stats: Array<{ status: string; count: number }>; formula_stats: Array<{ name: string; count: number }> }
+const prescriptionStats = ref<PrescriptionStats>({ total: 0, status_stats: [], formula_stats: [] })
 
 const chartInstances: unknown[] = []
 
 // 按容器复用图表实例：主题切换时只需 setOption 重绘，避免重复 init 与 resize 监听累积
-const chartMap = new Map<HTMLElement, any>()
+const chartMap = new Map<HTMLElement, ECharts>()
 let resizeBound = false
 
-function getOrInitChart(echarts: any, el: HTMLElement): any {
+function getOrInitChart(echarts: typeof import('echarts'), el: HTMLElement): ECharts {
   const existing = chartMap.get(el)
   if (existing) return existing
   const chart = echarts.init(el)
@@ -224,13 +226,13 @@ function renderVisitChart() {
       grid: { left: 50, right: 20, top: 20, bottom: 40 },
       xAxis: {
         type: 'category',
-        data: dailyStats.value.map((d: any) => d.date.slice(5)),
+        data: dailyStats.value.map((d) => d.date.slice(5)),
         axisLabel: { rotate: 45, color: '#666', fontSize: 11 },
       },
       yAxis: { type: 'value', minInterval: 1 },
       series: [{
         type: 'line',
-        data: dailyStats.value.map((d: any) => d.count),
+        data: dailyStats.value.map((d) => d.count),
         smooth: true,
         areaStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
@@ -258,12 +260,12 @@ function renderHerbChart() {
       xAxis: { type: 'value' },
       yAxis: {
         type: 'category',
-        data: top15.map((h: any) => h.name).reverse(),
+        data: top15.map((h) => h.name).reverse(),
         axisLabel: { color: '#333' },
       },
       series: [{
         type: 'bar',
-        data: top15.map((h: any) => h.usage_count).reverse(),
+        data: top15.map((h) => h.usage_count).reverse(),
         itemStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
             { offset: 0, color: accent },
@@ -288,7 +290,7 @@ function renderPrescriptionCharts() {
         series: [{
           type: 'pie',
           radius: ['40%', '65%'],
-          data: prescriptionStats.value.status_stats.map((s: any) => ({
+          data: prescriptionStats.value.status_stats.map((s) => ({
             name: s.status,
             value: s.count,
             itemStyle: { color: colorMap[s.status] || '#999' },
@@ -307,11 +309,11 @@ function renderPrescriptionCharts() {
         xAxis: { type: 'value' },
         yAxis: {
           type: 'category',
-          data: prescriptionStats.value.formula_stats.map((f: any) => f.name).reverse(),
+          data: prescriptionStats.value.formula_stats.map((f) => f.name).reverse(),
         },
         series: [{
           type: 'bar',
-          data: prescriptionStats.value.formula_stats.map((f: any) => f.count).reverse(),
+          data: prescriptionStats.value.formula_stats.map((f) => f.count).reverse(),
           itemStyle: {
             color: themeVar('--tcm-primary') || '#8B4513',
             borderRadius: [0, 4, 4, 0],

@@ -256,7 +256,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Upload, Download, Search, Delete } from '@element-plus/icons-vue'
-import api from '@/utils/api'
+import api, { errMsg } from '@/utils/api'
 import { useAuthStore } from '@/store/auth'
 import type { StockTransaction, StockItem, Supplier, StockBatch, Paginated } from '@/types'
 
@@ -300,8 +300,8 @@ async function loadTransactions(resetPage = false) {
     // 后端返回分页信封 {items,total,...}
     if (Array.isArray(res)) { transactions.value = res; total.value = res.length }
     else { transactions.value = res.items || []; total.value = res.total || 0 }
-  } catch (e: any) {
-    ElMessage.error('流水加载失败：' + (e?.response?.data?.detail || e?.message || '未知错误'))
+  } catch (e) {
+    ElMessage.error('流水加载失败：' + errMsg(e))
   }
 }
 async function loadMoreTransactions() {
@@ -309,18 +309,18 @@ async function loadMoreTransactions() {
   loadingMore.value = true
   try {
     const next = page.value + 1
-    const params: any = { page: next, page_size: pageSize.value }
+    const params: Record<string, unknown> = { page: next, page_size: pageSize.value }
     if (route.query.item_id) params.item_id = Number(route.query.item_id)
     if (typeFilter.value) params.transaction_type = typeFilter.value
     if (refFilter.value) params.reference_type = refFilter.value
     if (searchText.value) params.search = searchText.value
     const res = (await api.get<Paginated<StockTransaction>>('/stock/transactions', { params })) || []
     const rows = Array.isArray(res) ? res : (res.items || [])
-    const seen = new Set(transactions.value.map((r: any) => r.id))
-    transactions.value.push(...rows.filter((r: any) => !seen.has(r.id)))
+    const seen = new Set(transactions.value.map((r: StockTransaction) => r.id))
+    transactions.value.push(...rows.filter((r: StockTransaction) => !seen.has(r.id)))
     page.value = next
-  } catch (e: any) {
-    ElMessage.error('加载失败：' + (e?.response?.data?.detail || e?.message || '未知错误'))
+  } catch (e) {
+    ElMessage.error('加载失败：' + errMsg(e))
   } finally { loadingMore.value = false }
 }
 async function loadItems() {
@@ -354,13 +354,13 @@ function openStockIn(presetItemId: number | null = null) {
   stockInVisible.value = true
 }
 function onItemSelect(id: number) {
-  const i = items.value.find((x: any) => x.id === id)
+  const i = items.value.find((x: StockItem) => x.id === id)
   if (i) { stockInForm.value.supplier_id = i.default_supplier_id || null; stockInUnit.value = i.unit || '' }
 }
 async function submitStockIn() {
   if (!stockInForm.value.item_id) { ElMessage.warning('请选择物品'); return }
   // 用下拉选中的供应商回填 supplier 快照，避免与采购流程不一致
-  const sel = suppliers.value.find((s: any) => s.id === stockInForm.value.supplier_id)
+  const sel = suppliers.value.find((s: Supplier) => s.id === stockInForm.value.supplier_id)
   stockInForm.value.supplier = sel ? sel.name : null
   submitting.value = true
   try {
@@ -368,8 +368,8 @@ async function submitStockIn() {
     ElMessage.success('入库成功')
     stockInVisible.value = false
     loadTransactions()
-  } catch (e: any) {
-    ElMessage.error('入库失败：' + (e?.response?.data?.detail || e?.message || '未知错误'))
+  } catch (e) {
+    ElMessage.error('入库失败：' + errMsg(e))
   } finally {
     submitting.value = false
   }
@@ -392,13 +392,13 @@ function openStockOut() {
   stockOutVisible.value = true
 }
 async function onOutItemSelect(id: number) {
-  const item = items.value.find((x: any) => x.id === id)
+  const item = items.value.find((x: StockItem) => x.id === id)
   outUnit.value = item?.unit || ''
   stockOutForm.value.batch_id = null
   try {
     outBatches.value = (await api.get<StockBatch[]>('/stock/batches', { params: { item_id: id } })) || []
     outAvailable.value = outBatches.value
-      .filter((b: any) => ['正常', '近效期'].includes(b.status))
+      .filter((b: StockBatch) => ['正常', '近效期'].includes(b.status))
       .reduce((s: number, b: any) => s + Number(b.quantity || 0), 0)
   } catch { outBatches.value = []; outAvailable.value = 0 }
 }
@@ -411,8 +411,8 @@ async function submitStockOut() {
     ElMessage.success('出库成功')
     stockOutVisible.value = false
     loadTransactions()
-  } catch (e: any) {
-    ElMessage.error('出库失败：' + (e?.response?.data?.detail || e?.message || '未知错误'))
+  } catch (e) {
+    ElMessage.error('出库失败：' + errMsg(e))
   } finally {
     submitting.value = false
   }
@@ -435,8 +435,8 @@ async function submitStockWriteoff() {
     ElMessage.success('报损成功')
     writeoffVisible.value = false
     loadTransactions()
-  } catch (e: any) {
-    ElMessage.error('报损失败：' + (e?.response?.data?.detail || e?.message || '未知错误'))
+  } catch (e) {
+    ElMessage.error('报损失败：' + errMsg(e))
   } finally {
     submitting.value = false
   }

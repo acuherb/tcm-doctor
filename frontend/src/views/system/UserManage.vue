@@ -144,9 +144,9 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, type FormInstance } from 'element-plus'
 import { Plus, InfoFilled, WarningFilled } from '@element-plus/icons-vue'
-import api from '@/utils/api'
+import api, { errMsg } from '@/utils/api'
 import type { TcmUser } from '@/types'
 import { useAuthStore } from '@/store/auth'
 
@@ -165,7 +165,7 @@ const dialogVisible = ref(false)
 const isEdit = ref(false)
 const saving = ref(false)
 const editId = ref<number | null>(null)
-const formRef = ref<any>(null)
+const formRef = ref<FormInstance | null>(null)
 const resetVisible = ref(false)
 const resetting = ref(false)
 const resetTarget = ref<AccountRow | null>(null)
@@ -209,7 +209,7 @@ function onRoleChange(role: string) {
 const rules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
   role: [{ required: true, message: '请选择角色', trigger: 'change' }],
-  password: [{ validator: (_r: any, v: string, cb: any) => {
+  password: [{ validator: (_r: unknown, v: string, cb: (msg?: string) => void) => {
     if (!isEdit.value && !v) return cb(new Error('请输入初始密码'))
     if (v && v.length < 6) return cb(new Error('密码至少 6 位'))
     cb()
@@ -240,8 +240,8 @@ function avatarText(row: AccountRow) {
 async function load() {
   try {
     users.value = (await api.get<TcmUser[]>('/auth/users'))
-  } catch (e: any) {
-    ElMessage.error(e?.response?.data?.detail || '加载账号失败')
+  } catch (e) {
+    ElMessage.error(errMsg(e) || '加载账号失败')
   }
 }
 
@@ -310,8 +310,8 @@ async function save() {
     }
     dialogVisible.value = false
     await load()
-  } catch (e: any) {
-    ElMessage.error(e?.response?.data?.detail || '保存失败')
+  } catch (e) {
+    ElMessage.error(errMsg(e) || '保存失败')
   } finally {
     saving.value = false
   }
@@ -338,8 +338,8 @@ async function doReset() {
     ElMessage.success('密码已重置')
     resetVisible.value = false
     await load()
-  } catch (e: any) {
-    ElMessage.error(e?.response?.data?.detail || '重置失败')
+  } catch (e) {
+    ElMessage.error(errMsg(e) || '重置失败')
   } finally {
     resetting.value = false
   }
@@ -350,8 +350,8 @@ async function toggleActive(row: AccountRow) {
     await api.put(`/auth/users/${row.id}`, { is_active: !row.is_active })
     ElMessage.success(row.is_active ? '账号已停用' : '账号已启用')
     await load()
-  } catch (e: any) {
-    ElMessage.error(e?.response?.data?.detail || '操作失败')
+  } catch (e) {
+    ElMessage.error(errMsg(e) || '操作失败')
   }
 }
 
@@ -360,8 +360,8 @@ async function removeUser(row: AccountRow) {
     await api.delete(`/auth/users/${row.id}`)
     ElMessage.success('账号已删除')
     await load()
-  } catch (e: any) {
-    ElMessage.error(e?.response?.data?.detail || '删除失败')
+  } catch (e) {
+    ElMessage.error(errMsg(e) || '删除失败')
   }
 }
 

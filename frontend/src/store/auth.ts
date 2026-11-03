@@ -151,8 +151,8 @@ export const useAuthStore = defineStore('auth', () => {
   const mustChange = computed(() => !!user.value?.must_change_password)
 
   // 改密成功后刷新用户（must_change_password 置否，权限不变）
-  function setUser(u: any) {
-    user.value = u
+  function setUser(u: unknown) {
+    user.value = u as TcmUser
     localStorage.setItem(USER_KEY, JSON.stringify(u))
   }
 

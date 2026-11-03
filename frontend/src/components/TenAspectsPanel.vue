@@ -99,15 +99,20 @@
 import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import api from '@/utils/api'
+import api, { errMsg } from '@/utils/api'
 import { TEN_QUESTIONS } from '@/utils/tenAspectsQuestions'
 
 const props = defineProps<{
   patientId: number
   visitId?: number | null
   // 二次编辑时回填：上一次该就诊的问诊十问（选项 / 自填 / 辨证结果）
-  initial?: { answers?: Record<string, string>; notes?: Record<string, string>; result?: any } | null
+  initial?: { answers?: Record<string, string>; notes?: Record<string, string>; result?: ConstitutionResult } | null
 }>()
+
+interface ConstitutionResult {
+  primary_meridians?: string[]
+  scores?: Record<string, number>
+}
 const router = useRouter()
 
 interface QOption { key: string; label: string }
@@ -117,9 +122,9 @@ const questions: Question[] = TEN_QUESTIONS as Question[]
 
 const answers = ref<Record<string, string>>({})
 const notes = ref<Record<string, string>>({})
-const result = ref<any>(null)
+const result = ref<ConstitutionResult | null>(null)
 const submitting = ref(false)
-const recommend = ref<any>(null)
+const recommend = ref<unknown>(null)
 const recLoading = ref(false)
 
 const answeredCount = computed(() => questions.filter(q => answers.value[q.key] || (notes.value[q.key] || '').trim()).length)
@@ -164,13 +169,13 @@ async function evaluate() {
     }, { silent: true })
     ElMessage.success('十问辨证完成，已归档到病历')
     await loadRecommend(result.value)
-  } catch (e: any) {
-    ElMessage.error('辨证失败：' + (e?.response?.data?.detail || e?.message || ''))
+  } catch (e) {
+    ElMessage.error('辨证失败：' + errMsg(e))
   }
   submitting.value = false
 }
 
-function topMeridian(r: any): string {
+function topMeridian(r: ConstitutionResult): string {
   // 优先采用后端主证顺序（含合病），与主标签一致；旧报告无该字段时回退到分数最高
   if (r?.primary_meridians && r.primary_meridians.length) return r.primary_meridians[0]
   const s = r?.scores || {}
@@ -182,7 +187,7 @@ function topMeridian(r: any): string {
   return best
 }
 
-async function loadRecommend(r: any) {
+async function loadRecommend(r: ConstitutionResult) {
   // 合病：按主经顺序取前两经分别拉推荐，避免只取 dict 顺序的第一个
   const meridians = (r?.primary_meridians && r.primary_meridians.length)
     ? r.primary_meridians.slice(0, 2)

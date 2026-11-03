@@ -212,6 +212,24 @@ npx electron-builder --win --x64
 - **操作日志**（全接口审计，见下节）
 - 数据备份/恢复（SQLite 导出/导入/重置，仅 `backup:manage` 权限）
 
+#### 界面风格（主题）
+
+提供 4 套预设配色，可在右上角账号菜单「界面风格」中随时切换：
+
+| 主题 | key | 主色 | 风格 |
+|------|-----|------|------|
+| 本草 | `herbal` | `#8B4513` 深褐 | 暖褐 + 金，默认风格 |
+| 墨色 | `ink` | `#2F4858` 墨青 | 冷灰蓝，沉静克制 |
+| 朱砂 | `vermilion` | `#A0362A` 朱砂红 | 传统红调，醒目 |
+| 青玉 | `jade` | `#4A7C59` 青玉绿 | 草木绿，柔和 |
+
+**同步机制**：主题写入系统配置（`PUT /api/v1/config` 的 `ui_theme` 字段）并持久化到 `.env`，**同一诊所所有终端登录后自动统一**。非管理员切换仅本机生效，不影响全局。
+
+**扩展新主题**：在 `frontend/src/styles/tcm-theme.scss` 增加一个 `[data-theme="xxx"]` 块，声明 `--tcm-primary` / `--tcm-sidebar-*` / `--tcm-bg` / `--tcm-login-bg-*` 等变量，并在 `frontend/src/utils/theme.ts` 的 `THEMES` 中登记元数据即可，无需改动任何组件。组件配色统一取自 CSS 变量，Element Plus 主色也已映射到 `--tcm-primary`，会自动跟随。
+
+> 语义色（BMI 分级、库存预警、处方状态、君药标记）**不随主题变化**；打印/导出样式固定为褐色，确保单据外观稳定。
+> 图表（ECharts）无法读取 CSS 变量，通过 `onThemeChange` 订阅在切换后重新取色并 `setOption` 重绘。
+
 #### 权限模型
 
 系统采用 **5 种角色 + 17 个细粒度权限点**，管理员可为任意账号单独勾选权限点（自定义权限优先于角色模板）。
@@ -369,7 +387,7 @@ tcm-doctor/
 | 模块 | 路径 | 说明 |
 |------|------|------|
 | 系统 | `GET /health` | 健康检查 |
-| 系统 | `GET/PUT /api/v1/config` | 系统配置（API Key 持久化） |
+| 系统 | `GET/PUT /api/v1/config` | 系统配置（API Key 持久化，含界面主题 `ui_theme`） |
 | 患者 | `/api/v1/patients` | 患者 CRUD |
 | 患者 | `/api/v1/patients/{id}/visits` | 就诊记录 |
 | 患者 | `/api/v1/patients/{id}/constitution` | 问诊十问 / 体质辨识（支持 `visit_id` 绑定到具体就诊） |

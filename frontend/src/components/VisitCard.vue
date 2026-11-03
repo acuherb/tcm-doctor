@@ -161,15 +161,21 @@ import { renderMarkdown } from '@/utils/markdown'
 import PinchImage from '@/components/PinchImage.vue'
 import { TEN_QUESTIONS } from '@/utils/tenAspectsQuestions'
 import { useDictColors, readableInk } from '@/utils/dictColors'
+import type { Visit, InquiryRecord, Prescription, FollowUp } from '@/types'
+
+interface AiHerbBlock { name: string; dose?: string; method?: string }
+interface AiModBlock { label: string; add: AiHerbBlock[]; remove: string[] }
+interface AiFormulaBlock { name: string; role?: string; preparation?: string; herbs: AiHerbBlock[]; modifications: AiModBlock[] }
+type IqQuestion = { title: string }
 
 const router = useRouter()
 
 const props = withDefaults(
   defineProps<{
-    visit: any
-    inquiries?: any[]
-    prescriptions?: any[]
-    followups?: any[]
+    visit: Visit
+    inquiries?: InquiryRecord[]
+    prescriptions?: Prescription[]
+    followups?: FollowUp[]
     editable?: boolean
     isChild?: boolean
     patientId?: number
@@ -178,13 +184,13 @@ const props = withDefaults(
 )
 
 defineEmits<{
-  view: [any]
+  view: [Visit]
   edit: [number]
-  'add-followup': [any]
-  'view-followup': [any]
-  'delete-followup': [any]
-  'view-rx': [any]
-  'view-iq': [any]
+  'add-followup': [Visit]
+  'view-followup': [FollowUp]
+  'delete-followup': [FollowUp]
+  'view-rx': [Prescription]
+  'view-iq': [InquiryRecord]
 }>()
 
 // 卡片内 问诊十问 / AI 诊断库 默认折叠
@@ -218,10 +224,10 @@ function improvementTag(s?: string) {
   if (s === '反复' || s === '加重') return 'danger'
   return 'info'
 }
-function hasAnswers(iq: any): boolean {
+function hasAnswers(iq: InquiryRecord): boolean {
   return !!iq?.answers && Object.keys(iq.answers).length > 0
 }
-function iqAnswer(iq: any, qKey: string): string {
+function iqAnswer(iq: InquiryRecord, qKey: string): string {
   const a = iq?.answers?.[qKey]
   if (!a) return ''
   if (a === 'custom') return '（自填）'
@@ -229,7 +235,7 @@ function iqAnswer(iq: any, qKey: string): string {
   const o = q?.options.find(o => o.key === a)
   return o ? o.label : a
 }
-function iqNote(iq: any, qKey: string): string {
+function iqNote(iq: InquiryRecord, qKey: string): string {
   const n = iq?.notes?.[qKey]
   return n && String(n).trim() ? String(n) : ''
 }
@@ -245,25 +251,25 @@ const IQ_MERIDIAN_NAMES: Record<string, string> = {
 }
 
 // 该题在 findings 中是否有判据异常（如《5. 问口渴》）
-function iqFindingText(iq: any, q: any): string {
+function iqFindingText(iq: InquiryRecord, q: IqQuestion): string {
   const fs: string[] = iq?.result?.findings || []
   const m = fs.find(f => f.includes(`《${q.title}》`))
   return m ? m.replace(`《${q.title}》`, '').trim() : ''
 }
 // 该题是否被判定为异常/有问题
-function iqAbnormal(iq: any, q: any): boolean {
+function iqAbnormal(iq: InquiryRecord, q: IqQuestion): boolean {
   const t = iqFindingText(iq, q)
   return !!t && !t.startsWith('补充')
 }
 
 // 仅展示"综合类"判据（不落到 1-10 具体某一题的，如寒热错杂提示）；单题判据已冗余到行尾角标
-function iqGeneralFindings(iq: any): string[] {
+function iqGeneralFindings(iq: InquiryRecord): string[] {
   const fs: string[] = iq?.result?.findings || []
   return fs.filter(f => !TEN_QUESTIONS.some(q => f.includes(`《${q.title}》`)))
 }
 
 // 把 suggestion 拆成 [{经名, 建议}]，看不清来源时给每条标上所属主经
-function iqSuggestionParts(iq: any): { name: string; text: string }[] {
+function iqSuggestionParts(iq: InquiryRecord): { name: string; text: string }[] {
   const sug = (iq?.result?.suggestion || '').trim()
   if (!sug) return []
   const primary: string[] = iq?.result?.detail?.primary_meridians || []
@@ -323,40 +329,43 @@ function splitHerbs(text: string): { name: string; dose: string; method: string 
   return out
 }
 
-function jsonObjToFormula(o: any): any {
-  const name = (o?.name || '').toString().replace(/["""]/g, '').trim()
+function jsonObjToFormula(o: Record<string, unknown>): AiFormulaBlock | null {
+  const name = String(o?.name || '').replace(/["""]/g, '').trim()
   if (!name) return null
-  const role = (o?.role || '').toString().trim() || ''
-  const prep = (o?.preparation || o?.剂型 || '').toString().trim()
+  const role = String(o?.role || '').trim() || ''
+  const prep = String(o?.preparation || o?.剂型 || '').trim()
   // 新格式：herbs 为数组；旧格式（recommended_formulas）：composition 为药味字符串，需拆出
-  let herbs: any[] = []
+  let herbs: AiHerbBlock[] = []
   if (Array.isArray(o?.herbs) && o.herbs.length) {
-    herbs = o.herbs.map((h: any) => {
+    herbs = (o.herbs as unknown[]).map((h: unknown) => {
       if (typeof h === 'string') return splitHerbs(h)[0] || { name: h, dose: '', method: '' }
+      const hr = h as Record<string, unknown>
       return {
-        name: (h?.name || '').toString().replace(/["""]/g, '').trim(),
-        dose: (h?.dose || '').toString().trim(),
-        method: (h?.method || '').toString().trim(),
+        name: String(hr?.name || '').replace(/["""]/g, '').trim(),
+        dose: String(hr?.dose || '').trim(),
+        method: String(hr?.method || '').trim(),
       }
-    }).filter((h: any) => h.name)
+    }).filter((h: AiHerbBlock) => h.name)
   } else {
     const comp = o?.composition || o?.组成 || ''
     const compStr = typeof comp === 'string' ? comp : (Array.isArray(comp) ? comp.join(' ') : '')
     herbs = splitHerbs(compStr)
   }
   // 新格式：modifications 为数组；旧格式：modification 为加减文本
-  let mods: any[] = []
+  let mods: AiModBlock[] = []
   if (Array.isArray(o?.modifications) && o.modifications.length) {
-    mods = o.modifications.map((m: any) => {
-      const label = (m?.label || '').toString().trim()
+    mods = (o.modifications as unknown[]).map((m: unknown) => {
+      const mr = m as Record<string, unknown>
+      const label = String(mr?.label || '').trim()
       if (!label) return null
-      const add = (Array.isArray(m?.add) ? m.add : []).map((a: any) => {
+      const add = (Array.isArray(mr?.add) ? (mr.add as unknown[]) : []).map((a: unknown) => {
         if (typeof a === 'string') return splitHerbs(a)[0] || { name: a, dose: '', method: '' }
-        return { name: (a?.name || '').toString().trim(), dose: (a?.dose || '').toString().trim(), method: (a?.method || '').toString().trim() }
-      }).filter((a: any) => a.name)
-      const remove = (Array.isArray(m?.remove) ? m.remove : []).map((r: any) => (r || '').toString().trim()).filter(Boolean)
+        const ar = a as Record<string, unknown>
+        return { name: String(ar?.name || '').trim(), dose: String(ar?.dose || '').trim(), method: String(ar?.method || '').trim() }
+      }).filter((a: AiHerbBlock) => a.name)
+      const remove = (Array.isArray(mr?.remove) ? (mr.remove as unknown[]) : []).map((r: unknown) => String(r || '').trim()).filter(Boolean)
       return { label, add, remove }
-    }).filter(Boolean)
+    }).filter((m): m is AiModBlock => m !== null)
   } else {
     const modifier = o?.modification || o?.加减 || ''
     if (typeof modifier === 'string' && modifier.trim()) {
@@ -368,9 +377,9 @@ function jsonObjToFormula(o: any): any {
 
 // 从已保存的 ai_analysis 文本中解析出结构化推荐方剂
 // （优先规范 Markdown【推荐方剂】；其次 JSON 块 formulas/recommended_formulas；最后旧版 bullet 兜底）
-function parseAiFormulas(visit: any): any[] {
-  const text = visit?.ai_analysis || ''
-  const out: any[] = []
+function parseAiFormulas(visit: Record<string, unknown>): AiFormulaBlock[] {
+  const text = String(visit?.ai_analysis || '')
+  const out: AiFormulaBlock[] = []
   // 1) 规范化 Markdown【推荐方剂】
   const idx = text.indexOf('【推荐方剂】')
   if (idx >= 0) {
@@ -382,10 +391,10 @@ function parseAiFormulas(visit: any): any[] {
       const name = hm[1].trim()
       const role = hm[2].trim()
       const prep = hm[3].trim()
-      const herbs: any[] = []
+      const herbs: AiHerbBlock[] = []
       const cm = b.match(/组成[：:]\s*(.+)/)
       if (cm) herbs.push(...splitHerbs(cm[1]))
-      const mods: any[] = []
+      const mods: AiModBlock[] = []
       const modLines = b.split('\n').filter((l: string) => /^\s*-\s*/.test(l))
       for (const l of modLines) {
         const mm = l.match(/-\s*(.+?)[：:]\s*加\s*(.+?)(?:；|;|$)/)
@@ -408,7 +417,7 @@ function parseAiFormulas(visit: any): any[] {
       const obj = JSON.parse(jm[1])
       const data = obj.formulas || obj.recommended_formulas
       if (Array.isArray(data)) {
-        const got = data.map(jsonObjToFormula).filter(Boolean)
+        const got = data.map(jsonObjToFormula).filter(Boolean) as AiFormulaBlock[]
         if (got.length) return got
       }
     } catch {}
@@ -455,7 +464,7 @@ function stripJsonBlock(s: string): string {
 }
 
 // 将推荐方剂（结构化）带入开方页，由开方页弹窗勾选加减后生成处方
-function goPrescribeWithFormula(f: any) {
+function goPrescribeWithFormula(f: AiFormulaBlock) {
   if (!props.patientId) {
     router.push({ path: '/prescriptions/new' })
     return

@@ -119,15 +119,15 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import api from '@/utils/api'
+import api, { errMsg } from '@/utils/api'
 import type { StockOption } from '@/types'
 
 const DEFAULT_COLOR = '#909399'
 
 const isMobile = ref(false)
 function updateViewport() { isMobile.value = window.innerWidth < 768 }
-const categories = ref<any[]>([])
-const units = ref<any[]>([])
+const categories = ref<StockOption[]>([])
+const units = ref<StockOption[]>([])
 const visible = ref(false)
 const editing = ref<number | null>(null)
 const saving = ref(false)
@@ -156,8 +156,8 @@ const previewColor = computed(() => form.value.color || DEFAULT_COLOR)
 async function load() {
   try {
     const res = (await api.get<StockOption[]>('/stock/options')) || []
-    categories.value = res.filter((o: any) => o.opt_type === 'category')
-    units.value = res.filter((o: any) => o.opt_type === 'unit')
+    categories.value = res.filter((o: StockOption) => o.opt_type === 'category')
+    units.value = res.filter((o: StockOption) => o.opt_type === 'unit')
   } catch {
     /* 错误提示由拦截器处理 */
   }
@@ -167,7 +167,7 @@ function openCreate(type: 'category' | 'unit') {
   form.value = { opt_type: type, name: '', color: null }
   visible.value = true
 }
-function openEdit(row: any) {
+function openEdit(row: StockOption) {
   editing.value = row.id
   form.value = { opt_type: row.opt_type, name: row.name, color: row.color || null }
   visible.value = true
@@ -198,7 +198,7 @@ async function save() {
     saving.value = false
   }
 }
-async function toggle(row: any, v: any) {
+async function toggle(row: StockOption, v: boolean) {
   const val = Boolean(v)
   try {
     await api.put(`/stock/options/${row.id}`, { is_active: val })

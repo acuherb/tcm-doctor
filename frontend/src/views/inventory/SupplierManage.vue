@@ -85,7 +85,7 @@
 import { ref, onMounted, computed, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
-import api from '@/utils/api'
+import api, { errMsg } from '@/utils/api'
 import { useAuthStore } from '@/store/auth'
 import type { Supplier } from '@/types'
 
@@ -93,7 +93,7 @@ const auth = useAuthStore()
 const isMobile = ref(false)
 function updateViewport() { isMobile.value = window.innerWidth < 768 }
 const editable = computed(() => auth.canWrite('stock'))
-const suppliers = ref<any[]>([])
+const suppliers = ref<Supplier[]>([])
 const cardPageSize = 20
 const shownCount = ref(cardPageSize)
 const pagedSuppliers = computed(() => (isMobile.value ? suppliers.value.slice(0, shownCount.value) : suppliers.value))
@@ -117,14 +117,14 @@ async function load() {
     // 标记是否已被进货使用（前端无法精确判断，交给后端删除校验）
     suppliers.value = list
     shownCount.value = cardPageSize
-  } catch (e: any) { ElMessage.error('加载失败：' + (e?.response?.data?.detail || e?.message)) }
+  } catch (e) { ElMessage.error('加载失败：' + (e?.response?.data?.detail || e?.message)) }
 }
 function openCreate() {
   isEdit.value = false; activeId.value = null
   form.value = { name: '', contact: '', phone: '', address: '', note: '', is_active: true }
   visible.value = true
 }
-function openEdit(row: any) {
+function openEdit(row: Supplier) {
   isEdit.value = true; activeId.value = row.id
   form.value = { name: row.name, contact: row.contact || '', phone: row.phone || '', address: row.address || '', note: row.note || '', is_active: row.is_active }
   visible.value = true
@@ -137,16 +137,16 @@ async function submit() {
     ElMessage.success('已保存')
     visible.value = false
     load()
-  } catch (e: any) { ElMessage.error('保存失败：' + (e?.response?.data?.detail || e?.message)) }
+  } catch (e) { ElMessage.error('保存失败：' + (e?.response?.data?.detail || e?.message)) }
   finally { submitting.value = false }
 }
-async function remove(row: any) {
+async function remove(row: Supplier) {
   try {
     await ElMessageBox.confirm(`确认删除供应商「${row.name}」？`, '提示', { type: 'warning' })
     await api.delete(`/stock/suppliers/${row.id}`)
     ElMessage.success('已删除')
     load()
-  } catch (e: any) { if (e !== 'cancel') ElMessage.error('删除失败：' + (e?.response?.data?.detail || e?.message)) }
+  } catch (e) { if (e !== 'cancel') ElMessage.error('删除失败：' + (e?.response?.data?.detail || e?.message)) }
 }
 
 onMounted(() => {
