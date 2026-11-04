@@ -1,0 +1,18 @@
+{
+  "type": "acupoint_formulas",
+  "version": 1,
+  "note": "示例数据，仅用于演示导入格式，非完整基础包。",
+  "items": [
+    {
+      "name": "足三里保健方",
+      "source": "通用",
+      "composition": { "acupoints": ["足三里", "关元", "气海"] },
+      "efficacy": "培补元气，强健脾胃。",
+      "indications": "体虚乏力，脾胃不和。",
+      "usage": "毫针平补平泻，或温灸。",
+      "technique": "温灸",
+      "treatment_frequency": "隔日",
+      "treatment_days": 10
+    }
+  ]
+}

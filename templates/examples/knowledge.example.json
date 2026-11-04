@@ -1,0 +1,14 @@
+{
+  "type": "knowledge",
+  "version": 1,
+  "note": "示例数据，仅用于演示导入格式，非完整基础包。",
+  "items": [
+    {
+      "title": "伤寒论·太阳病提纲",
+      "category": "条文",
+      "source": "伤寒论",
+      "content": "太阳之为病，脉浮，头项强痛而恶寒。",
+      "tags": { "keywords": ["太阳病", "提纲"] }
+    }
+  ]
+}

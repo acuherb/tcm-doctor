@@ -36,6 +36,18 @@
 - 字段与各模块录入项一致，**无需** `id` / `created_at`；同名自动更新，不存在则新增；
 - 最稳妥的做法：在模块工具栏点「导出当前」得到同格式文件，再在此基础上修改。
 
+## 示例包（可直接下载）
+
+`examples/` 目录下提供了各类型一份**最小示例**，格式与正式包完全一致，可直接下载后在对应模块工具栏「上传导入」体验流程（导入前会先预检并弹窗确认）：
+
+- `examples/herbs.example.json` — 药材字典（人参、甘草）
+- `examples/classic_formulas.example.json` — 中药方库（四君子汤）
+- `examples/acupoint_formulas.example.json` — 针灸方库（足三里保健方）
+- `examples/acupoints.example.json` — 穴位（足三里、合谷）
+- `examples/knowledge.example.json` — 知识库（一条伤寒论条文）
+
+> 示例仅含少量条目，用于演示导入 / 导出与字段格式；正式基础包请从 GitHub Release 下载。
+
 ## 发布包布局（规划：分层 + manifest）
 
 后续正式发布包按**依赖关系**分层，并配 `manifest.json` 作为包清单（字段见 [`manifest.example.json`](manifest.example.json)）：

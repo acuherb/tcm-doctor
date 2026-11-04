@@ -1,0 +1,31 @@
+{
+  "type": "acupoints",
+  "version": 1,
+  "note": "示例数据，仅用于演示导入格式，非完整基础包。",
+  "items": [
+    {
+      "name": "足三里",
+      "meridian": "足阳明胃经",
+      "location": "犊鼻下3寸，胫骨前嵴外一横指。",
+      "efficacy": "调理脾胃，补中益气，通经活络。",
+      "point_type": "合穴",
+      "source": "通用",
+      "region": "下肢",
+      "indications": "胃痛，呕吐，腹胀，泄泻，虚劳。",
+      "needling_method": "直刺1~2寸，可灸。",
+      "is_active": true
+    },
+    {
+      "name": "合谷",
+      "meridian": "手阳明大肠经",
+      "location": "手背第1、2掌骨间，约平第2掌骨中点。",
+      "efficacy": "疏风解表，通络止痛，清热开窍。",
+      "point_type": "原穴",
+      "source": "通用",
+      "region": "上肢",
+      "indications": "头痛，牙痛，面瘫，感冒。",
+      "needling_method": "直刺0.5~1寸，孕妇慎用。",
+      "is_active": true
+    }
+  ]
+}

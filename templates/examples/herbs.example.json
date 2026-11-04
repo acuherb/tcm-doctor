@@ -1,0 +1,33 @@
+{
+  "type": "herbs",
+  "version": 1,
+  "note": "示例数据，仅用于演示导入格式，非完整基础包。请按需替换为你自己的数据。",
+  "items": [
+    {
+      "name": "人参",
+      "aliases": { "common": ["神草", "黄参"] },
+      "nature": "温",
+      "flavors": ["甘", "微苦"],
+      "efficacy": "大补元气，复脉固脱，补脾益肺，生津养血，安神益智。",
+      "contraindication": "实证、热证而正气不虚者忌服。",
+      "dosage_min": 3,
+      "dosage_max": 9,
+      "toxicity": "无毒",
+      "pregnancy_contraindicated": false,
+      "meridians": ["脾", "肺", "心"],
+      "is_active": true
+    },
+    {
+      "name": "甘草",
+      "aliases": { "common": ["国老"] },
+      "nature": "平",
+      "flavors": ["甘"],
+      "efficacy": "补脾益气，清热解毒，祛痰止咳，缓急止痛，调和诸药。",
+      "dosage_min": 2,
+      "dosage_max": 10,
+      "toxicity": "无毒",
+      "meridians": ["心", "肺", "脾", "胃"],
+      "is_active": true
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "type": "classic_formulas",
+  "version": 1,
+  "note": "示例数据，仅用于演示导入格式，非完整基础包。",
+  "items": [
+    {
+      "name": "四君子汤",
+      "aliases": { "common": ["四君子"] },
+      "source": "太平惠民和剂局方",
+      "composition": { "人参": "9g", "白术": "9g", "茯苓": "9g", "甘草": "6g" },
+      "efficacy": "益气健脾。",
+      "indications": "脾胃气虚证。面色㿠白，语音低微，气短乏力，食少便溏，舌淡苔白，脉虚弱。",
+      "usage": "水煎服。",
+      "modifications": { "加减": "加陈皮、半夏为六君子汤" }
+    }
+  ]
+}
