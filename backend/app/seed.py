@@ -225,6 +225,7 @@ def seed_default_user(db: Session) -> int:
         password_hash=f"{salt}${digest}",
         display_name="管理员",
         is_admin=True,
+        role="admin",
         must_change_password=True,
     ))
     db.commit()

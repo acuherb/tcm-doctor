@@ -103,11 +103,12 @@ export const useAuthStore = defineStore('auth', () => {
   })
 
   // ── 角色与权限（与后端 app/permissions.py 的权限点同源）──
-  // 兼容旧数据：role 缺失时按 is_admin 推导，避免升级后管理员瞬间变只读
+  // is_admin 为超级用户，优先于 role 字段（避免 seed 未显式设 role 时落到默认 'viewer' 导致管理员变只读）
   const role = computed<string>(() => {
+    if (user.value?.is_admin) return 'admin'
     const r = user.value?.role
     if (r === 'admin' || r === 'doctor' || r === 'pharmacist' || r === 'viewer' || r === 'custom') return r
-    return user.value?.is_admin ? 'admin' : 'viewer'
+    return 'viewer'
   })
 
   const isAdmin = computed(() => role.value === 'admin')
