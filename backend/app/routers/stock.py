@@ -403,7 +403,7 @@ def list_transactions(
     if start:
         q = q.filter(StockTransaction.created_at >= start)
     if end:
-        q = q.filter(StockTransaction.created_at <= end + " 23:59:59")
+        q = q.filter(StockTransaction.created_at <= end + " 23:59:59.999999")
     if search:
         s = f"%{search.strip()}%"
         q = q.filter(StockItem.name.ilike(s))
@@ -812,7 +812,7 @@ def report_summary(
     if start:
         base = base.filter(StockTransaction.created_at >= start)
     if end:
-        base = base.filter(StockTransaction.created_at <= end + " 23:59:59")
+        base = base.filter(StockTransaction.created_at <= end + " 23:59:59.999999")
     # 用 SQL 聚合替代全量 q.all() 后在内存 sum（避免流水增长后的内存压力）
     pc, cg, rev = base.with_entities(
         func.coalesce(func.sum(case((StockTransaction.transaction_type == "入库", StockTransaction.cost_amount), else_=0)), 0),
@@ -847,7 +847,7 @@ def report_profit(
     if start:
         base = base.filter(StockTransaction.created_at >= start)
     if end:
-        base = base.filter(StockTransaction.created_at <= end + " 23:59:59")
+        base = base.filter(StockTransaction.created_at <= end + " 23:59:59.999999")
     # 按物品 SQL 分组聚合，替代全量拉取后在内存循环
     rows = base.with_entities(
         StockTransaction.item_id,
@@ -900,7 +900,7 @@ def report_turnover(
     if start:
         base = base.filter(StockTransaction.created_at >= start)
     if end:
-        base = base.filter(StockTransaction.created_at <= end + " 23:59:59")
+        base = base.filter(StockTransaction.created_at <= end + " 23:59:59.999999")
     # 按物品 SQL 分组聚合净金额变动（入库正、出/损/盘点/调整负）与 COGS（仅出库），
     # 替代全量拉取后在内存循环
     rows = base.with_entities(

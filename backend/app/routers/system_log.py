@@ -55,7 +55,7 @@ def _apply_filters(q, level, user_id, action, keyword, start, end, method=None):
     if start:
         q = q.filter(OperationLog.created_at >= start)
     if end:
-        q = q.filter(OperationLog.created_at <= end + " 23:59:59")
+        q = q.filter(OperationLog.created_at <= end + " 23:59:59.999999")
     return q
 
 

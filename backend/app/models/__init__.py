@@ -10,7 +10,7 @@ from app.models.stock import (
     StockItem, StockBatch, StockTransaction, Supplier, PurchaseOrder, PurchaseItem, StockOption,
 )
 from app.models.log import OperationLog
-from app.models.prescription import ClassicFormula, Prescription, PrescriptionItem
+from app.models.prescription import ClassicFormula, Prescription, PrescriptionItem, AcupointPrescription, PrescriptionInjection
 from app.models.knowledge import KnowledgeEntry
 from app.models.conversation import Conversation, Message
 from app.models.acupuncture import Acupoint, AcupointFormula
@@ -35,6 +35,8 @@ __all__ = [
     "ClassicFormula",
     "Prescription",
     "PrescriptionItem",
+    "AcupointPrescription",
+    "PrescriptionInjection",
     "KnowledgeEntry",
     "Conversation",
     "Message",

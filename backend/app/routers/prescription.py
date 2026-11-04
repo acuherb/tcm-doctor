@@ -1,6 +1,7 @@
 """处方管理路由"""
 from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func
 
 from datetime import datetime as _dt, timedelta
 
@@ -443,20 +444,25 @@ def delete_prescription(prescription_id: int, current_user: User = Depends(get_c
         raise HTTPException(status_code=404, detail="处方不存在")
     if prescription.status in ("已发药", "已取消"):
         raise HTTPException(status_code=400, detail=f"处方状态为'{prescription.status}'，不可删除")
+    # 级联清理该处方自动生成的随访提醒，避免工作台出现指向已删处方的死链
+    db.query(FollowUpReminder).filter(
+        FollowUpReminder.source_type == "prescription",
+        FollowUpReminder.source_id == prescription.id,
+    ).delete(synchronize_session=False)
     db.delete(prescription)
     db.commit()
     return {"message": "处方已删除"}
 
 
 @router.put("/{prescription_id}/review", response_model=PrescriptionResponse, summary="审核处方")
-def review_prescription(prescription_id: int, reviewer_id: int = 1, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def review_prescription(prescription_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     prescription = db.query(Prescription).filter(Prescription.id == prescription_id).first()
     if not prescription:
         raise HTTPException(status_code=404, detail="处方不存在")
     if prescription.status != "已开":
         raise HTTPException(status_code=400, detail=f"处方状态为'{prescription.status}'，不可审核")
     prescription.status = "已审核"
-    prescription.reviewed_by = reviewer_id
+    prescription.reviewed_by = current_user.id
     db.commit()
     db.refresh(prescription)
     return prescription
@@ -542,6 +548,8 @@ def dispense_prescription(prescription_id: int, current_user: User = Depends(get
                         StockBatch.item_id == item_id,
                         StockBatch.status.in_(["正常", "近效期"]),
                         StockBatch.id != item.inventory_id,
+                    ).order_by(
+                        func.coalesce(StockBatch.expiry_date, "9999-12-31"), StockBatch.id
                     ).with_for_update().all()
                     for o in others:
                         if remaining <= 0:
@@ -571,7 +579,10 @@ def dispense_prescription(prescription_id: int, current_user: User = Depends(get
             else:
                 # 兼容旧处方（未选批次）：FIFO 全局扣减
                 available = db.query(StockBatch).filter(
-                    StockBatch.item_id == item_id, StockBatch.status == "正常"
+                    StockBatch.item_id == item_id,
+                    StockBatch.status.in_(["正常", "近效期"]),
+                ).order_by(
+                    func.coalesce(StockBatch.expiry_date, "9999-12-31"), StockBatch.id
                 ).with_for_update().all()
                 avail_total = sum(float(b.quantity) for b in available)
                 if avail_total < total_qty:

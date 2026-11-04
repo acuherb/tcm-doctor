@@ -1,5 +1,35 @@
 # 开发日志 CHANGELOG
 
+## 2026-11-04 — 安全/正确性审计修复（审核人归属 · FIFO 排序 · 删处方孤儿 · 日期边界）
+
+依据一份代码审计清单逐条核对后修复以下**确认属实**的问题（已排除误报项，见下）：
+
+### M2 · 处方审核人硬编码为 id=1（审计归属错误）— 真实
+- `routers/prescription.py` `review_prescription` 原签名 `reviewer_id: int = 1`，前端调用不传该参数 → 所有处方审核人恒记为 id=1。改为 `prescription.reviewed_by = current_user.id`，真实记录审核者。
+
+### M3 · FIFO 发药无真实排序 + 近效期口径不一致 — 真实
+- 补差批次循环与旧 FIFO 路径的 `StockBatch` 查询均无 `ORDER BY`，SQLite 下 `with_for_update()` 是 no-op，扣减顺序不确定。两处均补 `.order_by(func.coalesce(expiry_date,"9999-12-31"), id)`，按效期升序优先消耗近效期批次。
+- 旧 FIFO 路径原只取 `status == "正常"`，与补差路径的 `in_(["正常","近效期"])` 口径分裂；统一为都含「近效期」。
+
+### M4 · 删处方残留随访孤儿提醒 — 真实
+- `delete_prescription` 原只删处方本身，未清 `followup_reminders`（删患者路径 `patient.py:180` 已处理，处方路径漏了）→ 工作台"待回访"出现指向已删处方的死链。现删除前级联清理 `source_type="prescription" & source_id=处方id` 的提醒。新增 `tests/test_prescription_delete.py` 回归。
+
+### L2 · 报表日期范围边界漏微秒 — 真实（低）
+- `stock.py`(4 处) 与 `system_log.py` 的 `end + " 23:59:59"` 会漏掉当日带微秒(`".xxxxxx"`)的记录。改为 `23:59:59.999999`。
+
+### L3 · `models/__init__.__all__` 漏列处方明细模型 — 真实（低）
+- `AcupointPrescription` / `PrescriptionInjection` 既不在 `__all__` 也未在 `__init__` 导入，仅靠 router 直接 import 建表（脆弱写法）。现已显式导入并加入 `__all__`。
+
+### 已核为误报 / 暂不改的项
+- **L1 中间件不校验 is_active**：误报。`auth.py:104` `get_current_user` 已 `if not user.is_active` 拦截，覆盖全 API。
+- **L5 并发仅靠进程内锁**：属实但属部署架构层；单 worker 诊所场景可接受，多 worker 才需分布式锁。
+- **L6 AI JSON 启发式截取**：`ai_diagnosis_service.py:431` 已优先匹配 ```json 围栏，find/rfind 仅兜底，风险低。
+- **S2 `TemplateIO.vue` 死代码 / S3 AI 密钥明文 .env**：可选清理项，当前场景可接受。
+- **M1 刷新掉登录 + 虚假 Cookie 注释**：真实，但涉及安全取舍（localStorage 持久化 vs 真正 httpOnly Cookie），待用户拍板后再改。
+
+### 验证
+- `pytest -q` 全量 26 passed（含新增 M4 测试）。
+
 ## 2026-11-04 — 修复 CI 测试依赖外部种子数据导致失败
 
 ### 问题
