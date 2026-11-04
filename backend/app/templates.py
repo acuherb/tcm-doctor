@@ -107,7 +107,8 @@ def import_items(db: Session, type_: str, items: list, dry_run: bool = False) ->
     """从模板条目批量导入，按自然键幂等 upsert（已存在则更新，不存在则新增）。
 
     返回新增/更新/跳过计数与少量错误摘要，便于前端回显。
-    dry_run=True 时只预检、不写入也不提交（用于导入前确认，避免误冲数据）。
+    dry_run=True 时只做内存预检（统计新增/更新/跳过），**绝不写入、不提交**，
+    用于导入前确认，避免误冲知识库；深层约束冲突会在真实提交时由数据库校验。
     """
     spec = TEMPLATE_TYPES[type_]
     model = spec["model"]

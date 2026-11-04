@@ -19,6 +19,9 @@ from app.templates import TEMPLATE_TYPES, list_types, export_template, import_it
 
 router = APIRouter(prefix="/templates", tags=["数据模板"])
 
+# 上传模板体积上限（防止大文件打满内存）
+MAX_TEMPLATE_BYTES = 50 * 1024 * 1024
+
 
 @router.get("", summary="列出可导入的模板类型")
 def get_types(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -63,6 +66,8 @@ async def import_type(
             raise HTTPException(status_code=404, detail="内置模板文件不存在（可能已被移除或未随发行包提供）")
     elif file is not None:
         content = await file.read()
+        if len(content) > MAX_TEMPLATE_BYTES:
+            raise HTTPException(status_code=413, detail="模板文件过大（上限 50MB）")
         try:
             parsed = json.loads(content.decode("utf-8"))
         except Exception:

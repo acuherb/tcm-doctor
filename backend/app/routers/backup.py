@@ -1,11 +1,13 @@
 """数据备份与恢复路由"""
 import os
 import shutil
+import sqlite3
 from datetime import datetime
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.database import get_db, engine
@@ -14,6 +16,9 @@ from app.routers.auth import get_current_user
 from app.models.user import User
 
 router = APIRouter(prefix="/backup", tags=["数据管理"])
+
+# 上传备份体积上限（防止大文件打满内存）
+MAX_BACKUP_BYTES = 200 * 1024 * 1024
 
 
 @router.get("/export", summary="导出数据备份（仅管理员）")
@@ -58,6 +63,8 @@ async def import_backup(
         raise HTTPException(status_code=400, detail="请上传 .db 格式的备份文件")
 
     content = await file.read()
+    if len(content) > MAX_BACKUP_BYTES:
+        raise HTTPException(status_code=413, detail="备份文件过大（上限 200MB）")
 
     # 1) 校验是否为合法的 SQLite 文件，避免误覆盖导致数据库损坏/数据丢失
     if not content.startswith(b"SQLite format 3\x00"):
@@ -79,6 +86,22 @@ async def import_backup(
     temp_path = os.path.join(db_dir, f"import_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db")
     with open(temp_path, "wb") as f:
         f.write(content)
+
+    # 4) 校验 schema 版本，避免跨版本备份不兼容导致数据错乱
+    try:
+        with sqlite3.connect(temp_path) as imp:
+            imp_ver = imp.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0]
+    except Exception:
+        os.remove(temp_path)
+        raise HTTPException(status_code=400, detail="备份文件缺少 schema_migrations 版本信息，无法校验兼容性")
+    with engine.connect() as conn:
+        cur_ver = conn.execute(text("SELECT MAX(version) FROM schema_migrations")).scalar()
+    if imp_ver != cur_ver:
+        os.remove(temp_path)
+        raise HTTPException(
+            status_code=400,
+            detail=f"备份文件 schema 版本({imp_ver})与当前系统({cur_ver})不一致，拒绝导入以防数据不兼容",
+        )
 
     try:
         os.replace(temp_path, db_path)

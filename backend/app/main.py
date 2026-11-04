@@ -174,7 +174,7 @@ async def require_admin_for_writes(request: Request, call_next):
     method = request.method
     is_write = method in WRITE_METHODS
     is_api = path.startswith("/api/v1")
-    is_auth = path.startswith("/api/v1/auth")
+    is_auth = path.startswith("/api/v1/auth") or path == "/api/v1/favicon"
 
     if is_api and not is_auth:
         token = _extract_token(request)

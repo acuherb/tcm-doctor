@@ -87,11 +87,8 @@ def get_current_user(
     request: Request = None,
     db: Session = Depends(get_db),
 ) -> User:
-    """依赖注入：优先校验 Authorization: Bearer <token>，其次回退到 httpOnly Cookie（同域场景），返回当前用户"""
+    """依赖注入：校验 Authorization: Bearer <token>，返回当前用户"""
     token_str = credentials.credentials if credentials else None
-    if not token_str and request is not None:
-        # 兼容 httpOnly Cookie：避免令牌暴露在前端存储（XSS 无法读取）
-        token_str = request.cookies.get("tcm_token")
     if not token_str:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="未登录")
     record = (
@@ -149,11 +146,6 @@ def login(payload: LoginRequest, request: Request, response: Response, db: Sessi
     write_log(level="INFO", user_id=user.id, username=user.username, action="登录",
               endpoint="/api/v1/auth/login", method="POST", status_code=200,
               success=True, message="登录成功", ip=client_ip)
-    # 同时下发 httpOnly Cookie（同域防御纵深；令牌仍以 JSON 返回供跨域/Electron 走 Bearer）
-    response.set_cookie(
-        key="tcm_token", value=token.token, httponly=True, samesite="lax",
-        path="/api/v1", max_age=_TOKEN_TTL_DAYS * 86400,
-    )
     return TokenOut(
         token=token.token,
         user=UserOut.model_validate(user),
@@ -182,10 +174,6 @@ def guest_login(request: Request, response: Response, db: Session = Depends(get_
     write_log(level="INFO", user_id=user.id, username=user.username, action="游客登录",
               endpoint="/api/v1/auth/guest", method="POST", status_code=200,
               success=True, message="游客一键登录", ip=client_ip)
-    response.set_cookie(
-        key="tcm_token", value=token.token, httponly=True, samesite="lax",
-        path="/api/v1", max_age=_TOKEN_TTL_DAYS * 86400,
-    )
     return TokenOut(token=token.token, user=UserOut.model_validate(user))
 
 
@@ -220,8 +208,6 @@ def logout(
     write_log(level="INFO", user_id=uid, username=username, action="登出",
               endpoint="/api/v1/auth/logout", method="POST", status_code=200,
               success=True, message="退出登录", ip=ip)
-    if response is not None:
-        response.delete_cookie("tcm_token", path="/api/v1")
     return {"message": "已退出登录"}
 
 
