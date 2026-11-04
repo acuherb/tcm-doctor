@@ -22,6 +22,11 @@ def seed_acupoints(db) -> int:
         return 0
     with open(data_file, "r", encoding="utf-8") as f:
         points = json.load(f)
+    # 兼容两种格式：应用导出的 {"items": [...]} 包裹格式，或直接 [...] 扁平列表
+    if isinstance(points, dict) and "items" in points:
+        points = points["items"]
+    if not isinstance(points, list):
+        return 0
 
     existing = {n for (n,) in db.query(Acupoint.name).all()}
     added = 0
