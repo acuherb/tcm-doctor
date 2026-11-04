@@ -14,6 +14,7 @@ from app.database import get_db, engine
 from app.config import settings
 from app.routers.auth import get_current_user
 from app.models.user import User
+from app.permissions import has_perm
 
 router = APIRouter(prefix="/backup", tags=["数据管理"])
 
@@ -124,7 +125,9 @@ def reset_data(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """清空所有数据（保留表结构）— 显式要求管理员权限"""
+    """清空所有数据（保留表结构）— 仅管理员可触发。
+    清空后只重建框架基础（默认账号 + 数据字典 + 腧穴）；
+    药材/医籍文库/中药方库等「用户内容库」清空后保持为空，由用户自行导入模板。"""
     if not has_perm(current_user, "system:write"):
         raise HTTPException(status_code=403, detail="仅管理员可清空数据")
     from app.models.herb import Herb
@@ -158,8 +161,15 @@ def reset_data(
 
     db.commit()
 
-    # 重新导入种子数据（含字典与腧穴，M4）
-    from app.seed import seed_all
-    seed_all()
+    # 重建框架基础：默认账号 + 游客 + 数据字典 + 腧穴。
+    # 注意：不再重跑 seed_herbs / seed_classic_formulas / seed_knowledge，
+    # 使药材、医籍文库、中药方库在清空后保持为空，由用户按自有模板自行导入。
+    from app.seed import (
+        seed_default_user, seed_guest_user, seed_dictionaries, seed_acupoints,
+    )
+    seed_default_user(db)
+    seed_guest_user(db)
+    seed_dictionaries(db)
+    seed_acupoints(db)
 
-    return {"message": "数据已清空并重新初始化"}
+    return {"message": "数据已清空并重新初始化（内容库需自行导入）"}
