@@ -83,7 +83,7 @@
                 v-model="item.herb_id"
                 :display-name="item.herb_name"
                 :exclude-ids="getExcludeIds(idx)"
-                @select="(h: any) => onHerbSelect(idx, h)"
+                @select="(h) => onHerbSelect(idx, h)"
                 width="180px"
               />
               <el-select
@@ -92,7 +92,7 @@
                 placeholder="选批次"
                 clearable
                 style="width:200px;"
-                @change="(id: any) => onBatchChange(idx, id)"
+                @change="(id) => onBatchChange(idx, id)"
               >
                 <el-option
                   v-for="b in batchesForHerb(item.herb_id)"
@@ -192,7 +192,7 @@
                 default-first-option
                 :teleported="false"
                 style="width:200px;"
-                @change="(v: any) => onAcupointChange(idx, v)"
+                @change="(v) => onAcupointChange(idx, v)"
               >
                 <el-option
                   v-for="a in filteredAcupoints"
@@ -211,7 +211,7 @@
               </el-select>
               <el-input-number
                 :model-value="retentionNum(acp.retention)"
-                @update:model-value="(n: number | null) => (acp.retention = n == null ? '' : Math.round(n) + '分钟')"
+                @update:model-value="(n) => (acp.retention = n == null ? '' : Math.round(n) + '分钟')"
                 :min="0" :max="180"
                 controls-position="right"
                 style="width:150px;"
@@ -307,7 +307,7 @@
         <el-table-column label="组成" show-overflow-tooltip>
           <template #default="{ row }">
             <span v-if="row.composition?.herbs">
-              {{ row.composition.herbs.map((h: { herb: string; dose?: number | string }) => `${h.herb}${h.dose}g`).join('、') }}
+              {{ row.composition.herbs.map((h) => `${h.herb}${h.dose}g`).join('、') }}
             </span>
           </template>
         </el-table-column>
@@ -325,7 +325,7 @@
         <el-table-column label="配穴" show-overflow-tooltip>
           <template #default="{ row }">
             <span v-if="row.composition?.acupoints?.length">
-              {{ row.composition.acupoints.map((a: any) => a.acupoint_name).join('、') }}
+              {{ row.composition.acupoints.map((a) => a.acupoint_name).join('、') }}
             </span>
             <span v-else style="color:#bbb;">—</span>
           </template>
@@ -341,8 +341,8 @@
         @confirm="applyStructuredFormula"
         @close="aiImportVisible = false"
         />
-        </div>
-        </template>
+  </div>
+</template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
@@ -822,12 +822,12 @@ function applyPrescription(p: any) {
   f.treatment_frequency = p.treatment_frequency || ''
   f.treatment_days = p.treatment_days ?? null
   f.acupuncture_fee = p.acupuncture_fee ?? null
-  f.items = (p.items || []) as unknown as PrescriptionItem[].map((i: PrescriptionItem) => ({
+  f.items = ((p.items || []) as unknown as PrescriptionItem[]).map((i: PrescriptionItem) => ({
     herb_id: i.herb_id, herb_name: i.herb_name, dose: i.dose,
     special_method: i.special_method, is_king_herb: i.is_king_herb, note: i.note,
     inventory_id: i.inventory_id ?? null, price: i.price ?? null, _warnings: [],
   }))
-  f.acupoints = (p.acupoints || []) as unknown as AcupointItem[].map((a: AcupointItem) => ({
+  f.acupoints = ((p.acupoints || []) as unknown as AcupointItem[]).map((a: AcupointItem) => ({
     acupoint_id: a.acupoint_id, acupoint_name: a.acupoint_name,
     technique: a.technique, retention: a.retention, sequence: a.sequence, note: a.note,
   }))
