@@ -30,6 +30,7 @@
             <el-form-item label="患者" required>
               <el-select v-model="form.patient_id" filterable remote reserve-keyword
                 placeholder="输入姓名或电话搜索" style="width:100%"
+                :disabled="!!prescriptionId"
                 :remote-method="searchPatients" :loading="patientsLoading"
                 @change="onPatientChange">
                 <el-option v-for="p in patients" :key="p.id" :label="p.name" :value="p.id">
@@ -40,8 +41,12 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="就诊ID">
-              <el-input-number v-model="form.visit_id" :min="1" style="width:100%" placeholder="关联就诊记录" />
+            <el-form-item label="就诊记录" required>
+              <el-select v-model="form.visit_id" filterable style="width:100%"
+                :disabled="!!prescriptionId || !form.patient_id"
+                placeholder="请选择该患者的就诊记录">
+                <el-option v-for="v in visits" :key="v.id" :label="`${v.visit_date}${v.chief_complaint ? ' · ' + v.chief_complaint : ''} (#${v.id})`" :value="v.id" />
+              </el-select>
             </el-form-item>
           </el-col>
         </el-row>
@@ -393,7 +398,7 @@ const filteredAcupoints = computed(() => {
 
 const form = ref({
   patient_id: null as number | null,
-  visit_id: 1,
+  visit_id: null as number | null,
   formula_name: '',
   is_classic: false,
   classic_formula_id: null as number | null,
@@ -565,11 +570,23 @@ function batchShort(item: any): boolean {
   return Number(b.quantity) < batchNeed(item)
 }
 
+const visits = ref<any[]>([])
+async function loadVisits(patientId: number) {
+  if (!patientId) { visits.value = []; return }
+  try {
+    const res = await api.get<any[]>(`/patients/${patientId}/visits`)
+    visits.value = res || []
+  } catch { visits.value = [] }
+}
+
 function onPatientChange(patientId: number) {
   const patient = patients.value.find((p: any) => p.id === patientId)
   if (patient?.pregnancy_contraindicated || patient?.gender === '女') {
     // 标记可能需要孕妇禁忌检查
   }
+  // 切换患者时清空就诊选择并重新加载该患者的就诊，避免处方挂到别的患者的就诊上
+  form.value.visit_id = null
+  loadVisits(patientId)
 }
 
 // ── 安全检查 ──
@@ -741,6 +758,7 @@ function batchesForHerb(herbId: number | null): any[] {
 // ── 提交处方 ──
 async function submitPrescription() {
   if (!form.value.patient_id) { ElMessage.warning('请选择患者'); return }
+  if (!form.value.visit_id) { ElMessage.warning('请选择就诊记录'); return }
   const hasHerb = form.value.items.length > 0
   const hasAcupoint = form.value.acupoints.some(a => a.acupoint_name)
   if (!hasHerb && !hasAcupoint) { ElMessage.warning('请至少添加一味药或一个配穴'); return }
@@ -810,6 +828,7 @@ function applyPrescription(p: any) {
   const f = form.value
   f.patient_id = p.patient_id
   f.visit_id = p.visit_id
+  loadVisits(f.patient_id)
   f.formula_name = p.formula_name || ''
   f.is_classic = p.is_classic || false
   f.classic_formula_id = p.classic_formula_id ?? null
@@ -929,7 +948,10 @@ onMounted(async () => {
   }
 
   // 从辨证页带参数进入：自动预填患者并导入关联经方
-  if (q.patient_id) form.value.patient_id = Number(q.patient_id)
+  if (q.patient_id) {
+    form.value.patient_id = Number(q.patient_id)
+    loadVisits(Number(q.patient_id))
+  }
   if (q.visit_id) form.value.visit_id = Number(q.visit_id)
   if (q.formula_id) {
     const fid = Number(q.formula_id)

@@ -40,9 +40,10 @@
             <span class="rx-no">#{{ row.id }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="患者" width="92">
+        <el-table-column label="患者" width="118">
           <template #default="{ row }">
             <span class="rx-patient">{{ row.patient_name || '-' }}</span>
+            <span v-if="row.patient_id" class="rx-patient-id">#{{ row.patient_id }}</span>
           </template>
         </el-table-column>
         <el-table-column label="中药方" min-width="240">
@@ -117,6 +118,7 @@
               <el-button v-if="editable && row.status !== '已发药' && row.status !== '已取消'" link type="primary" size="small" @click="$router.push(`/prescriptions/new?id=${row.id}`)">编辑</el-button>
               <el-button v-if="editable && row.status === '已开'" link type="success" size="small" @click="reviewPrescription(row)">审核</el-button>
               <el-button v-if="editable && row.status === '已审核'" link type="warning" size="small" @click="dispensePrescription(row)">发药</el-button>
+              <el-button v-if="editable && row.status !== '已取消'" link type="danger" size="small" @click="voidPrescription(row)">作废</el-button>
               <el-button link type="info" size="small" @click="printPrescription(row)">打印</el-button>
             </div>
           </template>
@@ -130,7 +132,7 @@
             <span class="card-no">#{{ row.id }}</span>
             <el-tag :type="statusType(row.status)" size="small">{{ row.status }}</el-tag>
           </div>
-          <div class="card-patient">{{ row.patient_name || '-' }}</div>
+          <div class="card-patient">{{ row.patient_name || '-' }}<span v-if="row.patient_id" class="rx-patient-id">#{{ row.patient_id }}</span></div>
           <div class="card-time">{{ formatTime(row.created_at) }}</div>
 
           <div v-if="row.formula_name || (row.items && row.items.length)" class="card-section">
@@ -169,6 +171,7 @@
             <el-button v-if="editable && row.status !== '已发药' && row.status !== '已取消'" link type="primary" size="small" @click="$router.push(`/prescriptions/new?id=${row.id}`)">编辑</el-button>
             <el-button v-if="editable && row.status === '已开'" link type="success" size="small" @click="reviewPrescription(row)">审核</el-button>
             <el-button v-if="editable && row.status === '已审核'" link type="warning" size="small" @click="dispensePrescription(row)">发药</el-button>
+            <el-button v-if="editable && row.status !== '已取消'" link type="danger" size="small" @click="voidPrescription(row)">作废</el-button>
             <el-button link type="info" size="small" @click="printPrescription(row)">打印</el-button>
           </div>
         </div>
@@ -181,7 +184,7 @@
       <template v-if="currentPrescription">
         <!-- 顶部：患者 + 状态 -->
         <el-descriptions :column="2" border>
-          <el-descriptions-item label="患者">{{ currentPrescription.patient_name || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="患者">{{ currentPrescription.patient_name || '-' }}<span v-if="currentPrescription.patient_id" class="rx-patient-id">#{{ currentPrescription.patient_id }}</span></el-descriptions-item>
           <el-descriptions-item label="状态">
             <el-tag :type="statusType(currentPrescription.status)">{{ currentPrescription.status }}</el-tag>
           </el-descriptions-item>
@@ -242,6 +245,11 @@
         <!-- 医嘱 -->
         <el-divider content-position="left">医嘱</el-divider>
         <div style="padding:2px 4px;line-height:1.8;">{{ currentPrescription.doctor_notes || '无' }}</div>
+      </template>
+      <template #footer>
+        <el-button @click="detailVisible = false">关闭</el-button>
+        <el-button v-if="editable && currentPrescription && currentPrescription.status !== '已取消'"
+          type="danger" plain @click="voidPrescription(currentPrescription)">作废处方</el-button>
       </template>
     </el-dialog>
 
@@ -450,6 +458,23 @@ async function dispensePrescription(row: any) {
   } catch {}
 }
 
+async function voidPrescription(row: any) {
+  const msg = row.status === '已发药'
+    ? `确认作废处方 #${row.id}「${row.formula_name || '自拟方'}」？已发药的处方将退回库存并生成冲红记录。`
+    : `确认作废处方 #${row.id}「${row.formula_name || '自拟方'}」？`
+  try {
+    await ElMessageBox.confirm(msg, '作废确认', {
+      confirmButtonText: '确认作废', cancelButtonText: '取消', type: 'warning',
+    })
+  } catch { return }
+  try {
+    await api.post(`/prescriptions/${row.id}/void`)
+    ElMessage.success('处方已作废')
+    detailVisible.value = false
+    loadPrescriptions()
+    } catch {}
+}
+
 function printPrescription(row: any) {
   currentPrescription.value = row
   printVisible.value = true
@@ -547,6 +572,14 @@ onMounted(async () => {
     font-size: 14px;
     font-weight: 600;
     color: #2c1810;
+  }
+
+  .rx-patient-id {
+    margin-left: 4px;
+    font-size: 11px;
+    font-weight: 400;
+    color: #a39484;
+    font-variant-numeric: tabular-nums;
   }
 
   .rx-doctor {

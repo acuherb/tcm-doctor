@@ -254,6 +254,11 @@ def create_prescription(data: PrescriptionCreate, current_user: User = Depends(g
     """开具处方 — 自动校验剂量"""
     herb_ids = [item.herb_id for item in data.items]
 
+    # 数据完整性：就诊必须属于所选患者，避免处方挂在 A 患者却指向 B 患者的就诊
+    visit = db.query(Visit).filter(Visit.id == data.visit_id).first()
+    if not visit or visit.patient_id != data.patient_id:
+        raise HTTPException(status_code=400, detail="就诊记录不属于该患者，请检查患者与就诊的对应关系")
+
     # 剂量检查 → 超限不拦截提交，改为把提醒写入该药备注
     herbs = db.query(Herb).filter(Herb.id.in_(herb_ids)).all()
     herb_map = {h.id: h for h in herbs}
@@ -376,6 +381,11 @@ def update_prescription(prescription_id: int, data: PrescriptionCreate, current_
         raise HTTPException(status_code=404, detail="处方不存在")
     if prescription.status in ("已发药", "已取消"):
         raise HTTPException(status_code=400, detail=f"处方状态为'{prescription.status}'，不可修改")
+
+    # 数据完整性：就诊必须属于所选患者，避免处方挂在 A 患者却指向 B 患者的就诊
+    visit = db.query(Visit).filter(Visit.id == data.visit_id).first()
+    if not visit or visit.patient_id != data.patient_id:
+        raise HTTPException(status_code=400, detail="就诊记录不属于该患者，请检查患者与就诊的对应关系")
 
     # 更新处方主信息
     prescription.visit_id = data.visit_id
