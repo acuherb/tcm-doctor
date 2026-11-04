@@ -103,10 +103,11 @@ def export_template(db: Session, type_: str) -> dict:
     return {"type": type_, "label": spec["label"], "version": 1, "items": items}
 
 
-def import_items(db: Session, type_: str, items: list) -> dict:
+def import_items(db: Session, type_: str, items: list, dry_run: bool = False) -> dict:
     """从模板条目批量导入，按自然键幂等 upsert（已存在则更新，不存在则新增）。
 
     返回新增/更新/跳过计数与少量错误摘要，便于前端回显。
+    dry_run=True 时只预检、不写入也不提交（用于导入前确认，避免误冲数据）。
     """
     spec = TEMPLATE_TYPES[type_]
     model = spec["model"]
@@ -130,14 +131,18 @@ def import_items(db: Session, type_: str, items: list) -> dict:
         obj = existing.get(kv)
         try:
             if obj is None:
-                obj = model(**data)
-                db.add(obj)
-                existing[kv] = obj
                 added += 1
+                if dry_run:
+                    existing[kv] = True  # 占位，使同批重复键计为「更新」，与真实导入计数一致
+                else:
+                    new_obj = model(**data)
+                    db.add(new_obj)
+                    existing[kv] = new_obj
             else:
-                for c, v in data.items():
-                    setattr(obj, c, v)
                 updated += 1
+                if not dry_run:
+                    for c, v in data.items():
+                        setattr(obj, c, v)
         except IntegrityError:
             db.rollback()
             skipped += 1
@@ -147,7 +152,8 @@ def import_items(db: Session, type_: str, items: list) -> dict:
             skipped += 1
             errors.append(f"「{kv}」解析失败：{e}")
 
-    db.commit()
+    if not dry_run:
+        db.commit()
     return {
         "added": added,
         "updated": updated,

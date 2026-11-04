@@ -47,6 +47,7 @@ def export_type(
 async def import_type(
     type_: str = Query(..., description="模板类型：herbs/classic_formulas/acupoint_formulas/acupoints/knowledge"),
     use_bundled: bool = Query(False, description="true 时导入内置模板文件（忽略上传文件）"),
+    dry_run: bool = Query(False, description="true 时仅预检，返回新增/更新/跳过计数，不写入"),
     file: UploadFile = File(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -75,5 +76,5 @@ async def import_type(
     else:
         raise HTTPException(status_code=400, detail="请提供上传文件，或指定 use_bundled=true 导入内置模板")
 
-    result = import_items(db, type_, items)
+    result = import_items(db, type_, items, dry_run=dry_run)
     return result
