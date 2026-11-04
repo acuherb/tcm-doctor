@@ -207,6 +207,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search, Upload, Download } from '@element-plus/icons-vue'
 import api from '@/utils/api'
+import { fileTimestamp } from '@/utils/datetime'
 import { useAuthStore } from '@/store/auth'
 import type { Herb, DictionaryTerm } from '@/types'
 
@@ -403,7 +404,7 @@ async function exportHerbs() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `herbs_${new Date().toISOString().slice(0, 10)}.json`
+    a.download = `中药材_${fileTimestamp()}.json`
     a.click()
     URL.revokeObjectURL(url)
   } catch {}

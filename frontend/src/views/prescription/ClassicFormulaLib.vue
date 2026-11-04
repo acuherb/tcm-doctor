@@ -197,6 +197,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Plus, Upload, Download, Collection } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import api, { errMsg } from '@/utils/api'
+import { fileTimestamp } from '@/utils/datetime'
 import type { ClassicFormula } from '@/types'
 import { useAuthStore } from '@/store/auth'
 
@@ -323,7 +324,7 @@ async function exportFormulas() {
     const blob = new Blob([JSON.stringify(nl, null, 2)], { type: 'application/json' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
-    a.download = `中药方库_${new Date().toISOString().slice(0, 10)}.json`
+    a.download = `中药方库_${fileTimestamp()}.json`
     a.click()
     URL.revokeObjectURL(a.href)
     ElMessage.success(`已导出 ${nl.length} 首方剂`)

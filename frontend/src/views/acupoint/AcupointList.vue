@@ -181,6 +181,7 @@
 import { ref, reactive, onMounted, onBeforeUnmount, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api, { errMsg } from '@/utils/api'
+import { fileTimestamp } from '@/utils/datetime'
 import { useAuthStore } from '@/store/auth'
 
 const auth = useAuthStore()
@@ -371,7 +372,7 @@ function exportData() {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `acupoints_${new Date().toISOString().slice(0, 10)}.json`
+  a.download = `针灸穴位_${fileTimestamp()}.json`
   a.click()
   URL.revokeObjectURL(url)
 }

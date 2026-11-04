@@ -182,6 +182,7 @@ import { ref, computed, onMounted, onUnmounted, onBeforeUnmount } from 'vue'
 import { Search, Plus, Upload, Download, Delete } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import api from '@/utils/api'
+import { fileTimestamp } from '@/utils/datetime'
 import type { KnowledgeEntry, KnowledgeSource } from '@/types'
 import { renderMarkdown } from '@/utils/markdown'
 import { useAuthStore } from '@/store/auth'
@@ -419,7 +420,7 @@ async function onExport() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `医籍文库_${new Date().toISOString().slice(0, 10)}.json`
+    a.download = `医籍文库_${fileTimestamp()}.json`
     a.click()
     URL.revokeObjectURL(url)
     ElMessage.success(`已导出 ${data.length} 条`)
