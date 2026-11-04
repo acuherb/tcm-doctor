@@ -20,7 +20,7 @@
 
       <div class="filter-bar">
         <el-select v-model="patientFilter" filterable remote reserve-keyword
-          :remote-method="searchPatients" :loading="patientsLoading" clearable
+          :remote-method="debouncedSearchPatients" :loading="patientsLoading" clearable
           placeholder="按患者筛选" class="filter-patient" @change="loadPrescriptions">
           <el-option v-for="p in patients" :key="p.id" :label="p.name" :value="p.id" />
         </el-select>
@@ -340,6 +340,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Star } from '@element-plus/icons-vue'
 import api from '@/utils/api'
+import { debounce, createRequestGuard } from '@/utils/search'
 import type { Patient, Prescription, AppConfig } from '@/types'
 import { useAuthStore } from '@/store/auth'
 
@@ -408,24 +409,34 @@ function resetFilter() {
   loadPrescriptions()
 }
 
+// 患者远程搜索：防抖 + 请求序号守卫（只采信最后一次响应）
+const patientSearchGuard = createRequestGuard()
 async function loadPatients() {
+  const token = patientSearchGuard.next()
   patientsLoading.value = true
   try {
     const res = await api.get<Patient[]>(`/patients`, { params: { page_size: 100 } })
+    if (!patientSearchGuard.isLatest(token)) return
     patients.value = res.items || res || []
-  } catch {}
-  patientsLoading.value = false
+  } catch {} finally {
+    if (patientSearchGuard.isLatest(token)) patientsLoading.value = false
+  }
 }
 
 async function searchPatients(query: string) {
   if (!query.trim()) { loadPatients(); return }
+  const token = patientSearchGuard.next()
   patientsLoading.value = true
   try {
     const res = await api.get<Patient[]>(`/patients`, { params: { search: query, page_size: 50 } })
+    if (!patientSearchGuard.isLatest(token)) return
     patients.value = res.items || res || []
-  } catch {}
-  patientsLoading.value = false
+  } catch {} finally {
+    if (patientSearchGuard.isLatest(token)) patientsLoading.value = false
+  }
 }
+
+const debouncedSearchPatients = debounce((q: string) => { void searchPatients(q) }, 300)
 
 function viewDetail(row: any) {
   currentPrescription.value = row

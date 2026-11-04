@@ -1,5 +1,40 @@
 # 开发日志 CHANGELOG
 
+## 2026-11-04 — 搜索性能专项：全项目盘点 + 第一批优化（防抖/竞态/共享缓存/SQL 真分页）
+
+### 盘点结论（前后端全量调研，只读）
+**后端**（SQLite + SQLAlchemy 2.0）：
+- 所有模糊搜索都是 `LIKE '%q%'`（`contains`/`ilike`），**前置通配必然全表扫描**；全库 **0 处 FTS5 / 全文索引 / trigram**，`migrations.py` 也没有任何建索引机制（`Base.metadata.create_all()` 对存量库不生效）。被搜索的热门列（patients.name/phone、herbs.name/aliases/efficacy、stock_items.name/spec、knowledge_entries.title/content、operation_logs 文本列）**全部无索引**——且 `%q%` 即使加 B-tree 索引也用不上。
+- 最重的三处：`patient.py:list_patients`（整表 patients + 全量 visits/followups 进内存做聚合/筛选/排序，Python 切片「假分页」）、`herb.py:list_herbs`（整表 + Python 子串/异名过滤）、`ai_diagnosis_service._retrieve_context` / `_check_safety_in_reply`（每次 AI 请求全表知识库 `contains`；每次 AI 回复全表 Herb 做 Python 子串比对）。
+- 其余内存过滤：`stock.py` overview / suppliers、`system_log.export_logs`（无 limit）、`knowledge.export`；`stats.py` 首页低库存存在逐物品 `sum()` 的 N+1。
+- 语义检索默认关闭（`ENABLE_SEMANTIC_SEARCH=false` 三处配置）；开启时 Chroma 走 HNSW 没问题，但 `knowledge.search` 与 RAG **不判断开关、无条件叠加**一次 SQL 全表扫描。
+- 正面范式（保留）：`stock.list_items/list_transactions`（ilike 下推 + 真分页 + `_item_agg` group by）、`knowledge.list_entries`（count + substr 预览 + offset/limit）、`prescription.list_prescriptions`（joinedload + `in_()` 批量补名）、报表 SQL 聚合。
+
+**前端**：
+- 防抖**仅 1 处**（BookLibrary 300ms），**0 处**请求竞态保护（无 AbortController / 无请求序号），**0 处**搜索结果缓存；3 个逐键 `remote-method`（处方列表患者筛选、开处方患者选择、HerbSelector 本地过滤）慢响应会直接覆盖新结果。
+- **最典型浪费**：处方编辑器每味药渲染一个 `HerbSelector`，每个实例 `onMounted` 各拉一次全量 `/herbs` → N 味药 = N 个并发请求；编辑器自身 `loadHerbList()` 又拉第 N+1 份。
+- 大量页面无分页全量拉取后前端 `slice` 假分页（Overview / SupplierManage / Check / Reports / PatientDetail 一次并发 6 个无分页接口）；`Overview` 后端已收 `search` 却又在前端再 filter 一遍。
+
+### 本轮实施（第一批：不改变任何业务语义，纯性能）
+- 新增 `frontend/src/utils/search.ts`（模块级单例）：
+  - `debounce()` 防抖、`createRequestGuard()` 请求序号守卫（只采信最后一次响应，比 AbortController 更稳妥：不产生取消请求的错误提示）。
+  - `getAllHerbs()` 全量药材共享缓存（in-flight Promise 并发去重）+ `invalidateHerbCache()`。
+- **三处搜索接入**：`PrescriptionList.vue` / `PrescriptionEditor.vue` 的患者远程搜索改为 300ms 防抖 + 竞态守卫；`KnowledgeSearch.vue` 的知识检索加竞态守卫（语义检索慢，结果易乱序）。
+- **消除 N 个并发全量请求**：`HerbSelector.vue` 与 `PrescriptionEditor.loadHerbList()` 共用 `getAllHerbs()`；`HerbList.vue` 在新增/编辑/删除/导入药材后调用 `invalidateHerbCache()` 保证新鲜度。
+- **后端 `list_patients` 快路径**：默认/仅搜索/体质/过敏筛选时，把 `count()` 与 `offset/limit` 下推 SQL，只给当前页患者补就诊/随访派生字段；`tag` / `improvement` / `sort_by=last_visit_date` 这类依赖聚合结果的筛选仍走原全量路径，**语义完全一致**。抽出 `_enrich_patient` / `_load_related` 复用，关联查询按 500 分块规避 SQLite `IN` 参数上限。
+  - 效果：患者列表从 O(全部患者 + 全部就诊 + 全部随访) 降为 O(1 次 count + 一页患者 + 一页关联)；开处方从 N 次 `/herbs` 降为 1 次。
+
+### 验证
+- 新增 `tests/test_patient_list_fastpath.py`：真分页、派生字段（在治/停诊/新诊）、全量路径（标签/改善/最近就诊排序）与快路径覆盖一致性、软删除过滤。
+- 后端 `pytest -q` **37 passed**；前端 `vue-tsc --noEmit` 退出码 0、`npm run build` 退出码 0；改动文件 lint 0 错误。
+
+### 待拍板（第二批，涉及语义/架构，本轮未动）
+1. **SQLite FTS5 全文索引**（收益最大）：覆盖知识库长文本、操作日志、患者/药材/物品；中文需选 tokenizer（trigram）并建触发器同步；同时要新增「存量库建索引」的迁移机制，否则老库吃不到。
+2. 把 `herb.list_herbs`、`stock.overview/suppliers` 的「整表 + Python 过滤」下推 SQL；`export_logs` / `export_knowledge` 强制 limit。
+3. AI 侧收敛：`enable_semantic_search=true` 时跳过几乎不可能命中的整段主诉 SQL `contains`；安全校验由「全表 Herb 子串比对」改为「从回复抽候选药名 → 一次 `in_()` 查询」。
+4. 前端假分页/全量拉取改造（Overview / SupplierManage / Check / Reports / PatientDetail），按 `ItemManage.vue` 已有范式改后端检索 + tab 懒加载。
+5. `stats.py` 首页 N+1 改一次 `GROUP BY`（非搜索，但属同一批性能债）。
+
 ## 2026-11-04 — 前端「作废」入口 + 修复「改患者名致处方归属错乱」数据一致性 bug
 
 ### 1 · 前端接入作废/冲红（承接上一轮 `POST /prescriptions/{id}/void`）

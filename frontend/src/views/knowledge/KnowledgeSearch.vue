@@ -179,6 +179,7 @@ import {
   Search, Close, Refresh, InfoFilled, QuestionFilled, MagicStick, Aim,
 } from '@element-plus/icons-vue'
 import api from '@/utils/api'
+import { createRequestGuard } from '@/utils/search'
 import type { KnowledgeEntry } from '@/types'
 import { useAuthStore } from '@/store/auth'
 import { renderMarkdown } from '@/utils/markdown'
@@ -199,16 +200,21 @@ const semanticOn = computed(() => !!stats.value.vector_store?.available)
 
 const categories = computed(() => ((stats.value.categories as Array<{ name: string }>) || []).map((c: { name: string }) => c.name))
 
+// 语义/关键词检索耗时较长，用请求序号守卫避免慢响应覆盖新关键词的结果
+const searchGuard = createRequestGuard()
 async function doSearch() {
   if (!searchText.value.trim()) return
+  const token = searchGuard.next()
   searching.value = true
   searched.value = true
   try {
     const params: Record<string, unknown> = { q: searchText.value, limit: 20 }
     if (categoryFilter.value) params.category = categoryFilter.value
-    results.value = (await api.get<KnowledgeEntry[]>('/knowledge/search', { params }))
+    const res = await api.get<KnowledgeEntry[]>('/knowledge/search', { params })
+    if (!searchGuard.isLatest(token)) return
+    results.value = res
   } catch {} finally {
-    searching.value = false
+    if (searchGuard.isLatest(token)) searching.value = false
   }
 }
 

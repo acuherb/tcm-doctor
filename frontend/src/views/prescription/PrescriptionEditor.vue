@@ -31,7 +31,7 @@
               <el-select v-model="form.patient_id" filterable remote reserve-keyword
                 placeholder="输入姓名或电话搜索" style="width:100%"
                 :disabled="!!prescriptionId"
-                :remote-method="searchPatients" :loading="patientsLoading"
+                :remote-method="debouncedSearchPatients" :loading="patientsLoading"
                 @change="onPatientChange">
                 <el-option v-for="p in patients" :key="p.id" :label="p.name" :value="p.id">
                   <span>{{ p.name }}</span>
@@ -355,6 +355,7 @@ import { ElMessage } from 'element-plus'
 import { Plus, Delete } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '@/utils/api'
+import { debounce, createRequestGuard, getAllHerbs } from '@/utils/search'
 import type { Herb, StockBatch, Patient, ClassicFormula, AcupointFormula, Acupoint, Prescription } from '@/types'
 import HerbSelector from '@/components/HerbSelector.vue'
 import AiFormulaImportDialog from '@/components/AiFormulaImportDialog.vue'
@@ -853,26 +854,34 @@ function applyPrescription(p: any) {
 }
 
 // ── 数据加载 ──
+// 患者远程搜索：防抖 + 请求序号守卫（只采信最后一次响应，避免慢响应覆盖新结果）
+const patientSearchGuard = createRequestGuard()
 async function loadPatients() {
+  const token = patientSearchGuard.next()
   patientsLoading.value = true
   try {
     const res = await api.get<Patient[]>(`/patients`, { params: { page_size: 100 } })
+    if (!patientSearchGuard.isLatest(token)) return
     patients.value = res.items || res || []
   } catch {} finally {
-    patientsLoading.value = false
+    if (patientSearchGuard.isLatest(token)) patientsLoading.value = false
   }
 }
 
 async function searchPatients(query: string) {
   if (!query) { loadPatients(); return }
+  const token = patientSearchGuard.next()
   patientsLoading.value = true
   try {
     const res = await api.get<Patient[]>(`/patients`, { params: { search: query, page_size: 50 } })
+    if (!patientSearchGuard.isLatest(token)) return
     patients.value = res.items || res || []
   } catch {} finally {
-    patientsLoading.value = false
+    if (patientSearchGuard.isLatest(token)) patientsLoading.value = false
   }
 }
+
+const debouncedSearchPatients = debounce((q: string) => { void searchPatients(q) }, 300)
 
 async function loadFormulas() {
   try {
@@ -887,10 +896,9 @@ async function loadAcupointFormulas() {
 }
 
 async function loadHerbList() {
-  try {
-    herbCacheList.value = (await api.get<Herb[]>('/herbs')) || []
-    herbCacheList.value.forEach((h: any) => herbCache.set(h.id, h))
-  } catch {}
+  // 与 HerbSelector 共用同一份全量药材缓存，避免编辑器内重复拉取
+  herbCacheList.value = await getAllHerbs()
+  herbCacheList.value.forEach((h: any) => herbCache.set(h.id, h))
 }
 
 async function loadAcupoints() {
