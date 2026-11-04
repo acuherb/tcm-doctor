@@ -1,5 +1,33 @@
 # 开发日志 CHANGELOG
 
+## 2026-11-04 — M1 修复：登录下发 httpOnly 会话 Cookie（方案 B），刷新不再掉登录
+
+### 背景（审计 M1）
+`frontend/src/store/auth.ts` 注释声称「后端 httpOnly Cookie 作防御纵深 / 用 Cookie 静默恢复会话」，但后端从未下发任何 Cookie；令牌仅存内存，`restore()` 在刷新后既无内存令牌也无 Cookie → `/auth/me` 401 → 登出。注释纯属误导。
+
+### 改动（采用方案 B：真正下发 httpOnly Cookie）
+- `routers/auth.py`：
+  - 新增常量 `AUTH_COOKIE_NAME="tcm_session"` 与辅助 `_extract_token(request)`（Authorization 头 **或** 同名 httpOnly Cookie 二选一）、`_set_auth_cookie(...)`（`httponly=True, samesite="lax", path="/", max_age=30d`，HTTPS 时自动 `secure`）。
+  - `login` / `guest_login` 成功后调用 `_set_auth_cookie` 下发会话 Cookie。
+  - `get_current_user` 改为从请求（头/Cookie）提取令牌，不再仅依赖 `HTTPBearer`。
+  - `logout` 清除该 Cookie；`change_password` 改用请求提取令牌。
+  - 移除已无用的 `fastapi.security.HTTPBearer / HTTPAuthorizationCredentials` 依赖。
+- `main.py`：中间件 `_extract_token` 增加 Cookie 回退；导入 `AUTH_COOKIE_NAME`。刷新后仅靠 Cookie 即可通过鉴权中间件与 `get_current_user`。
+- `frontend/src/store/auth.ts`：
+  - 修正第 37 / 75 行误导性注释，如实描述「内存令牌 + httpOnly Cookie 双轨」。
+  - `isLoggedIn` 由「内存令牌」改为「已校验的用户快照（`user`）」——`user` 在刷新后从 localStorage 重载，`restore()` 会用 Cookie 调 `/auth/me` 校验，无效则清空，避免 UI 误判。
+  - `restore()` 第二分支（无内存令牌、靠 Cookie）失败时，显式清空残留本地用户快照。
+- `frontend/src/utils/api.ts`：注释同步更正。
+
+### 部署注意（同源要求）
+Cookie 为同站（SameSite=Lax）机制，要生效需前端与 API **同站**：
+- 开发（vite proxy `/api` → :8765）、生产（后端 `StaticFiles` 托管 SPA，同源）均天然满足。
+- **Electron 必须从后端 HTTP 源（http://127.0.0.1:8765）加载页面**，而非 `file://`；否则 file://→http 属跨站，Lax Cookie 不会被携带，刷新登录仍会失效（此时应走同源托管，或另行评估 localStorage 持久化方案）。
+
+### 验证
+- 新增 `tests/test_auth.py::test_login_issues_http_cookie_and_cookie_auth_works`：登录后 `client.cookies` 含 `tcm_session`；不带 Authorization 头仅凭 Cookie 访问 `/auth/me` 返回 200；登出后 Cookie 清除。
+- 后端 `pytest -q` 27 passed；前端 `vue-tsc --noEmit` 退出码 0。
+
 ## 2026-11-04 — 安全/正确性审计修复（审核人归属 · FIFO 排序 · 删处方孤儿 · 日期边界）
 
 依据一份代码审计清单逐条核对后修复以下**确认属实**的问题（已排除误报项，见下）：

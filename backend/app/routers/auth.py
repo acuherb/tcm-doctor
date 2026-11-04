@@ -6,7 +6,7 @@ import secrets
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -42,7 +42,29 @@ _LEGACY_ITER = 260_000    # 历史存量密码哈希的迭代次数（兼容升�
 _DIGEST = "sha256"
 _TOKEN_TTL_DAYS = 30
 
-_bearer = HTTPBearer(auto_error=False)
+AUTH_COOKIE_NAME = "tcm_session"
+_TOKEN_MAX_AGE = _TOKEN_TTL_DAYS * 24 * 3600
+
+
+def _extract_token(request: Request) -> str:
+    """从 Authorization 头或 httpOnly 会话 Cookie 中取令牌（两者任一有效即可）。"""
+    header = request.headers.get("authorization", "")
+    if header.lower().startswith("bearer "):
+        return header[7:].strip()
+    return request.cookies.get(AUTH_COOKIE_NAME, "")
+
+
+def _set_auth_cookie(response: Response, token: str, request: Request) -> None:
+    """下发 httpOnly + SameSite=Lax 的会话 Cookie（HTTPS 时自动加 Secure）。"""
+    response.set_cookie(
+        key=AUTH_COOKIE_NAME,
+        value=token,
+        httponly=True,
+        samesite="lax",
+        path="/",
+        max_age=_TOKEN_MAX_AGE,
+        secure=request.url.scheme == "https",
+    )
 
 
 def _hash_password(password: str) -> str:
@@ -83,12 +105,11 @@ def _issue_token(db: Session, user: User) -> AuthToken:
 
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
-    request: Request = None,
+    request: Request,
     db: Session = Depends(get_db),
 ) -> User:
-    """依赖注入：校验 Authorization: Bearer <token>，返回当前用户"""
-    token_str = credentials.credentials if credentials else None
+    """依赖注入：校验 Authorization: Bearer <token> 或同名 httpOnly 会话 Cookie，返回当前用户"""
+    token_str = _extract_token(request)
     if not token_str:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="未登录")
     record = (
@@ -146,6 +167,7 @@ def login(payload: LoginRequest, request: Request, response: Response, db: Sessi
     write_log(level="INFO", user_id=user.id, username=user.username, action="登录",
               endpoint="/api/v1/auth/login", method="POST", status_code=200,
               success=True, message="登录成功", ip=client_ip)
+    _set_auth_cookie(response, token.token, request)
     return TokenOut(
         token=token.token,
         user=UserOut.model_validate(user),
@@ -174,6 +196,7 @@ def guest_login(request: Request, response: Response, db: Session = Depends(get_
     write_log(level="INFO", user_id=user.id, username=user.username, action="游客登录",
               endpoint="/api/v1/auth/guest", method="POST", status_code=200,
               success=True, message="游客一键登录", ip=client_ip)
+    _set_auth_cookie(response, token.token, request)
     return TokenOut(token=token.token, user=UserOut.model_validate(user))
 
 
@@ -190,21 +213,23 @@ def permission_catalog(current_user: User = Depends(get_current_user)):
 
 @router.post("/logout", summary="退出登录")
 def logout(
-    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
-    request: Request = None,
+    request: Request,
     response: Response = None,
     db: Session = Depends(get_db),
 ):
     uid = username = None
     ip = request.client.host if request else "unknown"
-    if credentials is not None:
-        rec = db.query(AuthToken).filter(AuthToken.token == credentials.credentials).first()
+    token_str = _extract_token(request)
+    if token_str:
+        rec = db.query(AuthToken).filter(AuthToken.token == token_str).first()
         if rec:
             u = db.query(User).filter(User.id == rec.user_id).first()
             if u:
                 uid, username = u.id, u.username
-        db.query(AuthToken).filter(AuthToken.token == credentials.credentials).delete()
+        db.query(AuthToken).filter(AuthToken.token == token_str).delete()
         db.commit()
+    if response is not None:
+        response.delete_cookie(AUTH_COOKIE_NAME, path="/")
     write_log(level="INFO", user_id=uid, username=username, action="登出",
               endpoint="/api/v1/auth/logout", method="POST", status_code=200,
               success=True, message="退出登录", ip=ip)
@@ -214,7 +239,7 @@ def logout(
 @router.put("/password", summary="修改密码（保留当前会话）")
 def change_password(
     payload: ChangePasswordRequest,
-    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -225,7 +250,7 @@ def change_password(
     current_user.password_hash = _hash_password(payload.new_password)
     current_user.must_change_password = False
     # 保留当前会话令牌（不踢下线）；其余令牌作废，避免密码泄露后被复用
-    token_val = credentials.credentials if credentials else None
+    token_val = _extract_token(request)
     if token_val:
         db.query(AuthToken).filter(
             AuthToken.user_id == current_user.id, AuthToken.token != token_val

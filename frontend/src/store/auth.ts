@@ -34,13 +34,16 @@ const DOMAIN_WRITE: Record<string, string | null> = {
 const USER_KEY = 'tcm_user'
 
 export const useAuthStore = defineStore('auth', () => {
-  // 令牌仅存于内存（配合后端 httpOnly Cookie 作同域防御纵深），不再落 localStorage，避免 XSS 窃取
+  // 会话凭证双轨：内存令牌（登录时 authorize 写入，供 axios 自动加 Bearer 头）+ 后端下发的 httpOnly + SameSite=Lax 会话 Cookie（刷新后由浏览器自动携带，XSS 无法读取）。
+  // 二者任一有效即可通过后端鉴权。非凭证的用户快照仍缓存于 localStorage，仅为刷新后即时恢复 UI 状态，并非会话凭证本身。
   const token = ref<string>('')
   const user = ref<TcmUser | null>(
     JSON.parse(localStorage.getItem(USER_KEY) || 'null')
   )
 
-  const isLoggedIn = computed(() => !!token.value)
+  // 登录态以「已校验的用户快照」为准：localStorage 中的 user 在刷新后被重新加载，
+  // 且 restore() 会用 Cookie/内存令牌调用 /auth/me 校验其有效性，无效则清空。
+  const isLoggedIn = computed(() => !!user.value)
 
   // 登录成功后：授权 axios + 持久化
   function authorize(t: string) {
@@ -80,6 +83,11 @@ export const useAuthStore = defineStore('auth', () => {
       await syncTheme()
       return true
     } catch {
+      // Cookie/内存均无有效会话：清理可能残留的本地用户快照，避免 UI 误判为已登录
+      user.value = null
+      localStorage.removeItem(USER_KEY)
+      token.value = ''
+      delete api.defaults.headers.common['Authorization']
       return false
     }
   }

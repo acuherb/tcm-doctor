@@ -26,7 +26,7 @@ from app.routers import patient, herb, prescription, knowledge, diagnosis, dicti
 from app.routers import acupoint_formula
 from app.routers import stats, backup, auth, followup_reminders, stock
 from app.routers import system_log
-from app.routers.auth import get_current_user
+from app.routers.auth import get_current_user, AUTH_COOKIE_NAME
 
 WRITE_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 
@@ -153,7 +153,7 @@ def _extract_token(request: Request) -> str:
     header = request.headers.get("authorization", "")
     if header.lower().startswith("bearer "):
         return header[7:].strip()
-    return ""
+    return request.cookies.get(AUTH_COOKIE_NAME, "")
 
 
 def _is_password_change_path(path: str) -> bool:

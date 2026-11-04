@@ -39,7 +39,8 @@ const api = axios.create({
   },
 })
 
-// 令牌已移入内存（配合后端 httpOnly Cookie），不再从 localStorage 预设；内存令牌由 auth store 在登录/恢复时写入
+// 会话凭证：内存令牌（authorize 时写入，供 axios 自动加 Bearer 头）+ 后端下发的 httpOnly 会话 Cookie（刷新后由浏览器自动携带）。
+// 二者任一有效即可通过后端鉴权；前端不再从 localStorage 预设令牌。
 
 // 请求拦截：FormData 时移除 Content-Type，让浏览器自动设置 multipart boundary
 api.interceptors.request.use((config) => {

@@ -82,3 +82,21 @@ def test_normal_user_read_allowed_write_forbidden(client, db_session):
         client.post("/api/v1/herbs", json={"name": "测试药材XYZ"}, headers=h).status_code
         == 403
     )
+
+
+def test_login_issues_http_cookie_and_cookie_auth_works(client):
+    # 方案 B：登录须下发 httpOnly 会话 Cookie；刷新后仅凭 Cookie（无 Authorization 头）也能通过鉴权
+    client.cookies.clear()
+    r = _login(client, "admin", "admin123")
+    assert r.status_code == 200
+    assert "tcm_session" in client.cookies
+
+    # 不带 Authorization 头、仅凭 Cookie，也应能通过鉴权并取到当前用户
+    me = client.get("/api/v1/auth/me")
+    assert me.status_code == 200, me.text
+    assert me.json()["username"] == "admin"
+
+    # 登出须清除该 Cookie
+    out = client.post("/api/v1/auth/logout")
+    assert out.status_code == 200
+    assert "tcm_session" not in client.cookies
