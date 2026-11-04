@@ -1,0 +1,31 @@
+{
+  "package": "tcm-base",
+  "title": "中医基础数据包（示例清单）",
+  "version": "1.0.0",
+  "source": "整理自《倪海厦人纪》系列及中医经典，仅供学习交流，不构成临床诊疗依据",
+  "schema_version": 1,
+  "layers": [
+    {
+      "name": "core",
+      "label": "核心：药材 + 穴位 + 基础字典",
+      "depends_on": [],
+      "types": ["herbs", "acupoints"],
+      "files": ["core/herbs.json", "core/acupoints.json"]
+    },
+    {
+      "name": "formulas",
+      "label": "方库：中药方 + 针灸方",
+      "depends_on": ["core"],
+      "types": ["classic_formulas", "acupoint_formulas"],
+      "files": ["formulas/classic_formulas.json", "formulas/acupoint_formulas.json"]
+    },
+    {
+      "name": "books",
+      "label": "医籍文库（可选）",
+      "depends_on": ["core"],
+      "types": ["knowledge"],
+      "files": ["books/knowledge.json"]
+    }
+  ],
+  "whitelist_note": "仅含参考知识表；patients / prescriptions / stock_batches 等业务数据永不打包。"
+}
