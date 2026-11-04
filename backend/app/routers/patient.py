@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.patient import Patient
 from app.models.visit import Visit
+from app.models.prescription import Prescription
 from app.models.inquiry import InquiryRecord
 from app.models.followup import FollowUp
 from app.models.user import User
@@ -150,9 +151,17 @@ def delete_patient(patient_id: int, current_user: User = Depends(get_current_use
         raise HTTPException(status_code=404, detail="患者不存在")
     if patient.deleted_at is not None:
         raise HTTPException(status_code=400, detail="患者已删除")
-    # 软删除：仅标记 deleted_at，物理保留患者及其全部子记录（处方 / 就诊 / 随访 / 问诊 / 会话等）。
-    # 有就诊或开方记录的患者不应被随意物理删除——既保留医疗与审计记录，
-    # 也避免「删患者 → 已发药处方被删 → 出库流水 reference_id 变孤儿引用」的连锁问题。
+    # 有就诊或开方记录的患者一律禁止删除：医疗与审计记录必须保留，
+    # 也避免「删患者 → 已发药处方变孤儿 → 出库流水 reference_id 悬空」的连锁问题。
+    # （已审核/已发药的处方尤其不可因此被抹除。）仅"零就诊、零处方"的患者才允许归档删除。
+    has_visit = db.query(Visit.id).filter(Visit.patient_id == patient_id).first() is not None
+    has_rx = db.query(Prescription.id).filter(Prescription.patient_id == patient_id).first() is not None
+    if has_visit or has_rx:
+        raise HTTPException(
+            status_code=400,
+            detail="该患者已有就诊/处方记录，不可删除，医疗记录须保留。",
+        )
+    # 软删除：仅标记 deleted_at，物理保留患者记录（无子记录，安全）。
     # 列表默认过滤已归档患者；需查看归档可用 include_deleted=true。
     patient.deleted_at = datetime.now()
     db.commit()
