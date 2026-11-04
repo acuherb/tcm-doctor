@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""根据 templates/examples/ 下的规范模板，构建 GitHub Release 基础数据包 tcm-base-core.zip。
+"""根据『模板/』下从应用导出的内容，构建 GitHub Release 基础数据包 tcm-base-core.zip。
 
 布局（与 templates/manifest.example.json 一致）：
     core/    herbs.json, acupoints.json
@@ -7,8 +7,12 @@
     books/   knowledge.json
     manifest.json
 
+数据来源是维护者本地『模板/』下的原始导出（扁平 list），本脚本负责归一化
+（剥离 id/created_at/updated_at/vector_id）后打包。templates/examples/ 仅保留
+最小示例，完整内容只通过本 Release 资产分发，使仓库保持纯框架。
+
 manifest.json 含版本、来源、各层条目数、sha256、依赖关系。
-zip 是发布资产，不应提交进 git（仓库保持纯框架）。
+zip 是发布资产，不应提交进 git（已在 .gitignore 忽略 templates/releases/）。
 
 用法:
     python3 scripts/build_release.py
@@ -24,10 +28,13 @@ import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parent.parent
-EXAMPLES = REPO / "templates" / "examples"
-DST = REPO / "templates" / "releases" / "tcm-base-core.zip"
+# 允许以 `python3 scripts/build_release.py` 直接运行，并复用 sync_templates 的归一化逻辑
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from sync_templates import detect_type, normalize  # noqa: E402
 
+REPO = Path(__file__).resolve().parent.parent
+SRC = REPO / "模板"
+DST = REPO / "templates" / "releases" / "tcm-base-core.zip"
 VERSION = 1
 
 LAYERS = [
@@ -61,29 +68,38 @@ def sha256_of(text: str) -> str:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--examples", type=Path, default=EXAMPLES)
+    ap.add_argument("--src", type=Path, default=SRC)
     ap.add_argument("--dst", type=Path, default=DST)
     ap.add_argument("--version", default="1.0.0")
     args = ap.parse_args()
 
-    if not args.examples.is_dir():
-        print(f"examples 目录不存在: {args.examples}", file=sys.stderr)
+    if not args.src.is_dir():
+        print(f"源目录不存在: {args.src}", file=sys.stderr)
+        return 1
+
+    type_items: dict[str, list] = {}
+    for f in sorted(args.src.glob("*.json")):
+        t = detect_type(f)
+        if not t:
+            print(f"跳过（无法识别类型）: {f.name}")
+            continue
+        try:
+            data = json.loads(f.read_text(encoding="utf-8"))
+        except Exception as e:
+            print(f"跳过（解析失败 {e}）: {f.name}")
+            continue
+        items = data if isinstance(data, list) else data.get("items")
+        if not isinstance(items, list):
+            print(f"跳过（无 items/list）: {f.name}")
+            continue
+        type_items[t] = normalize(items)
+
+    if not type_items:
+        print("没有可打包的内容", file=sys.stderr)
         return 1
 
     args.dst.parent.mkdir(parents=True, exist_ok=True)
 
-    type_items: dict[str, list] = {}
-    for layer in LAYERS:
-        for t in layer["types"]:
-            src = args.examples / f"{t}.example.json"
-            if not src.exists():
-                print(f"缺少 {src.name}，跳过")
-                continue
-            data = json.loads(src.read_text(encoding="utf-8"))
-            items = data.get("items", []) if isinstance(data, dict) else []
-            type_items[t] = items
-
-    # 包内各文件：规范 {type, version, items}
     file_texts: dict[str, str] = {}
     for layer in LAYERS:
         for t, rel in zip(layer["types"], layer["files"]):
@@ -96,7 +112,6 @@ def main() -> int:
             )
             file_texts[rel] = payload
 
-    # manifest
     layers_out = []
     for layer in LAYERS:
         files = []
