@@ -1,5 +1,40 @@
 # 开发日志 CHANGELOG
 
+## 2026-11-04 — 模板同步 / 发布包脚本 + examples 回归最小示例（纯框架）
+
+### 背景
+此前把用户整理的 5 类导出内容（药材 262 / 穴位 364 / 中药方库 38 / 针灸方库 261 / 文库 1292，共 2217 条）直接提交进 `templates/examples/`，使仓库偏离「纯框架」。为回归「源码不含临床数据」的初衷，把 examples 还原为最小示例，完整内容只通过 Release 资产分发。
+
+### 改动
+- 新增 `scripts/sync_templates.py`：把应用导出的扁平 list（带 `id` / `created_at`）归一化为规范的 `{type,version,items}` 示例模板，剥离 `id` / `created_at` / `vector_id`，校验自然键，落盘到 `templates/examples/`。
+- 新增 `scripts/build_release.py`：按 README 规划的分层布局（`core` / `formulas` / `books` + `manifest.json`）构建 GitHub Release 资产 `tcm-base-core.zip`（含 sha256 / 各层计数 / 依赖）。后改为从维护者本地「模板 /」原始导出读取并归一化打包，与最小示例解耦——即使 examples 最小，zip 仍含全量。
+- `templates/examples/*.example.json` 还原为最小示例（`102a246` 的原始版本，每种 1–2 条）；完整内容不再进 git。`tcm-base-core.zip` 为发布资产，已在 `.gitignore` 忽略 `templates/releases/`。
+
+### 验证
+- `sync_templates.py` 通过；`build_release.py` 生成 292K 的 `tcm-base-core.zip`（core 626 / formulas 299 / books 1292 条）。
+- `vue-tsc` 类型检查与既有 pytest 全绿。
+
+## 2026-11-04 — 清空数据（reset）改为只重建框架基础，内容库清空后不回填
+
+### 背景
+`/backup/reset` 此前调用整库 `seed_all()` 重灌，会把已清空的内容库又填回内置默认，与「纯框架 + 用户自带内容」定位冲突。同时发现 `backup.py` 从未导入 `has_perm`，reset 接口一直 `NameError` 返回 500，从未真正可用。
+
+### 改动
+- `backend/app/routers/backup.py`：reset 删除列表不变（Herb / KnowledgeEntry / ClassicFormula 仍清空），但重置后**不再整库 `seed_all()` 重灌**，只重建框架基础——默认账号 + 游客 + 数据字典 + 腧穴；药材 / 医籍文库 / 中药方库清空后保持为空，由用户按自有模板自行导入。
+- 补上缺失的 `from app.permissions import has_perm` 导入，修复 reset 接口一直 500 的 bug。
+- 首次安装仍由 `main.py` 启动 `seed_all()` 提供内置默认；只有手动「清空数据」才归零。
+- 新增 `tests/test_reset.py` 回归测试：内容库清空后为空且不回填、账号 / 字典 / 腧穴保留（测后还原内置数据以免污染同会话其他测试）。
+
+### 验证
+- 全量 pytest 25 passed。
+
+## 2026-11-03~04 — 导出文件名统一为中文名 + 日期 + 时间
+
+### 改动
+- 新增 `frontend/src/utils/datetime.ts` 的 `fileTimestamp()`，生成本地时间、文件名安全的 `YYYY-MM-DD_HH-MM-SS`（短横线替代冒号，兼容 Windows）。
+- 五种数据导出统一为「中文名_日期_时间.json」：中药材 / 针灸穴位 / 中药方库 / 针灸方库 / 医籍文库（`TemplateIO.vue` 为未被引用的死代码，其英文 `tcm_template_{type}` 不影响真实下载，未改）。
+- `vue-tsc` 类型检查通过。
+
 ## 2026-11-01 — 字典释义改用提示圆点 + 五味筛选改 AND + 字典配色统一
 
 ### 背景
