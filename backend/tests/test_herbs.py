@@ -1,8 +1,24 @@
 """药材列表五味筛选：多选五味须「全部具备」(AND)，而非命中任一(OR)。
 
-用例依据种子数据：桂枝 flavors=["辛","甘"]、甘草 flavors=["甘"]。
+本测试自给自足，不依赖外部种子数据（app/data/herbs.json 已被 gitignore，
+CI 干净克隆里没有药材），由 fixture 自行造桂枝 / 甘草两条样本。
 """
-from app.main import app  # noqa: F401  确保 app 被引用
+import pytest
+from app.models.herb import Herb
+
+
+@pytest.fixture(autouse=True)
+def ensure_test_herbs(db_session):
+    """保证存在用于筛选断言的样本药材（不依赖 app/data 种子文件）。"""
+    existing = {name for (name,) in db_session.query(Herb.name).all()}
+    to_add = []
+    if "桂枝" not in existing:
+        to_add.append(Herb(name="桂枝", flavors=["辛", "甘"]))
+    if "甘草" not in existing:
+        to_add.append(Herb(name="甘草", flavors=["甘"]))
+    if to_add:
+        db_session.add_all(to_add)
+        db_session.commit()
 
 
 def test_flavors_filter_and_semantics(client, auth_headers):

@@ -1,5 +1,20 @@
 # 开发日志 CHANGELOG
 
+## 2026-11-04 — 修复 CI 测试依赖外部种子数据导致失败
+
+### 问题
+GitHub Actions 跑 `pytest` 报 3 个失败：`test_herbs.py` 的两条五味筛选用例（`桂枝` 不在结果集、单选 `甘` 返回 0 条）与 `test_reset.py` 的腧穴保留断言（查得 0 个穴位）。本地能过、CI 失败。
+
+### 根因
+`tests/conftest.py` 固定使用**全新临时 SQLite**（不污染开发库）；而这两个测试误以为被测库里已有种子数据——`桂枝` 来自 `app/data/herbs.json`、腧穴来自 `app/data/acupoints.json`，二者均被 `.gitignore` 忽略，**CI 干净克隆里根本不存在**。本地因为开发机有这些文件才侥幸通过。
+
+### 改动
+- `tests/test_herbs.py`：改为**自给自足**，新增 autouse fixture 在临时库里造 `桂枝(flavors=[辛,甘])` / `甘草(flavors=[甘])` 两条样本，不再依赖外部种子；五味筛选的 AND / 全选空集 / 单选语义断言保持不变。
+- `tests/test_reset.py`：reset 前先造一条 `测试穴_RESET` 腧穴，把「腧穴为框架基础须保留」的断言改为校验**本测试写入的腧穴在 reset 后仍在**（而非假设全局有腧穴），在纯框架（克隆 0 穴位）与维护者镜像（含穴位）两种环境都能成立。
+
+### 验证
+- `pytest tests/test_herbs.py tests/test_reset.py` 4 passed；完整套件 `pytest -q` 25 passed。
+
 ## 2026-11-04 — 模板同步 / 发布包脚本 + examples 回归最小示例（纯框架）
 
 ### 背景
