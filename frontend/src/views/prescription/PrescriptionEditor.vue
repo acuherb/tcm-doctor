@@ -355,7 +355,7 @@ import { ElMessage } from 'element-plus'
 import { Plus, Delete } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '@/utils/api'
-import { debounce, createRequestGuard, getAllHerbs } from '@/utils/search'
+import { debounce } from '@/utils/search'
 import type { Herb, StockBatch, Patient, ClassicFormula, AcupointFormula, Acupoint, Prescription } from '@/types'
 import HerbSelector from '@/components/HerbSelector.vue'
 import AiFormulaImportDialog from '@/components/AiFormulaImportDialog.vue'
@@ -854,33 +854,28 @@ function applyPrescription(p: any) {
 }
 
 // ── 数据加载 ──
-// 患者远程搜索：防抖 + 请求序号守卫（只采信最后一次响应，避免慢响应覆盖新结果）
-const patientSearchGuard = createRequestGuard()
 async function loadPatients() {
-  const token = patientSearchGuard.next()
   patientsLoading.value = true
   try {
     const res = await api.get<Patient[]>(`/patients`, { params: { page_size: 100 } })
-    if (!patientSearchGuard.isLatest(token)) return
     patients.value = res.items || res || []
   } catch {} finally {
-    if (patientSearchGuard.isLatest(token)) patientsLoading.value = false
+    patientsLoading.value = false
   }
 }
 
 async function searchPatients(query: string) {
   if (!query) { loadPatients(); return }
-  const token = patientSearchGuard.next()
   patientsLoading.value = true
   try {
     const res = await api.get<Patient[]>(`/patients`, { params: { search: query, page_size: 50 } })
-    if (!patientSearchGuard.isLatest(token)) return
     patients.value = res.items || res || []
   } catch {} finally {
-    if (patientSearchGuard.isLatest(token)) patientsLoading.value = false
+    patientsLoading.value = false
   }
 }
 
+// 输入停止 300ms 后才发请求，避免逐键触发（搜索口径与结果条数均保持原样）
 const debouncedSearchPatients = debounce((q: string) => { void searchPatients(q) }, 300)
 
 async function loadFormulas() {
@@ -896,9 +891,10 @@ async function loadAcupointFormulas() {
 }
 
 async function loadHerbList() {
-  // 与 HerbSelector 共用同一份全量药材缓存，避免编辑器内重复拉取
-  herbCacheList.value = await getAllHerbs()
-  herbCacheList.value.forEach((h: any) => herbCache.set(h.id, h))
+  try {
+    herbCacheList.value = (await api.get<Herb[]>('/herbs')) || []
+    herbCacheList.value.forEach((h: any) => herbCache.set(h.id, h))
+  } catch {}
 }
 
 async function loadAcupoints() {

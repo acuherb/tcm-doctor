@@ -22,46 +22,6 @@ from app.schemas.patient import (
 router = APIRouter(prefix="/patients", tags=["患者管理"])
 
 
-def _load_related(db: Session, ids: list[int], chunk: int = 500):
-    """按患者 id 批量拉取就诊/随访；分块避免 SQLite IN 参数上限（约 999）。"""
-    visits, followups = [], []
-    for i in range(0, len(ids), chunk):
-        part = ids[i : i + chunk]
-        visits.extend(db.query(Visit).filter(Visit.patient_id.in_(part)).all())
-        followups.extend(db.query(FollowUp).filter(FollowUp.patient_id.in_(part)).all())
-    return visits, followups
-
-
-def _enrich_patient(p: Patient, visits_by_p: dict, fups_by_p: dict, today: date) -> Patient:
-    """附加患者列表所需的派生聚合字段（最近就诊 / 最近改善 / 在治状态）。"""
-    pv = sorted(visits_by_p.get(p.id, []), key=lambda x: x.visit_date or "")
-    pf = sorted(fups_by_p.get(p.id, []), key=lambda x: x.followup_date or "")
-    last_visit_date = pv[-1].visit_date if pv else None
-    last_fu = pf[-1] if pf else None
-    last_improvement = last_fu.improvement if last_fu else None
-    days_since = None
-    if last_visit_date:
-        try:
-            days_since = (today - date.fromisoformat(str(last_visit_date)[:10])).days
-        except Exception:
-            days_since = None
-    # 在治/停诊 启发式：最近改善为好转类→在治；反复/加重→停诊；无随访→新诊/未复诊
-    if last_improvement in ("明显好转", "好转", "稳定"):
-        active_status = "在治"
-    elif last_improvement in ("反复", "加重"):
-        active_status = "停诊"
-    elif last_visit_date:
-        active_status = "未复诊"
-    else:
-        active_status = "新诊"
-    # 附加聚合字段（Pydantic from_attributes 会拾取）
-    p.last_visit_date = last_visit_date
-    p.days_since_visit = days_since
-    p.last_improvement = last_improvement
-    p.active_status = active_status
-    return p
-
-
 # ── 患者 CRUD ──
 
 @router.get("", response_model=PatientListResponse, summary="患者列表")
@@ -95,42 +55,47 @@ def list_patients(
     elif has_allergy is False:
         query = query.filter(or_(Patient.allergy_history == None, Patient.allergy_history == ""))
 
-    # 快路径：不带「依赖聚合结果才能判断」的筛选时，把分页下推到 SQL，
-    # 只给当前页患者补就诊/随访派生字段，避免把全表 patients/visits/followups 拉进内存。
-    # （tag / improvement / sort_by=last_visit_date 需要先算出每个患者的聚合值，仍走下方全量路径）
-    needs_full_agg = bool(tag) or bool(improvement) or sort_by == "last_visit_date"
-    if not needs_full_agg:
-        total = query.count()
-        items = (
-            query.order_by(Patient.updated_at.desc(), Patient.id.asc())
-            .offset((page - 1) * page_size).limit(page_size).all()
-        )
-        ids = [p.id for p in items]
-        visits, followups = _load_related(db, ids)
-        visits_by_p: dict[int, list] = {}
-        for v in visits:
-            visits_by_p.setdefault(v.patient_id, []).append(v)
-        fups_by_p: dict[int, list] = {}
-        for f in followups:
-            fups_by_p.setdefault(f.patient_id, []).append(f)
-        today = date.today()
-        for p in items:
-            _enrich_patient(p, visits_by_p, fups_by_p, today)
-        return PatientListResponse(total=total, items=items, page=page, page_size=page_size)
-
-    # 全量路径：标签/改善/按最近就诊排序依赖聚合结果，保持原有 Python 侧聚合语义
+    # 单诊所数据量有限，拉取匹配集合后在 Python 侧做聚合/筛选/排序（避免复杂 SQL 子查询）
     candidates = query.all()
     ids = [p.id for p in candidates]
-    visits, followups = _load_related(db, ids)
-    visits_by_p = {}
+    visits = db.query(Visit).filter(Visit.patient_id.in_(ids)).all() if ids else []
+    followups = db.query(FollowUp).filter(FollowUp.patient_id.in_(ids)).all() if ids else []
+    visits_by_p: dict[int, list] = {}
     for v in visits:
         visits_by_p.setdefault(v.patient_id, []).append(v)
-    fups_by_p = {}
+    fups_by_p: dict[int, list] = {}
     for f in followups:
         fups_by_p.setdefault(f.patient_id, []).append(f)
 
     today = date.today()
-    enriched = [_enrich_patient(p, visits_by_p, fups_by_p, today) for p in candidates]
+    enriched = []
+    for p in candidates:
+        pv = sorted(visits_by_p.get(p.id, []), key=lambda x: x.visit_date or "")
+        pf = sorted(fups_by_p.get(p.id, []), key=lambda x: x.followup_date or "")
+        last_visit_date = pv[-1].visit_date if pv else None
+        last_fu = pf[-1] if pf else None
+        last_improvement = last_fu.improvement if last_fu else None
+        days_since = None
+        if last_visit_date:
+            try:
+                days_since = (today - date.fromisoformat(str(last_visit_date)[:10])).days
+            except Exception:
+                days_since = None
+        # 在治/停诊 启发式：最近改善为好转类→在治；反复/加重→停诊；无随访→新诊/未复诊
+        if last_improvement in ("明显好转", "好转", "稳定"):
+            active_status = "在治"
+        elif last_improvement in ("反复", "加重"):
+            active_status = "停诊"
+        elif last_visit_date:
+            active_status = "未复诊"
+        else:
+            active_status = "新诊"
+        # 附加聚合字段（Pydantic from_attributes 会拾取）
+        p.last_visit_date = last_visit_date
+        p.days_since_visit = days_since
+        p.last_improvement = last_improvement
+        p.active_status = active_status
+        enriched.append(p)
 
     # 标签（JSON 列表，Python 侧精确匹配）
     if tag:

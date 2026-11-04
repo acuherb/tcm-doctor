@@ -340,7 +340,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Star } from '@element-plus/icons-vue'
 import api from '@/utils/api'
-import { debounce, createRequestGuard } from '@/utils/search'
+import { debounce } from '@/utils/search'
 import type { Patient, Prescription, AppConfig } from '@/types'
 import { useAuthStore } from '@/store/auth'
 
@@ -409,33 +409,26 @@ function resetFilter() {
   loadPrescriptions()
 }
 
-// 患者远程搜索：防抖 + 请求序号守卫（只采信最后一次响应）
-const patientSearchGuard = createRequestGuard()
 async function loadPatients() {
-  const token = patientSearchGuard.next()
   patientsLoading.value = true
   try {
     const res = await api.get<Patient[]>(`/patients`, { params: { page_size: 100 } })
-    if (!patientSearchGuard.isLatest(token)) return
     patients.value = res.items || res || []
-  } catch {} finally {
-    if (patientSearchGuard.isLatest(token)) patientsLoading.value = false
-  }
+  } catch {}
+  patientsLoading.value = false
 }
 
 async function searchPatients(query: string) {
   if (!query.trim()) { loadPatients(); return }
-  const token = patientSearchGuard.next()
   patientsLoading.value = true
   try {
     const res = await api.get<Patient[]>(`/patients`, { params: { search: query, page_size: 50 } })
-    if (!patientSearchGuard.isLatest(token)) return
     patients.value = res.items || res || []
-  } catch {} finally {
-    if (patientSearchGuard.isLatest(token)) patientsLoading.value = false
-  }
+  } catch {}
+  patientsLoading.value = false
 }
 
+// 输入停止 300ms 后才发请求，避免逐键触发（搜索口径与结果条数均保持原样）
 const debouncedSearchPatients = debounce((q: string) => { void searchPatients(q) }, 300)
 
 function viewDetail(row: any) {

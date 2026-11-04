@@ -1,5 +1,28 @@
 # 开发日志 CHANGELOG
 
+## 2026-11-04 — 搜索改动回退：除 300ms 防抖外，全部恢复原状
+
+### 决定
+用户实测评估后认为「边输边出结果」等搜索改造收益不足、且担心抖动与资源占用，决定**不做**主列表即时搜索，也不做「今日就诊患者提示 / 名字提示只给 2~3 条」两个方案。要求：**除防抖优化外，搜索相关改动全部恢复到 `9d22153` 之前的状态**。
+
+### 已撤销（相对 `9d22153`）
+- 后端 `routers/patient.py`：`list_patients` 的 SQL 分页快路径、`_enrich_patient` / `_load_related` 辅助与 500 分块，恢复为原来的全量聚合 + Python 切片分页；删除 `tests/test_patient_list_fastpath.py`。
+- 前端 `utils/search.ts`：移除 `createRequestGuard`（竞态守卫）、`getAllHerbs` 共享药材缓存、`invalidateHerbCache`，仅保留 `debounce`。
+- `HerbSelector.vue` / `PrescriptionEditor.loadHerbList()`：恢复各自 `api.get('/herbs')`；`HerbList.vue` 移除缓存失效调用。
+- `KnowledgeSearch.vue`：移除知识检索的竞态守卫，恢复原 `doSearch`。
+- 处方列表/编辑器：患者远程搜索的竞态守卫移除，`page_size`（100 / 50）与搜索口径、结果条数**一律保持原样**。
+
+### 仅保留
+- `frontend/src/utils/search.ts` 的 `debounce()`；处方列表、处方编辑器两个患者下拉的 `:remote-method` 改指向 300ms 防抖包装（`debouncedSearchPatients`）。**只减少逐键请求，不改变任何搜索行为、口径或结果数量**。
+
+### 未受影响（其它修复完好）
+作废/冲红入口、患者删除守卫、患者软删除、编辑处方就诊归属校验、`#患者id` 标注、M1 Cookie 登录、审计修复等全部保留。
+
+### 验证
+- 后端 `pytest -q` 34 passed；前端 `vue-tsc --noEmit` 与 `npm run build` 退出码 0。
+
+> 下一条 `9d22153` 的「第一批优化」记录仅作历史留存，其中大部分改动已按本条回退。
+
 ## 2026-11-04 — 搜索性能专项：全项目盘点 + 第一批优化（防抖/竞态/共享缓存/SQL 真分页）
 
 ### 盘点结论（前后端全量调研，只读）

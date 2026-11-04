@@ -39,7 +39,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { getAllHerbs } from '@/utils/search'
+import api from '@/utils/api'
 import type { Herb } from '@/types'
 
 const props = withDefaults(defineProps<{
@@ -69,14 +69,10 @@ const filteredHerbs = ref<Herb[]>([])
 const searchLoading = ref(false)
 
 async function loadAllHerbs() {
-  searchLoading.value = true
   try {
-    // getAllHerbs 为模块级单例：N 个 HerbSelector 实例并发挂载也只发一次 /herbs
-    allHerbs.value = await getAllHerbs()
+    allHerbs.value = (await api.get<Herb[]>('/herbs')) || []
     filteredHerbs.value = allHerbs.value.filter((h: Herb) => !props.excludeIds.includes(h.id))
-  } finally {
-    searchLoading.value = false
-  }
+  } catch {}
 }
 
 function searchHerbs(query: string) {

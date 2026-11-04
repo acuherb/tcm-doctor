@@ -207,7 +207,6 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search, Upload, Download } from '@element-plus/icons-vue'
 import api from '@/utils/api'
-import { invalidateHerbCache } from '@/utils/search'
 import { fileTimestamp } from '@/utils/datetime'
 import { useAuthStore } from '@/store/auth'
 import type { Herb, DictionaryTerm } from '@/types'
@@ -361,7 +360,6 @@ async function submitForm() {
       await api.post('/herbs', payload)
       ElMessage.success('药材添加成功')
     }
-    invalidateHerbCache()
     showDialog.value = false
     loadHerbs()
   } catch {}
@@ -374,7 +372,6 @@ async function removeHerb(row: Herb) {
   try {
     const r: { message?: string } = await api.delete(`/herbs/${row.id}`)
     ElMessage.success(r?.message || '操作成功')
-    invalidateHerbCache()
     loadHerbs()
   } catch {}
 }
@@ -393,7 +390,6 @@ async function onImportFile(e: Event) {
     if (!Array.isArray(arr)) { ElMessage.error('文件须为药材数组 JSON'); return }
     const r: { imported?: number; updated?: number; message?: string } = await api.post('/herbs/import', arr, { silent: true })
     ElMessage.success(`导入完成：新增 ${r.imported} 条，更新 ${r.updated} 条`)
-    invalidateHerbCache()
     loadHerbs()
   } catch {
     ElMessage.error('JSON 解析或导入失败')
