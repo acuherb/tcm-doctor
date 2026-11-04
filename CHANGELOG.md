@@ -1,5 +1,20 @@
 # 开发日志 CHANGELOG
 
+## 2026-11-04 — 患者软删除 + 作废处方/冲红（保医疗记录、堵库存孤儿、可退货回补）
+
+### 背景（用户提问）
+用户发现三个隐患：① 删除患者会把其全部处方（含已发药）一并物理删除，丢失医疗记录；② 删患者/处方会留下指向已删处方的库存流水孤儿引用；③ 已发药处方无法作废/冲红，患者取药后反悔无处理路径。
+
+### 改动
+- **B · 患者软删除**（`patient.py` / `models/patient.py`）：`Patient` 新增 `deleted_at` 列（由 `_sync_model_columns` 自动建列，无需手写迁移）。`delete_patient` 改为仅标记 `deleted_at`，**不再物理删除患者及其处方/就诊/随访/问诊/会话等任何子记录**；`list_patients` 默认过滤已归档患者（新增 `include_deleted` 开关），`get_patient` / `update_patient` 对软删除患者返回 404。→ 有就诊/开方记录的患者不再被随意物理删除，也根除“删患者→已发药处方被删→出库流水 `reference_id` 变孤儿”的连锁问题（即 C）。
+- **A · 作废处方/冲红**（`routers/prescription.py` 新增 `POST /{id}/void`）：`已开`/`已审核` 处方作废仅置为 `已取消`（未扣库存，无副作用）；`已发药` 处方作废置 `已取消`，并（默认 `return_stock=true`）按发药时的`出库`流水把库存退回对应批次、生成 `冲红` 流水。幂等：已取消再调直接返回。
+- **C · 报表净额抵消**（`routers/stock.py` 的 `report_summary` / `report_profit` / `report_turnover`）：新增 `冲红` 交易类型在采购成本/COGS/收入聚合中的净额抵消，避免作废扭曲账目；`delete_prescription` 对（仅未发药状态的）处方关联库存流水做防御性 `reference_id` 置空。
+- **测试隔离修复**（`tests/conftest.py`）：`admin_token` 由 session 级改为 function 级——`backup.reset_data` 会清空全部 `AuthToken` 却不删用户，原共享令牌在 reset 后失效，导致其后测试 401；改为每测试重新登录后解耦。
+
+### 验证
+- 新增 `tests/test_void.py`（已发药作废回补库存+生成冲红流水、不退货仅改状态、未发药仅改状态）与 `tests/test_patient_soft_delete.py`（归档标记、记录保留、列表过滤、404、include_deleted 找回）。
+- `pytest -q` 全量 31 passed。
+
 ## 2026-11-04 — M1 修复：登录下发 httpOnly 会话 Cookie（方案 B），刷新不再掉登录
 
 ### 背景（审计 M1）

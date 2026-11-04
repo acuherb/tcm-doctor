@@ -815,11 +815,18 @@ def report_summary(
         base = base.filter(StockTransaction.created_at <= end + " 23:59:59.999999")
     # 用 SQL 聚合替代全量 q.all() 后在内存 sum（避免流水增长后的内存压力）
     pc, cg, rev = base.with_entities(
+        # 采购成本：仅『入库』（冲红非采购，不计入）
         func.coalesce(func.sum(case((StockTransaction.transaction_type == "入库", StockTransaction.cost_amount), else_=0)), 0),
+        # COGS：『出库』销售成本 + 『冲红』退回成本抵消（冲红 cost_amount>0 表示货退回，减少 COGS）
         func.coalesce(func.sum(case(
-            (and_(StockTransaction.transaction_type == "出库", StockTransaction.cost_amount < 0),
+            (or_(and_(StockTransaction.transaction_type == "出库", StockTransaction.cost_amount < 0),
+                 and_(StockTransaction.transaction_type == "冲红", StockTransaction.cost_amount > 0)),
              -StockTransaction.cost_amount), else_=0)), 0),
-        func.coalesce(func.sum(case((StockTransaction.revenue_amount > 0, StockTransaction.revenue_amount), else_=0)), 0),
+        # 收入：『出库』正收入 + 『冲红』退款(revenue_amount<0)抵消
+        func.coalesce(func.sum(case(
+            (or_(and_(StockTransaction.transaction_type == "出库", StockTransaction.revenue_amount > 0),
+                 and_(StockTransaction.transaction_type == "冲红", StockTransaction.revenue_amount != 0)),
+             StockTransaction.revenue_amount), else_=0)), 0),
     ).first()
     purchase_cost = 0.0 if pc is None else float(pc)
     # COGS 仅统计「出库」（销售/手动出库的成本）；损耗/盘点/调整的成本不并入销售成本，避免毛利被系统性低估
@@ -851,9 +858,15 @@ def report_profit(
     # 按物品 SQL 分组聚合，替代全量拉取后在内存循环
     rows = base.with_entities(
         StockTransaction.item_id,
-        func.coalesce(func.sum(case((StockTransaction.revenue_amount > 0, StockTransaction.revenue_amount), else_=0)), 0),
+        # 收入：出库正收入 + 冲红退款抵消
         func.coalesce(func.sum(case(
-            (and_(StockTransaction.transaction_type == "出库", StockTransaction.cost_amount < 0),
+            (or_(and_(StockTransaction.transaction_type == "出库", StockTransaction.revenue_amount > 0),
+                 and_(StockTransaction.transaction_type == "冲红", StockTransaction.revenue_amount != 0)),
+             StockTransaction.revenue_amount), else_=0)), 0),
+        # COGS：出库销售成本 + 冲红退回成本抵消
+        func.coalesce(func.sum(case(
+            (or_(and_(StockTransaction.transaction_type == "出库", StockTransaction.cost_amount < 0),
+                 and_(StockTransaction.transaction_type == "冲红", StockTransaction.cost_amount > 0)),
              -StockTransaction.cost_amount), else_=0)), 0),
     ).group_by(StockTransaction.item_id).all()
     names = {i.id: (i.name, i.unit) for i in db.query(StockItem).all()}
@@ -905,9 +918,12 @@ def report_turnover(
     # 替代全量拉取后在内存循环
     rows = base.with_entities(
         StockTransaction.item_id,
+        # 净金额变动（入库正、出/损/盘点/调整/冲红负），冲红的正 cost_amount 表示货退回、库存回升
         func.coalesce(func.sum(StockTransaction.cost_amount), 0),
+        # COGS：出库销售成本 + 冲红退回成本抵消
         func.coalesce(func.sum(case(
-            (and_(StockTransaction.transaction_type == "出库", StockTransaction.cost_amount < 0),
+            (or_(and_(StockTransaction.transaction_type == "出库", StockTransaction.cost_amount < 0),
+                 and_(StockTransaction.transaction_type == "冲红", StockTransaction.cost_amount > 0)),
              -StockTransaction.cost_amount), else_=0)), 0),
     ).group_by(StockTransaction.item_id).all()
     net_change_map = {item_id: (0.0 if nc is None else float(nc)) for item_id, nc, _ in rows}

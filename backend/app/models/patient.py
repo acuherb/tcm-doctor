@@ -27,6 +27,9 @@ class Patient(Base):
     tags: Mapped[list | None] = mapped_column(JSON, comment="患者标签，如'不遵医瞩'")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now)
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime, nullable=True, comment="软删除时间；非空表示已归档删除，医疗记录仍保留"
+    )
 
     # 关系
     visits: Mapped[list["Visit"]] = relationship(back_populates="patient", cascade="all, delete-orphan")

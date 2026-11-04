@@ -1,4 +1,6 @@
 """患者管理路由"""
+from datetime import date, datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -32,15 +34,17 @@ def list_patients(
     improvement: str | None = Query(None, description="按最近一次随访改善程度筛选"),
     sort_by: str | None = Query(None, description="排序字段: last_visit_date(按最近就诊)"),
     order: str = Query("desc", description="排序方向: desc/asc"),
+    include_deleted: bool = Query(False, description="是否包含已归档(软删除)患者"),
     db: Session = Depends(get_db),
 ):
-    from datetime import date
     from sqlalchemy import or_
 
     from app.models.followup import FollowUp
     from app.models.visit import Visit
 
     query = db.query(Patient)
+    if not include_deleted:
+        query = query.filter(Patient.deleted_at.is_(None))
     if search:
         query = query.filter((Patient.name.contains(search)) | (Patient.phone.contains(search)))
     if constitution_type:
@@ -122,7 +126,7 @@ def create_patient(data: PatientCreate, current_user: User = Depends(get_current
 @router.get("/{patient_id}", response_model=PatientResponse, summary="患者详情")
 def get_patient(patient_id: int, db: Session = Depends(get_db)):
     patient = db.query(Patient).filter(Patient.id == patient_id).first()
-    if not patient:
+    if not patient or patient.deleted_at is not None:
         raise HTTPException(status_code=404, detail="患者不存在")
     return patient
 
@@ -130,7 +134,7 @@ def get_patient(patient_id: int, db: Session = Depends(get_db)):
 @router.put("/{patient_id}", response_model=PatientResponse, summary="更新患者")
 def update_patient(patient_id: int, data: PatientUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     patient = db.query(Patient).filter(Patient.id == patient_id).first()
-    if not patient:
+    if not patient or patient.deleted_at is not None:
         raise HTTPException(status_code=404, detail="患者不存在")
     for key, value in data.model_dump(exclude_unset=True).items():
         setattr(patient, key, value)
@@ -139,51 +143,20 @@ def update_patient(patient_id: int, data: PatientUpdate, current_user: User = De
     return patient
 
 
-@router.delete("/{patient_id}", summary="删除患者")
+@router.delete("/{patient_id}", summary="删除患者（软删除，保留医疗记录）")
 def delete_patient(patient_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     patient = db.query(Patient).filter(Patient.id == patient_id).first()
     if not patient:
         raise HTTPException(status_code=404, detail="患者不存在")
-
-    # 显式级联清理所有子表，避免遗留孤儿记录。
-    # 原因：Patient 仅对 visits 配置了 ORM 级联，问诊十问 / 会话等并无级联；
-    # 而 SQLite 删除行后会复用 id，若不清理，重建同名患者时旧记录会回流到新患者。
-    from app.models.prescription import (
-        Prescription, PrescriptionItem, AcupointPrescription, PrescriptionInjection,
-    )
-    from app.models.conversation import Conversation, Message
-    from app.models.followup import FollowUp
-
-    # 1) 处方明细 → 处方（需在就诊记录之前，因处方外键指向就诊）
-    pres_ids = db.query(Prescription.id).filter(Prescription.patient_id == patient_id)
-    db.query(PrescriptionItem).filter(PrescriptionItem.prescription_id.in_(pres_ids)).delete(synchronize_session=False)
-    db.query(AcupointPrescription).filter(AcupointPrescription.prescription_id.in_(pres_ids)).delete(synchronize_session=False)
-    db.query(PrescriptionInjection).filter(PrescriptionInjection.prescription_id.in_(pres_ids)).delete(synchronize_session=False)
-    db.query(Prescription).filter(Prescription.patient_id == patient_id).delete(synchronize_session=False)
-
-    # 2) 问诊十问（外键指向就诊，需在就诊之前清理）
-    db.query(InquiryRecord).filter(InquiryRecord.patient_id == patient_id).delete(synchronize_session=False)
-
-    # 3) 智能问诊：消息 → 会话
-    conv_ids = db.query(Conversation.id).filter(Conversation.patient_id == patient_id)
-    db.query(Message).filter(Message.conversation_id.in_(conv_ids)).delete(synchronize_session=False)
-    db.query(Conversation).filter(Conversation.patient_id == patient_id).delete(synchronize_session=False)
-
-    # 4) 就诊记录
-    db.query(Visit).filter(Visit.patient_id == patient_id).delete(synchronize_session=False)
-
-    # 4.5) 病情跟踪
-    db.query(FollowUp).filter(FollowUp.patient_id == patient_id).delete(synchronize_session=False)
-
-    # 4.6) 随访提醒（复诊回访：独立于病情跟踪，且 Patient 未声明其 relationship，需显式清理避免孤儿记录）
-    from app.models.followup_reminder import FollowUpReminder
-    db.query(FollowUpReminder).filter(FollowUpReminder.patient_id == patient_id).delete(synchronize_session=False)
-
-    # 5) 患者本身
-    db.query(Patient).filter(Patient.id == patient_id).delete(synchronize_session=False)
-
+    if patient.deleted_at is not None:
+        raise HTTPException(status_code=400, detail="患者已删除")
+    # 软删除：仅标记 deleted_at，物理保留患者及其全部子记录（处方 / 就诊 / 随访 / 问诊 / 会话等）。
+    # 有就诊或开方记录的患者不应被随意物理删除——既保留医疗与审计记录，
+    # 也避免「删患者 → 已发药处方被删 → 出库流水 reference_id 变孤儿引用」的连锁问题。
+    # 列表默认过滤已归档患者；需查看归档可用 include_deleted=true。
+    patient.deleted_at = datetime.now()
     db.commit()
-    return {"message": "删除成功"}
+    return {"message": "患者已归档删除（记录保留）"}
 
 
 # ── 就诊记录 ──

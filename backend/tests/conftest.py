@@ -32,9 +32,10 @@ def db_session():
         session.close()
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def admin_token(client, db_session):
-    """保证存在一个已知口令的管理员，避免受默认 admin 密码状态影响"""
+    """保证存在一个已知口令的管理员，避免受默认 admin 密码状态影响。
+    函数级作用域：每次测试重新登录，避免被 test_reset 清令牌后共享令牌失效（测试隔离）。"""
     user = db_session.query(User).filter(User.username == "testadmin").first()
     if not user:
         user = User(

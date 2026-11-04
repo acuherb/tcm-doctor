@@ -449,9 +449,74 @@ def delete_prescription(prescription_id: int, current_user: User = Depends(get_c
         FollowUpReminder.source_type == "prescription",
         FollowUpReminder.source_id == prescription.id,
     ).delete(synchronize_session=False)
+    # 防御性清理（C）：若该处方（仅可为未发药状态）仍关联任何库存流水，置空其引用，避免孤儿引用
+    from app.models.stock import StockTransaction
+    db.query(StockTransaction).filter(
+        StockTransaction.reference_type == "处方",
+        StockTransaction.reference_id == prescription.id,
+    ).update({StockTransaction.reference_id: None}, synchronize_session=False)
     db.delete(prescription)
     db.commit()
     return {"message": "处方已删除"}
+
+
+@router.post("/{prescription_id}/void", response_model=PrescriptionResponse, summary="作废处方（冲红，可退回库存）")
+def void_prescription(
+    prescription_id: int,
+    return_stock: bool = True,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """作废 / 冲红处方。
+
+    - 已开 / 已审核：仅置为『已取消』，未扣库存，无副作用。
+    - 已发药：置为『已取消』；若 return_stock=True（默认），按发药出库流水把库存退回对应批次，
+      并生成『冲红』流水，使采购成本 / COGS / 收入在报表中净额抵消（见 stock.py 报表聚合）。
+    - 已取消：幂等返回，不重复处理。
+    """
+    from app.models.stock import StockItem, StockBatch, StockTransaction
+
+    prescription = db.query(Prescription).options(joinedload(Prescription.items)).filter(
+        Prescription.id == prescription_id
+    ).first()
+    if not prescription:
+        raise HTTPException(status_code=404, detail="处方不存在")
+    if prescription.status == "已取消":
+        return prescription
+
+    if prescription.status == "已发药" and return_stock:
+        # 按发药出库流水回补库存并生成冲红流水
+        outflows = (
+            db.query(StockTransaction)
+            .filter(
+                StockTransaction.reference_type == "处方",
+                StockTransaction.reference_id == prescription.id,
+                StockTransaction.transaction_type == "出库",
+            )
+            .all()
+        )
+        for t in outflows:
+            qty = float(t.quantity)
+            if t.batch_id is not None:
+                batch = db.query(StockBatch).filter(StockBatch.id == t.batch_id).with_for_update().first()
+                if batch:
+                    batch.quantity = float(batch.quantity) + qty
+                    if float(batch.quantity) > 0 and batch.status == "停用":
+                        batch.status = "正常"
+            db.add(StockTransaction(
+                item_id=t.item_id, batch_id=t.batch_id, transaction_type="冲红",
+                quantity=qty, before_quantity=None, after_quantity=None,
+                unit_cost=t.unit_cost, unit_price=t.unit_price,
+                cost_amount=(qty * float(t.unit_cost)) if t.unit_cost is not None else None,
+                revenue_amount=(-qty * float(t.unit_price)) if t.unit_price is not None else 0.0,
+                reference_id=prescription.id, reference_type="处方", operator=current_user.username,
+                note=f"处方#{prescription.id}作废冲红(退回批次#{t.batch_id})",
+            ))
+
+    prescription.status = "已取消"
+    db.commit()
+    db.refresh(prescription)
+    return prescription
 
 
 @router.put("/{prescription_id}/review", response_model=PrescriptionResponse, summary="审核处方")
