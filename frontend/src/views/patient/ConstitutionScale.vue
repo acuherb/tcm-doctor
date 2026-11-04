@@ -135,24 +135,14 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import api, { errMsg } from '@/utils/api'
-import type { Patient } from '@/types'
-
-interface ConstitutionResult {
-  primary_type: string
-  secondary_types?: string[]
-  detail?: { labels?: string[] }
-  findings?: string[]
-  scores: Record<string, number>
-  suggestion: string
-}
+import api from '@/utils/api'
 
 const route = useRoute()
 const initialPatientId = route.params.id ? Number(route.params.id) : null
 const patientId = ref<number | null>(initialPatientId)
-const patients = ref<Patient[]>([])
+const patients = ref<any[]>([])
 const submitting = ref(false)
-const result = ref<ConstitutionResult | null>(null)
+const result = ref<any>(null)
 const answers = ref<Record<string, string>>({})
 const notes = ref<Record<string, string>>({})
 
@@ -296,22 +286,22 @@ async function submitScale() {
       else if ((notes.value[q.key] || '').trim()) payloadAnswers[q.key] = 'custom'
     }
     const endpoint = patientId.value ? `/patients/${patientId.value}/constitution` : '/diagnosis/analyze'
-    const res = await api.post<ConstitutionResult>(endpoint, { answers: payloadAnswers, notes: notes.value })
+    const res = await api.post<Record<string, unknown>>(endpoint, { answers: payloadAnswers, notes: notes.value })
     result.value = res
     ElMessage.success(patientId.value ? '评估完成，已存入病历' : '评估完成')
-  } catch (e) {
-    ElMessage.error('评估失败：' + errMsg(e))
+  } catch (e: any) {
+    ElMessage.error('评估失败：' + (e?.response?.data?.detail || e?.message || '请确认后端已重启且患者存在'))
   }
   submitting.value = false
 }
 
 onMounted(async () => {
   if (!patientId.value) {
-    try { patients.value = (await api.get<{ items: Patient[] }>('/patients'))?.items || [] } catch {}
+    try { patients.value = (await api.get('/patients'))?.items || [] } catch {}
     return
   }
   try {
-    const existing = await api.get<ConstitutionResult>(`/patients/${patientId.value}/constitution`)
+    const existing = await api.get(`/patients/${patientId.value}/constitution`)
     if (existing) result.value = existing
   } catch {}
 })

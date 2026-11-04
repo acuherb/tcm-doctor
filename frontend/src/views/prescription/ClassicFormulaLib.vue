@@ -15,7 +15,14 @@
               <el-icon><Plus /></el-icon>新增方剂
             </el-button>
             <el-divider direction="vertical" />
-            <TemplateIO type="classic_formulas" label="中药方库" />
+            <el-button :loading="importing" @click="importFileRef?.click()">
+              <el-icon><Upload /></el-icon>导入
+            </el-button>
+            <el-button @click="exportFormulas">
+              <el-icon><Download /></el-icon>导出
+            </el-button>
+            <input ref="importFileRef" type="file" accept=".json,application/json"
+              style="display:none" @change="onImportFile" />
           </div>
         </div>
       </template>
@@ -187,48 +194,35 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Plus, Collection } from '@element-plus/icons-vue'
+import { Search, Plus, Upload, Download, Collection } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
-import api from '@/utils/api'
+import api, { errMsg } from '@/utils/api'
 import type { ClassicFormula } from '@/types'
-import TemplateIO from '@/components/TemplateIO.vue'
-
-interface FormulaHerb { herb: string; dose?: string | null; special_method?: string | null; is_king_herb?: boolean; note?: string | null }
-interface FormulaChange { condition?: string | null; add?: string | null; remove?: string | null }
-interface ClassicFormulaForm {
-  id?: number
-  name: string
-  source: string
-  meridian: string
-  efficacy: string
-  indications: string
-  usage: string
-  herbs: FormulaHerb[]
-  changes: FormulaChange[]
-}
 import { useAuthStore } from '@/store/auth'
 
 // 游客只读：隐藏所有写操作
 const auth = useAuthStore()
 const editable = computed(() => auth.can('dict:write'))
 const router = useRouter()
-const formulas = ref<ClassicFormula[]>([])
+const formulas = ref<any[]>([])
 const searchText = ref('')
 const sourceFilter = ref('')
 const detailVisible = ref(false)
-const currentFormula = ref<ClassicFormula | null>(null)
+const currentFormula = ref<any>(null)
 const loading = ref(false)
+const importing = ref(false)
 
 const meridians = ['太阳', '阳明', '少阳', '太阴', '少阴', '厥阴']
+const importFileRef = ref<HTMLInputElement | null>(null)
 const editVisible = ref(false)
 const editId = ref<number | null>(null)
 const saving = ref(false)
-const editForm = ref<ClassicFormulaForm>({
+const editForm = ref<any>({
   name: '', source: '', meridian: '', efficacy: '', indications: '', usage: '',
   herbs: [], changes: [],
 })
 
-function emptyForm(): ClassicFormulaForm {
+function emptyForm() {
   return {
     name: '', source: '', meridian: '', efficacy: '', indications: '', usage: '',
     herbs: [], changes: [],
@@ -241,7 +235,7 @@ function openCreate() {
   editVisible.value = true
 }
 
-function openEdit(f: ClassicFormula) {
+function openEdit(f: any) {
   editId.value = f.id
   editForm.value = {
     name: f.name || '',
@@ -250,26 +244,16 @@ function openEdit(f: ClassicFormula) {
     efficacy: f.efficacy || '',
     indications: f.indications || '',
     usage: f.usage || '',
-    herbs: (f.composition?.herbs || []).map((h) => ({
-      herb: h.herb ?? '',
-      dose: h.dose ?? null,
-      special_method: h.special_method ?? null,
-      is_king_herb: !!h.is_king_herb,
-      note: h.note ?? null,
-    })),
-    changes: (f.modifications?.changes || []).map((c) => ({
-      condition: c.condition ?? null,
-      add: c.add ?? null,
-      remove: c.remove ?? null,
-    })),
+    herbs: (f.composition?.herbs || []).map((h: any) => ({ ...h })),
+    changes: (f.modifications?.changes || []).map((c: any) => ({ ...c })),
   }
   editVisible.value = true
 }
 
 function buildPayload() {
   const herbs = editForm.value.herbs
-    .filter((h: FormulaHerb) => h.herb && String(h.herb).trim())
-    .map((h: FormulaHerb) => ({
+    .filter((h: any) => h.herb && String(h.herb).trim())
+    .map((h: any) => ({
       herb: h.herb.trim(),
       dose: h.dose || null,
       special_method: h.special_method || null,
@@ -278,7 +262,7 @@ function buildPayload() {
     }))
   const composition: Record<string, unknown> = { herbs }
   if (editForm.value.meridian) composition.meridian = editForm.value.meridian
-  const changes = editForm.value.changes.filter((c: FormulaChange) => c.condition || c.add || c.remove)
+  const changes = editForm.value.changes.filter((c: any) => c.condition || c.add || c.remove)
   return {
     name: editForm.value.name.trim(),
     source: editForm.value.source?.trim() || null,
@@ -307,13 +291,13 @@ async function saveFormula() {
     }
     editVisible.value = false
     await loadFormulas()
-  } catch (e) {
+  } catch (e: any) {
     ElMessage.error('保存失败：' + (e?.response?.data?.detail || e?.message || ''))
   }
   saving.value = false
 }
 
-async function removeFormula(f: ClassicFormula) {
+async function removeFormula(f: any) {
   ElMessageBox.confirm(`确定删除方剂「${f.name}」吗？该操作不可恢复。`, '删除确认', {
     type: 'warning',
   }).then(async () => {
@@ -322,16 +306,63 @@ async function removeFormula(f: ClassicFormula) {
       ElMessage.success('已删除')
       detailVisible.value = false
       await loadFormulas()
-    } catch (e) {
+    } catch (e: any) {
       ElMessage.error('删除失败：' + (e?.response?.data?.detail || e?.message || ''))
     }
   }).catch(() => {})
 }
 
-// 导入/导出已统一到 TemplateIO 组件（顶部工具栏），见 classic_formulas 类型
+async function exportFormulas() {
+  try {
+    const data: Record<string, unknown> = await api.get('/prescriptions/classic-formulas/export')
+    const nl = Array.isArray(data) ? data : (data as Paginated<ClassicFormula>)?.data || []
+    if (!nl.length) {
+      ElMessage.warning('当前方剂库为空')
+      return
+    }
+    const blob = new Blob([JSON.stringify(nl, null, 2)], { type: 'application/json' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `中药方库_${new Date().toISOString().slice(0, 10)}.json`
+    a.click()
+    URL.revokeObjectURL(a.href)
+    ElMessage.success(`已导出 ${nl.length} 首方剂`)
+  } catch (e) {
+    ElMessage.error('导出失败')
+  }
+}
+
+async function onImportFile(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  importing.value = true
+  try {
+    const text = await file.text()
+    let data = JSON.parse(text)
+    if (!Array.isArray(data)) data = [data]
+    const payload = data.map((it: Record<string, unknown>) => ({
+      name: it.name,
+      source: it.source || null,
+      composition: it.composition || { herbs: it.herbs || [] },
+      efficacy: it.efficacy || null,
+      indications: it.indications || null,
+      usage: it.usage || null,
+      modifications: it.modifications || (it.modification_changes ? { changes: it.modification_changes } : null),
+    }))
+    const res: { created?: number; updated?: number } = await api.post('/prescriptions/classic-formulas/import', payload)
+    ElMessage.success(`导入完成：新增 ${res.created}，更新 ${res.updated}`)
+    await loadFormulas()
+  } catch (e) {
+    ElMessage.error('导入失败：' + (e?.message || '请检查JSON格式'))
+  } finally {
+    importing.value = false
+  }
+}
 
 const sources = computed(() => {
-  const set = new Set(formulas.value.map((f: ClassicFormula) => f.source).filter(Boolean))
+  const set = new Set(formulas.value.map((f: any) => f.source).filter(Boolean))
   return Array.from(set)
 })
 
@@ -355,12 +386,12 @@ function resetFilter() {
   loadFormulas()
 }
 
-function viewFormula(formula: ClassicFormula) {
+function viewFormula(formula: any) {
   currentFormula.value = formula
   detailVisible.value = true
 }
 
-function useInPrescription(formula: ClassicFormula) {
+function useInPrescription(formula: any) {
   detailVisible.value = false
   // 跳转到处方编辑器，通过 router query 传递 formula_id
   router.push({ path: '/prescriptions/new', query: { formula_id: formula.id } })

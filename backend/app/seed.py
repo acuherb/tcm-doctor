@@ -15,9 +15,10 @@ from app.models.user import User
 
 DATA_DIR = Path(__file__).parent / "data"
 
-# 顶层 seed 脚本（字典）位于 backend 根目录，需加入 path 以便导入
+# 顶层 seed 脚本（腧穴/字典）位于 backend 根目录，需加入 path 以便导入
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from seed_dictionaries import seed_dictionaries
+from seed_acupoints import seed_acupoints
 
 
 def seed_herbs(db: Session) -> int:
@@ -259,14 +260,15 @@ def seed_all():
 
     db = SessionLocal()
     try:
-        # 仅初始化系统骨架：管理员/游客账号 + 字典脚手架（舌质舌苔脉象证候、患者标签、维度词表）。
-        # 药材/中药方库/针灸方库/穴位/知识库等「内容数据」不再自动灌入，改为可导入模板
-        # （见 app/templates.py 与 /api/v1/templates），默认安装即为纯框架，
-        # 避免大体积临床数据入库；用户可在设置页按需导入模板（内置或自行上传）。
+        h = seed_herbs(db)
+        f = seed_classic_formulas(db)
+        af = seed_acupoint_formulas(db)
+        k = seed_knowledge(db)
         u = seed_default_user(db)
         g = seed_guest_user(db)
         d = seed_dictionaries(db)
-        print(f"[Seed] 骨架初始化完成: 用户={u}, 游客={g}, 字典词条={d[0]}")
+        a = seed_acupoints(db)
+        print(f"[Seed] 导入完成: 药材={h}, 经典方={f}, 针灸方={af}, 知识条目={k}, 用户={u+1}, 游客={g}, 字典词条={d[0]}, 腧穴={a}")
     finally:
         db.close()
 

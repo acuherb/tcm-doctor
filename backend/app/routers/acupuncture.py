@@ -78,7 +78,7 @@ def acupoint_tag_meta(db: Session = Depends(get_db)):
             for i, n in enumerate(names)
         ]
         dimensions[key] = {"label": label, "multi": spec["multi"], "options": options}
-    return {"dimensions": dimensions}
+    return {"dimensions": dimensions, "tag_suggestions": []}
 
 
 @router.post("", response_model=AcupointResponse, summary="新增腧穴")

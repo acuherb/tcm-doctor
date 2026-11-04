@@ -312,7 +312,7 @@ function cleanAiField(s: string, key = 'composition'): string {
 // 把「麻子仁15g 白芍12g 大黄6g(后下)」拆成 [{name,dose,method}]
 function splitHerbs(text: string): { name: string; dose: string; method: string }[] {
   if (!text) return []
-  const out: Array<{ name: string; dose: string; method: string }> = []
+  const out: any[] = []
   for (const raw of String(text).split(/[\s,，、;；]+/).filter(Boolean)) {
     if (!/[一-龥]/.test(raw)) continue
     let method = ''

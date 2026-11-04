@@ -270,11 +270,11 @@ onMounted(() => window.addEventListener('resize', updateViewport))
 const router = useRouter()
 const patients = ref<Patient[]>([])
 
-function ageOf(row: Patient): string {
+function ageOf(row: any): string {
   const a = calcAge(row.birth_date)
   return a == null ? '-' : String(a)
 }
-function bodyOf(row: Patient): { label: string; color: string } | null {
+function bodyOf(row: any): { label: string; color: string } | null {
   return bodyType(calcBmi(row.height, row.weight))
 }
 function tagStyle(color: string) {
@@ -368,7 +368,7 @@ async function loadPatients() {
   } catch {}
 }
 
-function goDetail(row: Patient) {
+function goDetail(row: any) {
   router.push(`/patients/${row.id}`)
 }
 
@@ -377,7 +377,7 @@ function toggleTag(name: string) {
   const cur = newPatient.value.tags || []
   newPatient.value.tags = cur.includes(name) ? cur.filter((x: string) => x !== name) : [...cur, name]
 }
-function tagChipStyle(t: DictionaryTerm): Record<string, string> {
+function tagChipStyle(t: any): Record<string, string> {
   const selected = (newPatient.value.tags || []).includes(t.name)
   const c = t.color || '#909399'
   return selected
@@ -404,7 +404,7 @@ async function addPatient() {
   }
 }
 
-async function deletePatient(row: Patient) {
+async function deletePatient(row: any) {
   await ElMessageBox.confirm(`确定删除患者 "${row.name}" 吗？`, '确认删除', { type: 'warning' })
   try {
     await api.delete(`/patients/${row.id}`)

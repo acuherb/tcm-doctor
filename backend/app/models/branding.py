@@ -4,7 +4,9 @@
 写入 .env 会让每次保存配置都整文件重写，且 .env 本应只存可手改的部署参数。
 本表数据不含密钥，可安全对外提供（浏览器标签图标接口免鉴权）。
 """
-from sqlalchemy import Column, Integer, String, DateTime, Text, func
+from datetime import datetime
+
+from sqlalchemy import Column, Integer, String, DateTime, Text
 
 from app.database import Base
 
@@ -15,4 +17,4 @@ class BrandingConfig(Base):
     id = Column(Integer, primary_key=True, index=True)
     clinic_name = Column(String(100), nullable=True)
     clinic_logo = Column(Text, nullable=True)  # data URL，如 data:image/jpeg;base64,xxx
-    updated_at = Column(DateTime, default=func.now, onupdate=func.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)

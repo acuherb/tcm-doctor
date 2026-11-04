@@ -624,65 +624,60 @@ function resetVisitFilter() {
   visitDisease.value = ''
   visitDateRange.value = null
 }
-type VisitNode = Visit & { children: Visit[] }
-interface FollowUpForm { id: number | null; followup_date: string; treatment_type: string; improvement: string; feedback: string; visit_id: number | null }
-interface PatientEditForm { name: string; gender: string; birth_date: string; phone: string; id_card: string; address: string; height: number | null; weight: number | null; allergy_history: string; medical_history: string; notes: string; tags: string[] }
-interface Reminder { id: number; due_date?: string; note?: string | null; status?: string; done?: boolean; method?: string }
-
 const visitDiseaseOptions = computed(() => {
   const set = new Set<string>()
-  visits.value.forEach((v: Visit) => { if (v.tcm_disease && v.tcm_disease.trim()) set.add(v.tcm_disease.trim()) })
+  visits.value.forEach((v: any) => { if (v.tcm_disease && v.tcm_disease.trim()) set.add(v.tcm_disease.trim()) })
   return Array.from(set)
 })
 const filteredVisits = computed(() => {
   let list = visits.value.slice()
   const kw = visitKeyword.value.trim().toLowerCase()
   if (kw) {
-    list = list.filter((v: Visit) =>
+    list = list.filter((v: any) =>
       [v.chief_complaint, v.tcm_disease, v.tcm_syndrome, v.treatment_method, v.observation, v.inquiry, v.palpation]
-        .some((f: unknown) => f && String(f).toLowerCase().includes(kw)))
+        .some((f: any) => f && String(f).toLowerCase().includes(kw)))
   }
   if (visitDisease.value) {
     const d = visitDisease.value
-    list = list.filter((v: Visit) => (v.tcm_disease || '').trim() === d)
+    list = list.filter((v: any) => (v.tcm_disease || '').trim() === d)
   }
   if (visitDateRange.value?.[0]) {
     const [s, e] = visitDateRange.value
-    list = list.filter((v: Visit) => v.visit_date >= s && v.visit_date <= e)
+    list = list.filter((v: any) => v.visit_date >= s && v.visit_date <= e)
   }
   return list
 })
 // 就诊记录：按「初诊→复诊」父子关系组织成一棵就诊树（初诊为根，复诊内嵌其下）
-const visitRoots = computed<VisitNode[]>(() => {
+const visitRoots = computed<any[]>(() => {
   const all = visits.value
-  const matched = new Set(filteredVisits.value.map((v: Visit) => v.id))
-  const childrenOf: Record<number, Visit[]> = {}
-  const roots: Visit[] = []
+  const matched = new Set(filteredVisits.value.map((v: any) => v.id))
+  const childrenOf: Record<number, any[]> = {}
+  const roots: any[] = []
   for (const v of all) {
     const pid = v.parent_visit_id
     if (pid == null) roots.push(v)
     else (childrenOf[pid] ||= []).push(v)
   }
-  roots.sort((a: Visit, b: Visit) => b.visit_date.localeCompare(a.visit_date))
-  const out: VisitNode[] = []
+  roots.sort((a: any, b: any) => b.visit_date.localeCompare(a.visit_date))
+  const out: any[] = []
   for (const r of roots) {
-    const chAll = (childrenOf[r.id] || []).slice().sort((a: Visit, b: Visit) => a.visit_date.localeCompare(b.visit_date))
-    const ch = chAll.filter((c: Visit) => matched.has(c.id))
+    const chAll = (childrenOf[r.id] || []).slice().sort((a: any, b: any) => a.visit_date.localeCompare(b.visit_date))
+    const ch = chAll.filter((c: any) => matched.has(c.id))
     if (matched.has(r.id) || ch.length) out.push({ ...r, children: ch })
   }
   return out
 })
 // 初诊(根)及其复诊的随访改善趋势
-function rootTrend(root: VisitNode): Array<{ date: string; improvement: string; visit_id: number }> {
-  const items: Array<{ date: string; improvement: string; visit_id: number }> = []
-  const collect = (v: Visit) => {
+function rootTrend(root: any): any[] {
+  const items: any[] = []
+  const collect = (v: any) => {
     for (const fu of followupsByVisit.value[v.id] || []) {
       if (fu && fu.improvement) items.push({ date: fu.followup_date, improvement: fu.improvement, visit_id: v.id })
     }
   }
   collect(root)
   for (const c of root.children || []) collect(c)
-  items.sort((a: { date: string }, b: { date: string }) => String(a.date).localeCompare(String(b.date)))
+  items.sort((a: any, b: any) => String(a.date).localeCompare(String(b.date)))
   return items
 }
 
@@ -701,20 +696,20 @@ const newReminderDate = ref('')
 const newReminderNote = ref('')
 const savingReminder = ref(false)
 const savingFollowup = ref(false)
-const followupForm = ref<FollowUpForm>({ id: null, followup_date: '', treatment_type: '', improvement: '', feedback: '', visit_id: null })
+const followupForm = ref<any>({ id: null, followup_date: '', treatment_type: '', improvement: '', feedback: '', visit_id: null })
 // 字典中的患者标签（供编辑表单选择）
 const tagOptions = ref<DictionaryTerm[]>([])
 
 // 按就诊聚合：处方与十问分别归到对应的 visit_id 下
-const rxByVisit = computed<Record<number, Prescription[]>>(() => {
-  const m: Record<number, Prescription[]> = {}
+const rxByVisit = computed<Record<number, any[]>>(() => {
+  const m: Record<number, any[]> = {}
   for (const rx of prescriptions.value) {
     if (rx.visit_id != null) (m[rx.visit_id] ||= []).push(rx)
   }
   return m
 })
-const inquiriesByVisit = computed<Record<number, InquiryRecord[]>>(() => {
-  const m: Record<number, InquiryRecord[]> = {}
+const inquiriesByVisit = computed<Record<number, any[]>>(() => {
+  const m: Record<number, any[]> = {}
   // 优先按 visit_id 直接关联
   for (const iq of inquiries.value) {
     if (iq.visit_id != null) (m[iq.visit_id] ||= []).push(iq)
@@ -740,26 +735,26 @@ const inquiriesByVisit = computed<Record<number, InquiryRecord[]>>(() => {
   return m
 })
 // 按就诊聚合：随访/回访记录归到对应的 visit_id 下
-const followupsByVisit = computed<Record<number, FollowUp[]>>(() => {
-  const m: Record<number, FollowUp[]> = {}
+const followupsByVisit = computed<Record<number, any[]>>(() => {
+  const m: Record<number, any[]> = {}
   for (const fu of followups.value) {
     if (fu.visit_id != null) (m[fu.visit_id] ||= []).push(fu)
   }
-  const orphans: FollowUp[] = []
+  const orphans: any[] = []
   for (const fu of followups.value) if (fu.visit_id == null) orphans.push(fu)
   if (orphans.length) m[-1] = orphans
   return m
 })
 // 病情跟踪：汇总该患者全部随访（含已关联/未关联就诊），按日期排序，标注归属初诊，整体趋势
-const allFollowups = computed<Array<FollowUp & { episodeVisit: Visit | null; episodeLabel: string }>>(() => {
-  const byId = new Map(visits.value.map((v: Visit) => [v.id, v]))
-  const rootOf = (vid: number | null): Visit | null => {
+const allFollowups = computed<any[]>(() => {
+  const byId = new Map(visits.value.map((v: any) => [v.id, v]))
+  const rootOf = (vid: number | null): any => {
     let cur = vid != null ? byId.get(vid) : null
     while (cur && cur.parent_visit_id != null && byId.has(cur.parent_visit_id)) cur = byId.get(cur.parent_visit_id)
     return cur || null
   }
   return followups.value
-    .map((fu: FollowUp) => {
+    .map((fu: any) => {
       const root = rootOf(fu.visit_id)
       return {
         ...fu,
@@ -767,13 +762,13 @@ const allFollowups = computed<Array<FollowUp & { episodeVisit: Visit | null; epi
         episodeLabel: root ? `${root.visit_date} · ${root.chief_complaint || root.tcm_disease || '初诊'}` : '未关联就诊',
       }
     })
-    .sort((a: FollowUp, b: FollowUp) => String(a.followup_date).localeCompare(String(b.followup_date)))
+    .sort((a: any, b: any) => String(a.followup_date).localeCompare(String(b.followup_date)))
 })
 // 整体改善趋势：按首末次评估推断（末次 - 首次）
 const IMPROVE_SCORE: Record<string, number> = { 明显好转: 2, 好转: 1, 稳定: 0, 反复: -1, 加重: -2 }
 const followupTrend = computed<{ label: string; type: string }>(() => {
   const scored = allFollowups.value
-    .map((f: FollowUp) => IMPROVE_SCORE[f.improvement])
+    .map((f: any) => IMPROVE_SCORE[f.improvement])
     .filter((s: number | undefined): s is number => s !== undefined)
   if (!scored.length) return { label: '暂无评估', type: 'info' }
   const delta = scored[scored.length - 1] - scored[0]
@@ -784,7 +779,7 @@ const followupTrend = computed<{ label: string; type: string }>(() => {
 
 const editVisible = ref(false)
 const savingEdit = ref(false)
-const editForm = ref<PatientEditForm>({ name: '', gender: '', birth_date: '', phone: '', id_card: '', address: '', height: null, weight: null, allergy_history: '', medical_history: '', notes: '', tags: [] })
+const editForm = ref<any>({})
 
 const showVisitDialog = ref(false)
 const viewVisit = ref<Visit | null>(null)
@@ -797,14 +792,14 @@ const viewRx = ref<Prescription | null>(null)
 const activeTab = ref('overview')
 const visitDrawer = ref(false)
 const visitDrawerId = ref<number | null>(null)
-const visitDrawerParent = ref<Visit | null>(null)
+const visitDrawerParent = ref<any>(null)
 function openVisitDrawer(id?: number) {
   visitDrawerId.value = id ?? null
   visitDrawerParent.value = null
   visitDrawer.value = true
 }
 // 基于某次初诊发起复诊：抽屉内表单以该初诊为底稿并标记 parent 关系
-function openVisitDrawerWithParent(root: VisitNode) {
+function openVisitDrawerWithParent(root: any) {
   visitDrawerId.value = null
   visitDrawerParent.value = root
   visitDrawer.value = true
@@ -813,8 +808,8 @@ async function onVisitSaved() {
   try { await loadPatientData() } catch {}
 }
 
-function openVisitDialog(v: Visit) { viewVisit.value = v; showVisitDialog.value = true }
-function openIqDialog(i: InquiryRecord) { viewIq.value = i; showIqDialog.value = true }
+function openVisitDialog(v: any) { viewVisit.value = v; showVisitDialog.value = true }
+function openIqDialog(i: any) { viewIq.value = i; showIqDialog.value = true }
 
 // 问诊十问详情：把"原始选项"与"该选项结果"按问对应展示
 function iqOptionText(qKey: string): string {
@@ -835,7 +830,7 @@ function iqFinding(title: string): string {
   if (!hit) return ''
   return hit.replace('《' + title + '》', '').trim()
 }
-function openRxDialog(p: Prescription) { viewRx.value = p; showRxDialog.value = true }
+function openRxDialog(p: any) { viewRx.value = p; showRxDialog.value = true }
 
 function statusTag(s?: string) {
   if (!s) return 'info'
@@ -861,7 +856,7 @@ function tagStyleOf(name: string): Record<string, string> {
   const c = tagColorMap.value[name]
   return c ? { backgroundColor: c, borderColor: c, color: '#fff' } : {}
 }
-function bodyTypeOf(p: Patient): { label: string; color: string } | null {
+function bodyTypeOf(p: any): { label: string; color: string } | null {
   return bodyType(calcBmi(p.height, p.weight))
 }
 
@@ -870,7 +865,7 @@ function toggleTag(name: string) {
   const cur = editForm.value.tags || []
   editForm.value.tags = cur.includes(name) ? cur.filter((x: string) => x !== name) : [...cur, name]
 }
-function tagChipStyle(t: DictionaryTerm): Record<string, string> {
+function tagChipStyle(t: any): Record<string, string> {
   const selected = (editForm.value.tags || []).includes(t.name)
   const c = t.color || '#909399'
   return selected
@@ -915,7 +910,7 @@ async function loadFollowups() {
   followups.value = (await api.get<FollowUp[]>(`/patients/${patientId}/followups`))
 }
 
-function openFollowupDialog(fu?: FollowUp, visit?: Visit) {
+function openFollowupDialog(fu?: any, visit?: any) {
   if (fu) {
     followupForm.value = { ...fu }
   } else {
@@ -947,7 +942,7 @@ async function saveFollowup() {
   savingFollowup.value = false
 }
 
-async function deleteFollowup(fu: FollowUp) {
+async function deleteFollowup(fu: any) {
   try {
     await api.delete(`/patients/${patientId}/followups/${fu.id}`, { silent: true })
     ElMessage.success('已删除')
@@ -996,14 +991,14 @@ async function addReminder() {
   } catch {}
   savingReminder.value = false
 }
-async function setReminderStatus(r: Reminder, status: string) {
+async function setReminderStatus(r: any, status: string) {
   try {
     await api.patch(`/followup-reminders/${r.id}`, { status }, { silent: true })
     ElMessage.success(status === 'done' ? '已标记完成' : status === 'cancelled' ? '已取消' : '已更新')
     await loadReminders()
   } catch {}
 }
-async function deleteReminder(r: Reminder) {
+async function deleteReminder(r: any) {
   try {
     await api.delete(`/followup-reminders/${r.id}`, { silent: true })
     ElMessage.success('已删除')

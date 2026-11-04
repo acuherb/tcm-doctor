@@ -151,7 +151,7 @@
       <div v-if="isMobile" class="cards">
         <div v-for="row in pagedOverview" :key="row.item_id" class="card">
           <div class="card-head">
-            <el-checkbox :model-value="selectedIds.has(row.item_id)" @change="(v: boolean)=>toggleSel(row, v)" />
+            <el-checkbox :model-value="selectedIds.has(row.item_id)" @change="(v:any)=>toggleSel(row, v)" />
             <span class="card-name">{{ row.item_name }}</span>
             <span class="xw-tag" :style="categoryChipStyle(row.item_type)">{{ row.item_type }}</span>
           </div>
@@ -248,22 +248,7 @@ import { useRouter } from 'vue-router'
 import { Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import api from '@/utils/api'
-import type { StockOption, Supplier } from '@/types'
-
-interface OverviewItem {
-  item_id: number
-  item_name: string
-  unit?: string
-  item_type?: string
-  total_quantity?: number
-  min_stock?: number
-  has_alert?: boolean
-  batch_count?: number
-  stock_value?: number
-  [key: string]: unknown
-}
-interface BulkInItem { item_id: number; item_name: string; unit: string; total_quantity: number; min_stock: number; qty: number; unit_price: number | null }
-interface BulkCheckItem { item_id: number; item_name: string; unit: string; total_quantity: number; counted: number }
+import type { StockOption } from '@/types'
 import { useStockOptionColors } from '@/utils/dictColors'
 
 const { categoryChipStyle, categoryColor, stockOptionVersion } = useStockOptionColors()
@@ -281,16 +266,16 @@ function dotColorOf(name: string) {
 }
 
 const router = useRouter()
-const overview = ref<OverviewItem[]>([])
-const alerts = ref<Array<Record<string, unknown>>>([])
+const overview = ref<any[]>([])
+const alerts = ref<any[]>([])
 const typeFilter = ref('')
 const alertOnly = ref(false)
 const searchText = ref('')
-const categories = ref<StockOption[]>([])
+const categories = ref<any[]>([])
 async function loadOptions() {
   try {
     const res = (await api.get<StockOption[]>('/stock/options')) || []
-    categories.value = res.filter((o: StockOption) => o.opt_type === 'category')
+    categories.value = res.filter((o: any) => o.opt_type === 'category')
   } catch {}
 }
 
@@ -298,7 +283,7 @@ const filteredOverview = computed(() => {
   let list = overview.value
   if (searchText.value) {
     const s = searchText.value.toLowerCase()
-    list = list.filter((o: OverviewItem) => (o.item_name || '').toLowerCase().includes(s))
+    list = list.filter((o: any) => (o.item_name || '').toLowerCase().includes(s))
   }
   return list
 })
@@ -343,9 +328,9 @@ async function loadOverview() {
     if (typeFilter.value) params.item_type = typeFilter.value
     if (alertOnly.value) params.alert_only = true
     if (searchText.value) params.search = searchText.value
-    overview.value = ((await api.get<Array<Record<string, unknown>>>('/stock/overview', { params })) || []) as OverviewItem[]
+    overview.value = (await api.get<Record<string, unknown>>('/stock/overview', { params })) || {}
     overviewShown.value = overviewPageSize
-  } catch (e) {
+  } catch (e: any) {
     console.error(e)
   }
 }
@@ -362,21 +347,21 @@ function goCheck(id: number) { router.push({ path: '/stock/check', query: { item
 
 // ── 批量操作（勾选 → 批量入库 / 批量盘点）──
 const overviewTableRef = ref()
-const selectedRows = ref<OverviewItem[]>([])
+const selectedRows = ref<any[]>([])
 const selectedIds = ref<Set<number>>(new Set())
-function onSelectionChange(rows: OverviewItem[]) { selectedRows.value = rows }
-function toggleSel(row: OverviewItem, val: boolean) {
+function onSelectionChange(rows: any[]) { selectedRows.value = rows }
+function toggleSel(row: any, val: boolean) {
   const s = new Set(selectedIds.value)
   if (val) s.add(row.item_id); else s.delete(row.item_id)
   selectedIds.value = s
 }
 // 移动端全选：仅作用于当前已加载（分页展示）的卡片，避免选中未加载项
 const mobileAllSelected = computed(() =>
-  pagedOverview.value.length > 0 && pagedOverview.value.every((o: OverviewItem) => selectedIds.value.has(o.item_id))
+  pagedOverview.value.length > 0 && pagedOverview.value.every((o: any) => selectedIds.value.has(o.item_id))
 )
 function toggleSelectAllMobile(val: boolean) {
   const s = new Set(selectedIds.value)
-  pagedOverview.value.forEach((o: OverviewItem) => {
+  pagedOverview.value.forEach((o: any) => {
     if (val) s.add(o.item_id); else s.delete(o.item_id)
   })
   selectedIds.value = s
@@ -384,7 +369,7 @@ function toggleSelectAllMobile(val: boolean) {
 // 桌面端走表格勾选(selectedRows)，移动端走卡片勾选(selectedIds)，统一出口
 const selectedList = computed(() =>
   isMobile.value
-    ? overview.value.filter((o: OverviewItem) => selectedIds.value.has(o.item_id))
+    ? overview.value.filter((o: any) => selectedIds.value.has(o.item_id))
     : selectedRows.value
 )
 function clearSelection() {
@@ -394,13 +379,13 @@ function clearSelection() {
 }
 
 const bulkInVisible = ref(false)
-const bulkInItems = ref<BulkInItem[]>([])
+const bulkInItems = ref<any[]>([])
 const bulkInSupplier = ref<number | undefined>(undefined)
 const bulkInPurchaseDate = ref<string>('')
 const bulkInExpiry = ref<string>('')
-const supplierOptions = ref<Supplier[]>([])
+const supplierOptions = ref<any[]>([])
 const bulkCheckVisible = ref(false)
-const bulkCheckItems = ref<BulkCheckItem[]>([])
+const bulkCheckItems = ref<any[]>([])
 const bulkCheckNote = ref<string>('')
 const bulkSubmitting = ref(false)
 
@@ -412,16 +397,15 @@ function todayStr(): string {
 
 async function loadSuppliers() {
   try {
-    const r = await api.get<{ data: unknown }>('/stock/suppliers')
-    const d = r.data
-    supplierOptions.value = Array.isArray(d) ? (d as Supplier[]) : (((d as { items?: Supplier[] })?.items) || [])
+    const r = await api.get('/stock/suppliers')
+    supplierOptions.value = Array.isArray(r.data) ? r.data : (r.data?.items || [])
   } catch { supplierOptions.value = [] }
 }
 
 function openBulkIn() {
-  bulkInItems.value = selectedList.value.map((o: OverviewItem) => ({
-    item_id: o.item_id, item_name: o.item_name, unit: o.unit || '',
-    total_quantity: Number(o.total_quantity || 0), min_stock: Number(o.min_stock || 0),
+  bulkInItems.value = selectedList.value.map((o: any) => ({
+    item_id: o.item_id, item_name: o.item_name, unit: o.unit,
+    total_quantity: o.total_quantity, min_stock: o.min_stock,
     qty: 0, unit_price: null,
   }))
   bulkInSupplier.value = undefined
@@ -431,15 +415,15 @@ function openBulkIn() {
   bulkInVisible.value = true
 }
 function fillToMin() {
-  bulkInItems.value.forEach((it: BulkInItem) => {
+  bulkInItems.value.forEach((it: any) => {
     const min = Number(it.min_stock || 0)
     it.qty = Math.max(0, +(min - Number(it.total_quantity)).toFixed(2))
   })
 }
 async function submitBulkIn() {
   const payload = bulkInItems.value
-    .filter((it: BulkInItem) => it.qty && it.qty > 0)
-    .map((it: BulkInItem) => ({
+    .filter((it: any) => it.qty && it.qty > 0)
+    .map((it: any) => ({
       item_id: it.item_id, quantity: it.qty, unit_price: it.unit_price,
       supplier_id: bulkInSupplier.value,
       purchase_date: bulkInPurchaseDate.value || undefined,
@@ -454,21 +438,21 @@ async function submitBulkIn() {
     bulkInVisible.value = false
     clearSelection()
     loadOverview()
-  } catch (e) {
+  } catch (e: any) {
     ElMessage.error('批量入库失败：' + (e?.response?.data?.detail || e?.message || '未知错误'))
   } finally { bulkSubmitting.value = false }
 }
 
 async function openBulkCheck() {
-  bulkCheckItems.value = selectedList.value.map((o: OverviewItem) => ({
-    item_id: o.item_id, item_name: o.item_name, unit: o.unit || '',
-    total_quantity: Number(o.total_quantity || 0), counted: Number(o.total_quantity || 0),
+  bulkCheckItems.value = selectedList.value.map((o: any) => ({
+    item_id: o.item_id, item_name: o.item_name, unit: o.unit,
+    total_quantity: o.total_quantity, counted: Number(o.total_quantity),
   }))
   bulkCheckNote.value = ''
   bulkCheckVisible.value = true
 }
 async function submitBulkCheck() {
-  const payload = bulkCheckItems.value.map((it: BulkCheckItem) => ({ item_id: it.item_id, counted: it.counted, note: bulkCheckNote.value || '批量盘点' }))
+  const payload = bulkCheckItems.value.map((it: any) => ({ item_id: it.item_id, counted: it.counted, note: bulkCheckNote.value || '批量盘点' }))
   bulkSubmitting.value = true
   try {
     await api.post('/stock/adjust/bulk', payload)
@@ -476,7 +460,7 @@ async function submitBulkCheck() {
     bulkCheckVisible.value = false
     clearSelection()
     loadOverview()
-  } catch (e) {
+  } catch (e: any) {
     ElMessage.error('批量盘点失败：' + (e?.response?.data?.detail || e?.message || '未知错误'))
   } finally { bulkSubmitting.value = false }
 }

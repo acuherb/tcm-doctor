@@ -83,7 +83,7 @@
                 v-model="item.herb_id"
                 :display-name="item.herb_name"
                 :exclude-ids="getExcludeIds(idx)"
-                @select="(h: Herb) => onHerbSelect(idx, h)"
+                @select="(h: any) => onHerbSelect(idx, h)"
                 width="180px"
               />
               <el-select
@@ -92,7 +92,7 @@
                 placeholder="选批次"
                 clearable
                 style="width:200px;"
-                @change="(id: number) => onBatchChange(idx, id)"
+                @change="(id: any) => onBatchChange(idx, id)"
               >
                 <el-option
                   v-for="b in batchesForHerb(item.herb_id)"
@@ -192,7 +192,7 @@
                 default-first-option
                 :teleported="false"
                 style="width:200px;"
-                @change="(v: string) => onAcupointChange(idx, v)"
+                @change="(v: any) => onAcupointChange(idx, v)"
               >
                 <el-option
                   v-for="a in filteredAcupoints"
@@ -211,7 +211,7 @@
               </el-select>
               <el-input-number
                 :model-value="retentionNum(acp.retention)"
-                @update:model-value="(n) => (acp.retention = n == null ? '' : Math.round(Number(n)) + '分钟')"
+                @update:model-value="(n: number | null) => (acp.retention = n == null ? '' : Math.round(n) + '分钟')"
                 :min="0" :max="180"
                 controls-position="right"
                 style="width:150px;"
@@ -307,7 +307,7 @@
         <el-table-column label="组成" show-overflow-tooltip>
           <template #default="{ row }">
             <span v-if="row.composition?.herbs">
-              {{ row.composition.herbs.map((h) => `${h.herb}${h.dose}g`).join('、') }}
+              {{ row.composition.herbs.map((h: { herb: string; dose?: number | string }) => `${h.herb}${h.dose}g`).join('、') }}
             </span>
           </template>
         </el-table-column>
@@ -325,7 +325,7 @@
         <el-table-column label="配穴" show-overflow-tooltip>
           <template #default="{ row }">
             <span v-if="row.composition?.acupoints?.length">
-              {{ row.composition.acupoints.map((a: { acupoint_name: string }) => a.acupoint_name).join('、') }}
+              {{ row.composition.acupoints.map((a: any) => a.acupoint_name).join('、') }}
             </span>
             <span v-else style="color:#bbb;">—</span>
           </template>
@@ -364,45 +364,16 @@ const editable = computed(() => auth.canWrite('prescriptions'))
 
 // 是否已添加配穴（用于支持纯针灸处方）
 const hasAcupointContent = computed(() =>
-  form.value.acupoints.some((a: AcupointItem) => a.acupoint_name)
+  form.value.acupoints.some((a: any) => a.acupoint_name)
 )
 
 const submitting = ref(false)
-interface PrescriptionItem {
-  herb_id: number | null
-  herb_name: string
-  dose: number
-  special_method: string | null
-  is_king_herb: boolean
-  note: string
-  price?: number | null
-  inventory_id?: number | null
-  _warnings?: string[]
-}
-interface AcupointItem {
-  acupoint_id: number | null
-  acupoint_name: string
-  technique: string | null
-  retention: string | null
-  sequence: number
-  note: string
-}
-interface StructuredFormulaHerb { herb: string; herb_id?: number | null; dose?: string | number | null; method?: string | null; unknown?: boolean; name?: string }
-interface StructuredFormula {
-  name?: string
-  role?: string
-  preparation?: string
-  herbs?: StructuredFormulaHerb[]
-  acupoints?: Array<{ acupoint_name: string; technique?: string | null; retention?: string | null; sequence?: number; note?: string }>
-  [key: string]: unknown
-}
-interface AcupointOption { id: number; name: string; meridian?: string; code?: string }
-const patients = ref<Patient[]>([])
+const patients = ref<any[]>([])
 const patientsLoading = ref(false)
-const classicFormulas = ref<ClassicFormula[]>([])
+const classicFormulas = ref<any[]>([])
 const formulaDialogVisible = ref(false)
 const formulaSearch = ref('')
-const acupointFormulas = ref<AcupointFormula[]>([])
+const acupointFormulas = ref<any[]>([])
 const acupointFormulaDialogVisible = ref(false)
 const acupointFormulaSearch = ref('')
 
@@ -413,11 +384,11 @@ const preparationMethods = ['水煎服', '水煎服代煎', '研末冲服', '丸
 const specialMethods = ['先煎', '后下', '包煎', '烊化', '冲服', '另煎']
 const techniques = ['毫针泻法', '毫针补法', '平补平泻', '温针灸', '艾灸', '拔罐', '放血', '电针']
 const treatmentFrequencies = ['每日', '隔日', '每周', '隔周', '每三日']
-const acupointOptions = ref<AcupointOption[]>([])
+const acupointOptions = ref<any[]>([])
 const meridianFilter = ref<string>('')
 const filteredAcupoints = computed(() => {
   if (!meridianFilter.value) return acupointOptions.value
-  return acupointOptions.value.filter((a: AcupointOption) => a.meridian === meridianFilter.value)
+  return acupointOptions.value.filter((a: any) => a.meridian === meridianFilter.value)
 })
 
 const form = ref({
@@ -462,7 +433,7 @@ const form = ref({
 const filteredFormulas = computed(() => {
   if (!formulaSearch.value) return classicFormulas.value
   const q = formulaSearch.value.toLowerCase()
-  return classicFormulas.value.filter((f: ClassicFormula) =>
+  return classicFormulas.value.filter((f: any) =>
     f.name.toLowerCase().includes(q) || (f.efficacy || '').toLowerCase().includes(q)
   )
 })
@@ -470,19 +441,19 @@ const filteredFormulas = computed(() => {
 const filteredAcupointFormulas = computed(() => {
   if (!acupointFormulaSearch.value) return acupointFormulas.value
   const q = acupointFormulaSearch.value.toLowerCase()
-  return acupointFormulas.value.filter((f: AcupointFormula) =>
+  return acupointFormulas.value.filter((f: any) =>
     f.name.toLowerCase().includes(q) || (f.efficacy || '').toLowerCase().includes(q)
   )
 })
 
 // ── 计价（预估）：单价优先药材参考价，其次该药材进价 ──
-function herbUnitPrice(item: PrescriptionItem): number | null {
+function herbUnitPrice(item: any): number | null {
   if (item == null || item.herb_id == null) return null
-  const herb = herbCacheList.value.find((h: Herb) => h.id === item.herb_id)
+  const herb = herbCacheList.value.find((h: any) => h.id === item.herb_id)
   const price = item.price ?? herb?.price ?? null
   return price != null ? Number(price) : null
 }
-function herbItemAmount(item: PrescriptionItem): number | null {
+function herbItemAmount(item: any): number | null {
   const p = herbUnitPrice(item)
   if (p == null) return null
   const doses = Number(form.value.doses) || 1
@@ -503,8 +474,8 @@ const estimatedTotal = computed(() => {
 
 function getExcludeIds(currentIdx: number) {
   return form.value.items
-    .filter((_: PrescriptionItem, i: number) => i !== currentIdx)
-    .map((item: PrescriptionItem) => item.herb_id)
+    .filter((_: any, i: number) => i !== currentIdx)
+    .map((item: any) => item.herb_id)
     .filter(Boolean) as number[]
 }
 
@@ -546,11 +517,11 @@ function removeAcupoint(idx: number) {
 }
 
 function onAcupointChange(idx: number, name: string) {
-  const match = acupointOptions.value.find((a: AcupointOption) => a.name === name)
+  const match = acupointOptions.value.find((a: any) => a.name === name)
   form.value.acupoints[idx].acupoint_id = match?.id ?? null
 }
 
-function onHerbSelect(idx: number, herb: Herb) {
+function onHerbSelect(idx: number, herb: any) {
   if (herb) {
     form.value.items[idx].herb_name = herb.name
     // 按批次取价：自动选第一个可用批次，用其售价作为单价；无批次则回退药材参考价
@@ -573,29 +544,29 @@ function onHerbSelect(idx: number, herb: Herb) {
 }
 
 // 手动改选批次：用该批次售价更新单价
-function onBatchChange(idx: number, id: number) {
-  const b = inventoryBatches.value.find((x: StockBatch) => x.id === id)
+function onBatchChange(idx: number, id: any) {
+  const b = inventoryBatches.value.find((x: any) => x.id === id)
   if (b) {
     form.value.items[idx].price = b.sale_price != null ? Number(b.sale_price) : null
   }
 }
 
 // 批次余量提示：本次需要量 vs 所选批次余量
-function selectedBatch(item: PrescriptionItem): StockBatch | null {
+function selectedBatch(item: any): any {
   if (!item.inventory_id) return null
-  return inventoryBatches.value.find((b: StockBatch) => b.id === item.inventory_id) || null
+  return inventoryBatches.value.find((b: any) => b.id === item.inventory_id) || null
 }
-function batchNeed(item: PrescriptionItem): number {
+function batchNeed(item: any): number {
   return Math.round(Number(item.dose || 0) * (Number(form.value.doses) || 1) * 100) / 100
 }
-function batchShort(item: PrescriptionItem): boolean {
+function batchShort(item: any): boolean {
   const b = selectedBatch(item)
   if (!b) return false
   return Number(b.quantity) < batchNeed(item)
 }
 
 function onPatientChange(patientId: number) {
-  const patient = patients.value.find((p: Patient) => p.id === patientId)
+  const patient = patients.value.find((p: any) => p.id === patientId)
   if (patient?.pregnancy_contraindicated || patient?.gender === '女') {
     // 标记可能需要孕妇禁忌检查
   }
@@ -640,7 +611,7 @@ async function runSafetyCheck() {
 }
 
 // 药材缓存
-const herbCache = new Map<number, Herb>()
+const herbCache = new Map<number, any>()
 async function getHerbCache(id: number) {
   if (herbCache.has(id)) return herbCache.get(id)
   try {
@@ -661,12 +632,12 @@ function loadFromAcupointFormula() {
   acupointFormulaDialogVisible.value = true
 }
 
-function selectAcupointFormula(f: AcupointFormula) {
+function selectAcupointFormula(f: any) {
   acupointFormulaDialogVisible.value = false
   applyAcupointFormulaById(f.id)
 }
 
-async function selectFormula(formula: ClassicFormula) {
+async function selectFormula(formula: any) {
   form.value.formula_name = formula.name
   form.value.is_classic = true
   form.value.classic_formula_id = formula.id
@@ -681,9 +652,9 @@ async function selectFormula(formula: ClassicFormula) {
   for (const h of herbs) {
     const name = (h.herb || '').trim()
     // 先按正名精确匹配，再按异名匹配，最后按包含关系匹配（兼容炮制名，如「炙甘草」→「甘草」）
-    let matchedHerb = herbCacheList.value.find((herb: Herb) => herb.name === name)
+    let matchedHerb = herbCacheList.value.find((herb: any) => herb.name === name)
     if (!matchedHerb) {
-      matchedHerb = herbCacheList.value.find((herb: Herb) =>
+      matchedHerb = herbCacheList.value.find((herb: any) =>
         (herb.aliases || []).some((a: string) => a === name) ||
         (herb.name && (herb.name.includes(name) || name.includes(herb.name)))
       )
@@ -709,7 +680,7 @@ async function selectFormula(formula: ClassicFormula) {
 }
 
 // 从 AI 辨证推荐方剂（自由文本组成）带入：预填方名与药味
-async function applyAiFormula(f: StructuredFormula) {
+async function applyAiFormula(f: any) {
   if (!f) return
   form.value.formula_name = f.name || ''
   form.value.is_classic = false
@@ -729,9 +700,9 @@ async function applyAiFormula(f: StructuredFormula) {
       name = m[1].trim()
       dose = parseFloat(m[2])
     }
-    let matchedHerb = herbCacheList.value.find((herb: Herb) => herb.name === name)
+    let matchedHerb = herbCacheList.value.find((herb: any) => herb.name === name)
     if (!matchedHerb) {
-      matchedHerb = herbCacheList.value.find((herb: Herb) =>
+      matchedHerb = herbCacheList.value.find((herb: any) =>
         (herb.aliases || []).some((a: string) => a === name) ||
         (herb.name && (herb.name.includes(name) || name.includes(herb.name)))
       )
@@ -750,20 +721,20 @@ async function applyAiFormula(f: StructuredFormula) {
   runSafetyCheck()
 }
 
-const herbCacheList = ref<Herb[]>([])
+const herbCacheList = ref<any[]>([])
 
 // 库存批次（用于开方按批次取价/出货）
-const inventoryBatches = ref<StockBatch[]>([])
+const inventoryBatches = ref<any[]>([])
 async function loadInventoryBatches() {
   try {
     inventoryBatches.value = (await api.get<StockBatch[]>('/stock/batches')) || []
   } catch {}
 }
 // 某药材的可用批次（正常/近效期，余量>0），供开方选择
-function batchesForHerb(herbId: number | null): StockBatch[] {
+function batchesForHerb(herbId: number | null): any[] {
   if (!herbId) return []
   return inventoryBatches.value.filter(
-    (b: StockBatch) => b.herb_id === herbId && (b.status === '正常' || b.status === '近效期') && Number(b.quantity) > 0
+    (b: any) => b.herb_id === herbId && (b.status === '正常' || b.status === '近效期') && Number(b.quantity) > 0
   )
 }
 
@@ -810,8 +781,8 @@ async function doSubmit() {
         price: i.price ?? null,
       })),
       acupoints: form.value.acupoints
-        .filter((a: AcupointItem) => a.acupoint_name)
-        .map((a: AcupointItem) => ({
+        .filter((a: any) => a.acupoint_name)
+        .map((a: any) => ({
           acupoint_id: a.acupoint_id,
           acupoint_name: a.acupoint_name,
           technique: a.technique,
@@ -835,7 +806,7 @@ async function doSubmit() {
 
 // 编辑态：从 PrescriptionResponse 回显并走 PUT
 const prescriptionId = ref<number | null>(null)
-function applyPrescription(p: Prescription) {
+function applyPrescription(p: any) {
   const f = form.value
   f.patient_id = p.patient_id
   f.visit_id = p.visit_id
@@ -851,12 +822,12 @@ function applyPrescription(p: Prescription) {
   f.treatment_frequency = p.treatment_frequency || ''
   f.treatment_days = p.treatment_days ?? null
   f.acupuncture_fee = p.acupuncture_fee ?? null
-  f.items = ((p.items || []) as unknown as PrescriptionItem[]).map((i: PrescriptionItem) => ({
+  f.items = (p.items || []) as unknown as PrescriptionItem[].map((i: PrescriptionItem) => ({
     herb_id: i.herb_id, herb_name: i.herb_name, dose: i.dose,
     special_method: i.special_method, is_king_herb: i.is_king_herb, note: i.note,
     inventory_id: i.inventory_id ?? null, price: i.price ?? null, _warnings: [],
   }))
-  f.acupoints = ((p.acupoints || []) as unknown as AcupointItem[]).map((a: AcupointItem) => ({
+  f.acupoints = (p.acupoints || []) as unknown as AcupointItem[].map((a: AcupointItem) => ({
     acupoint_id: a.acupoint_id, acupoint_name: a.acupoint_name,
     technique: a.technique, retention: a.retention, sequence: a.sequence, note: a.note,
   }))
@@ -899,7 +870,7 @@ async function loadAcupointFormulas() {
 async function loadHerbList() {
   try {
     herbCacheList.value = (await api.get<Herb[]>('/herbs')) || []
-    herbCacheList.value.forEach((h: Herb) => herbCache.set(h.id, h))
+    herbCacheList.value.forEach((h: any) => herbCache.set(h.id, h))
   } catch {}
 }
 
@@ -917,7 +888,7 @@ async function applyAcupointFormulaById(id: number) {
     if (f.technique) form.value.acupoint_technique = f.technique
     if (f.treatment_frequency) form.value.treatment_frequency = f.treatment_frequency
     if (f.treatment_days) form.value.treatment_days = f.treatment_days
-    const acus = (f.composition?.acupoints || []).map((a, i: number) => ({
+    const acus = (f.composition?.acupoints || []).map((a: any, i: number) => ({
       acupoint_id: null,
       acupoint_name: a.acupoint_name,
       technique: a.technique || null,
@@ -963,7 +934,7 @@ onMounted(async () => {
   if (q.formula_id) {
     const fid = Number(q.formula_id)
     if (classicFormulas.value.length) {
-      const f = classicFormulas.value.find((x: ClassicFormula) => x.id === fid)
+      const f = classicFormulas.value.find((x: any) => x.id === fid)
       if (f) selectFormula(f)
     } else {
       try {
@@ -1005,17 +976,17 @@ onMounted(async () => {
 
 // AI 结构化方剂 → 处方（主方/副方各自独立成方）
 const aiImportVisible = ref(false)
-const aiImportFormula = ref<StructuredFormula | null>(null)
+const aiImportFormula = ref<any>(null)
 
-function applyStructuredFormula(f: StructuredFormula) {
+function applyStructuredFormula(f: any) {
   if (!f) return
   form.value.formula_name = f.name || ''
   form.value.is_classic = false
   form.value.classic_formula_id = null
   if (f.preparation) form.value.preparation_method = f.preparation
-  form.value.items = (f.herbs || []).map((h: StructuredFormulaHerb) => {
+  form.value.items = (f.herbs || []).map((h: any) => {
     const doseNum = parseFloat(String(h.dose || '').replace(/[^\d.]/g, ''))
-    const hit = h.herb_id ? herbCacheList.value.find((x: Herb) => x.id === h.herb_id) : null
+    const hit = h.herb_id ? herbCacheList.value.find((x: any) => x.id === h.herb_id) : null
     const herbName = hit ? hit.name : h.name
     return {
       herb_id: h.herb_id ?? null,

@@ -285,28 +285,27 @@ def seed_dictionaries(db):
         else:
             skipped += 1
 
-    # 回填：仅对“尚未配色”的词条按推荐配色表补默认色。
-    # 注意：本函数每次启动都会由 seed_all 调用，若无条件覆盖会冲掉用户在字典页的手动调色。
+    # 回填：统一按推荐配色表覆盖（含手动调色），保证各类词表配色一致、可读
     for t in db.query(DictionaryTerm).filter(DictionaryTerm.term_type == "herb_tag").all():
-        if not t.color:
-            t.color = DEFAULT_HERB_TAG_COLORS.get(t.name)
+        c = DEFAULT_HERB_TAG_COLORS.get(t.name)
+        if c:
+            t.color = c
     for t in db.query(DictionaryTerm).filter(DictionaryTerm.term_type == "tag").all():
-        if not t.color:
-            t.color = PATIENT_TAG_COLOR.get(t.name)
+        c = PATIENT_TAG_COLOR.get(t.name)
+        if c:
+            t.color = c
     for t in db.query(DictionaryTerm).filter(DictionaryTerm.term_type == "tongue").all():
-        if not t.color:
-            t.color = tongue_color(t.name)
+        t.color = tongue_color(t.name)
     for t in db.query(DictionaryTerm).filter(DictionaryTerm.term_type == "pulse").all():
-        if not t.color:
-            t.color = pulse_color(t.pulse_type)
+        t.color = pulse_color(t.pulse_type)
     for t in db.query(DictionaryTerm).filter(DictionaryTerm.term_type == "syndrome").all():
-        if not t.color:
-            t.color = syndrome_color(t.meridian)
+        t.color = syndrome_color(t.meridian)
     for t in db.query(DictionaryTerm).filter(
         DictionaryTerm.term_type == "acupoint_tag",
     ).all():
-        if not t.color:
-            t.color = ACUPOINT_TAG_COLOR.get(t.name)
+        c = ACUPOINT_TAG_COLOR.get(t.name)
+        if c:
+            t.color = c
 
     return added, skipped
 

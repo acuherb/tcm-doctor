@@ -26,7 +26,6 @@ from app.routers import patient, herb, prescription, knowledge, diagnosis, dicti
 from app.routers import acupoint_formula
 from app.routers import stats, backup, auth, followup_reminders, stock
 from app.routers import system_log
-from app.routers import templates
 from app.routers.auth import get_current_user
 
 WRITE_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
@@ -252,6 +251,8 @@ _ACTION_MAP = {
     "/api/v1/config": "系统配置",
     "/api/v1/stock/overview": "库存总览",
     "/api/v1/stock/options": "库存选项",
+    "/api/v1/stock/suppliers": "供应商",
+    "/api/v1/stock/purchases": "采购入库",
     "/api/v1/stock/reports": "进销存报表",
     "/api/v1/stats/dashboard": "工作台统计",
     "/api/v1/stats": "统计报表",
@@ -519,7 +520,6 @@ app.include_router(acupoint_formula.router, prefix="/api/v1")
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(followup_reminders.router, prefix="/api/v1")
 app.include_router(system_log.router, prefix="/api/v1")
-app.include_router(templates.router, prefix="/api/v1")
 
 
 def _clean_env_value(value: str) -> str:
@@ -674,6 +674,12 @@ def update_config(
     doctor_name = data.get("doctor_name")
     clinic_logo = data.get("clinic_logo")
     ui_theme = data.get("ui_theme")
+    deepseek_api_key = data.get("deepseek_api_key")
+    deepseek_model = data.get("deepseek_model")
+    deepseek_base_url = data.get("deepseek_base_url")
+    deepseek_vision_model = data.get("deepseek_vision_model")
+    deepseek_vision_base_url = data.get("deepseek_vision_base_url")
+    deepseek_vision_api_key = data.get("deepseek_vision_api_key")
 
     # 复用 config 的 .env 解析（兼顾 PyInstaller frozen / DATA_DIR / 开发三场景），避免重复实现导致不一致
     env_path = resolve_env_path()
@@ -702,20 +708,28 @@ def update_config(
         if ui_theme in allowed_themes:
             settings.ui_theme = ui_theme
             env_lines["UI_THEME"] = ui_theme
-    # 密钥 / 模型类参数：按“是否显式传入”判断（model_fields_set），
-    # 支持把已填值清空（传空串），避免原真值判断跳过空串而无法关闭配置。
-    for fld, env_key in (
-        ("deepseek_api_key", "DEEPSEEK_API_KEY"),
-        ("deepseek_model", "DEEPSEEK_MODEL"),
-        ("deepseek_base_url", "DEEPSEEK_BASE_URL"),
-        ("deepseek_vision_model", "DEEPSEEK_VISION_MODEL"),
-        ("deepseek_vision_base_url", "DEEPSEEK_VISION_BASE_URL"),
-        ("deepseek_vision_api_key", "DEEPSEEK_VISION_API_KEY"),
-    ):
-        if fld in payload.model_fields_set:
-            val = _clean_env_value(getattr(payload, fld))
-            setattr(settings, fld, val)
-            env_lines[env_key] = val
+    if deepseek_api_key:
+        deepseek_api_key = _clean_env_value(deepseek_api_key)
+        settings.deepseek_api_key = deepseek_api_key
+        env_lines["DEEPSEEK_API_KEY"] = deepseek_api_key
+    if deepseek_model:
+        settings.deepseek_model = deepseek_model
+        env_lines["DEEPSEEK_MODEL"] = deepseek_model
+    if deepseek_base_url:
+        deepseek_base_url = _clean_env_value(deepseek_base_url)
+        settings.deepseek_base_url = deepseek_base_url
+        env_lines["DEEPSEEK_BASE_URL"] = deepseek_base_url
+    if deepseek_vision_model:
+        settings.deepseek_vision_model = deepseek_vision_model
+        env_lines["DEEPSEEK_VISION_MODEL"] = deepseek_vision_model
+    if deepseek_vision_base_url:
+        deepseek_vision_base_url = _clean_env_value(deepseek_vision_base_url)
+        settings.deepseek_vision_base_url = deepseek_vision_base_url
+        env_lines["DEEPSEEK_VISION_BASE_URL"] = deepseek_vision_base_url
+    if deepseek_vision_api_key:
+        deepseek_vision_api_key = _clean_env_value(deepseek_vision_api_key)
+        settings.deepseek_vision_api_key = deepseek_vision_api_key
+        env_lines["DEEPSEEK_VISION_API_KEY"] = deepseek_vision_api_key
 
     # 写回 .env（原子写入：先写临时文件再替换，避免 reload 期间读到空文件）
     tmp_path = env_path.with_suffix(".env.tmp")

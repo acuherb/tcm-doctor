@@ -149,7 +149,7 @@ const loadingMore = ref(false)
 
 const form = reactive({ supplier_id: null as number | null, order_date: '', note: '', items: [] as PurchaseItem[] })
 const rules = { supplier_id: [{ required: false }] }
-const poTotal = computed(() => form.items.reduce((s: number, it: PurchaseItem) => s + (Number(it.quantity) || 0) * (Number(it.unit_price) || 0), 0))
+const poTotal = computed(() => form.items.reduce((s: number, it: any) => s + (Number(it.quantity) || 0) * (Number(it.unit_price) || 0), 0))
 
 async function load() {
   loadingMore.value = false
@@ -178,7 +178,7 @@ async function loadMore() {
     const res = (await api.get<Paginated<PurchaseOrder>>('/stock/purchases', { params: { page: next, page_size: pageSize.value } })) || []
     const rows = Array.isArray(res) ? res : (res.items || [])
     const seen = new Set(orders.value.map((o: PurchaseOrder) => o.id))
-    orders.value.push(...rows.filter((r: PurchaseOrder) => !seen.has(r.id)))
+    orders.value.push(...rows.filter((r: any) => !seen.has(r.id)))
     page.value = next
     hasMore.value = orders.value.length < total.value
   } catch (e) { ElMessage.error('加载失败：' + (e?.response?.data?.detail || e?.message)) }
