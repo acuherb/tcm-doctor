@@ -12,6 +12,7 @@ from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -23,7 +24,9 @@ from app.routers.auth import get_current_user
 from app.permissions import has_perm
 from app.schemas.billing import ChargeCreate, ChargeResponse
 from app.schemas.patient import PatientCreate
-from app.services.billing_service import create_charge, VALID_METHODS
+from app.services.billing_service import (
+    create_charge, refund_charge_record, cancel_charge_record, VALID_METHODS,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/registration", tags=["挂号"])
@@ -42,6 +45,7 @@ class RegistrationCreate(BaseModel):
     # 开单即收（前台直接收挂号费）
     payment_method: str | None = Field(default=None, description="收款方式")
     paid: float | None = Field(default=None, ge=0, description="实收金额(默认=挂号费)")
+    force: bool = Field(default=False, description="该患者今日已挂号时，前台确认后强制再挂")
 
 
 class RegistrationUpdate(BaseModel):
@@ -80,6 +84,42 @@ def _next_queue_no(db: Session, day: str) -> int:
     return (row[0] or 0) + 1
 
 
+def _active_registration_today(db: Session, patient_id: int, day: str) -> Visit | None:
+    """查该患者今日未取消的挂号，避免误操作重复挂号、重复收挂号费。"""
+    return (
+        db.query(Visit)
+        .filter(
+            Visit.patient_id == patient_id,
+            Visit.visit_date == day,
+            Visit.registered_at.isnot(None),
+            Visit.status != "已取消",
+        )
+        .order_by(Visit.id.desc())
+        .first()
+    )
+
+
+def _settle_registration_charges(db: Session, visit_id: int, current_user: User) -> int:
+    """退号联动：已收的挂号费自动全额退费，待收的挂号费自动作废，钱不留在账上。
+
+    返回被处理的收费单数，便于调用方告知前台。
+    """
+    charges = (
+        db.query(Charge)
+        .filter(Charge.visit_id == visit_id, Charge.kind == "registration")
+        .all()
+    )
+    handled = 0
+    for ch in charges:
+        if ch.status == "已收费":
+            refund_charge_record(ch, None, f"退号自动退费（就诊 #{visit_id}）", current_user)
+            handled += 1
+        elif ch.status == "待收费":
+            cancel_charge_record(ch, f"退号自动作废待收单（就诊 #{visit_id}）", current_user)
+            handled += 1
+    return handled
+
+
 @router.post("", summary="挂号登记（新建/选择患者 + 创建就诊 + 收挂号费）")
 def register(
     payload: RegistrationCreate,
@@ -89,61 +129,83 @@ def register(
     if not has_perm(current_user, "patient:write"):
         raise HTTPException(status_code=403, detail="无权进行挂号登记")
 
-    # 1) 解析患者
-    patient = None
-    if payload.patient_id:
-        patient = db.query(Patient).filter(Patient.id == payload.patient_id).first()
-        if not patient:
-            raise HTTPException(status_code=404, detail="患者不存在")
-    elif payload.new_patient:
-        # 直接使用患者建档 schema，所有字段（含身份证/地址/过敏史/既往史等）一致落地
-        patient = Patient(**payload.new_patient.model_dump())
-        db.add(patient)
-        db.flush()
-    else:
-        raise HTTPException(status_code=400, detail="请提供 patient_id 或 new_patient")
-
-    # 2) 创建就诊（待诊）+ 挂号序号
     day = _today()
-    visit = Visit(
-        patient_id=patient.id,
-        visit_date=day,
-        visit_type="初诊",
-        chief_complaint="（待接诊）",
-        status="待诊",
-        queue_no=_next_queue_no(db, day),
-        registered_at=datetime.now(),
-        registrar_id=current_user.id,
-        department=payload.department,
-        registration_fee=Decimal(str(payload.registration_fee)) if payload.registration_fee else None,
-    )
-    db.add(visit)
-    db.flush()
+    # 同日重复挂号：先提示前台，确认后以 force=True 放行，避免误点产生两条就诊 + 两张挂号费单
+    if payload.patient_id and not payload.force:
+        dup = _active_registration_today(db, payload.patient_id, day)
+        if dup:
+            raise HTTPException(
+                status_code=409,
+                detail=f"该患者今日已挂号（队列号 {dup.queue_no}），请确认是否仍要挂号",
+            )
 
-    # 3) 挂号费：开单即收或留待收费（在收费台收取）
-    charge = None
-    if payload.registration_fee > 0:
-        if payload.payment_method and payload.payment_method not in VALID_METHODS:
-            raise HTTPException(status_code=400, detail="无效的收款方式")
-        cc = ChargeCreate(
-            kind="registration",
-            visit_id=visit.id,
-            patient_id=patient.id,
-            amount=payload.registration_fee,
-            patient_name=patient.name,
-            title="挂号费",
-            note=f"挂号费（{payload.department or '门诊'}）",
-            payment_method=payload.payment_method,
-            paid=payload.paid if payload.paid is not None else payload.registration_fee,
-        )
-        charge = create_charge(db, cc, current_user)
+    # 「患者 + 就诊 + 挂号费收费单」在**同一事务**内提交（服务层 commit=False）。
+    # 排队号由 (visit_date, queue_no) 唯一约束兜底，并发撞号时整体回滚重试，
+    # 杜绝「收费单已提交、就诊记录没落地」的孤儿数据。
+    for attempt in range(3):
+        try:
+            # 1) 解析患者
+            patient = None
+            if payload.patient_id:
+                patient = db.query(Patient).filter(Patient.id == payload.patient_id).first()
+                if not patient:
+                    raise HTTPException(status_code=404, detail="患者不存在")
+            elif payload.new_patient:
+                patient = Patient(**payload.new_patient.model_dump())
+                db.add(patient)
+                db.flush()
+            else:
+                raise HTTPException(status_code=400, detail="请提供 patient_id 或 new_patient")
 
-    db.commit()
-    db.refresh(visit)
-    return {
-        "visit": _serialize_visit(visit, patient.name),
-        "charge": ChargeResponse.model_validate(charge).model_dump() if charge else None,
-    }
+            # 2) 创建就诊（待诊）+ 挂号序号
+            visit = Visit(
+                patient_id=patient.id,
+                visit_date=day,
+                visit_type="初诊",
+                chief_complaint="（待接诊）",
+                status="待诊",
+                queue_no=_next_queue_no(db, day),
+                registered_at=datetime.now(),
+                registrar_id=current_user.id,
+                department=payload.department,
+                registration_fee=Decimal(str(payload.registration_fee)) if payload.registration_fee else None,
+            )
+            db.add(visit)
+            db.flush()
+
+            # 3) 挂号费：同一事务内开单，不自行提交
+            charge = None
+            if payload.registration_fee > 0:
+                if payload.payment_method and payload.payment_method not in VALID_METHODS:
+                    raise HTTPException(status_code=400, detail="无效的收款方式")
+                cc = ChargeCreate(
+                    kind="registration",
+                    visit_id=visit.id,
+                    patient_id=patient.id,
+                    amount=payload.registration_fee,
+                    patient_name=patient.name,
+                    title="挂号费",
+                    note=f"挂号费（{payload.department or '门诊'}）",
+                    payment_method=payload.payment_method,
+                    paid=payload.paid if payload.paid is not None else payload.registration_fee,
+                )
+                charge = create_charge(db, cc, current_user, commit=False)
+
+            db.commit()
+            db.refresh(visit)
+            if charge is not None:
+                db.refresh(charge)
+            return {
+                "visit": _serialize_visit(visit, patient.name),
+                "charge": ChargeResponse.model_validate(charge).model_dump() if charge else None,
+            }
+        except IntegrityError:
+            db.rollback()
+            if attempt == 2:
+                raise HTTPException(status_code=409, detail="挂号序号冲突，请稍后重试")
+        except Exception:
+            db.rollback()
+            raise
 
 
 @router.get("/queue", summary="今日挂号队列")
@@ -212,6 +274,9 @@ def update_registration(
     if payload.status is not None:
         if payload.status not in ("待诊", "已接诊", "已完成", "已取消"):
             raise HTTPException(status_code=400, detail="无效的就诊状态")
+        # 退号联动：已收挂号费自动全额退、待收挂号费自动作废，钱不留在账上
+        if payload.status == "已取消" and v.status != "已取消":
+            _settle_registration_charges(db, v.id, current_user)
         v.status = payload.status
     if payload.department is not None:
         v.department = payload.department

@@ -41,6 +41,42 @@ def _refresh_dosage_reminder(note: str, herb, dose: float) -> str:
     return "；".join(remains)
 
 
+def _derive_followup(data: PrescriptionCreate, db: Session):
+    """推算复诊提醒日期（与随访提醒联动）。
+
+    - 医生手动指定 follow_up_date 时优先使用；
+    - 否则综合「中药剂数(doses≈天数，默认1剂/日)」与「针灸疗程天数(treatment_days)」，
+      取较晚结束者（复诊为单次，应在两个疗程都结束后）；
+    - 纯中药仅填剂数、或针灸仅填疗程天数、或两者兼有，均能生成提醒；两者皆无则不生成。
+    返回 (due_date, note)，无提醒时均为 None。
+    """
+    if data.follow_up_date:
+        return data.follow_up_date, None
+    course_days = 0
+    desc: list[str] = []
+    if data.items and data.doses:
+        course_days = max(course_days, int(data.doses))
+        desc.append(f"中药{data.doses}剂")
+    if data.treatment_days:
+        course_days = max(course_days, int(data.treatment_days))
+        desc.append(f"针灸{data.treatment_days}天疗程")
+    if course_days <= 0:
+        return None, None
+    base = _dt.now().date().isoformat()
+    if data.visit_id:
+        v = db.query(Visit).filter(Visit.id == data.visit_id).first()
+        if v and v.visit_date:
+            base = str(v.visit_date)[:10]
+    try:
+        due = (_dt.fromisoformat(base).date() + timedelta(days=course_days)).isoformat()
+    except Exception:
+        return None, None
+    note = f"处方「{data.formula_name or data.prescription_type}」疗程结束复诊"
+    if desc:
+        note += f"（{', '.join(desc)}）"
+    return due, note
+
+
 # ── 经典方剂库（必须在 /{prescription_id} 之前，否则会被动态路由捕获） ──
 
 @router.get("/classic-formulas", response_model=list[ClassicFormulaResponse], summary="经典方列表")
@@ -336,23 +372,13 @@ def create_prescription(data: PrescriptionCreate, current_user: User = Depends(g
 
     prescription.total_price = _compute_total_price(db, data.items, data.doses)
 
-    # 自动生成随访提醒：医生指定复诊日期 或 依据疗程天数（就诊日 + 疗程天数）
-    fu_due = data.follow_up_date
-    if not fu_due and data.treatment_days:
-        base = _dt.now().date().isoformat()
-        if data.visit_id:
-            v = db.query(Visit).filter(Visit.id == data.visit_id).first()
-            if v and v.visit_date:
-                base = str(v.visit_date)[:10]
-        try:
-            fu_due = (_dt.fromisoformat(base).date() + timedelta(days=data.treatment_days)).isoformat()
-        except Exception:
-            fu_due = None
+    # 自动生成随访提醒：医生指定复诊日期 或 综合中药剂数/针灸疗程天数推算
+    fu_due, fu_note = _derive_followup(data, db)
     if fu_due:
         db.add(FollowUpReminder(
             patient_id=data.patient_id,
             due_date=fu_due,
-            note=f"处方「{data.formula_name or data.prescription_type}」疗程结束后复诊",
+            note=fu_note or f"处方「{data.formula_name or data.prescription_type}」复诊",
             source_type="prescription",
             source_id=prescription.id,
         ))
@@ -444,6 +470,21 @@ def update_prescription(prescription_id: int, data: PrescriptionCreate, current_
     ]
 
     prescription.total_price = _compute_total_price(db, data.items, data.doses, data.acupuncture_fee)
+
+    # 重建该处方自动生成的随访提醒（编辑后按最新疗程重算复诊日期，避免与实际不符）
+    db.query(FollowUpReminder).filter(
+        FollowUpReminder.source_type == "prescription",
+        FollowUpReminder.source_id == prescription.id,
+    ).delete(synchronize_session=False)
+    fu_due, fu_note = _derive_followup(data, db)
+    if fu_due:
+        db.add(FollowUpReminder(
+            patient_id=data.patient_id,
+            due_date=fu_due,
+            note=fu_note or f"处方「{data.formula_name or data.prescription_type}」复诊",
+            source_type="prescription",
+            source_id=prescription.id,
+        ))
 
     # 内容变动：重算哈希基线，并使既有电子签名失效（编辑后须重新签名）
     prescription.content_hash = compute_prescription_hash(prescription)

@@ -326,6 +326,9 @@ export interface Charge {
   discount?: number
   payable?: number
   paid?: number
+  overpaid?: number
+  refund_amount?: number
+  net_paid?: number
   payment_method?: string | null
   status?: string
   cashier_name?: string | null
@@ -333,6 +336,9 @@ export interface Charge {
   refunded_by?: string | null
   refunded_at?: string | null
   refund_reason?: string | null
+  cancelled_by?: string | null
+  cancelled_at?: string | null
+  cancel_reason?: string | null
   note?: string | null
   created_at?: string | null
   prescription?: Prescription
@@ -343,8 +349,12 @@ export interface ChargeStats {
   paid_amount: number
   refunded_amount: number
   pending_amount: number
+  collected_amount: number
+  net_amount: number
+  overpaid_amount: number
   paid_count: number
   refunded_count: number
   pending_count: number
+  cancelled_count: number
   total_count: number
 }

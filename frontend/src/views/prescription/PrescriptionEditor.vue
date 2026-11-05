@@ -251,7 +251,7 @@
           <el-input v-model="form.doctor_notes" type="textarea" :rows="2" placeholder="饮食禁忌、调护建议等" />
         </el-form-item>
         <el-form-item label="建议复诊" prop="follow_up_date" style="margin-top:8px;">
-          <el-date-picker v-model="form.follow_up_date" type="date" value-format="YYYY-MM-DD" placeholder="可选，留空则按疗程天数自动提醒" style="width:100%; max-width:320px;" />
+          <el-date-picker v-model="form.follow_up_date" type="date" value-format="YYYY-MM-DD" placeholder="可选，留空则按中药剂数/针灸疗程天数自动推算复诊日期" style="width:100%; max-width:320px;" />
         </el-form-item>
       </el-form>
     </el-card>

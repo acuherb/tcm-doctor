@@ -16,6 +16,9 @@
         <span>{{ payTime }}</span>
       </div>
       <div class="receipt__patient">患者：{{ charge?.patient_name || '-' }}</div>
+      <div v-if="charge?.status === '已退费' || charge?.status === '已取消'" class="receipt__void">
+        本单{{ charge?.status }}（{{ charge?.refund_reason || charge?.cancel_reason || '无原因' }}），金额已冲销
+      </div>
 
       <table class="receipt__table" v-if="charge?.prescription">
         <tr>
@@ -36,9 +39,16 @@
       <div class="receipt__sum">
         <div><span>应收</span><b>¥{{ Number(charge?.amount || 0).toFixed(2) }}</b></div>
         <div v-if="charge?.discount"><span>减免</span><b>-¥{{ Number(charge.discount).toFixed(2) }}</b></div>
-        <div><span>实收</span><b>¥{{ Number(charge?.payable || 0).toFixed(2) }}</b></div>
-        <div v-if="charge?.paid && Number(charge.paid) > Number(charge.payable || 0)">
-          <span>找零</span><b>¥{{ (Number(charge.paid) - Number(charge.payable || 0)).toFixed(2) }}</b>
+        <div><span>应付</span><b>¥{{ Number(charge?.payable || 0).toFixed(2) }}</b></div>
+        <div><span>实收</span><b>¥{{ Number(charge?.paid || 0).toFixed(2) }}</b></div>
+        <div v-if="Number(charge?.overpaid || 0) > 0">
+          <span>多收未找零</span><b>¥{{ Number(charge.overpaid).toFixed(2) }}</b>
+        </div>
+        <div v-if="Number(charge?.refund_amount || 0) > 0">
+          <span>已退</span><b>-¥{{ Number(charge.refund_amount).toFixed(2) }}</b>
+        </div>
+        <div v-if="Number(charge?.refund_amount || 0) > 0">
+          <span>净收</span><b>¥{{ Number(charge?.net_paid || 0).toFixed(2) }}</b>
         </div>
       </div>
 
@@ -130,6 +140,10 @@ function doPrint() {
   &__note { font-size: 12px; margin-top: 4px; }
   &__sign { font-size: 12px; margin-top: 14px; text-align: right; }
   &__plain { font-size: 12px; color: #999; }
+  &__void {
+    font-size: 12px; color: #c0392b; border: 1px dashed #c0392b;
+    padding: 4px 6px; margin: 6px 0; text-align: center;
+  }
 }
 </style>
 

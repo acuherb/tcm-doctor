@@ -957,7 +957,10 @@ def m0023() -> None:
     ]
     with engine.begin() as conn:
         conn.execute(text("CREATE TABLE charges_new (" + ", ".join(new_cols) + ")"))
-        col_list = ", ".join(c["name"] for c in cols)
+        # 只拷贝新表实际存在的列：_sync_model_columns 可能已先补入后续迁移才引入的列
+        # （如 overpaid/refund_amount），直接全量 INSERT 会报 "no such column"。
+        new_col_names = {c.split()[0] for c in new_cols}
+        col_list = ", ".join(c["name"] for c in cols if c["name"] in new_col_names)
         if has_kind:
             conn.execute(text(
                 f"INSERT INTO charges_new ({col_list}) SELECT {col_list} FROM charges"
@@ -982,6 +985,75 @@ def m0023() -> None:
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_charges_created_at ON charges(created_at)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_charges_patient_created ON charges(patient_id, created_at)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_charges_prescription ON charges(prescription_id)"))
+
+
+@migration(
+    "0024",
+    "收费单补退款/多收/作废字段并回填；挂号排队号加唯一约束（防并发重号）",
+)
+def m0024() -> None:
+    """P0/P1 修复的数据迁移：
+    1) charges 存量库补 overpaid / refund_amount / cancelled_* 列（新库由 create_all 已建好），
+       并把历史「已退费」单按实收 paid 回填 refund_amount、把多收差额回填 overpaid，
+       让旧数据的统计口径与新逻辑一致。
+    2) visits 上 (visit_date, queue_no) 建唯一索引前，先把历史重复号重排，
+       避免建索引失败；非挂号就诊 queue_no 为 NULL，SQLite 唯一索引允许多个 NULL。
+    """
+    insp = inspect(engine)
+    tables = set(insp.get_table_names())
+
+    with engine.begin() as conn:
+        if "charges" in tables:
+            cols = {c["name"] for c in insp.get_columns("charges")}
+            extra = [
+                ("overpaid", "NUMERIC(12,2)"),
+                ("refund_amount", "NUMERIC(12,2)"),
+                ("cancelled_by", "VARCHAR(50)"),
+                ("cancelled_at", "DATETIME"),
+                ("cancel_reason", "VARCHAR(200)"),
+            ]
+            for name, ddl in extra:
+                if name not in cols:
+                    conn.execute(text(f"ALTER TABLE charges ADD COLUMN {name} {ddl}"))
+            # 旧逻辑：已退费全额退，paid 未清零；按实收回填，退款统计不再用 payable 冒充
+            conn.execute(text(
+                "UPDATE charges SET refund_amount = COALESCE(paid, 0) "
+                "WHERE status = '已退费' AND (refund_amount IS NULL OR refund_amount = 0)"
+            ))
+            conn.execute(text(
+                "UPDATE charges SET overpaid = "
+                "CASE WHEN COALESCE(paid,0) > COALESCE(payable,0) "
+                "THEN COALESCE(paid,0) - COALESCE(payable,0) ELSE 0 END "
+                "WHERE overpaid IS NULL"
+            ))
+            conn.execute(text("UPDATE charges SET refund_amount = 0 WHERE refund_amount IS NULL"))
+
+        if "visits" in tables:
+            vcols = {c["name"] for c in insp.get_columns("visits")}
+            if "queue_no" in vcols:
+                # 历史重复号：保留每组第一条，其余重排到当日最大号之后
+                dups = conn.execute(text(
+                    "SELECT visit_date, queue_no, COUNT(*) AS c FROM visits "
+                    "WHERE queue_no IS NOT NULL GROUP BY visit_date, queue_no HAVING c > 1"
+                )).fetchall()
+                for day, qno, _ in dups:
+                    ids = [r[0] for r in conn.execute(
+                        text("SELECT id FROM visits WHERE visit_date = :d AND queue_no = :q ORDER BY id"),
+                        {"d": day, "q": qno},
+                    ).fetchall()]
+                    mx = conn.execute(
+                        text("SELECT COALESCE(MAX(queue_no), 0) FROM visits WHERE visit_date = :d"),
+                        {"d": day},
+                    ).scalar() or 0
+                    for i, vid in enumerate(ids[1:], start=1):
+                        conn.execute(
+                            text("UPDATE visits SET queue_no = :n WHERE id = :i"),
+                            {"n": mx + i, "i": vid},
+                        )
+                conn.execute(text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_visits_date_queue "
+                    "ON visits(visit_date, queue_no)"
+                ))
 
 
 def run_migrations() -> None:

@@ -18,9 +18,9 @@
       <el-row :gutter="12" class="stat-row">
         <el-col :xs="12" :sm="6">
           <div class="stat-card is-paid">
-            <div class="stat-card__label">已收金额</div>
+            <div class="stat-card__label">已收金额（净）</div>
             <div class="stat-card__value">¥{{ (stats.paid_amount || 0).toFixed(2) }}</div>
-            <div class="stat-card__sub">{{ stats.paid_count || 0 }} 单</div>
+            <div class="stat-card__sub">{{ stats.paid_count || 0 }} 单 · 累计实收 ¥{{ (stats.collected_amount || 0).toFixed(2) }}</div>
           </div>
         </el-col>
         <el-col :xs="12" :sm="6">
@@ -32,16 +32,16 @@
         </el-col>
         <el-col :xs="12" :sm="6">
           <div class="stat-card is-refund">
-            <div class="stat-card__label">退费金额</div>
+            <div class="stat-card__label">退费金额（实退）</div>
             <div class="stat-card__value">¥{{ (stats.refunded_amount || 0).toFixed(2) }}</div>
-            <div class="stat-card__sub">{{ stats.refunded_count || 0 }} 单</div>
+            <div class="stat-card__sub">{{ stats.refunded_count || 0 }} 单 · 净营收 ¥{{ (stats.net_amount || 0).toFixed(2) }}</div>
           </div>
         </el-col>
         <el-col :xs="12" :sm="6">
           <div class="stat-card is-total">
             <div class="stat-card__label">单据总数</div>
             <div class="stat-card__value">{{ stats.total_count || 0 }}</div>
-            <div class="stat-card__sub">当前筛选</div>
+            <div class="stat-card__sub">累计多收差额 ¥{{ (stats.overpaid_amount || 0).toFixed(2) }}</div>
           </div>
         </el-col>
       </el-row>
@@ -52,6 +52,7 @@
           <el-option label="待收费" value="待收费" />
           <el-option label="已收费" value="已收费" />
           <el-option label="已退费" value="已退费" />
+          <el-option label="已取消" value="已取消" />
         </el-select>
         <el-select v-model="kindFilter" placeholder="全部类型" clearable class="filter-mini" @change="loadCharges(true)">
           <el-option label="处方收费" value="prescription" />
@@ -86,9 +87,11 @@
         <el-table-column label="减免" width="90" align="right">
           <template #default="{ row }">{{ Number(row.discount) ? '-¥' + Number(row.discount).toFixed(2) : '—' }}</template>
         </el-table-column>
-        <el-table-column label="实收" width="105" align="right">
+        <el-table-column label="实收 / 净收" width="120" align="right">
           <template #default="{ row }">
-            <span class="paid-amount">¥{{ Number(row.payable).toFixed(2) }}</span>
+            <span class="paid-amount">¥{{ Number(row.paid || 0).toFixed(2) }}</span>
+            <div v-if="Number(row.refund_amount) > 0" class="cell-sub">已退 ¥{{ Number(row.refund_amount).toFixed(2) }} · 净 ¥{{ Number(row.net_paid || 0).toFixed(2) }}</div>
+            <div v-else-if="Number(row.overpaid) > 0" class="cell-sub">多收 ¥{{ Number(row.overpaid).toFixed(2) }}</div>
           </template>
         </el-table-column>
         <el-table-column prop="payment_method" label="方式" width="85" />
@@ -104,6 +107,7 @@
             <el-button link type="primary" size="small" @click="openReceipt(row)">收据</el-button>
             <el-button v-if="canWrite && row.status === '待收费'" link type="warning" size="small" @click="openPay(row)">收款</el-button>
             <el-button v-if="canWrite && row.status === '已收费'" link type="danger" size="small" @click="openRefund(row)">退费</el-button>
+            <el-button v-if="canWrite && row.status === '待收费'" link type="info" size="small" @click="openCancel(row)">作废</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -116,12 +120,13 @@
             <el-tag :type="statusType(c.status || '')" size="small">{{ c.status }}</el-tag>
           </div>
           <div class="bill-card__line">患者：{{ c.patient_name || '-' }} · {{ c.prescription_title || '-' }}</div>
-          <div class="bill-card__line">实收：<b>¥{{ Number(c.payable).toFixed(2) }}</b> · {{ c.payment_method || '-' }}</div>
+          <div class="bill-card__line">实收：<b>¥{{ Number(c.paid || 0).toFixed(2) }}</b> · {{ c.payment_method || '-' }}<span v-if="Number(c.refund_amount) > 0"> · 已退 ¥{{ Number(c.refund_amount).toFixed(2) }}</span></div>
           <div class="bill-card__line">{{ c.created_at }}</div>
           <div class="bill-card__ops">
             <el-button link type="primary" size="small" @click="openReceipt(c)">收据</el-button>
             <el-button v-if="canWrite && c.status === '待收费'" link type="warning" size="small" @click="openPay(c)">收款</el-button>
             <el-button v-if="canWrite && c.status === '已收费'" link type="danger" size="small" @click="openRefund(c)">退费</el-button>
+            <el-button v-if="canWrite && c.status === '待收费'" link type="info" size="small" @click="openCancel(c)">作废</el-button>
           </div>
         </div>
         <el-empty v-if="!charges.length" description="暂无收费单" />
@@ -159,16 +164,36 @@
       </template>
     </el-dialog>
 
-    <!-- 退费 -->
-    <el-dialog v-model="refundVisible" title="退费" width="420px" append-to-body>
+    <!-- 退费（原因必填，支持部分退费） -->
+    <el-dialog v-model="refundVisible" title="退费" width="440px" append-to-body>
       <div v-if="refundTarget" class="dlg-body">
-        <p>确认将单号 <b>{{ refundTarget.charge_no }}</b> 退费？金额 ¥{{ Number(refundTarget.payable).toFixed(2) }}</p>
+        <p>单号 <b>{{ refundTarget.charge_no }}</b>　实收 <b>¥{{ Number(refundTarget.paid || 0).toFixed(2) }}</b></p>
         <el-alert type="warning" :closable="false" show-icon title="退费仅冲销收费记录，不自动回补库存；如需退药请在处方作废时选择退回库存" />
-        <el-input v-model="refundReason" placeholder="退费原因（选填）" style="margin-top: 12px" />
+        <el-form label-width="84px" style="margin-top: 12px">
+          <el-form-item label="退款金额" required>
+            <el-input-number v-model="refundAmount" :min="0.01" :max="Number(refundTarget.paid || 0)" :precision="2" :step="1" style="width: 180px" />
+            <span class="dlg-hint">留空 = 全额退款 ¥{{ Number(refundTarget.paid || 0).toFixed(2) }}</span>
+          </el-form-item>
+          <el-form-item label="退费原因" required>
+            <el-input v-model="refundReason" placeholder="财务审计要求：必填" />
+          </el-form-item>
+        </el-form>
       </div>
       <template #footer>
         <el-button @click="refundVisible = false">取消</el-button>
         <el-button type="danger" :loading="refunding" @click="submitRefund">确认退费</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 作废待收费单 -->
+    <el-dialog v-model="cancelVisible" title="作废收费单" width="420px" append-to-body>
+      <div v-if="cancelTarget" class="dlg-body">
+        <p>将单号 <b>{{ cancelTarget.charge_no }}</b> 作废？作废后该单不再计入待收款。</p>
+        <el-input v-model="cancelReason" placeholder="作废原因（必填，如：金额录错 / 重复开单）" style="margin-top: 12px" />
+      </div>
+      <template #footer>
+        <el-button @click="cancelVisible = false">取消</el-button>
+        <el-button type="info" :loading="cancelling" @click="submitCancel">确认作废</el-button>
       </template>
     </el-dialog>
   </div>
@@ -192,7 +217,8 @@ const page = ref(1)
 const pageSize = ref(20)
 const stats = ref<ChargeStats>({
   paid_amount: 0, refunded_amount: 0, pending_amount: 0,
-  paid_count: 0, refunded_count: 0, pending_count: 0, total_count: 0,
+  collected_amount: 0, net_amount: 0, overpaid_amount: 0,
+  paid_count: 0, refunded_count: 0, pending_count: 0, cancelled_count: 0, total_count: 0,
 })
 const statusFilter = ref('')
 const kindFilter = ref('')
@@ -212,7 +238,13 @@ const paying = ref(false)
 const refundVisible = ref(false)
 const refundTarget = ref<Charge | null>(null)
 const refundReason = ref('')
+const refundAmount = ref<number | null>(null)  // null = 全额退款
 const refunding = ref(false)
+
+const cancelVisible = ref(false)
+const cancelTarget = ref<Charge | null>(null)
+const cancelReason = ref('')
+const cancelling = ref(false)
 
 function dateParams(): Record<string, string> {
   const p: Record<string, string> = {}
@@ -251,6 +283,7 @@ function statusType(s: string): 'success' | 'warning' | 'danger' | 'info' {
   if (s === '已收费') return 'success'
   if (s === '待收费') return 'warning'
   if (s === '已退费') return 'danger'
+  if (s === '已取消') return 'info'
   return 'info'
 }
 
@@ -291,19 +324,48 @@ async function submitPay() {
 function openRefund(row: Charge) {
   refundTarget.value = row
   refundReason.value = ''
+  refundAmount.value = null  // 留空 = 全额退款
   refundVisible.value = true
 }
 
 async function submitRefund() {
   if (!refundTarget.value?.id) return
+  if (!refundReason.value.trim()) { ElMessage.warning('财务审计要求：请填写退费原因'); return }
+  const amount = refundAmount.value
+  if (amount != null && (amount <= 0 || amount > Number(refundTarget.value.paid || 0))) {
+    ElMessage.warning('退款金额需大于 0 且不超过实收金额'); return
+  }
   refunding.value = true
   try {
-    await api.post(`/billing/charges/${refundTarget.value.id}/refund`, { reason: refundReason.value })
+    await api.post(`/billing/charges/${refundTarget.value.id}/refund`, {
+      reason: refundReason.value.trim(),
+      ...(amount != null ? { refund_amount: amount } : {}),
+    })
     ElMessage.success('已退费')
     refundVisible.value = false
     loadAll()
   } catch { /* 拦截器已提示 */ } finally {
     refunding.value = false
+  }
+}
+
+function openCancel(row: Charge) {
+  cancelTarget.value = row
+  cancelReason.value = ''
+  cancelVisible.value = true
+}
+
+async function submitCancel() {
+  if (!cancelTarget.value?.id) return
+  if (!cancelReason.value.trim()) { ElMessage.warning('请填写作废原因'); return }
+  cancelling.value = true
+  try {
+    await api.post(`/billing/charges/${cancelTarget.value.id}/cancel`, { reason: cancelReason.value.trim() })
+    ElMessage.success('收费单已作废')
+    cancelVisible.value = false
+    loadAll()
+  } catch { /* 拦截器已提示 */ } finally {
+    cancelling.value = false
   }
 }
 
@@ -339,10 +401,12 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
 .filter-mini { width: 130px; }
 .filter-search { width: 180px; }
 .paid-amount { font-weight: 700; color: #c0392b; }
+.cell-sub { font-size: 11px; color: #8a8170; line-height: 1.3; margin-top: 2px; }
 .bill-pager { margin-top: 14px; justify-content: flex-end; }
 
 .dlg-body { font-size: 14px; line-height: 1.8; }
 .dlg-payable { font-size: 15px; }
+.dlg-hint { margin-left: 8px; font-size: 12px; color: #8a8170; }
 
 .bill-cards { display: flex; flex-direction: column; gap: 10px; }
 .bill-card {

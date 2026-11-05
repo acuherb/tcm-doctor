@@ -3,9 +3,10 @@
 金额统一以 float（元）在接口层表达；入库时由路由层量化为 Decimal(12,2)，避免浮点累积误差。
 """
 from datetime import datetime
+from decimal import Decimal
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 
 
 class ChargeCreate(BaseModel):
@@ -31,7 +32,14 @@ class PayRequest(BaseModel):
 
 
 class RefundRequest(BaseModel):
-    reason: Optional[str] = Field(default=None, description="退费原因")
+    # 财务审计：退费必须留原因
+    reason: str = Field(..., min_length=1, max_length=200, description="退费原因（必填）")
+    # 部分退费：留空表示全额退（退 = 实收 paid）
+    refund_amount: Optional[float] = Field(default=None, gt=0, description="实际退款金额，留空=全额退款")
+
+
+class CancelRequest(BaseModel):
+    reason: str = Field(..., min_length=1, max_length=200, description="作废原因（必填）")
 
 
 class ChargeResponse(BaseModel):
@@ -47,6 +55,8 @@ class ChargeResponse(BaseModel):
     discount: float = 0.0
     payable: float = 0.0
     paid: float = 0.0
+    overpaid: float = 0.0
+    refund_amount: float = 0.0
     payment_method: Optional[str] = None
     status: str
     cashier_name: Optional[str] = None
@@ -54,10 +64,20 @@ class ChargeResponse(BaseModel):
     refunded_by: Optional[str] = None
     refunded_at: Optional[datetime] = None
     refund_reason: Optional[str] = None
+    cancelled_by: Optional[str] = None
+    cancelled_at: Optional[datetime] = None
+    cancel_reason: Optional[str] = None
     note: Optional[str] = None
     created_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
+
+    @computed_field
+    @property
+    def net_paid(self) -> float:
+        """净收 = 实收 - 实退；已退费单据据此不会把退掉的钱当成营业额。"""
+        v = Decimal(str(self.paid or 0)) - Decimal(str(self.refund_amount or 0))
+        return float(v.quantize(Decimal("0.01")))
 
 
 class ChargeDetailResponse(ChargeResponse):

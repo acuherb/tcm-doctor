@@ -265,6 +265,66 @@
 ### 验证
 - 前端 `vue-tsc 0`、`npm run build 0`、lint 干净。
 
+## 2026-11-05（续十三）— 复诊提醒日期：中药剂数与针灸疗程双来源
+
+### 问题
+「建议复诊」留空时自动生成的随访提醒只看 `treatment_days`（针灸疗程天数），**纯中药处方（仅填剂数）不生成提醒**；
+中药+针灸同方时只认针灸，且编辑处方后提醒不重算。复诊日期仅用于病例追踪，不打印。
+
+### 改动
+- `prescription.py` 抽出 `_derive_followup()`：医生指定日期优先；否则综合「中药剂数(默认 1 剂/日)」
+  与「针灸疗程天数」取**较晚结束者**（复诊为单次，应在两个疗程都结束后），按就诊日推算。
+  备注注明来源（如「中药7剂, 针灸10天疗程」）。
+- 新建与**编辑**处方均重算/重建该处方的自动随访提醒（编辑前先删旧单），删处方仍级联清理。
+- 前端占位文案改为「留空则按中药剂数/针灸疗程天数自动推算复诊日期」。
+
+### 验证
+- 后端全量 `pytest` 80 passed；前端 `vue-tsc 0`、`npm run build 0`。
+
+## 2026-11-05（续十四）— 收费/挂号 code review 修复（P0 算错钱 / P1 一致性 / P2 规则缺口）
+
+### P0（会算错钱 / 脏数据）
+- **退款金额落库**：`Charge` 新增 `refund_amount`（实退，支持部分退费）与 `overpaid`（多收未找零）；
+  `paid` 明确定为「实收 gross，退费后不改写」，`net_paid = paid - refund_amount` 由响应计算字段给出。
+  `refund` 现在校验退款额 ≤ 实收，并把实退金额、原因、退费人/时间落库；收据与详情不再把已退费单显示成收过的钱。
+- **统计口径统一**：`charge_stats` 的退款统计不再用 `payable` 冒充，改为 `refund_amount`；
+  新增 `collected_amount`(累计实收) / `net_amount`(=实收-实退) / `overpaid_amount`(累计多收差额)，
+  每个累加项均经 `_to_decimal()` 量化。超收 150/应付 100 全额退时，净营收为 0，不再凭空多 50。
+- **超收有记录**：开单即收与收款接口都把 `paid - payable` 记入 `overpaid` 并追加备注，日结可解释这笔钱。
+
+### P1（并发 / 一致性）
+- **单一事务**：`create_charge(..., commit=False)` 由服务层只 flush、调用方决定提交；
+  `register` 把「患者 + 就诊 + 挂号费单」合并为一次 `db.commit()`，杜绝「有收费单、无就诊」的孤儿数据。
+- **排队号唯一约束**：`Visit` 加 `UNIQUE(visit_date, queue_no)`（非挂号就诊 queue_no 为 NULL，SQLite 允许多个 NULL）；
+  `register` 捕获 `IntegrityError` 整体回滚重试最多 3 次，并发重号不再产生脏数据。
+- **单号并发**：`generate_charge_no` 改为高熵随机（不再「查重后插入」），`create_charge` 捕获
+  `IntegrityError` 回滚重试一次；`commit=False` 时上抛给挂号路由的整体重试。
+  （不用 SAVEPOINT：pysqlite 默认驱动下 `begin_nested()` 会连带提交外层事务，反而破坏原子性。）
+- **去重**：删除 `billing.py` 中重复的 `VALID_METHODS` / `_gen_charge_no` 与函数内 import，统一顶部导入服务层。
+
+### P2（业务规则）
+- **退号联动**：置「已取消」时，已收挂号费自动全额退费、待收挂号费自动作废（原因含就诊 ID）。
+- **同日重复挂号**：已有今日未取消挂号返回 409 并附队列号，前台确认后 `force=true` 才放行。
+- **挂号费幂等**：非处方收费按 `(visit_id, kind)` 复用已有「待收费」单，接口重试不重复开单。
+- **作废待收费单**：新增 `POST /billing/charges/{id}/cancel`（原因必填，状态 → 已取消）。
+- **退费原因必填**：`RefundRequest.reason` 改为必填（`min_length=1`）；前端退费弹窗支持部分退款金额与必填校验。
+
+### 前端
+- 收费管理：状态筛选/标签支持「已取消」；实收列改显真实 `paid` 并展示已退/净收/多收；
+  统计卡显示累计实收、净营收、累计多收差额；新增「作废」操作与弹窗；收据修正应付/实收/多收/已退/净收并标注退费作废。
+- 挂号台：409 重复挂号弹确认后 `force` 重试；退号确认提示自动退费；队列收费状态支持已退/已作废。
+- `types/index.ts` 补充 `Charge` / `ChargeStats` 新字段。
+
+### 迁移
+- **0024**：存量库补 `charges` 新列并按 `paid` 回填历史「已退费」单的 `refund_amount`、回填 `overpaid`；
+  清理 `visits` 历史重复排队号后建唯一索引。
+- 顺带修 `0023`：重建 `charges` 表时只拷贝新表实际存在的列，兼容 `_sync_model_columns` 先补列的顺序。
+
+### 验证
+- 新增 `tests/test_billing_review_fixes.py`（13 项：P0/P1/P2 全场景 + 迁移 0023/0024 顺序兼容）。
+- 修正 `test_registration.py` 两处依赖全局状态的脆弱断言（`queue_no==1`、`items[0]`）。
+- 后端全量 `pytest` **93 passed**；前端 `vue-tsc 0`、`npm run build 0`、lint 干净。
+
 ## 2026-11-04 — 作废入口收敛到详情弹窗，避免列表误点
 
 ### 决定

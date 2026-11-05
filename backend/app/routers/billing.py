@@ -4,8 +4,6 @@
 权限由网关中间件按 /billing 域放行（billing:read / billing:write），此处仅取当前收银员信息。
 """
 import logging
-import random
-from datetime import datetime
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -18,21 +16,16 @@ from app.models.user import User
 from app.routers.auth import get_current_user
 from app.schemas.billing import (
     ChargeCreate, ChargeResponse, ChargeDetailResponse, ChargeListResponse,
-    PayRequest, RefundRequest,
+    PayRequest, RefundRequest, CancelRequest,
 )
 from app.schemas.prescription import PrescriptionResponse
+from app.services.billing_service import (
+    create_charge as create_charge_service,
+    apply_payment, refund_charge_record, cancel_charge_record,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/billing", tags=["收费管理"])
-
-VALID_METHODS = ("现金", "微信", "支付宝", "银行卡", "医保", "记账")
-
-
-def _gen_charge_no(db: Session) -> str:
-    while True:
-        no = "C" + datetime.now().strftime("%Y%m%d%H%M%S") + f"{random.randint(0, 99):02d}"
-        if not db.query(Charge).filter(Charge.charge_no == no).first():
-            return no
 
 
 def _charge_to_response(c: Charge) -> ChargeResponse:
@@ -49,9 +42,7 @@ def create_charge(
 
     传入收款方式与实收金额则直接置为「已收费」。同一处方已有「待收费」单时复用，避免重复开单。
     """
-    from app.services.billing_service import create_charge as _svc_create
-
-    charge = _svc_create(db, payload, current_user)
+    charge = create_charge_service(db, payload, current_user)
     return _charge_to_response(charge)
 
 
@@ -123,22 +114,9 @@ def pay_charge(
     charge = db.query(Charge).filter(Charge.id == charge_id).first()
     if not charge:
         raise HTTPException(status_code=404, detail="收费单不存在")
-    if charge.status == "已收费":
-        raise HTTPException(status_code=400, detail="该收费单已收款")
-    if charge.status == "已退费":
-        raise HTTPException(status_code=400, detail="该收费单已退费，无法收款")
-    if payload.payment_method not in VALID_METHODS:
-        raise HTTPException(status_code=400, detail="无效的收款方式")
-    paid = _to_decimal(payload.paid)
-    if paid < charge.payable:
-        raise HTTPException(status_code=400, detail="实收金额小于应付金额")
-
-    charge.paid = paid
-    charge.payment_method = payload.payment_method
-    charge.status = "已收费"
-    charge.cashier_id = current_user.id
-    charge.cashier_name = current_user.display_name or current_user.username
-    charge.paid_at = datetime.now()
+    if charge.status != "待收费":
+        raise HTTPException(status_code=400, detail=f"该收费单状态为「{charge.status}」，不可收款")
+    apply_payment(charge, payload.payment_method, payload.paid, current_user)
     db.commit()
     db.refresh(charge)
     return _charge_to_response(charge)
@@ -154,12 +132,25 @@ def refund_charge(
     charge = db.query(Charge).filter(Charge.id == charge_id).first()
     if not charge:
         raise HTTPException(status_code=404, detail="收费单不存在")
-    if charge.status != "已收费":
-        raise HTTPException(status_code=400, detail="仅「已收费」的收费单可退费")
-    charge.status = "已退费"
-    charge.refunded_by = current_user.display_name or current_user.username
-    charge.refunded_at = datetime.now()
-    charge.refund_reason = payload.reason
+    # 实退金额落库，支持部分退费；原因必填由 schema + 服务层双重保证
+    refund_charge_record(charge, payload.refund_amount, payload.reason, current_user)
+    db.commit()
+    db.refresh(charge)
+    return _charge_to_response(charge)
+
+
+@router.post("/charges/{charge_id}/cancel", response_model=ChargeResponse, summary="作废（待收费 -> 已取消）")
+def cancel_charge(
+    charge_id: int,
+    payload: CancelRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """开错单（金额错、挂号费录错）可作废，避免「待收费」列表被无效单污染。"""
+    charge = db.query(Charge).filter(Charge.id == charge_id).first()
+    if not charge:
+        raise HTTPException(status_code=404, detail="收费单不存在")
+    cancel_charge_record(charge, payload.reason, current_user)
     db.commit()
     db.refresh(charge)
     return _charge_to_response(charge)
@@ -171,7 +162,14 @@ def charge_stats(
     end_date: str | None = Query(None, description="止 yyyy-mm-dd"),
     db: Session = Depends(get_db),
 ):
-    """返回日期范围内各状态金额汇总，用于收费台概览。"""
+    """返回日期范围内各状态金额汇总，用于收费台概览 / 日结。
+
+    口径统一：收款与退款都基于「实收」(paid / refund_amount)，不再用 payable 冒充退款额；
+    每个累加项都经 _to_decimal 量化，避免 Decimal 与 float 混算产生分位漂移。
+      collected_amount 累计实收(gross) - refunded_amount 实退 = net_amount 净营收
+      paid_amount     当前「已收费」单的净收（向后兼容旧字段）
+      overpaid_amount 多收未找零合计，供收银员解释实收与应付的差额
+    """
     q = db.query(Charge)
     if start_date:
         q = q.filter(Charge.created_at >= start_date)
@@ -180,24 +178,38 @@ def charge_stats(
     charges = q.all()
     paid_amount = Decimal("0.00")
     refunded_amount = Decimal("0.00")
+    collected_amount = Decimal("0.00")
     pending_amount = Decimal("0.00")
-    paid_count = refunded_count = pending_count = 0
+    overpaid_amount = Decimal("0.00")
+    paid_count = refunded_count = pending_count = cancelled_count = 0
     for c in charges:
+        paid = _to_decimal(c.paid)
+        refunded = _to_decimal(c.refund_amount)
         if c.status == "已收费":
-            paid_amount += c.paid
+            paid_amount += _to_decimal(paid - refunded)
             paid_count += 1
         elif c.status == "已退费":
-            refunded_amount += c.payable
+            refunded_amount += _to_decimal(refunded)
             refunded_count += 1
-        else:
-            pending_amount += c.payable
+        elif c.status == "待收费":
+            pending_amount += _to_decimal(c.payable)
             pending_count += 1
+        elif c.status == "已取消":
+            cancelled_count += 1
+        if c.status in ("已收费", "已退费"):
+            collected_amount += _to_decimal(paid)
+            overpaid_amount += _to_decimal(c.overpaid)
+    net_amount = _to_decimal(collected_amount - refunded_amount)
     return {
-        "paid_amount": float(paid_amount),
-        "refunded_amount": float(refunded_amount),
-        "pending_amount": float(pending_amount),
+        "paid_amount": float(_to_decimal(paid_amount)),
+        "refunded_amount": float(_to_decimal(refunded_amount)),
+        "pending_amount": float(_to_decimal(pending_amount)),
+        "collected_amount": float(_to_decimal(collected_amount)),
+        "net_amount": float(net_amount),
+        "overpaid_amount": float(_to_decimal(overpaid_amount)),
         "paid_count": paid_count,
         "refunded_count": refunded_count,
         "pending_count": pending_count,
+        "cancelled_count": cancelled_count,
         "total_count": len(charges),
     }

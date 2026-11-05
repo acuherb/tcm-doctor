@@ -1,7 +1,7 @@
 """就诊记录 ORM 模型"""
 from datetime import datetime
 from decimal import Decimal
-from sqlalchemy import String, Text, DateTime, Integer, ForeignKey, JSON, Index, Numeric
+from sqlalchemy import String, Text, DateTime, Integer, ForeignKey, JSON, Index, Numeric, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -14,6 +14,8 @@ class Visit(Base):
         Index("idx_visits_patient_date", "patient_id", "visit_date"),
         Index("idx_visits_registered_at", "registered_at"),
         Index("idx_visits_status", "status"),
+        # 并发兜底：同日排队号唯一。非挂号就诊 queue_no 为 NULL，SQLite 允许多个 NULL，互不影响。
+        UniqueConstraint("visit_date", "queue_no", name="uq_visits_date_queue"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)

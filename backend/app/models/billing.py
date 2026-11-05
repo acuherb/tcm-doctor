@@ -43,13 +43,18 @@ class Charge(Base):
     )
 
     # 金额（元）：amount 为处方原始总价快照，payable = amount - discount
+    # paid 为「实际收到的钱」(gross，退费后不改写，保留审计轨迹)；net_paid = paid - refund_amount
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"), comment="应收原价")
     discount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"), comment="减免")
-    payable: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"), comment="实收应付")
-    paid: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"), comment="已收")
+    payable: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"), comment="应付")
+    paid: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"), comment="实收(gross，退费后不变)")
+    # 多收未找零：paid - payable 的正差额，单独落库，避免日结时无法解释这笔钱
+    overpaid: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"), comment="多收未找零金额")
+    # 实退金额：支持部分退费；退款统计一律以此为准（不再用 payable 冒充）
+    refund_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"), comment="实际退费金额")
 
     payment_method: Mapped[str | None] = mapped_column(String(20), comment="收款方式: 现金/微信/支付宝/银行卡/医保/记账")
-    status: Mapped[str] = mapped_column(String(20), default="待收费", comment="状态: 待收费/已收费/已退费")
+    status: Mapped[str] = mapped_column(String(20), default="待收费", comment="状态: 待收费/已收费/已退费/已取消")
 
     cashier_id: Mapped[int | None] = mapped_column(Integer, comment="收银员ID")
     cashier_name: Mapped[str | None] = mapped_column(String(50), comment="收银员姓名")
@@ -58,6 +63,11 @@ class Charge(Base):
     refunded_by: Mapped[str | None] = mapped_column(String(50), comment="退费人")
     refunded_at: Mapped[datetime | None] = mapped_column(DateTime, comment="退费时间")
     refund_reason: Mapped[str | None] = mapped_column(String(200), comment="退费原因")
+
+    # 作废审计（仅「待收费」可作废）
+    cancelled_by: Mapped[str | None] = mapped_column(String(50), comment="作废人")
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime, comment="作废时间")
+    cancel_reason: Mapped[str | None] = mapped_column(String(200), comment="作废原因")
 
     note: Mapped[str | None] = mapped_column(Text, comment="备注")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)

@@ -20,13 +20,35 @@ def test_register_new_patient_with_fee_paid(client, db_session, auth_headers):
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["visit"]["status"] == "待诊"
-    assert body["visit"]["queue_no"] == 1
+    # 排队号按当日最大值递增；测试库里可能已有其它挂号，不假设从 1 开始
+    assert isinstance(body["visit"]["queue_no"], int) and body["visit"]["queue_no"] >= 1
     assert body["visit"]["registration_fee"] == 20.0
     # 挂号费开单即收 -> 已收费
     assert body["charge"] is not None
     assert body["charge"]["kind"] == "registration"
     assert body["charge"]["status"] == "已收费"
     assert float(body["charge"]["payable"]) == 20.0
+
+
+def test_patient_duplicate_check(client, db_session, auth_headers):
+    from app.models.patient import Patient
+    s = _suffix()
+    db_session.add(Patient(name=f"张三_{s}", phone="13900000000", id_card="110101199001011234"))
+    db_session.commit()
+
+    # 按姓名查重 -> 命中
+    r = client.get("/api/v1/patients/duplicates", params={"name": f"张三_{s}"}, headers=auth_headers)
+    assert r.status_code == 200, r.text
+    assert len(r.json()) == 1
+
+    # 按身份证查重 -> 命中（即便姓名不同）
+    r2 = client.get("/api/v1/patients/duplicates",
+                    params={"name": "别的名", "id_card": "110101199001011234"}, headers=auth_headers)
+    assert len(r2.json()) == 1
+
+    # 无匹配 -> 空
+    r3 = client.get("/api/v1/patients/duplicates", params={"name": "查无此人_xyz"}, headers=auth_headers)
+    assert r3.json() == []
 
 
 def test_register_existing_patient_no_fee(client, db_session, auth_headers):
@@ -59,8 +81,8 @@ def test_queue_and_status_flow(client, db_session, auth_headers):
     q = client.get("/api/v1/registration/queue", headers=auth_headers)
     assert q.status_code == 200, q.text
     items = q.json()["items"]
-    assert any(i["id"] == vid for i in items)
-    assert q.json()["items"][0]["registration_charge"]["status"] == "已收费"
+    mine = next(i for i in items if i["id"] == vid)
+    assert mine["registration_charge"]["status"] == "已收费"
 
     # 接诊 -> 已接诊
     c = client.post(f"/api/v1/registration/{vid}/call", headers=auth_headers)

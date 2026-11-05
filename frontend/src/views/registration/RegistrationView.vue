@@ -155,8 +155,8 @@
             </el-table-column>
             <el-table-column label="收费" width="90">
               <template #default="{ row }">
-                <el-tag v-if="row.registration_charge" :type="row.registration_charge.status === '已收费' ? 'success' : 'warning'" size="small">
-                  {{ row.registration_charge.status === '已收费' ? '已收' : '待收' }}
+                <el-tag v-if="row.registration_charge" :type="chargeTagType(row.registration_charge.status)" size="small">
+                  {{ chargeLabel(row.registration_charge.status) }}
                 </el-tag>
                 <span v-else class="muted">—</span>
               </template>
@@ -185,7 +185,7 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import api from '@/utils/api'
+import api, { errMsg } from '@/utils/api'
 import { findPatientDuplicates } from '@/utils/dedup'
 import type { RegistrationQueueItem } from '@/types'
 
@@ -325,7 +325,25 @@ async function submitRegister() {
       payload.payment_method = payMethod.value
       payload.paid = paid.value
     }
-    const r = await api.post('/registration', payload)
+    // 同日重复挂号：后端返回 409，前台确认后以 force=true 重试，避免误点重复收挂号费
+    let r: any
+    try {
+      r = await api.post('/registration', payload, { silent: true })
+    } catch (e: unknown) {
+      const status = (e as any)?.response?.status
+      const msg = errMsg(e)
+      if (status === 409 && msg.includes('今日已挂号')) {
+        try {
+          await ElMessageBox.confirm(msg, '该患者今日已挂号', {
+            type: 'warning', confirmButtonText: '仍然挂号', cancelButtonText: '取消',
+          })
+        } catch { return }
+        r = await api.post('/registration', { ...payload, force: true })
+      } else {
+        ElMessage.error(msg)
+        return
+      }
+    }
     ElMessage.success(`挂号成功，排队号 ${r.visit.queue_no}`)
     // 重置
     selectedPatientId.value = null; selectedPatient.value = null; patientOptions.value = []
@@ -348,6 +366,16 @@ function statusType(s: string): 'success' | 'warning' | 'info' | 'danger' {
   if (s === '待诊') return 'warning'
   if (s === '已接诊') return 'primary' as any
   if (s === '已取消') return 'danger'
+  return 'info'
+}
+
+function chargeLabel(s: string): string {
+  return ({ '待收费': '待收', '已收费': '已收', '已退费': '已退', '已取消': '已作废' } as Record<string, string>)[s] || s
+}
+function chargeTagType(s: string): 'success' | 'warning' | 'info' | 'danger' {
+  if (s === '已收费') return 'success'
+  if (s === '待收费') return 'warning'
+  if (s === '已退费') return 'danger'
   return 'info'
 }
 
@@ -379,9 +407,13 @@ async function completeVisit(row: RegistrationQueueItem) {
 
 async function cancelVisit(row: RegistrationQueueItem) {
   try {
-    await ElMessageBox.confirm(`确认退号（${row.patient_name}）？`, '退号', { type: 'warning' })
+    const feePaid = row.registration_charge?.status === '已收费'
+    await ElMessageBox.confirm(
+      `确认退号（${row.patient_name}）？${feePaid ? '\n已收挂号费将自动全额退费；' : '\n待收挂号费将自动作废；'}该操作不可撤销。`,
+      '退号', { type: 'warning', confirmButtonText: '确认退号' }
+    )
     await api.patch(`/registration/${row.id}`, { status: '已取消' })
-    ElMessage.success('已退号')
+    ElMessage.success(feePaid ? '已退号，挂号费已自动退费' : '已退号，待收挂号费已作废')
     loadQueue()
   } catch { /* 取消或异常 */ }
 }
