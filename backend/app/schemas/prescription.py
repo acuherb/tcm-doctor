@@ -134,6 +134,15 @@ class PrescriptionResponse(BaseModel):
     doctor_id: int | None = None
     doctor_name: str | None = None
     created_at: datetime | None
+    # 电子签名与防篡改
+    content_hash: str | None = None
+    signed_by: str | None = None
+    signed_by_id: int | None = None
+    signed_at: datetime | None = None
+    signature: str | None = None
+    tampered: bool = False
+    signed: bool = False
+    signature_valid: bool = False
     items: list[PrescriptionItemResponse] = []
     acupoints: list[AcupointPrescriptionResponse] = []
     injections: list[PrescriptionInjectionResponse] = []

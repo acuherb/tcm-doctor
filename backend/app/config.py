@@ -78,6 +78,10 @@ class Settings(BaseSettings):
     # 游客免密登录（仅浏览，写操作仍受限）；默认关闭，所有接口均需登录后访问
     allow_guest_login: bool = False
 
+    # 处方电子签名密钥：绑定「内容哈希 + 签名医师 + 签名时间」生成签名令牌，
+    # 校验签名/防篡改时复用；生产环境请通过环境变量 TCM_SIGNING_SECRET 覆盖为强随机值。
+    signing_secret: str = "tcm-doctor-default-signing-secret"
+
     # 操作日志保留天数：启动时自动清理超期日志，防止日志表无限增长；
     # 设为 0 表示不自动清理（仍可在界面手动清理）
     log_retention_days: int = 180

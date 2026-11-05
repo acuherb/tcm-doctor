@@ -89,6 +89,30 @@
 - 新增 `tests/test_indexes_optimistic.py`（4 项）：索引存在、version 列存在、正常更新版本自增、双会话并发冲突抛 `StaleDataError`。
 - 后端全量 `pytest` **57 passed**；前端 `vue-tsc 0`、`npm run build 0`。
 
+## 2026-11-05（续三）— 处方防篡改 / 电子签名
+
+### 动机
+处方是医疗留存的核心凭据，原系统对处方内容无任何防篡改与签名留痕，存在被事后改动而难以追责的隐患。
+
+### 改动
+- **内容哈希基线**：`Prescription` 新增 `content_hash` 列；开方/编辑时由 `compute_prescription_hash()` 对临床内容
+  （药味/剂量/配穴/针剂/方名/治法/剂数/医嘱等，且**不含 status/时间戳**）做 SHA-256 规范化哈希；
+  存量处方由迁移 `0019` 回填基线，使其后续被改动即可检出。
+- **电子签名**：新增 `signed_by / signed_by_id / signed_at / signature` 列。
+  `POST /prescriptions/{id}/sign` 由当前登录医师签名，令牌 = `SHA256(content_hash | 签名人 | 时间 | signing_secret)`
+  （密钥可由环境变量 `TCM_SIGNING_SECRET` 覆盖），将签名与签署时刻的真实内容绑定，杜绝伪造或挪用到其它处方。
+- **篡改/失效判定**（模型派生属性，实时计算）：
+  - `tampered`：基线存在但当前重算不一致 → 内容被改动（含外部直接改库）。
+  - `signature_valid`：令牌与其签署时基线一致；若签名后内容被改，令牌失效需重签。
+  - 编辑处方会使既有签名失效（清空签名，须重新签署）。
+- **校验端点** `GET /prescriptions/{id}/verify` 返回 `tampered/signed/signature_valid` 及基线与实时哈希。
+- **前端** `PrescriptionEditor.vue`：编辑态页头新增完整性徽标（已签名·内容完整 / 签名失效·需重签 / 未签名 / ⚠内容已被篡改）
+  与「电子签名」按钮；签名或保存后实时刷新状态。`Prescription` 类型补充相应字段。
+
+### 验证
+- 新增 `tests/test_prescription_integrity.py`（5 项）：哈希稳定性、签名置位与有效、编辑后签名失效、外部篡改检出、已取消拒绝签名。
+- 后端全量 `pytest` **60 passed**；前端 `vue-tsc 0`、`npm run build 0`。
+
 ## 2026-11-04 — 作废入口收敛到详情弹窗，避免列表误点
 
 ### 决定

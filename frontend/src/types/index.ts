@@ -67,6 +67,15 @@ export interface Prescription {
   items?: PrescriptionItem[]
   injections?: PrescriptionInjection[]
   acupoints?: AcupointPrescription[]
+  // 电子签名与防篡改
+  content_hash?: string | null
+  signed_by?: string | null
+  signed_by_id?: number | null
+  signed_at?: string | null
+  signature?: string | null
+  tampered?: boolean
+  signed?: boolean
+  signature_valid?: boolean
   [key: string]: any
 }
 

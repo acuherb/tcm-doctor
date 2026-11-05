@@ -6,7 +6,11 @@ from sqlalchemy import func
 from datetime import datetime as _dt, timedelta
 
 from app.database import get_db
-from app.models.prescription import ClassicFormula, Prescription, PrescriptionItem, AcupointPrescription, PrescriptionInjection
+from app.config import settings
+from app.models.prescription import (
+    ClassicFormula, Prescription, PrescriptionItem, AcupointPrescription, PrescriptionInjection,
+    compute_prescription_hash, compute_signature,
+)
 from app.models.herb import Herb
 from app.models.patient import Patient
 from app.models.visit import Visit
@@ -355,6 +359,9 @@ def create_prescription(data: PrescriptionCreate, current_user: User = Depends(g
 
     db.commit()
     db.refresh(prescription)
+    # 建立内容哈希基线（防篡改）；新建处方默认未签名
+    prescription.content_hash = compute_prescription_hash(prescription)
+    db.commit()
     return prescription
 
 
@@ -437,6 +444,13 @@ def update_prescription(prescription_id: int, data: PrescriptionCreate, current_
     ]
 
     prescription.total_price = _compute_total_price(db, data.items, data.doses, data.acupuncture_fee)
+
+    # 内容变动：重算哈希基线，并使既有电子签名失效（编辑后须重新签名）
+    prescription.content_hash = compute_prescription_hash(prescription)
+    prescription.signed_by = None
+    prescription.signed_by_id = None
+    prescription.signed_at = None
+    prescription.signature = None
 
     db.commit()
     db.refresh(prescription)
@@ -690,3 +704,63 @@ def dispense_prescription(prescription_id: int, current_user: User = Depends(get
         db.commit()
     db.refresh(prescription)
     return prescription
+
+
+# ── 电子签名与防篡改校验 ──
+
+@router.post("/{prescription_id}/sign", response_model=PrescriptionResponse, summary="电子签名(防篡改留痕)")
+def sign_prescription(
+    prescription_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """主治医师对处方进行电子签名：绑定内容哈希 + 签名人 + 时间，生成签名令牌。
+
+    - 已取消的处方不可签名；内容若已被篡改（基线不一致）拒绝签名，须先核对。
+    - 签名后若处方内容被改动，令牌将失效（verify 时 signature_valid=False），需重新签名。
+    """
+    prescription = db.query(Prescription).options(
+        joinedload(Prescription.items), joinedload(Prescription.acupoints), joinedload(Prescription.injections)
+    ).filter(Prescription.id == prescription_id).first()
+    if not prescription:
+        raise HTTPException(status_code=404, detail="处方不存在")
+    if prescription.status == "已取消":
+        raise HTTPException(status_code=400, detail="已取消的处方不可签名")
+    if prescription.tampered:
+        raise HTTPException(status_code=400, detail="处方内容已被篡改，无法签名，请核对原始记录")
+
+    doctor_id, doctor_name = _doctor_snapshot(current_user)
+    # 以当前内容刷新基线，确保签名锁定的是此刻真实内容
+    prescription.content_hash = compute_prescription_hash(prescription)
+    prescription.signed_by = doctor_name
+    prescription.signed_by_id = doctor_id
+    prescription.signed_at = _dt.now()
+    prescription.signature = compute_signature(
+        prescription.content_hash, doctor_name, prescription.signed_at.isoformat(), settings.signing_secret
+    )
+    db.commit()
+    db.refresh(prescription)
+    return prescription
+
+
+@router.get("/{prescription_id}/verify", summary="校验处方完整性与电子签名")
+def verify_prescription(prescription_id: int, db: Session = Depends(get_db)):
+    """校验：内容是否被篡改、是否已签名、签名是否有效。
+
+    返回基线哈希与实时重算哈希，便于前端展示「内容未被改动」或「已被篡改」告警。
+    """
+    prescription = db.query(Prescription).options(
+        joinedload(Prescription.items), joinedload(Prescription.acupoints), joinedload(Prescription.injections)
+    ).filter(Prescription.id == prescription_id).first()
+    if not prescription:
+        raise HTTPException(status_code=404, detail="处方不存在")
+    return {
+        "id": prescription.id,
+        "tampered": prescription.tampered,
+        "signed": prescription.signed,
+        "signature_valid": prescription.signature_valid,
+        "stored_hash": prescription.content_hash,
+        "computed_hash": prescription.content_hash_current,
+        "signed_by": prescription.signed_by,
+        "signed_at": prescription.signed_at,
+    }

@@ -737,6 +737,53 @@ def m0018() -> None:
             ))
 
 
+@migration(
+    "0019",
+    "处方电子签名与防篡改：新增内容哈希/签名列，并为存量处方回填哈希基线",
+)
+def m0019() -> None:
+    """存量库补齐签名/哈希列（新库已由 create_all 建好；_sync_model_columns 也会补列，这里幂等兜底），
+    并为已有处方回填 content_hash 基线，使其后续被篡改时可被检出。
+    """
+    from sqlalchemy.orm import sessionmaker, joinedload
+    from app.models.prescription import Prescription, compute_prescription_hash
+
+    insp = inspect(engine)
+    existing = {c["name"] for c in insp.get_columns("prescriptions")}
+    new_cols = {
+        "content_hash": "VARCHAR(64)",
+        "signed_by": "VARCHAR(50)",
+        "signed_by_id": "INTEGER",
+        "signed_at": "TIMESTAMP",
+        "signature": "VARCHAR(64)",
+    }
+    with engine.begin() as conn:
+        for col, ctype in new_cols.items():
+            if col in existing:
+                continue
+            conn.execute(text(f"ALTER TABLE prescriptions ADD COLUMN {col} {ctype}"))
+
+    # 回填：为存量处方建立内容哈希基线（之后任何内容改动都可被 verify 检出）
+    Session = sessionmaker(bind=engine)
+    s = Session()
+    try:
+        rows = (
+            s.query(Prescription)
+            .options(
+                joinedload(Prescription.items),
+                joinedload(Prescription.acupoints),
+                joinedload(Prescription.injections),
+            )
+            .filter(Prescription.content_hash.is_(None))
+            .all()
+        )
+        for p in rows:
+            p.content_hash = compute_prescription_hash(p)
+        s.commit()
+    finally:
+        s.close()
+
+
 def run_migrations() -> None:
     """应用所有未执行过的迁移（幂等：以 schema_migrations 表记录为准）"""
     with engine.begin() as conn:

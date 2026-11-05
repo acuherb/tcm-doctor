@@ -1,9 +1,12 @@
 """处方 ORM 模型"""
+import hashlib
+import json
 from datetime import datetime
 from sqlalchemy import String, Text, DateTime, Boolean, Integer, Numeric, JSON, ForeignKey, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.config import settings
 
 
 class ClassicFormula(Base):
@@ -22,6 +25,94 @@ class ClassicFormula(Base):
 
     def __repr__(self):
         return f"<ClassicFormula(id={self.id}, name='{self.name}')>"
+
+
+def _canonical_prescription(p: "Prescription") -> dict:
+    """处方临床内容的规范化表示（不含 status / 签名 / 时间戳等非临床字段）。
+
+    用于生成防篡改内容哈希；规范化保证相同临床内容得到相同哈希。
+    """
+    items = sorted(
+        (
+            {
+                "herb_name": it.herb_name,
+                "dose": float(it.dose) if it.dose is not None else None,
+                "special_method": it.special_method,
+                "is_king_herb": bool(it.is_king_herb),
+                "note": it.note,
+                "inventory_id": it.inventory_id,
+                "price": float(it.price) if it.price is not None else None,
+            }
+            for it in (p.items or [])
+        ),
+        key=lambda x: (x["herb_name"] or ""),
+    )
+    acupoints = sorted(
+        (
+            {
+                "acupoint_name": a.acupoint_name,
+                "technique": a.technique,
+                "retention": a.retention,
+                "sequence": a.sequence,
+                "note": a.note,
+            }
+            for a in (p.acupoints or [])
+        ),
+        key=lambda x: (x["sequence"] or 0, x["acupoint_name"] or ""),
+    )
+    injections = sorted(
+        (
+            {
+                "drug_name": j.drug_name,
+                "spec": j.spec,
+                "dose": j.dose,
+                "usage": j.usage,
+                "frequency": j.frequency,
+                "note": j.note,
+            }
+            for j in (p.injections or [])
+        ),
+        key=lambda x: (x["drug_name"] or ""),
+    )
+    return {
+        "id": p.id,
+        "patient_id": p.patient_id,
+        "visit_id": p.visit_id,
+        "formula_name": p.formula_name,
+        "is_classic": bool(p.is_classic),
+        "classic_formula_id": p.classic_formula_id,
+        "acupoint_formula_id": p.acupoint_formula_id,
+        "preparation_method": p.preparation_method,
+        "administration": p.administration,
+        "doses": p.doses,
+        "prescription_type": p.prescription_type,
+        "acupoint_formula_name": p.acupoint_formula_name,
+        "acupoint_technique": p.acupoint_technique,
+        "treatment_frequency": p.treatment_frequency,
+        "treatment_days": p.treatment_days,
+        "acupuncture_fee": float(p.acupuncture_fee) if p.acupuncture_fee is not None else None,
+        "doctor_notes": p.doctor_notes,
+        "items": items,
+        "acupoints": acupoints,
+        "injections": injections,
+    }
+
+
+def compute_prescription_hash(p: "Prescription") -> str:
+    """对处方临床内容生成 SHA-256 哈希（防篡改基线）。
+
+    规范化序列化后哈希，确保相同内容恒定产出，便于后续校验是否被改动。
+    """
+    canonical = json.dumps(
+        _canonical_prescription(p), sort_keys=True, ensure_ascii=False, separators=(",", ":")
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def compute_signature(content_hash: str, signed_by: str, signed_at: str, secret: str) -> str:
+    """电子签名令牌：将内容哈希与签名人/时间绑定，杜绝事后伪造或挪用到其它处方。"""
+    payload = f"{content_hash}|{signed_by}|{signed_at}|{secret}"
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 class Prescription(Base):
@@ -59,6 +150,13 @@ class Prescription(Base):
     # 乐观锁
     version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1", comment="乐观锁版本号")
 
+    # ── 电子签名与防篡改 ──
+    content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, comment="内容哈希(防篡改校验基线)")
+    signed_by: Mapped[str | None] = mapped_column(String(50), nullable=True, comment="电子签名医师姓名")
+    signed_by_id: Mapped[int | None] = mapped_column(Integer, nullable=True, comment="电子签名医师ID")
+    signed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, comment="电子签名时间")
+    signature: Mapped[str | None] = mapped_column(String(64), nullable=True, comment="电子签名令牌(绑定内容哈希+签名人+时间)")
+
     # 关系
     visit: Mapped["Visit"] = relationship(back_populates="prescriptions")
     items: Mapped[list["PrescriptionItem"]] = relationship(back_populates="prescription", cascade="all, delete-orphan")
@@ -66,6 +164,39 @@ class Prescription(Base):
     injections: Mapped[list["PrescriptionInjection"]] = relationship(back_populates="prescription", cascade="all, delete-orphan")
 
     __mapper_args__ = {"version_id_col": version}
+
+    # ── 防篡改 / 签名 派生状态（基于当前字段实时计算，无需额外存储） ──
+    @property
+    def content_hash_current(self) -> str:
+        """按当前字段实时重算的内容哈希"""
+        return compute_prescription_hash(self)
+
+    @property
+    def tampered(self) -> bool:
+        """内容是否被篡改：已建立基线(content_hash 非空)但当前重算不一致 → 被改动过。
+
+        存量未签名处方 content_hash 为空，无法判定，返回 False（不误报）。
+        """
+        if not self.content_hash:
+            return False
+        return self.content_hash_current != self.content_hash
+
+    @property
+    def signed(self) -> bool:
+        """是否已电子签名（签名人与令牌齐全）"""
+        return bool(self.signed_by and self.signature)
+
+    @property
+    def signature_valid(self) -> bool:
+        """签名是否有效：令牌与「内容哈希+签名人+时间」重新计算一致。
+
+        若签名后内容被改动（content_hash 变化），令牌将不匹配 → 失效，需重新签名。
+        """
+        if not self.signed:
+            return False
+        return self.signature == compute_signature(
+            self.content_hash, self.signed_by, (self.signed_at.isoformat() if self.signed_at else ""), settings.signing_secret
+        )
 
     def __repr__(self):
         return f"<Prescription(id={self.id}, formula='{self.formula_name}', status='{self.status}')>"

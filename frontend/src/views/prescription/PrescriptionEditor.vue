@@ -13,6 +13,12 @@
               预估合计 ¥{{ estimatedTotal }}
             </span>
             <div class="head-btns">
+              <el-tag v-if="prescriptionId && integrity" :type="integrityTagType" size="small" effect="dark" :title="integrityTitle">
+                {{ integrityText }}
+              </el-tag>
+              <el-button v-if="prescriptionId && editable && canSign" @click="signPrescription" :loading="signing">
+                电子签名
+              </el-button>
               <el-button v-if="editable" @click="loadFromFormula">从中药方导入</el-button>
               <el-button v-if="editable" @click="loadFromAcupointFormula">从针灸方导入</el-button>
               <el-button v-if="editable" type="primary" @click="submitPrescription" :loading="submitting">
@@ -374,6 +380,60 @@ const hasAcupointContent = computed(() =>
 )
 
 const submitting = ref(false)
+const signing = ref(false)
+// 编辑态：处方完整性与电子签名状态（来自后端实时校验）
+const integrity = ref<{
+  tampered: boolean
+  signed: boolean
+  signature_valid: boolean
+  signed_by?: string | null
+  signed_at?: string | null
+} | null>(null)
+const prescriptionStatus = ref<string>('')
+// 已取消的处方不可签名
+const canSign = computed(() => prescriptionStatus.value !== '已取消')
+const integrityTagType = computed<'success' | 'warning' | 'danger' | 'info'>(() => {
+  const i = integrity.value
+  if (!i) return 'info'
+  if (i.tampered) return 'danger'
+  if (i.signed && i.signature_valid) return 'success'
+  if (i.signed && !i.signature_valid) return 'warning'
+  return 'info'
+})
+const integrityText = computed(() => {
+  const i = integrity.value
+  if (!i) return ''
+  if (i.tampered) return '⚠ 内容已被篡改'
+  if (i.signed && i.signature_valid) return `已签名 · ${i.signed_by || ''}`
+  if (i.signed && !i.signature_valid) return '签名失效 · 需重签'
+  return '未签名'
+})
+const integrityTitle = computed(() => {
+  const i = integrity.value
+  if (!i) return ''
+  if (i.tampered) return '当前内容与该处方签名时的内容不一致，可能已被改动，请核对原始记录'
+  if (i.signed && i.signature_valid) return `由 ${i.signed_by || ''} 于 ${i.signed_at || ''} 签名，内容完整未被改动`
+  if (i.signed && !i.signature_valid) return '内容自签名后已被修改，签名失效，请重新签名'
+  return '尚未电子签名；签名后内容哈希将锁定，便于日后校验是否被改动'
+})
+
+async function signPrescription() {
+  if (!prescriptionId.value) return
+  signing.value = true
+  try {
+    const p = await api.post<Prescription>(`/prescriptions/${prescriptionId.value}/sign`)
+    integrity.value = {
+      tampered: !!p.tampered,
+      signed: !!p.signed,
+      signature_valid: !!p.signature_valid,
+      signed_by: p.signed_by ?? null,
+      signed_at: p.signed_at ?? null,
+    }
+    ElMessage.success(`已电子签名：${p.signed_by || ''}`)
+  } catch {} finally {
+    signing.value = false
+  }
+}
 const patients = ref<any[]>([])
 const patientsLoading = ref(false)
 const classicFormulas = ref<any[]>([])
@@ -811,7 +871,17 @@ async function doSubmit() {
         })),
     }
     if (prescriptionId.value) {
-      await api.put(`/prescriptions/${prescriptionId.value}`, payload)
+      const updated = await api.put<Prescription>(`/prescriptions/${prescriptionId.value}`, payload)
+      prescriptionStatus.value = (updated as any).status || prescriptionStatus.value
+      if (updated) {
+        integrity.value = {
+          tampered: !!updated.tampered,
+          signed: !!updated.signed,
+          signature_valid: !!updated.signature_valid,
+          signed_by: updated.signed_by ?? null,
+          signed_at: updated.signed_at ?? null,
+        }
+      }
       ElMessage.success('处方已更新')
     } else {
       await api.post('/prescriptions', payload)
@@ -830,6 +900,14 @@ function applyPrescription(p: any) {
   f.patient_id = p.patient_id
   f.visit_id = p.visit_id
   loadVisits(f.patient_id)
+  prescriptionStatus.value = p.status || ''
+  integrity.value = {
+    tampered: !!p.tampered,
+    signed: !!p.signed,
+    signature_valid: !!p.signature_valid,
+    signed_by: p.signed_by ?? null,
+    signed_at: p.signed_at ?? null,
+  }
   f.formula_name = p.formula_name || ''
   f.is_classic = p.is_classic || false
   f.classic_formula_id = p.classic_formula_id ?? null
