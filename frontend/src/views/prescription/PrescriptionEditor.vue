@@ -182,14 +182,6 @@
           </el-col>
         </el-row>
 
-        <el-row :gutter="16">
-          <el-col :span="12">
-            <el-form-item label="建议复诊日期" prop="follow_up_date">
-              <el-date-picker v-model="form.follow_up_date" type="date" value-format="YYYY-MM-DD" placeholder="可选，留空则按疗程天数自动提醒" style="width:100%" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-
         <!-- 配穴明细 -->
         <el-divider content-position="left">配穴明细</el-divider>
         <div class="herb-items" v-if="form.acupoints.length">
@@ -257,6 +249,9 @@
 
         <el-form-item label="医嘱" style="margin-top:16px;">
           <el-input v-model="form.doctor_notes" type="textarea" :rows="2" placeholder="饮食禁忌、调护建议等" />
+        </el-form-item>
+        <el-form-item label="建议复诊" prop="follow_up_date" style="margin-top:8px;">
+          <el-date-picker v-model="form.follow_up_date" type="date" value-format="YYYY-MM-DD" placeholder="可选，留空则按疗程天数自动提醒" style="width:100%; max-width:320px;" />
         </el-form-item>
       </el-form>
     </el-card>

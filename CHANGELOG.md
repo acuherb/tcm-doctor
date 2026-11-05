@@ -256,6 +256,15 @@
 - 新增 `test_patient_duplicate_check`（姓名/身份证命中 + 无匹配为空）；`test_registration.py` 7 passed。
 - 前端 `vue-tsc 0`、`npm run build 0`、lint 干净；后端全量 `pytest` 80 passed。
 
+## 2026-11-05（续十二）— 开方页：建议复诊归入医嘱区（置于医嘱下方）
+
+### 改动
+- 开方编辑器 `PrescriptionEditor.vue`：「建议复诊日期」原本孤立在「配穴明细」区块上方，与「医嘱」逻辑割裂；
+  现移入表单底部「医嘱」下方，二者同属「医生对患者交代」(医嘱/调护/复诊)，顺序为 医嘱(文字)→建议复诊(日期)。
+
+### 验证
+- 前端 `vue-tsc 0`、`npm run build 0`、lint 干净。
+
 ## 2026-11-04 — 作废入口收敛到详情弹窗，避免列表误点
 
 ### 决定
