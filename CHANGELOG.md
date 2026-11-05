@@ -1,5 +1,50 @@
 # 开发日志 CHANGELOG
 
+## 2026-11-05 — B「完整病历导出 + 自动备份」/ E「基础数据包开箱」落地
+
+### 决定
+按评估清单先修 B 与 E：让「留存」这件事从「只能靠手动导出整库」变成「按患者带走 + 自动留快照」，
+并让新装/克隆后的空框架能**一键装好参考知识库**，不再逐类上传 JSON。
+
+### B1 / B2 按患者导出完整病历
+- 新增 `backend/app/medical_record.py`：聚合患者基本信息、体质辨识、全部就诊（四诊 / 舌脉 / 中医病名证型治法 / AI 辅助辨证）、
+  处方及药味·配穴·针剂明细、十问、疗效随访、复诊提醒；默认不含 base64 图片，`include_images=true` 时可带上。
+- 新增 `GET /patients/{id}/medical-record?format=json|html&include_images=...`：需 `patient:read`，写审计日志；
+  JSON 为结构化存档，HTML 为自包含 A4 打印页（可另存 PDF），全文转义防注入，含体质评分、照片、复诊提醒及
+  「未关联到本患者就诊」的处方，避免历史脏数据被静默漏掉。
+- **修复**：中文患者名放进 `Content-Disposition` 会触发 `UnicodeEncodeError`（HTTP 头仅支持 latin-1），
+  改为 ASCII `filename` 兜底 + RFC 5987 `filename*`。
+- `PatientDetail.vue` 页头新增「导出完整病历」：弹窗选格式与是否含照片，JSON 下载、HTML 打开打印窗口。
+
+### B3 自动备份
+- 新增 `backend/app/auto_backup.py`：用 `sqlite3.Connection.backup()` 做在线快照（含 WAL），先写临时文件再原子改名并校验 SQLite magic；
+  守护线程启动时先留一份、之后按间隔执行，按保留份数清理（至少保留 1 份）。
+- `.env` 可配 `BACKUP_AUTO_ENABLED / BACKUP_INTERVAL_HOURS / BACKUP_KEEP / BACKUP_DIR`（默认开启、24 小时、保留 7 份、
+  落在数据库同目录 `backups/`）；界面改动另存 `backups/auto_backup.json`，改完立即重启调度线程。
+- 新增 `GET /backup/auto/status`、`PUT /backup/auto/config`、`POST /backup/auto/run`、`GET /backup/auto/download/{name}`；
+  下载文件名走严格白名单正则，杜绝路径穿越；`main.py` lifespan 启停调度线程。
+- `Settings.vue` 新增「自动备份」卡片：开关 / 间隔 / 保留份数、立即备份、快照清单与下载。
+
+### E1 基础数据包一键导入
+- 新增 `backend/app/template_bundle.py`：manifest 驱动（`schema_version`、分层 `depends_on` 拓扑排序、自动补齐依赖层）、
+  逐文件 `sha256` 与 `count` 校验、zip 条目路径穿越与解压体积限制、类型必须落在 `TEMPLATE_TYPES` 白名单；
+  预检与正式安装共用同一份 plan，预检为 `dry_run` 不落库，正式安装复用幂等 upsert。
+- 新增 `GET /templates/bundles`（可用包 + 内容库是否为空）、`POST /templates/bundle/preview`、`POST /templates/bundle/install`；
+  可用 `TCM_BASE_PACKAGE` 指向随安装包分发的数据包，也支持上传 `.zip`。
+- **修复两个既有缺陷**：`/templates` 未登记 `DOMAIN_PERMS` 导致模板接口对所有人 fail-closed 403；
+  `templates.router` 从未 `include_router` 导致整套模板导入/导出接口 404。现登记为 `("*", "system:write")` 并注册路由。
+
+### E2 空框架引导
+- 新增 `frontend/src/components/BasePackageInstaller.vue`：选包 / 上传、分层勾选、预检结果逐文件回显、确认后安装。
+- `Dashboard.vue` 在内容库为空时显示首次引导（可用 `localStorage` 关闭），`Settings.vue` 数据管理卡片加入口。
+- `templates/README.md` 同步去掉「分层 bundle 规划中」的过期说明。
+
+### 验证
+- 后端 `pytest -q` **49 passed**（新增 `test_medical_record` / `test_auto_backup` / `test_template_bundle` 共 15 项）。
+- 前端 `vue-tsc --noEmit` 与 `npm run build` 退出码 0（仅有 `@vueuse/core` 的第三方 `INVALID_ANNOTATION` 提示）。
+- 用真实 `templates/releases/tcm-base-core.zip` 实跑：5 个文件 sha256 全通过、2217 条、顺序 `core → formulas → books`；
+  只选 `formulas` 时自动补 `core`。
+
 ## 2026-11-04 — 作废入口收敛到详情弹窗，避免列表误点
 
 ### 决定

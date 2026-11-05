@@ -1,5 +1,20 @@
 <template>
   <div class="dashboard">
+    <!-- 空框架引导：内容库为空时首次提示一键安装基础数据包 -->
+    <el-alert v-if="showSetupGuide" type="warning" :closable="true" class="setup-guide" @close="dismissGuide">
+      <template #title>内容库还是空的，先装一份基础数据包吧</template>
+      <template #default>
+        <div class="setup-guide__body">
+          <span>药材字典、经典方库与医籍文库目前都没有数据。可一键导入随应用附带的基础数据包，或上传 .zip 数据包；只写参考知识表，不动业务数据。</span>
+          <div class="setup-guide__actions">
+            <el-button v-if="canInstall" type="primary" size="small" @click="installerVisible = true">立即安装</el-button>
+            <el-button size="small" @click="$router.push('/settings')">去系统设置</el-button>
+            <el-button link size="small" @click="dismissGuide">暂不提醒</el-button>
+          </div>
+        </div>
+      </template>
+    </el-alert>
+
     <!-- 统计卡片 -->
     <el-row :gutter="20">
       <el-col :xs="12" :span="4" v-for="card in statCards" :key="card.title">
@@ -124,17 +139,45 @@
         </el-card>
       </el-col>
     </el-row>
+
+    <BasePackageInstaller v-model="installerVisible" @installed="onInstalled" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '@/utils/api'
 import type { ECharts } from 'echarts'
 import { onThemeChange, themeVar } from '@/utils/theme'
+import { useAuthStore } from '@/store/auth'
+import BasePackageInstaller from '@/components/BasePackageInstaller.vue'
 
 const router = useRouter()
+const auth = useAuthStore()
+
+// ── 空框架引导 ──
+const setupDismissed = ref(localStorage.getItem('tcm_setup_dismissed') === '1')
+const needsSetup = ref(false)
+const installerVisible = ref(false)
+const canInstall = computed(() => auth.can('system:write'))
+const showSetupGuide = computed(() => needsSetup.value && !setupDismissed.value)
+
+async function checkSetup() {
+  try {
+    const res = await api.get<{ needs_setup: boolean }>('/templates/bundles', { silent: true })
+    needsSetup.value = !!res.needs_setup
+  } catch { /* 无权限或未部署时静默跳过引导 */ }
+}
+
+function dismissGuide() {
+  setupDismissed.value = true
+  localStorage.setItem('tcm_setup_dismissed', '1')
+}
+
+function onInstalled() {
+  needsSetup.value = false
+}
 function goPatient(id: number) {
   if (id) router.push(`/patients/${id}`)
 }
@@ -243,7 +286,7 @@ async function renderVisitChart() {
   })
 }
 
-onMounted(loadDashboard)
+onMounted(() => { void loadDashboard(); void checkSetup() })
 
 // 主题切换后重绘图表（ECharts 读不到 CSS 变量，必须重新取色）
 onThemeChange(() => {
@@ -263,6 +306,21 @@ onUnmounted(() => {
 
 <style scoped lang="scss">
 .dashboard {
+  .setup-guide {
+    margin-bottom: 18px;
+
+    .setup-guide__body {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      font-size: 12px;
+      line-height: 1.7;
+    }
+    .setup-guide__actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  }
+
   .section-row {
     margin-top: 20px;
     row-gap: 20px;

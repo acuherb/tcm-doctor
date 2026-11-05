@@ -89,6 +89,9 @@ DOMAIN_PERMS: dict[str, tuple[str, str | None]] = {
     "/system/logs": ("log:read", "system:write"),
     "/system": ("system:read", "system:write"),
     "/config": ("*", "system:write"),
+    # 模板/基础数据包：清单与导出对所有登录账号可读，导入（写内容库）要求 system:write。
+    # 此前未登记导致按 fail-closed 全量 403，模板工具栏与一键安装都不可用。
+    "/templates": ("*", "system:write"),
 }
 
 # 账号管理接口单独映射（中间件整体跳过 /auth，故在 auth 路由内自行校验 user:write）

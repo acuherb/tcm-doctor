@@ -1,5 +1,7 @@
 """数据备份与恢复路由"""
+import logging
 import os
+import re
 import shutil
 import sqlite3
 from datetime import datetime
@@ -7,6 +9,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -15,11 +18,17 @@ from app.config import settings
 from app.routers.auth import get_current_user
 from app.models.user import User
 from app.permissions import has_perm
+from app.utils.operation_log import write_log
+from app import auto_backup
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/backup", tags=["数据管理"])
 
 # 上传备份体积上限（防止大文件打满内存）
 MAX_BACKUP_BYTES = 200 * 1024 * 1024
+# 自动备份文件名白名单：只允许本模块生成的文件，杜绝路径穿越下载任意文件
+AUTO_BACKUP_NAME_RE = re.compile(r"tcm_auto_[0-9]{8}_[0-9]{6}_[0-9]{6}_(auto|manual)\.db")
 
 
 @router.get("/export", summary="导出数据备份（仅管理员）")
@@ -173,3 +182,66 @@ def reset_data(
     seed_acupoints(db)
 
     return {"message": "数据已清空并重新初始化（内容库需自行导入）"}
+
+
+# ── 自动备份（在线快照 + 定时 + 保留份数 + 清单/下载）──
+
+class AutoBackupConfig(BaseModel):
+    enabled: bool | None = None
+    interval_hours: int | None = Field(default=None, ge=1, le=720)
+    keep: int | None = Field(default=None, ge=1, le=100)
+
+
+@router.get("/auto/status", summary="自动备份配置与历史快照列表")
+def auto_backup_status(current_user: User = Depends(get_current_user)):
+    if not has_perm(current_user, "system:read"):
+        raise HTTPException(status_code=403, detail="无权查看备份配置")
+    items = auto_backup.list_backups()
+    return {
+        "config": auto_backup.load_config(),
+        "dir": str(auto_backup.backup_dir()),
+        "last_backup": items[0]["created_at"] if items else None,
+        "items": items,
+    }
+
+
+@router.put("/auto/config", summary="更新自动备份配置")
+def update_auto_backup_config(payload: AutoBackupConfig, current_user: User = Depends(get_current_user)):
+    if not has_perm(current_user, "system:write"):
+        raise HTTPException(status_code=403, detail="仅管理员可修改自动备份配置")
+    cfg = auto_backup.save_config(payload.model_dump(exclude_unset=True))
+    auto_backup.restart()
+    write_log(level="INFO", user_id=current_user.id, username=current_user.username,
+              action="修改自动备份配置", endpoint="/api/v1/backup/auto/config", method="PUT",
+              status_code=200, success=True, message=f"自动备份配置：{cfg}")
+    return cfg
+
+
+@router.post("/auto/run", summary="立即生成一份自动备份快照")
+def run_auto_backup(current_user: User = Depends(get_current_user)):
+    if not has_perm(current_user, "system:write"):
+        raise HTTPException(status_code=403, detail="仅管理员可执行数据备份")
+    try:
+        info = auto_backup.run_cycle(force=True)
+    except Exception as e:
+        logger.warning(f"手动触发自动备份失败: {e}")
+        raise HTTPException(status_code=500, detail=f"备份失败：{e}")
+    write_log(level="INFO", user_id=current_user.id, username=current_user.username,
+              action="立即备份", endpoint="/api/v1/backup/auto/run", method="POST",
+              status_code=200, success=True, message=f"生成快照 {info['name']}")
+    return {"message": "备份完成", **info}
+
+
+@router.get("/auto/download/{name}", summary="下载指定自动备份快照")
+def download_auto_backup(name: str, current_user: User = Depends(get_current_user)):
+    if not has_perm(current_user, "system:read"):
+        raise HTTPException(status_code=403, detail="无权下载数据备份")
+    if not AUTO_BACKUP_NAME_RE.fullmatch(name):
+        raise HTTPException(status_code=400, detail="非法备份文件名")
+    path = auto_backup.backup_dir() / name
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="备份文件不存在")
+    write_log(level="INFO", user_id=current_user.id, username=current_user.username,
+              action="下载自动备份", endpoint="/api/v1/backup/auto/download", method="GET",
+              status_code=200, success=True, message=f"下载快照 {name}")
+    return FileResponse(path=path, filename=name, media_type="application/octet-stream")

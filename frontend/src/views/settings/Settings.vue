@@ -143,6 +143,14 @@
                 <span class="row-hint">导出为 SQLite 数据库文件</span>
               </div>
             </el-form-item>
+            <el-form-item label="基础数据包">
+              <div class="row-action">
+                <el-button v-if="editable" plain @click="installerVisible = true">
+                  <el-icon><Upload /></el-icon> 一键安装
+                </el-button>
+                <span class="row-hint">按清单导入药材 / 穴位 / 方库 / 医籍，先预检再写入</span>
+              </div>
+            </el-form-item>
             <el-form-item v-if="editable" label="数据恢复">
               <div class="row-action">
                 <el-upload :auto-upload="false" :show-file-list="false" accept=".db,.json" @change="onImportFile">
@@ -209,22 +217,86 @@
       </el-col>
     </el-row>
 
+    <el-row :gutter="20" class="settings-row">
+      <el-col :xs="24" :span="24">
+        <el-card shadow="hover" class="main-card">
+          <template #header>
+            <div class="card-head-bar">
+              <div class="card-head-title">
+                <span class="head-icon">🕒</span>
+                <span class="head-text">自动备份</span>
+              </div>
+              <div class="card-actions">
+                <el-button v-if="editable" size="small" @click="runAutoBackup" :loading="backupRunning">
+                  <el-icon><Refresh /></el-icon> 立即备份
+                </el-button>
+                <el-button v-if="editable" type="primary" size="small" @click="saveAutoBackup" :loading="backupSaving">
+                  保存设置
+                </el-button>
+              </div>
+            </div>
+          </template>
+
+          <el-form label-width="100px" class="config-form">
+            <el-form-item label="定时备份">
+              <div class="row-action">
+                <el-switch v-model="backupEnabled" :disabled="!editable" />
+                <span class="row-hint">开启后每次启动先留一份快照，之后按间隔自动备份</span>
+              </div>
+            </el-form-item>
+            <el-form-item label="备份间隔">
+              <div class="row-action">
+                <el-input-number v-model="backupInterval" :min="1" :max="720" :disabled="!editable" controls-position="right" />
+                <span class="row-hint">小时（默认 24 小时）</span>
+              </div>
+            </el-form-item>
+            <el-form-item label="保留份数">
+              <div class="row-action">
+                <el-input-number v-model="backupKeep" :min="1" :max="100" :disabled="!editable" controls-position="right" />
+                <span class="row-hint">超出的旧快照自动删除，至少保留 1 份</span>
+              </div>
+            </el-form-item>
+          </el-form>
+
+          <el-alert type="info" :closable="false" show-icon
+            :description="`备份目录：${backupDir || '—'}　最近备份：${backupLast || '暂无'}　共 ${backupItems.length} 份`" />
+
+          <el-table v-if="backupItems.length" :data="backupItems" size="small" class="backup-table" max-height="260">
+            <el-table-column prop="created_at" label="备份时间" width="180" />
+            <el-table-column prop="name" label="文件名" min-width="220" show-overflow-tooltip />
+            <el-table-column label="大小" width="110">
+              <template #default="{ row }">{{ formatSize(row.size) }}</template>
+            </el-table-column>
+            <el-table-column label="操作" width="100">
+              <template #default="{ row }">
+                <el-button link type="primary" size="small" @click="downloadAutoBackup(row.name)">下载</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+          <el-empty v-else description="暂无自动备份快照" :image-size="60" />
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <BasePackageInstaller v-model="installerVisible" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, type UploadFile } from 'element-plus'
-import { Download, Upload, OfficeBuilding, InfoFilled, Lock } from '@element-plus/icons-vue'
-import api from '@/utils/api'
+import { Download, Upload, Refresh, OfficeBuilding, InfoFilled, Lock } from '@element-plus/icons-vue'
+import api, { errMsg } from '@/utils/api'
 import { applyBranding } from '@/utils/branding'
 import { compressToDataUrl } from '@/utils/image'
 import type { AppConfig } from '@/types'
 import { useAuthStore } from '@/store/auth'
+import BasePackageInstaller from '@/components/BasePackageInstaller.vue'
 
 // 游客（非管理员）隐藏所有写操作，只读浏览
 const auth = useAuthStore()
 const editable = computed(() => auth.can('system:write'))
+const installerVisible = ref(false)
 
 const clinicName = ref('')
 const clinicLogo = ref('')
@@ -245,6 +317,83 @@ const vectorAvailable = ref(false)
 const savingClinic = ref(false)
 const dbPath = ref('')
 const counts = ref<Record<string, unknown>>({})
+
+// ── 自动备份 ──
+interface BackupItem { name: string; size: number; created_at: string }
+interface AutoBackupStatus {
+  config: { enabled: boolean; interval_hours: number; keep: number }
+  dir: string
+  last_backup: string | null
+  items: BackupItem[]
+}
+const backupEnabled = ref(true)
+const backupInterval = ref(24)
+const backupKeep = ref(7)
+const backupDir = ref('')
+const backupLast = ref('')
+const backupItems = ref<BackupItem[]>([])
+const backupSaving = ref(false)
+const backupRunning = ref(false)
+
+function formatSize(n: number): string {
+  if (!n) return '0 B'
+  return n < 1024 * 1024 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`
+}
+
+async function loadAutoBackup() {
+  try {
+    const res = await api.get<AutoBackupStatus>('/backup/auto/status', { silent: true })
+    backupEnabled.value = res.config?.enabled ?? true
+    backupInterval.value = res.config?.interval_hours ?? 24
+    backupKeep.value = res.config?.keep ?? 7
+    backupDir.value = res.dir || ''
+    backupLast.value = res.last_backup || ''
+    backupItems.value = res.items || []
+  } catch { /* 无 system:read 权限或后端不支持时静默留空 */ }
+}
+
+async function saveAutoBackup() {
+  backupSaving.value = true
+  try {
+    await api.put('/backup/auto/config', {
+      enabled: backupEnabled.value,
+      interval_hours: backupInterval.value,
+      keep: backupKeep.value,
+    }, { silent: true })
+    ElMessage.success('自动备份设置已保存')
+    await loadAutoBackup()
+  } catch (e) {
+    ElMessage.error('保存失败：' + errMsg(e))
+  } finally {
+    backupSaving.value = false
+  }
+}
+
+async function runAutoBackup() {
+  backupRunning.value = true
+  try {
+    await api.post('/backup/auto/run', undefined, { silent: true })
+    ElMessage.success('已生成备份快照')
+    await loadAutoBackup()
+  } catch (e) {
+    ElMessage.error('备份失败：' + errMsg(e))
+  } finally {
+    backupRunning.value = false
+  }
+}
+
+async function downloadAutoBackup(name: string) {
+  try {
+    const data = await api.get<Blob>(`/backup/auto/download/${encodeURIComponent(name)}`, { responseType: 'blob', silent: true })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(new Blob([data]))
+    link.download = name
+    link.click()
+    URL.revokeObjectURL(link.href)
+  } catch (e) {
+    ElMessage.error('下载失败：' + errMsg(e))
+  }
+}
 
 const connectionStatus = ref({ type: 'info' as 'success' | 'danger' | 'info', text: '未测试' })
 
@@ -285,6 +434,7 @@ onMounted(async () => {
     const res = await api.get<Record<string, unknown>>('/diagnosis/status')
     vectorAvailable.value = res.vector_store_available || false
   } catch {}
+  void loadAutoBackup()
 })
 
 async function saveClinic() {
@@ -554,6 +704,8 @@ async function resetData() {
 
     .row-hint { font-size: 12px; color: #a39484; }
   }
+
+  .backup-table { margin-top: 12px; width: 100%; }
 
   .sys-desc {
     :deep(.el-descriptions__label) {

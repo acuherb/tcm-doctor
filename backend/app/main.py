@@ -25,7 +25,7 @@ from app.permissions import has_read, has_write, has_perm
 from app.routers import patient, herb, prescription, knowledge, diagnosis, dictionaries, acupuncture
 from app.routers import acupoint_formula
 from app.routers import stats, backup, auth, followup_reminders, stock
-from app.routers import system_log
+from app.routers import system_log, templates
 from app.routers.auth import get_current_user, AUTH_COOKIE_NAME
 
 WRITE_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
@@ -71,6 +71,13 @@ async def lifespan(app: FastAPI):
     # 启动时自动清理超期操作日志，避免日志表随使用无限增长（可用 LOG_RETENTION_DAYS 调整）
     _purge_expired_logs()
 
+    # 自动备份：启动时先留一份在线快照，之后按间隔滚动保留；失败不影响应用启动
+    try:
+        from app import auto_backup
+        auto_backup.start()
+    except Exception as e:
+        logger.warning(f"自动备份启动失败（不影响应用运行）: {e}")
+
     # 语义检索索引（开启 enable_semantic_search 时自动重建；否则降级为关键词检索）
     if settings.enable_semantic_search:
         try:
@@ -86,6 +93,12 @@ async def lifespan(app: FastAPI):
             logger.warning(f"语义检索初始化失败，降级为关键词检索: {e}")
 
     yield
+
+    try:
+        from app import auto_backup
+        auto_backup.stop()
+    except Exception:
+        pass
 
 
 
@@ -520,6 +533,8 @@ app.include_router(acupoint_formula.router, prefix="/api/v1")
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(followup_reminders.router, prefix="/api/v1")
 app.include_router(system_log.router, prefix="/api/v1")
+# 模板导入导出 / 基础数据包一键安装（此前漏注册，导致相关接口全部 404）
+app.include_router(templates.router, prefix="/api/v1")
 
 
 def _clean_env_value(value: str) -> str:

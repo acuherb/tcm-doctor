@@ -1,7 +1,11 @@
 """患者管理路由"""
+import json
+import re
 from datetime import date, datetime
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -13,6 +17,8 @@ from app.models.inquiry import InquiryRecord
 from app.models.followup import FollowUp
 from app.models.user import User
 from app.routers.auth import get_current_user
+from app.permissions import has_perm
+from app.utils.operation_log import write_log
 from app.schemas.patient import (
     PatientCreate, PatientUpdate, PatientResponse, PatientListResponse,
     VisitCreate, VisitUpdate, VisitResponse, ConstitutionSubmit, ConstitutionResult,
@@ -130,6 +136,58 @@ def get_patient(patient_id: int, db: Session = Depends(get_db)):
     if not patient or patient.deleted_at is not None:
         raise HTTPException(status_code=404, detail="患者不存在")
     return patient
+
+
+@router.get("/{patient_id}/medical-record", summary="导出患者完整病历（JSON / 可打印 HTML）")
+def export_medical_record(
+    patient_id: int,
+    format: str = Query("json", pattern="^(json|html)$", description="json=结构化导出；html=浏览器打印/另存 PDF"),
+    include_images: bool = Query(False, description="是否包含舌象/面色/化验单 base64 图片（体积大，默认不含）"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """按患者聚合完整病历：基本信息 + 体质 + 全部就诊（含四诊/AI 结论）+ 处方明细 + 十问 + 随访 + 提醒。
+
+    含隐私，需 patient:read 权限并写审计日志；只读取、不修改任何数据。
+    """
+    if not has_perm(current_user, "patient:read"):
+        raise HTTPException(status_code=403, detail="无权限导出患者病历")
+    from app.medical_record import build_record, render_html
+
+    record = build_record(db, patient_id, include_images=include_images)
+    if record is None:
+        raise HTTPException(status_code=404, detail="患者不存在")
+
+    display_name = record["patient"].get("name") or f"patient{patient_id}"
+    safe_name = re.sub(r"[^\w\u4e00-\u9fa5-]", "_", display_name)
+    # HTTP 头只能存 latin-1：提供纯 ASCII 的 filename 兜底，中文名走 RFC 5987 filename*
+    ascii_name = re.sub(r"[^A-Za-z0-9_-]", "_", display_name) or f"patient{patient_id}"
+    day = date.today().isoformat()
+
+    def disposition(kind: str, ext: str) -> str:
+        base = f"medical_record_{ascii_name}_{day}.{ext}"
+        utf8 = quote(f"medical_record_{safe_name}_{day}.{ext}", safe="")
+        return f"{kind}; filename=\"{base}\"; filename*=UTF-8''{utf8}"
+
+    write_log(
+        level="INFO", user_id=current_user.id, username=current_user.username,
+        action="导出完整病历", endpoint=f"/api/v1/patients/{patient_id}/medical-record",
+        method="GET", status_code=200, success=True,
+        message=f"导出患者#{patient_id}完整病历(format={format}, include_images={include_images})",
+        target=f"患者#{patient_id}",
+    )
+
+    if format == "html":
+        return Response(
+            content=render_html(record).encode("utf-8"),
+            media_type="text/html; charset=utf-8",
+            headers={"Content-Disposition": disposition("inline", "html")},
+        )
+    return Response(
+        content=json.dumps(record, ensure_ascii=False, indent=2).encode("utf-8"),
+        media_type="application/json; charset=utf-8",
+        headers={"Content-Disposition": disposition("attachment", "json")},
+    )
 
 
 @router.put("/{patient_id}", response_model=PatientResponse, summary="更新患者")

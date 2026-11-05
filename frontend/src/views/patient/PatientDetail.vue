@@ -7,6 +7,9 @@
           <el-button v-if="editable" @click="openVisitDrawer()">
             <el-icon><EditPen /></el-icon> 新增就诊
           </el-button>
+          <el-button v-if="canExport" @click="openExport">
+            <el-icon><Download /></el-icon> 导出完整病历
+          </el-button>
         </div>
       </template>
     </el-page-header>
@@ -576,15 +579,38 @@
         @cancel="visitDrawer = false"
       />
     </el-drawer>
+
+    <!-- 按患者导出完整病历：结构化存档 / 打印另存 PDF -->
+    <el-dialog v-model="exportVisible" title="导出完整病历" width="460px" destroy-on-close>
+      <el-form label-position="top">
+        <el-form-item label="导出格式">
+          <el-radio-group v-model="exportFormat">
+            <el-radio value="json">结构化存档（JSON）</el-radio>
+            <el-radio value="html">打印 / 另存 PDF（HTML）</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item>
+          <el-checkbox v-model="exportIncludeImages">包含舌象 / 面色 / 化验单照片</el-checkbox>
+        </el-form-item>
+      </el-form>
+      <el-alert type="info" :closable="false" show-icon
+        title="将打包该患者的全部留存资料"
+        :description="`${exportSummary}、体质辨识与复诊提醒。含隐私信息，请妥善保管。`" />
+      <template #footer>
+        <el-button @click="exportVisible = false">取消</el-button>
+        <el-button type="primary" :loading="exporting" @click="doExport">导出</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { Edit, EditPen } from '@element-plus/icons-vue'
+import { Edit, EditPen, Download } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import api from '@/utils/api'
+import api, { errMsg } from '@/utils/api'
+import { fileTimestamp } from '@/utils/datetime'
 import type { Patient, Visit, InquiryRecord, Prescription, FollowUp, DictionaryTerm } from '@/types'
 import { useAuthStore } from '@/store/auth'
 import { renderMarkdown } from '@/utils/markdown'
@@ -598,6 +624,7 @@ import { useDictColors, readableInk } from '@/utils/dictColors'
 // 游客只读：隐藏所有写操作
 const auth = useAuthStore()
 const editable = computed(() => auth.canWrite('patients'))
+const canExport = computed(() => auth.canRead('patients'))
 
 // 字典色标签：证型/舌象/脉象按字典色着色（缺失回退默认色），文字按亮度自适应
 const { termColor } = useDictColors()
@@ -697,6 +724,56 @@ const newReminderNote = ref('')
 const savingReminder = ref(false)
 const savingFollowup = ref(false)
 const followupForm = ref<any>({ id: null, followup_date: '', treatment_type: '', improvement: '', feedback: '', visit_id: null })
+
+// ── 按患者导出完整病历 ──
+const exportVisible = ref(false)
+const exporting = ref(false)
+const exportFormat = ref<'json' | 'html'>('json')
+const exportIncludeImages = ref(false)
+const exportSummary = computed(() =>
+  `${visits.value.length} 次就诊 · ${prescriptions.value.length} 张处方 · ${inquiries.value.length} 份十问 · ${followups.value.length} 次随访`
+)
+
+function openExport() {
+  exportFormat.value = 'json'
+  exportIncludeImages.value = false
+  exportVisible.value = true
+}
+
+function exportFileName(ext: string): string {
+  const name = (patient.value?.name || `患者${patientId}`).replace(/[^\w\u4e00-\u9fa5-]/g, '_')
+  return `病历_${name}_${fileTimestamp()}.${ext}`
+}
+
+async function doExport() {
+  exporting.value = true
+  const url = `/patients/${patientId}/medical-record`
+  const params = { format: exportFormat.value, include_images: exportIncludeImages.value }
+  try {
+    if (exportFormat.value === 'json') {
+      const data = await api.get<Blob>(url, { params, responseType: 'blob' })
+      const link = document.createElement('a')
+      link.href = URL.createObjectURL(new Blob([data], { type: 'application/json;charset=utf-8' }))
+      link.download = exportFileName('json')
+      link.click()
+      URL.revokeObjectURL(link.href)
+      ElMessage.success('完整病历已导出')
+    } else {
+      const html = await api.get<string>(url, { params, responseType: 'text' })
+      const win = window.open('', '_blank')
+      if (!win) { ElMessage.error('无法打开打印窗口，请允许弹出窗口后重试'); return }
+      win.document.write(typeof html === 'string' ? html : String(html))
+      win.document.close()
+      ElMessage.success('已打开打印视图，可在新窗口点「打印 / 另存为 PDF」')
+    }
+    exportVisible.value = false
+  } catch (e) {
+    ElMessage.error('导出失败：' + errMsg(e))
+  } finally {
+    exporting.value = false
+  }
+}
+
 // 字典中的患者标签（供编辑表单选择）
 const tagOptions = ref<DictionaryTerm[]>([])
 

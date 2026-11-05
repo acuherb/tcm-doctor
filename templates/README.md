@@ -6,8 +6,8 @@
 ## 用户怎么用
 
 1. 到本仓库的 **Releases** 页面下载需要的基础数据包（如 `tcm-base-core.zip`）；
-2. 解压得到若干 JSON 文件；
-3. 打开对应模块的**顶部工具栏**（药材字典 / 中药方库 / 针灸方库 / 穴位 / 知识库），点「上传导入」，选择对应 JSON 即可。
+2. **推荐：整包一键安装** —— 登录后在系统设置「基础数据包」或工作台的空框架引导里点「一键安装」，选择随应用附带的包或上传该 `.zip`，勾选分层 → 预检 → 确认安装。导入顺序按 manifest 的 `depends_on` 自动拓扑排序，`sha256` 与条目数逐文件校验，仅写白名单参考知识表。也可用环境变量 `TCM_BASE_PACKAGE` 指定随包分发的数据包路径。
+3. **按模块导入**：解压得到若干 JSON 文件，打开对应模块的**顶部工具栏**（药材字典 / 中药方库 / 针灸方库 / 穴位 / 知识库），点「上传导入」，选择对应 JSON 即可。
    - 仅管理员可见导入按钮（受 `system:write` 权限控制）；
    - 导入为**幂等 upsert**：按药名 / 穴名 / 方名增量写入，重复导入不重复、不冲业务数据；
    - 仅白名单参考知识表会被写入，`patients` / `prescriptions` / `stock_batches` 等业务数据永不打包。
@@ -48,9 +48,9 @@
 
 > 示例仅含少量条目，用于演示导入 / 导出与字段格式；正式基础包请从 GitHub Release 下载。
 
-## 发布包布局（规划：分层 + manifest）
+## 发布包布局（分层 + manifest，已支持整包导入）
 
-后续正式发布包按**依赖关系**分层，并配 `manifest.json` 作为包清单（字段见 [`manifest.example.json`](manifest.example.json)）：
+正式发布包按**依赖关系**分层，并配 `manifest.json` 作为包清单（字段见 [`manifest.example.json`](manifest.example.json)）：
 
 ```
 templates/
@@ -60,8 +60,10 @@ templates/
 └── books/                 # 医籍文库（体积最大，可选）
 ```
 
-`manifest.json` 声明 `schema_version`（防结构漂移）、`sha256`（防传输损坏）、`depends_on`（防引用悬空）。
-该分层 bundle 的批量导入为**规划中**能力；现阶段用户仍按上面的「单类型文件」逐类导入即可。
+`manifest.json` 声明 `schema_version`（防结构漂移）、`sha256`（防传输损坏）、`count`（防条目缺失）、`depends_on`（防引用悬空）：
+`GET /templates/bundles` 列出可用包与内容库状态，`POST /templates/bundle/preview` 做预检（dry_run，不落库），
+`POST /templates/bundle/install` 按依赖顺序正式写入。zip 条目做路径穿越与体积限制，类型不在 `TEMPLATE_TYPES` 白名单内直接拒绝。
+单类型 JSON 逐类导入仍保留，二者复用同一套幂等 upsert 逻辑。
 
 ## 版权与免责
 

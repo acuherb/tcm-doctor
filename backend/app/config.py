@@ -82,6 +82,14 @@ class Settings(BaseSettings):
     # 设为 0 表示不自动清理（仍可在界面手动清理）
     log_retention_days: int = 180
 
+    # 自动备份（.env 可覆盖；界面里的开关/间隔/保留份数另存于 backups/auto_backup.json）
+    # 默认开启：小型诊所/个人使用最怕「数据只存一份」，按天留快照，最多保留 7 份
+    backup_auto_enabled: bool = True
+    backup_interval_hours: int = 24
+    backup_keep: int = 7
+    # 留空则落在数据库同目录的 backups/ 下；容器/桌面可指向持久化目录
+    backup_dir: str = ""
+
     model_config = {
         "env_file": _get_env_file(),
         "env_file_encoding": "utf-8",
