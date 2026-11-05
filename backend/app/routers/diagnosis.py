@@ -68,6 +68,9 @@ async def diagnosis_chat_stream(data: DiagnosisChatRequest, current_user: User =
             yield "data: [DONE]\n\n"
         return StreamingResponse(error_stream(), media_type="text/event-stream")
 
+    # 流式接口同样要限制图片总量，避免绕过普通接口的内存/成本上限
+    _check_images_total(data.images)
+
     from app.services.ai_diagnosis_service import diagnosis_service
 
     async def event_stream():
@@ -130,6 +133,9 @@ async def diagnosis_analyze_stream(data: DiagnosisAnalyzeRequest, current_user: 
             yield "data: [DONE]\n\n"
         return StreamingResponse(error_stream(), media_type="text/event-stream")
 
+    # 与非流式接口一致，限制图片总量后再交给上游模型
+    _check_images_total([data.tongue_image, data.face_image] + (data.lab_report_images or []))
+
     from app.services.ai_diagnosis_service import diagnosis_service
 
     async def event_stream():
@@ -167,9 +173,15 @@ async def upload_diagnosis_image(file: UploadFile = File(...), current_user: Use
     content = await file.read()
     if len(content) > 5 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="图片不能超过5MB")
-    # 验证文件类型
-    if not file.content_type or not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="只支持图片文件")
+    # 验证文件类型：MIME 白名单 + 文件魔数，避免 SVG/HTML 或任意二进制伪装成图片落库
+    magic = {
+        "image/png": b"\x89PNG\r\n\x1a\n",
+        "image/jpeg": b"\xff\xd8\xff",
+        "image/webp": b"RIFF",
+    }
+    expected = magic.get(file.content_type or "")
+    if not expected or not content.startswith(expected):
+        raise HTTPException(status_code=400, detail="只支持 PNG / JPEG / WEBP 图片文件")
     # 编码为 base64 data URL
     b64 = base64.b64encode(content).decode("utf-8")
     data_url = f"data:{file.content_type};base64,{b64}"
@@ -179,6 +191,8 @@ async def upload_diagnosis_image(file: UploadFile = File(...), current_user: Use
 @router.get("/conversations", response_model=ConversationListResponse, summary="会话列表")
 def list_conversations(page: int = 1, page_size: int = 20, search: str | None = None, db: Session = Depends(get_db)):
     """获取会话列表（侧边栏）"""
+    page = max(page, 1)
+    page_size = min(max(page_size, 1), 200)  # 侧边栏一次性拉取时也不能无限放大
     from app.models.conversation import Conversation
     q = db.query(Conversation).order_by(Conversation.last_message_at.desc().nulls_last(), Conversation.created_at.desc())
     if search:

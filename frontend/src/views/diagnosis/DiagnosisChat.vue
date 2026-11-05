@@ -202,6 +202,7 @@ import { Close } from '@element-plus/icons-vue'
 import api from '@/utils/api'
 import type { AppConfig, DictionaryTerm, Conversation, Message } from '@/types'
 import { useAuthStore } from '@/store/auth'
+import { triggerLogout } from '@/store/authBus'
 import { renderMarkdown } from '@/utils/markdown'
 import { compressImageFile } from '@/utils/image'
 import PinchImage from '@/components/PinchImage.vue'
@@ -212,10 +213,15 @@ const editable = computed(() => auth.canWrite('diagnosis'))
 
 // 流式(SSE)接口复用统一的 baseURL 与鉴权 token：浏览器 XHR(axios) 不支持流式响应，
 // 故保留原生 fetch，但把 baseURL/token 的解析收敛到一处，避免各调用点重复硬编码。
+let activeAbort: AbortController | null = null
+
 function streamFetch(path: string, data: unknown): Promise<Response> {
   const isElectronProd = typeof window !== 'undefined' && window.location.protocol === 'file:'
   const baseUrl = isElectronProd ? 'http://127.0.0.1:8765/api/v1' : '/api/v1'
   const token = useAuthStore().token
+  // 原生 fetch 不经过 axios 拦截器：显式支持取消与 401 清理，避免组件卸载后流仍在写入
+  activeAbort?.abort()
+  activeAbort = new AbortController()
   return fetch(`${baseUrl}${path}`, {
     method: 'POST',
     headers: {
@@ -223,6 +229,14 @@ function streamFetch(path: string, data: unknown): Promise<Response> {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify(data),
+    signal: activeAbort.signal,
+  }).then((resp) => {
+    if (resp.status === 401) {
+      triggerLogout()
+      localStorage.removeItem('tcm_user')
+      window.location.hash = '#/login'
+    }
+    return resp
   })
 }
 
@@ -236,7 +250,10 @@ onMounted(() => {
   updateViewport()
   window.addEventListener('resize', updateViewport)
 })
-onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', updateViewport)
+  activeAbort?.abort()
+})
 
 interface ChatMessage {
   role: 'user' | 'assistant'
@@ -358,7 +375,8 @@ onMounted(async () => {
 
 async function loadConversations() {
   try {
-    const res = await api.get<Conversation[]>('/diagnosis/conversations')
+    // 明确取回全部会话，避免后端默认 20 条把旧会话悄悄截掉而无任何提示
+    const res = await api.get<Conversation[]>('/diagnosis/conversations', { params: { page_size: 200 } })
     conversations.value = res.items || []
   } catch { /* ignore */ }
 }
@@ -488,7 +506,7 @@ async function sendMessage() {
     const response = await streamFetch('/diagnosis/chat/stream', payload)
 
     if (!response.ok || !response.body) {
-      messages.value[msgIdx].content = `抱歉，请求出错 (HTTP ${response.status})`
+      messages.value[msgIdx].content += `\n\n抱歉，请求出错 (HTTP ${response.status})`
       loading.value = false; return
     }
 
@@ -518,7 +536,10 @@ async function sendMessage() {
       }
     }
   } catch {
-    messages.value[msgIdx].content = '抱歉，请求出错，请稍后重试。'
+    // 中途失败保留已生成内容，不要把已有结果整段覆盖
+    messages.value[msgIdx].content += messages.value[msgIdx].content
+      ? '\n\n（请求中断，以上为已生成内容，请重试。）'
+      : '抱歉，请求出错，请稍后重试。'
   }
   loading.value = false
   await loadConversations()

@@ -96,6 +96,14 @@ def list_backups() -> list[dict]:
         files = backup_dir().glob(f"{PREFIX}*.db")
         for f in sorted(files, key=lambda p: p.stat().st_mtime, reverse=True):
             st = f.stat()
+            # 只列出完整快照：明文校验 SQLite magic，密文校验加密魔数；半截文件直接跳过
+            try:
+                with f.open("rb") as fp:
+                    head = fp.read(16)
+            except OSError:
+                continue
+            if not head.startswith(b"SQLite format 3\x00") and not head.startswith(backup_crypto.MAGIC):
+                continue
             out.append({
                 "name": f.name,
                 "size": st.st_size,
@@ -137,6 +145,13 @@ def create_backup(reason: str = "manual") -> dict:
             source = sqlite3.connect(src.resolve().as_uri() + "?mode=ro", uri=True)
             dest = sqlite3.connect(str(tmp))
             source.backup(dest)
+            # 快照不携带会话令牌：备份文件外流不应等价于「拿到管理员会话」。
+            # 恢复备份后所有账号需重新登录，业务数据不受影响。
+            try:
+                dest.execute("DELETE FROM auth_tokens")
+                dest.commit()
+            except sqlite3.OperationalError:
+                pass  # 老库尚无该表时忽略
             dest.close()
             dest = None
             source.close()
@@ -146,7 +161,9 @@ def create_backup(reason: str = "manual") -> dict:
                 raise RuntimeError("快照校验失败：不是合法的 SQLite 文件")
             # 启用备份加密时产出密文（含魔数头），否则明文；旧明文备份仍可恢复
             payload = backup_crypto.maybe_encrypt(raw)
-            target.write_bytes(payload)
+            # 原子落盘：加密/写入中途失败只留下 .tmp，不会把半截文件当成有效快照
+            tmp.write_bytes(payload)
+            os.replace(tmp, target)
         finally:
             if dest is not None:
                 dest.close()

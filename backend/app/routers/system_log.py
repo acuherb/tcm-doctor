@@ -17,15 +17,24 @@ from app.routers.auth import get_current_user
 router = APIRouter(prefix="/system", tags=["系统"])
 
 
-def _serialize(log: OperationLog) -> dict:
+def _serialize(log: OperationLog, include_error: bool = False) -> dict:
     return {
         "id": log.id, "created_at": log.created_at, "level": log.level,
         "user_id": log.user_id, "username": log.username, "action": log.action,
         "endpoint": log.endpoint, "method": log.method, "status_code": log.status_code,
         "success": log.success, "message": log.message, "target": log.target,
-        "error_detail": log.error_detail,
+        # 完整 traceback 含服务器路径/SQL 片段，仅高权限账号可见；CSV 导出一律不含
+        "error_detail": log.error_detail if include_error else None,
         "ip": log.ip, "duration_ms": log.duration_ms,
     }
+
+
+def _csv_safe(value) -> str:
+    """防止用户可控文本在 Excel/WPS 中被当作公式执行（CSV 公式注入）。"""
+    if value is None:
+        return ""
+    s = str(value)
+    return "'" + s if s[:1] in ("=", "+", "-", "@", "\t", "\r") else s
 
 
 def _apply_filters(q, level, user_id, action, keyword, start, end, method=None):
@@ -77,7 +86,8 @@ def list_logs(
         raise HTTPException(status_code=403, detail="仅管理员可查看操作日志")
     q = _apply_filters(db.query(OperationLog), level, user_id, action, keyword, start, end, method)
     rows = q.order_by(OperationLog.id.desc()).offset(offset).limit(limit).all()
-    return [_serialize(r) for r in rows]
+    can_see_stack = has_perm(current_user, "system:write")
+    return [_serialize(r, can_see_stack) for r in rows]
 
 
 @router.get("/logs/meta", summary="日志筛选项元数据(用户/动作下拉)")
@@ -161,10 +171,10 @@ def export_logs(
                      "状态码", "成功", "耗时(ms)", "消息", "IP"])
     for r in rows:
         writer.writerow([
-            r.created_at, r.level, r.user_id or "", r.username or "",
-            r.action or "", r.target or "", r.endpoint or "", r.method or "", r.status_code or "",
+            r.created_at, r.level, r.user_id or "", _csv_safe(r.username),
+            _csv_safe(r.action), _csv_safe(r.target), _csv_safe(r.endpoint), r.method or "", r.status_code or "",
             "是" if r.success else "否", r.duration_ms if r.duration_ms is not None else "",
-            r.message or "", r.ip or "",
+            _csv_safe(r.message), r.ip or "",
         ])
     return Response(content=si.getvalue().encode("utf-8-sig"), media_type="text/csv",
                     headers={"Content-Disposition": "attachment; filename=operation_logs.csv"})
@@ -176,7 +186,8 @@ def clean_logs(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if not has_perm(current_user, "log:read"):
+    # 清空审计证据属于高敏写操作，权限点须与中间件 /system/logs 的写权限一致
+    if not has_perm(current_user, "system:write"):
         raise HTTPException(status_code=403, detail="仅管理员可清理操作日志")
     q = db.query(OperationLog)
     if days and days > 0:

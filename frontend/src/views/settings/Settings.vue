@@ -278,7 +278,7 @@
       </el-col>
     </el-row>
 
-    <BasePackageInstaller v-model="installerVisible" />
+    <BasePackageInstaller v-model="installerVisible" @installed="onInstalled" />
   </div>
 </template>
 
@@ -288,6 +288,7 @@ import { ElMessage, ElMessageBox, type UploadFile } from 'element-plus'
 import { Download, Upload, Refresh, OfficeBuilding, InfoFilled, Lock } from '@element-plus/icons-vue'
 import api, { errMsg } from '@/utils/api'
 import { applyBranding } from '@/utils/branding'
+import { refreshDictColors } from '@/utils/dictColors'
 import { compressToDataUrl } from '@/utils/image'
 import type { AppConfig } from '@/types'
 import { useAuthStore } from '@/store/auth'
@@ -297,6 +298,15 @@ import BasePackageInstaller from '@/components/BasePackageInstaller.vue'
 const auth = useAuthStore()
 const editable = computed(() => auth.can('system:write'))
 const installerVisible = ref(false)
+
+async function onInstalled() {
+  // 基础数据包写入字典/物品后，共享缓存仍是安装前的旧数据，需主动失效并重取统计
+  refreshDictColors()
+  try {
+    const res = await api.get<AppConfig>('/config')
+    counts.value = res.counts || {}
+  } catch { /* ignore */ }
+}
 
 const clinicName = ref('')
 const clinicLogo = ref('')
@@ -489,7 +499,7 @@ async function saveConfig() {
       body.deepseek_vision_api_key = visionKey.value
     }
     await api.put('/config', body)
-    visionConfigured.value = !!visionModel.value
+    visionConfigured.value = !!visionModel.value && !!(visionKey.value || hasVisionKey.value)
     hasVisionKey.value = !!visionKey.value || hasVisionKey.value
     // 保存成功后清空 key 输入框，避免残留值下次误提交
     if (deepseekKey.value) deepseekKey.value = ''
@@ -548,7 +558,7 @@ async function exportData() {
     const url = window.URL.createObjectURL(new Blob([res]))
     const link = document.createElement('a')
     link.href = url
-    link.download = `tcm_backup_${new Date().toISOString().slice(0, 10)}.db`
+    link.download = `tcm_backup_${new Date().toLocaleDateString('sv-SE')}.db`
     link.click()
     window.URL.revokeObjectURL(url)
     ElMessage.success('数据备份已下载')

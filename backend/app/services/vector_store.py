@@ -152,6 +152,14 @@ def rebuild_from_knowledge_db(db_session):
     from app.models.knowledge import KnowledgeEntry
 
     entries = db_session.query(KnowledgeEntry).all()
+    # 先清空旧索引：upsert 不会移除已删除的条目，否则 RAG 仍会命中删掉/改版前的内容
+    if _collection:
+        try:
+            existing = _collection.get()
+            if existing and existing.get("ids"):
+                _collection.delete(ids=existing["ids"])
+        except Exception as e:
+            logger.warning(f"清空向量索引失败: {e}")
     if not entries:
         return 0
 

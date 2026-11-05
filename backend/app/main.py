@@ -114,10 +114,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS — 允许前端开发服务器访问
+# CORS — 开发服务器 + 后端自托管 + Electron 桌面版（file:// 页面的 Origin 为 "null"）。
+# 反代到自定义域名时可用 CORS_EXTRA_ORIGINS（逗号分隔）追加，避免把白名单写死在代码里。
+_extra_origins = [o.strip() for o in os.environ.get("CORS_EXTRA_ORIGINS", "").split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:5174", "http://localhost:8765", "http://127.0.0.1:8765"],
+    allow_origins=["http://localhost:5173", "http://localhost:5174", "http://localhost:8765",
+                   "http://127.0.0.1:8765", "null", *_extra_origins],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -140,7 +143,9 @@ async def _http_exception_handler(request: Request, exc: HTTPException):
                       ip=request.client.host if request.client else "unknown")
         except Exception:
             pass
-    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+    # 主动抛出的 5xx HTTPException 同样不得把内部路径/异常文本回显给客户端（详情只进日志）
+    detail = exc.detail if exc.status_code < 500 else "服务器内部错误，请联系管理员"
+    return JSONResponse(status_code=exc.status_code, content={"detail": detail})
 
 
 @app.exception_handler(RequestValidationError)
@@ -186,14 +191,32 @@ def _extract_token(request: Request) -> str:
 
 
 def _is_password_change_path(path: str) -> bool:
-    """强制改密期间仍允许访问的接口（改密 / 登出 / 当前用户）"""
-    return path in ("/api/v1/auth/password", "/api/v1/auth/logout", "/api/v1/auth/me")
+    """强制改密期间仍允许访问的接口（改密 / 登出 / 当前用户 / 只读权限目录）。
+
+    /auth/permissions 只是 RBAC 权限点的枚举元数据，不含任何患者数据，仍需有效令牌；
+    放行它才能渲染改密页与权限选择列表，也不影响「未改密不得访问业务接口」的约束。
+    """
+    return path in (
+        "/api/v1/auth/password", "/api/v1/auth/logout", "/api/v1/auth/me",
+        "/api/v1/auth/permissions",
+    )
+
+
+# 无需令牌的公开接口。此前整段 /api/v1/auth/** 被豁免，导致未改密的默认超管可绕过
+# 强制改密策略直接调用账号管理接口；改为只豁免登录/登出/游客/公共品牌配置。
+PUBLIC_PATHS = {
+    "/api/v1/auth/login",
+    "/api/v1/auth/guest",
+    "/api/v1/auth/logout",
+    "/api/v1/favicon",
+    "/api/v1/config/public",
+}
 
 
 @app.middleware("http")
 async def require_admin_for_writes(request: Request, call_next):
     """统一鉴权中间件：
-    - /api/v1 下除 /api/v1/auth 外，所有请求都必须携带有效 token（不再允许游客匿名访问）；
+    - /api/v1 下除登录/登出/游客/公共品牌配置外，所有请求都必须携带有效 token；
     - 按角色权限矩阵校验：写操作要求该业务域为 RW；管理域（备份/系统日志）仅管理员可读；
     - 账号停用后拒绝任何已发令牌；
     - 用户处于“必须改密”状态时，除改密/登出/当前用户外一律拒绝（403）；
@@ -203,9 +226,12 @@ async def require_admin_for_writes(request: Request, call_next):
     method = request.method
     is_write = method in WRITE_METHODS
     is_api = path.startswith("/api/v1")
-    is_auth = path.startswith("/api/v1/auth") or path == "/api/v1/favicon"
+    # CORS 预检不带令牌，交给 CORSMiddleware 处理；否则跨域/桌面版请求会被本中间件直接 401
+    is_preflight = method == "OPTIONS" and "access-control-request-method" in request.headers
+    if is_api and is_preflight:
+        return await call_next(request)
 
-    if is_api and not is_auth:
+    if is_api and path not in PUBLIC_PATHS:
         token = _extract_token(request)
         if not token:
             return JSONResponse({"detail": "未登录"}, status_code=401)
@@ -624,6 +650,25 @@ def get_favicon(db: Session = Depends(get_db)):
     )
 
 
+@app.get("/api/v1/config/public", tags=["系统"])
+def get_public_config():
+    """登录页/未登录状态也可读取的公共配置：仅品牌信息，不含密钥、路径或统计。
+
+    此前登录页请求需鉴权的 /config，401 被拦截器当成会话过期，导致 redirect 丢失、
+    诊所名称与 Logo 永远显示默认值。
+    """
+    brand_db = SessionLocal()
+    try:
+        brand = _read_branding(brand_db)
+    finally:
+        brand_db.close()
+    return {
+        "clinic_name": brand["clinic_name"],
+        "clinic_logo": brand["clinic_logo"],
+        "ui_theme": settings.ui_theme,
+    }
+
+
 @app.get("/api/v1/config", tags=["系统"])
 def get_config(current_user: User = Depends(get_current_user)):
     """获取系统配置"""
@@ -768,9 +813,15 @@ def update_config(
 
     # 写回 .env（原子写入：先写临时文件再替换，避免 reload 期间读到空文件）
     tmp_path = env_path.with_suffix(".env.tmp")
-    with open(tmp_path, "w", encoding="utf-8") as f:
+    # 临时文件同样含全部密钥，必须以 0600 创建（默认 umask 022 会给出 0644）
+    fd = os.open(str(tmp_path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
         for k, v in env_lines.items():
             f.write(f"{k}={v}\n")
+    try:
+        os.chmod(tmp_path, 0o600)
+    except OSError:
+        pass
     tmp_path.replace(env_path)
 
     # 限制 .env 权限，避免密钥被同机其它进程读取

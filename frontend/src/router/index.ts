@@ -213,10 +213,12 @@ const routes: RouteRecordRaw[] = [
         path: 'system/users',
         name: 'UserManage',
         component: UserManage,
-        meta: { title: '账号管理', icon: 'UserFilled', perm: 'user:write' },
+        meta: { title: '账号管理', icon: 'UserFilled', perm: 'user:read' },
       },
     ],
   },
+  // 未知路径统一回工作台，避免 <router-view> 空白且无任何反馈
+  { path: '/:pathMatch(.*)*', redirect: '/dashboard' },
 ]
 
 const router = createRouter({

@@ -38,6 +38,11 @@ COPY backend/ ./
 # 前端静态产物（由前端构建阶段生成），由 FastAPI 在生产模式直接托管
 COPY --from=frontend-builder /app/frontend/dist ./static
 
+# 以非 root 运行；/app 与数据目录需可写（后端会写 .env / 自动备份快照）
+RUN groupadd -r tcm && useradd -r -g tcm -d /app tcm \
+    && mkdir -p /app/data && chown -R tcm:tcm /app
+USER tcm
+
 EXPOSE 8765
 
 CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8765}"]

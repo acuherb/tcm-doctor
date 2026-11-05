@@ -16,7 +16,7 @@ import ForceChangePassword from '@/views/auth/ForceChangePassword.vue'
 // 主题在 auth store 的 login/restore 中按需同步（该接口需登录，此处尚可能未鉴权）
 onMounted(async () => {
   try {
-    const res = await api.get<AppConfig>('/config', { silent: true })
+    const res = await api.get<AppConfig>('/config/public', { silent: true })
     applyBranding(res.clinic_name, res.clinic_logo)
   } catch {
     /* 后端不可用或未登录时保持默认标题 */

@@ -5,8 +5,8 @@ from sqlalchemy import func
 
 from datetime import datetime as _dt, timedelta
 
-from app.database import get_db
-from app.config import settings
+from app.database import get_db, inventory_lock
+from app.config import settings, get_signing_secret
 from app.models.prescription import (
     ClassicFormula, Prescription, PrescriptionItem, AcupointPrescription, PrescriptionInjection,
     compute_prescription_hash, compute_signature,
@@ -282,11 +282,19 @@ def _attach_charge_info(db: Session, rows: list) -> list:
         .all()
     )
     by_pid = {c.prescription_id: c for c in active}
+    # 回填医生指定的复诊日期：编辑处方时据此回显，避免 PUT 传空串导致按疗程重算覆盖
+    fu_rows = db.query(FollowUpReminder).filter(
+        FollowUpReminder.source_type == "prescription",
+        FollowUpReminder.source_id.in_([r.id for r in rows]),
+        FollowUpReminder.status != "cancelled",
+    ).all()
+    by_fu = {f.source_id: f.due_date for f in fu_rows}
     for r in rows:
         c = by_pid.get(r.id)
         r.charge_id = c.id if c else None
         r.charge_no = c.charge_no if c else None
         r.charge_status = c.status if c else None
+        r.follow_up_date = by_fu.get(r.id)
     return rows
 
 
@@ -294,6 +302,7 @@ def _attach_charge_info(db: Session, rows: list) -> list:
 def list_prescriptions(
     patient_id: int | None = Query(None),
     status: str | None = Query(None),
+    visit_id: int | None = Query(None, description="按就诊过滤（复诊参照上次处方）"),
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
 ):
@@ -302,6 +311,8 @@ def list_prescriptions(
         query = query.filter(Prescription.patient_id == patient_id)
     if status:
         query = query.filter(Prescription.status == status)
+    if visit_id:
+        query = query.filter(Prescription.visit_id == visit_id)
     rows = query.order_by(Prescription.created_at.desc()).limit(limit).all()
     pids = {r.patient_id for r in rows if r.patient_id}
     if pids:
@@ -427,7 +438,7 @@ def create_prescription(data: PrescriptionCreate, current_user: User = Depends(g
             note=inj.note,
         ))
 
-    prescription.total_price = _compute_total_price(db, data.items, data.doses)
+    prescription.total_price = _compute_total_price(db, data.items, data.doses, data.acupuncture_fee)
 
     # 自动生成随访提醒：医生指定复诊日期 或 综合中药剂数/针灸疗程天数推算
     fu_due, fu_note = _derive_followup(data, db)
@@ -474,11 +485,15 @@ def update_prescription(prescription_id: int, data: PrescriptionCreate, current_
 
     # 已有在账收费单时冻结金额：收费单是 total_price 的快照，改方不改钱会造成账实不符。
     # 医嘱/诊断/备注等不影响金额的字段仍可修改；要改方请先退费或作废重开。
-    if _active_charges(db, prescription.id):
+    active_charges = _active_charges(db, prescription.id)
+    if active_charges:
         from app.models.billing import _to_decimal
 
+        # 判断「本次是否改了金额」应比较库中现值重算结果，而不是拿 payload 与历史 total_price
+        # 快照比较：后者会让存量少算针灸费的处方连只改医嘱也被误拒。
+        old_total = _compute_total_price(db, prescription.items, prescription.doses, prescription.acupuncture_fee)
         new_total = _compute_total_price(db, data.items, data.doses, data.acupuncture_fee)
-        if _to_decimal(new_total or 0) != _to_decimal(prescription.total_price or 0):
+        if _to_decimal(new_total or 0) != _to_decimal(old_total or 0):
             raise HTTPException(
                 status_code=400,
                 detail="该处方已有在账收费单，金额不可修改；请先退费或作废后重开（医嘱/备注仍可修改）",
@@ -538,7 +553,9 @@ def update_prescription(prescription_id: int, data: PrescriptionCreate, current_
         ) for j in data.injections
     ]
 
-    prescription.total_price = _compute_total_price(db, data.items, data.doses, data.acupuncture_fee)
+    # 有在账收费单时 total_price 是账单快照，保持原值；无账单才按最新明细重算
+    if not active_charges:
+        prescription.total_price = _compute_total_price(db, data.items, data.doses, data.acupuncture_fee)
 
     # 重建该处方自动生成的随访提醒（编辑后按最新疗程重算复诊日期，避免与实际不符）
     db.query(FollowUpReminder).filter(
@@ -561,6 +578,11 @@ def update_prescription(prescription_id: int, data: PrescriptionCreate, current_
     prescription.signed_by_id = None
     prescription.signed_at = None
     prescription.signature = None
+
+    # 改方后原审核结论/审核人不再适用于新内容，退回待审核重新走一遍
+    if prescription.status == "已审核":
+        prescription.status = "已开"
+        prescription.reviewed_by = None
 
     db.commit()
     db.refresh(prescription)
@@ -617,6 +639,12 @@ def void_prescription(
       并生成『冲红』流水，使采购成本 / COGS / 收入在报表中净额抵消（见 stock.py 报表聚合）。
     - 已取消：幂等返回，不重复处理。
     """
+    # 回库与其它库存写操作共用同一把锁，避免与发药/出库/盘点并发时读-改-写互相覆盖
+    with inventory_lock:
+        return _void_prescription_impl(prescription_id, return_stock, current_user, db)
+
+
+def _void_prescription_impl(prescription_id: int, return_stock: bool, current_user: User, db: Session):
     from app.models.stock import StockItem, StockBatch, StockTransaction
 
     prescription = db.query(Prescription).options(joinedload(Prescription.items)).filter(
@@ -627,8 +655,8 @@ def void_prescription(
     if prescription.status == "已取消":
         return prescription
 
-    if prescription.status == "已发药" and return_stock:
-        # 按发药出库流水回补库存并生成冲红流水
+    if prescription.status == "已发药":
+        # 按发药出库流水生成冲红流水；return_stock=True 时同时回补库存
         outflows = (
             db.query(StockTransaction)
             .filter(
@@ -640,7 +668,7 @@ def void_prescription(
         )
         for t in outflows:
             qty = float(t.quantity)
-            if t.batch_id is not None:
+            if return_stock and t.batch_id is not None:
                 batch = db.query(StockBatch).filter(StockBatch.id == t.batch_id).with_for_update().first()
                 if batch:
                     batch.quantity = float(batch.quantity) + qty
@@ -648,13 +676,24 @@ def void_prescription(
                         batch.status = "正常"
             db.add(StockTransaction(
                 item_id=t.item_id, batch_id=t.batch_id, transaction_type="冲红",
-                quantity=qty, before_quantity=None, after_quantity=None,
+                quantity=qty if return_stock else 0.0,
+                before_quantity=None, after_quantity=None,
                 unit_cost=t.unit_cost, unit_price=t.unit_price,
-                cost_amount=(qty * float(t.unit_cost)) if t.unit_cost is not None else None,
+                # 不回库时药已交付患者：成本保留，但全额退费必须冲销收入，否则报表虚增
+                cost_amount=(qty * float(t.unit_cost)) if (return_stock and t.unit_cost is not None)
+                else (None if return_stock else 0.0),
                 revenue_amount=(-qty * float(t.unit_price)) if t.unit_price is not None else 0.0,
                 reference_id=prescription.id, reference_type="处方", operator=current_user.username,
-                note=f"处方#{prescription.id}作废冲红(退回批次#{t.batch_id})",
+                note=(f"处方#{prescription.id}作废冲红(退回批次#{t.batch_id})" if return_stock
+                      else f"处方#{prescription.id}作废冲红(不回库,仅冲销收入)"),
             ))
+
+    # 处方作废后其自动生成的随访提醒不再有效，避免死链继续占据工作台待办
+    db.query(FollowUpReminder).filter(
+        FollowUpReminder.source_type == "prescription",
+        FollowUpReminder.source_id == prescription.id,
+        FollowUpReminder.status == "pending",
+    ).update({FollowUpReminder.status: "cancelled"}, synchronize_session=False)
 
     # 作废联动退费 / 清待收单：已收的钱自动全额退，避免「方废了钱还挂在账上」
     _settle_prescription_charges(db, prescription.id, current_user)
@@ -820,7 +859,7 @@ def dispense_prescription(prescription_id: int, current_user: User = Depends(get
                     note=f"处方#{fresh.id}发药",
                 ))
 
-        fresh.total_price = _compute_total_price(db, fresh.items, fresh.doses, fresh.acupuncture_fee)
+        # 发药只改状态与库存：total_price 是收费单快照，此处重算会绕过编辑侧的金额冻结
         fresh.status = "已发药"
         db.commit()
     db.refresh(prescription)
@@ -857,7 +896,7 @@ def sign_prescription(
     prescription.signed_by_id = doctor_id
     prescription.signed_at = _dt.now()
     prescription.signature = compute_signature(
-        prescription.content_hash, doctor_name, prescription.signed_at.isoformat(), settings.signing_secret
+        prescription.content_hash, doctor_name, prescription.signed_at.isoformat(), get_signing_secret()
     )
     db.commit()
     db.refresh(prescription)

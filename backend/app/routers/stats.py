@@ -27,7 +27,7 @@ def dashboard_stats(db: Session = Depends(get_db)):
     ).count()
 
     # 患者总数
-    total_patients = db.query(Patient).count()
+    total_patients = db.query(Patient).filter(Patient.deleted_at.is_(None)).count()
 
     # 药品总数
     total_herbs = db.query(Herb).filter(Herb.is_active == True).count()
@@ -110,12 +110,15 @@ def visit_stats(
     db: Session = Depends(get_db),
 ):
     """就诊趋势统计"""
-    start_date = datetime.now() - timedelta(days=days)
+    today = datetime.now().date()
+    start_date = datetime.combine(today - timedelta(days=days - 1), datetime.min.time())
 
-    # 每日就诊数
+    # 每日就诊数：从今天往回取最近 min(days, 60) 天。
+    # 旧实现从「days 天前」开始迭代，days=365 时返回的是第 365~306 天，最近数据全缺。
     daily_stats = []
-    for i in range(min(days, 60)):  # 最多返回60天
-        day = (datetime.now() - timedelta(days=days - i)).date()
+    span = min(days, 60)
+    for i in range(span):
+        day = today - timedelta(days=span - 1 - i)
         count = db.query(Visit).filter(func.date(Visit.visit_date) == day.isoformat()).count()
         daily_stats.append({"date": day.strftime("%Y-%m-%d"), "count": count})
 
@@ -125,13 +128,18 @@ def visit_stats(
         func.count(Visit.id),
     ).filter(
         func.date(Visit.visit_date) >= start_date.date().isoformat(),
+        func.date(Visit.visit_date) <= today.isoformat(),
         Visit.tcm_syndrome.isnot(None),
     ).group_by(Visit.tcm_syndrome).order_by(func.count(Visit.id).desc()).limit(10).all()
 
+    total_visits = db.query(Visit).filter(
+        func.date(Visit.visit_date) >= start_date.date().isoformat(),
+        func.date(Visit.visit_date) <= today.isoformat(),
+    ).count()
     return {
         "daily_stats": daily_stats,
         "syndrome_stats": [{"name": s, "count": c} for s, c in syndrome_stats if s],
-        "total_visits": sum(d["count"] for d in daily_stats),
+        "total_visits": total_visits,
     }
 
 
@@ -153,6 +161,7 @@ def herb_stats(
         Prescription, PrescriptionItem.prescription_id == Prescription.id
     ).filter(
         Prescription.created_at >= start_date,
+        Prescription.status != "已取消",
     ).group_by(
         PrescriptionItem.herb_name,
     ).order_by(
@@ -180,7 +189,10 @@ def prescription_stats(
     """处方统计"""
     start_date = datetime.now() - timedelta(days=days)
 
-    total = db.query(Prescription).filter(Prescription.created_at >= start_date).count()
+    total = db.query(Prescription).filter(
+        Prescription.created_at >= start_date,
+        Prescription.status != "已取消",
+    ).count()
 
     # 按状态统计
     status_stats = db.query(
@@ -188,6 +200,7 @@ def prescription_stats(
         func.count(Prescription.id),
     ).filter(
         Prescription.created_at >= start_date,
+        Prescription.status != "已取消",
     ).group_by(Prescription.status).all()
 
     # 常用方剂统计

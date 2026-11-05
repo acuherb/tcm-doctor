@@ -938,18 +938,19 @@ class DiagnosisService:
                 response.raise_for_status()
                 data = response.json()
                 return data["choices"][0]["message"]["content"]
-        except httpx.TimeoutException:
-            return "⚠️ 请求超时，请稍后重试。"
+        except httpx.TimeoutException as e:
+            # 失败必须作为错误返回，不能把「⚠️ 请求超时」当辨证结论落库、写进病历完成度
+            from fastapi import HTTPException
+            logger.warning("AI 上游超时: %s", e)
+            raise HTTPException(status_code=504, detail="AI 服务响应超时，请稍后重试")
         except httpx.HTTPStatusError as e:
-            detail = ""
-            try:
-                detail = e.response.json().get("error", {}).get("message", "") or e.response.text[:200]
-            except Exception:
-                detail = e.response.text[:200]
-            return f"⚠️ API 调用失败 (HTTP {e.response.status_code}): {detail}"
+            from fastapi import HTTPException
+            logger.warning("AI 上游返回 HTTP %s", e.response.status_code)
+            raise HTTPException(status_code=502, detail="AI 服务暂不可用，请稍后重试")
         except Exception as e:
+            from fastapi import HTTPException
             logger.error("AI 问诊调用上游 LLM 失败: %s", e, exc_info=True)
-            return f"⚠️ 请求出错: {str(e)}"
+            raise HTTPException(status_code=502, detail="AI 服务暂不可用，请稍后重试")
 
     async def _call_deepseek_stream(self, messages: list[dict], use_vision: bool = False) -> AsyncGenerator[str, None]:
         """流式调用 DeepSeek API，逐块 yield 文本内容"""
@@ -1001,18 +1002,18 @@ class DiagnosisService:
                                 yield content
                         except json.JSONDecodeError:
                             continue
-        except httpx.TimeoutException:
-            yield "⚠️ 请求超时，请稍后重试。"
+        except httpx.TimeoutException as e:
+            from fastapi import HTTPException
+            logger.warning("AI 流式上游超时: %s", e)
+            raise HTTPException(status_code=504, detail="AI 服务响应超时，请稍后重试")
         except httpx.HTTPStatusError as e:
-            detail = ""
-            try:
-                detail = e.response.json().get("error", {}).get("message", "") or str(e.response.status_code)
-            except Exception:
-                detail = str(e.response.status_code)
-            yield f"⚠️ API 调用失败 (HTTP {e.response.status_code}): {detail}"
+            from fastapi import HTTPException
+            logger.warning("AI 流式上游返回 HTTP %s", e.response.status_code)
+            raise HTTPException(status_code=502, detail="AI 服务暂不可用，请稍后重试")
         except Exception as e:
+            from fastapi import HTTPException
             logger.error("AI 问诊流式调用上游 LLM 失败: %s", e, exc_info=True)
-            yield f"⚠️ 请求出错: {str(e)}"
+            raise HTTPException(status_code=502, detail="AI 服务暂不可用，请稍后重试")
 
     async def chat_stream(
         self,

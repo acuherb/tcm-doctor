@@ -6,6 +6,7 @@
 进销存财务化：入库/出库/发药/损耗/盘点均向 StockTransaction 写入金额维度
 (unit_cost / unit_price / cost_amount / revenue_amount)，使采购成本、COGS、收入、毛利可聚合。
 """
+import secrets
 from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -43,7 +44,7 @@ def _batch_resp(b: StockBatch) -> StockBatchResponse:
         expiry_date=b.expiry_date, supplier=b.supplier, supplier_id=b.supplier_id,
         min_stock=b.min_stock, location=b.location, status=b.status,
         barcode=b.barcode, item_name=b.item.name, unit=b.item.unit,
-        herb_id=b.item.herb_id,
+        herb_id=b.item.herb_id, sell_price=b.item.sell_price,
     )
 
 
@@ -144,7 +145,17 @@ def delete_item(item_id: int, current_user: User = Depends(get_current_user), db
     item = db.query(StockItem).filter(StockItem.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="物品不存在")
-    db.query(StockTransaction).filter(StockTransaction.item_id == item_id).delete()
+    from app.models.prescription import PrescriptionItem
+
+    # 有历史数据的物品不允许物理删除：否则已发药处方作废时查不到出库流水，库存回不了、
+    # 冲红/COGS/收入与采购历史一并被抹掉。此类物品请在「物品管理」停用。
+    if db.query(StockTransaction).filter(StockTransaction.item_id == item_id).first():
+        raise HTTPException(status_code=400, detail="该物品已有出入库流水，删除会抹掉成本与收入历史；请改用停用")
+    batch_ids = [b.id for b in db.query(StockBatch).filter(StockBatch.item_id == item_id).all()]
+    if batch_ids and db.query(PrescriptionItem).filter(PrescriptionItem.inventory_id.in_(batch_ids)).first():
+        raise HTTPException(status_code=400, detail="该物品批次已被处方引用，删除后已发药处方无法回库；请改用停用")
+    if db.query(PurchaseItem).filter(PurchaseItem.item_id == item_id).first():
+        raise HTTPException(status_code=400, detail="该物品已有采购记录，删除会丢失历史；请改用停用")
     db.query(StockBatch).filter(StockBatch.item_id == item_id).delete()
     db.delete(item)
     db.commit()
@@ -696,10 +707,16 @@ def _po_resp(po: PurchaseOrder) -> PurchaseOrderResponse:
 
 @router.post("/purchases", response_model=PurchaseOrderResponse, summary="采购入库(生成批次与入库流水)")
 def create_purchase(data: PurchaseOrderCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    # 与其它库存写操作共用同一把进程内锁，避免并发/重复提交导致批次数量 lost update
+    with inventory_lock:
+        return _create_purchase_impl(data, current_user, db)
+
+
+def _create_purchase_impl(data: PurchaseOrderCreate, current_user: User, db: Session):
     supplier = db.query(Supplier).filter(Supplier.id == data.supplier_id).first() if data.supplier_id else None
     if data.supplier_id and not supplier:
         raise HTTPException(status_code=404, detail="供应商不存在")
-    order_no = "PO" + datetime.now().strftime("%Y%m%d%H%M%S")
+    order_no = "PO" + datetime.now().strftime("%Y%m%d%H%M%S") + secrets.token_hex(2)
     po = PurchaseOrder(
         order_no=order_no, supplier_id=data.supplier_id, supplier_name=supplier.name if supplier else None,
         order_date=data.order_date or date.today().strftime("%Y-%m-%d"), note=data.note,
@@ -721,8 +738,14 @@ def create_purchase(data: PurchaseOrderCreate, current_user: User = Depends(get_
         ).with_for_update().first()
         if batch:
             before = float(batch.quantity)
-            batch.quantity = before + it.quantity
-            batch.unit_price = it.unit_price
+            new_qty = before + float(it.quantity)
+            old_cost = float(batch.unit_price if batch.unit_price is not None else it.unit_price)
+            batch.quantity = new_qty
+            # 同批号补货按加权平均成本，不能用新进价重估旧库存（会改写历史成本、COGS 与期末估值）
+            batch.unit_price = (
+                (old_cost * before + float(it.unit_price) * float(it.quantity)) / new_qty
+                if new_qty else float(it.unit_price)
+            )
             if it.expiry_date:
                 batch.expiry_date = it.expiry_date
             if it.location:
@@ -949,7 +972,11 @@ def report_turnover(
 
 @router.get("/report/supplier-price", response_model=list[SupplierPriceRow], summary="供应商比价(同物品不同批次进价)")
 def report_supplier_price(db: Session = Depends(get_db)):
-    batches = db.query(StockBatch).filter(StockBatch.supplier_id.isnot(None), StockBatch.quantity > 0).all()
+    # last_cost 取「最近批次」：查询无序时遍历顺序不保证，会随机展示最早/最晚进价
+    batches = (db.query(StockBatch)
+               .filter(StockBatch.supplier_id.isnot(None), StockBatch.quantity > 0)
+               .order_by(StockBatch.purchase_date, StockBatch.id)
+               .all())
     names = {i.id: (i.name, i.unit) for i in db.query(StockItem).all()}
     suppliers = {s.id: s.name for s in db.query(Supplier).all()}
     agg: dict[tuple, dict] = {}

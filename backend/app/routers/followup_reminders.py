@@ -31,8 +31,19 @@ def create_reminder(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if not db.query(Patient).filter(Patient.id == data.patient_id).first():
+    if not db.query(Patient).filter(
+        Patient.id == data.patient_id, Patient.deleted_at.is_(None)
+    ).first():
         raise HTTPException(status_code=404, detail="患者不存在")
+    # 同一患者 + 同一应回访日期 + 同一来源的待办只保留一条，避免重复点击/重试把工作台待办刷满
+    existing = db.query(FollowUpReminder).filter(
+        FollowUpReminder.patient_id == data.patient_id,
+        FollowUpReminder.due_date == data.due_date,
+        FollowUpReminder.source_type == data.source_type,
+        FollowUpReminder.status == "pending",
+    ).first()
+    if existing:
+        return _serialize(existing)
     r = FollowUpReminder(
         patient_id=data.patient_id,
         due_date=data.due_date,

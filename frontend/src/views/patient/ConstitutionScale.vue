@@ -285,10 +285,17 @@ async function submitScale() {
       if (answers.value[q.key]) payloadAnswers[q.key] = answers.value[q.key]
       else if ((notes.value[q.key] || '').trim()) payloadAnswers[q.key] = 'custom'
     }
-    const endpoint = patientId.value ? `/patients/${patientId.value}/constitution` : '/diagnosis/analyze'
-    const res = await api.post<Record<string, unknown>>(endpoint, { answers: payloadAnswers, notes: notes.value })
+    // /diagnosis/analyze 不接受 answers/notes，未选患者时提交会静默丢弃全部答案并给出空白结果
+    if (!patientId.value) {
+      ElMessage.warning('请先选择患者，评估结果需要归档到病历')
+      submitting.value = false
+      return
+    }
+    const res = await api.post<Record<string, unknown>>(
+      `/patients/${patientId.value}/constitution`, { answers: payloadAnswers, notes: notes.value }
+    )
     result.value = res
-    ElMessage.success(patientId.value ? '评估完成，已存入病历' : '评估完成')
+    ElMessage.success('评估完成，已存入病历')
   } catch (e: any) {
     ElMessage.error('评估失败：' + (e?.response?.data?.detail || e?.message || '请确认后端已重启且患者存在'))
   }

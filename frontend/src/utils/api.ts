@@ -50,15 +50,24 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+// 同一错误在全局拦截器与组件 catch 中重复弹出时做短窗口去重，避免一次失败弹两条提示
+let lastErrorToast = { msg: '', at: 0 }
+function showErrorToast(msg: string) {
+  const now = Date.now()
+  if (msg === lastErrorToast.msg && now - lastErrorToast.at < 800) return
+  lastErrorToast = { msg, at: now }
+  ElMessage.error(msg)
+}
+
 // 响应拦截
 api.interceptors.response.use(
   (response) => response.data,
   (error) => {
     const cfg = error.config
     const status = error.response?.status
-    const isAuthCall = cfg?.url?.includes('/auth/')
+    const isPublicCall = cfg?.url?.includes('/auth/') || cfg?.url?.includes('/config/public')
     // 401 未登录/过期 → 清理登录态（localStorage + axios 头 + Pinia）并跳转登录页
-    if (status === 401 && !isAuthCall) {
+    if (status === 401 && !isPublicCall) {
       localStorage.removeItem('tcm_user')
       delete api.defaults.headers.common['Authorization']
       // 同步清理 Pinia 内存登录态（通过总线，避免循环依赖）
@@ -81,7 +90,7 @@ api.interceptors.response.use(
       if (msg.includes('修改初始密码')) {
         return Promise.reject(error)
       }
-      ElMessage.error(msg)
+      showErrorToast(msg)
     }
     return Promise.reject(error)
   }

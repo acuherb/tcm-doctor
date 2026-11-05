@@ -490,7 +490,7 @@ function onVisitTypeChange(t: string) {
 }
 
 const form = ref({
-  visit_date: new Date().toISOString().slice(0, 10),
+  visit_date: new Date().toLocaleDateString('sv-SE'),
   visit_type: '初诊',
   chief_complaint: '',
   present_illness: '',

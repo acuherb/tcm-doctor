@@ -149,7 +149,7 @@
     <div class="visit-actions">
       <el-button v-if="editable" link type="success" size="small" @click="$emit('add-followup', visit)">+ 随访</el-button>
       <el-button link type="primary" size="small" @click="$emit('view', visit)">查看就诊详情</el-button>
-      <el-button link type="warning" size="small" @click="$emit('edit', visit.id)">完善/编辑</el-button>
+      <el-button v-if="editable" link type="warning" size="small" @click="$emit('edit', visit.id)">完善/编辑</el-button>
     </div>
   </el-card>
 </template>

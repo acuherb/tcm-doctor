@@ -175,7 +175,7 @@ def _next_queue_no(db: Session, day: str) -> int:
         .filter(
             Visit.registered_at.isnot(None),
             Visit.registered_at >= day + " 00:00:00",
-            Visit.registered_at < day + " 23:59:59",
+            Visit.registered_at <= day + " 23:59:59.999999",
         )
         .first()
     )
@@ -267,7 +267,9 @@ def register(
             # 1) 解析患者
             patient = None
             if payload.patient_id:
-                patient = db.query(Patient).filter(Patient.id == payload.patient_id).first()
+                patient = db.query(Patient).filter(
+                    Patient.id == payload.patient_id, Patient.deleted_at.is_(None)
+                ).first()
                 if not patient:
                     raise HTTPException(status_code=404, detail="患者不存在")
             elif payload.new_patient:
@@ -347,7 +349,7 @@ def queue(
         .filter(
             Visit.registered_at.isnot(None),
             Visit.registered_at >= day + " 00:00:00",
-            Visit.registered_at < day + " 23:59:59",
+            Visit.registered_at <= day + " 23:59:59.999999",
         )
     )
     if status:

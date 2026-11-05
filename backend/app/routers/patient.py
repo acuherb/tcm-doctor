@@ -157,7 +157,7 @@ def create_patient(data: PatientCreate, current_user: User = Depends(get_current
 
 @router.get("/{patient_id}", response_model=PatientResponse, summary="患者详情")
 def get_patient(patient_id: int, db: Session = Depends(get_db)):
-    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    patient = db.query(Patient).filter(Patient.id == patient_id, Patient.deleted_at.is_(None)).first()
     if not patient or patient.deleted_at is not None:
         raise HTTPException(status_code=404, detail="患者不存在")
     return patient
@@ -217,7 +217,7 @@ def export_medical_record(
 
 @router.put("/{patient_id}", response_model=PatientResponse, summary="更新患者")
 def update_patient(patient_id: int, data: PatientUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    patient = db.query(Patient).filter(Patient.id == patient_id, Patient.deleted_at.is_(None)).first()
     if not patient or patient.deleted_at is not None:
         raise HTTPException(status_code=404, detail="患者不存在")
     for key, value in data.model_dump(exclude_unset=True).items():
@@ -229,7 +229,7 @@ def update_patient(patient_id: int, data: PatientUpdate, current_user: User = De
 
 @router.delete("/{patient_id}", summary="删除患者（软删除，保留医疗记录）")
 def delete_patient(patient_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    patient = db.query(Patient).filter(Patient.id == patient_id, Patient.deleted_at.is_(None)).first()
     if not patient:
         raise HTTPException(status_code=404, detail="患者不存在")
     if patient.deleted_at is not None:
@@ -261,7 +261,7 @@ def list_visits(patient_id: int, db: Session = Depends(get_db)):
 
 @router.post("/{patient_id}/visits", response_model=VisitResponse, summary="新增就诊记录")
 def create_visit(patient_id: int, data: VisitCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    patient = db.query(Patient).filter(Patient.id == patient_id, Patient.deleted_at.is_(None)).first()
     if not patient:
         raise HTTPException(status_code=404, detail="患者不存在")
     visit = Visit(patient_id=patient_id, **data.model_dump())
@@ -319,7 +319,7 @@ def update_visit(
 
 @router.post("/{patient_id}/constitution", response_model=ConstitutionResult, summary="提交体质辨识")
 def submit_constitution(patient_id: int, data: ConstitutionSubmit, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    patient = db.query(Patient).filter(Patient.id == patient_id, Patient.deleted_at.is_(None)).first()
     if not patient:
         raise HTTPException(status_code=404, detail="患者不存在")
 
@@ -372,7 +372,7 @@ def get_inquiries(
     visit_id: int | None = Query(None, description="按就诊过滤，用于二次编辑回填报错"),
     db: Session = Depends(get_db),
 ):
-    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    patient = db.query(Patient).filter(Patient.id == patient_id, Patient.deleted_at.is_(None)).first()
     if not patient:
         raise HTTPException(status_code=404, detail="患者不存在")
     q = db.query(InquiryRecord).filter(InquiryRecord.patient_id == patient_id)
@@ -383,7 +383,7 @@ def get_inquiries(
 
 @router.get("/{patient_id}/constitution", response_model=ConstitutionResult | None, summary="获取体质报告")
 def get_constitution(patient_id: int, db: Session = Depends(get_db)):
-    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    patient = db.query(Patient).filter(Patient.id == patient_id, Patient.deleted_at.is_(None)).first()
     if not patient:
         raise HTTPException(status_code=404, detail="患者不存在")
     if not patient.constitution_type:
@@ -413,7 +413,7 @@ def get_constitution(patient_id: int, db: Session = Depends(get_db)):
 
 @router.get("/{patient_id}/followups", response_model=list[FollowUpResponse], summary="病情跟踪列表")
 def list_followups(patient_id: int, db: Session = Depends(get_db)):
-    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    patient = db.query(Patient).filter(Patient.id == patient_id, Patient.deleted_at.is_(None)).first()
     if not patient:
         raise HTTPException(status_code=404, detail="患者不存在")
     return db.query(FollowUp).filter(FollowUp.patient_id == patient_id).order_by(FollowUp.followup_date.desc()).all()
@@ -421,7 +421,7 @@ def list_followups(patient_id: int, db: Session = Depends(get_db)):
 
 @router.post("/{patient_id}/followups", response_model=FollowUpResponse, summary="新增病情跟踪")
 def create_followup(patient_id: int, data: FollowUpCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    patient = db.query(Patient).filter(Patient.id == patient_id, Patient.deleted_at.is_(None)).first()
     if not patient:
         raise HTTPException(status_code=404, detail="患者不存在")
     fu = FollowUp(patient_id=patient_id, **data.model_dump())

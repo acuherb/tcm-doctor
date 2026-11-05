@@ -51,12 +51,12 @@
         type="warning"
         :closable="false"
         show-icon
-        :title="`有 ${unknownCount} 味药不在药材字典中，仍可带入，请核对或先维护字典`"
+        :title="`有 ${unknownCount} 味药不在药材字典中，无法带入处方；请先在药材字典中维护后再导入`"
       />
     </div>
     <template #footer>
       <el-button @click="emit('close')">取消</el-button>
-      <el-button type="primary" @click="onConfirm">生成处方并带入</el-button>
+      <el-button type="primary" :disabled="!!unknownCount" @click="onConfirm">生成处方并带入</el-button>
     </template>
   </el-dialog>
 </template>

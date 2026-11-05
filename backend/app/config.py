@@ -1,8 +1,13 @@
 """应用配置管理"""
 import sys
 import os
+import secrets
 import subprocess
+from pathlib import Path
 from pydantic_settings import BaseSettings
+
+# 旧版本随源码公开的默认签名常量：仅用于校验存量处方签名，不再用于新签发
+LEGACY_SIGNING_SECRET = "tcm-doctor-default-signing-secret"
 
 
 # 容器内统一数据目录：数据库与 .env 配置都落在此处，挂载该目录即可持久化。
@@ -30,6 +35,29 @@ def resolve_env_path() -> "Path":
     """统一解析 .env 路径（兼顾 PyInstaller frozen / DATA_DIR / 开发三场景），供 main.py 等复用，避免重复实现导致构建不一致。"""
     from pathlib import Path
     return Path(_get_env_file())
+
+
+def get_signing_secret() -> str:
+    """本实例签名密钥：优先 TCM_SIGNING_SECRET，否则首次启动生成随机值并持久化到数据目录。
+
+    密钥文件不随数据库备份导出；仅当数据目录不可写时回退到旧公开常量（兼容只读部署）。
+    """
+    configured = (settings.signing_secret or "").strip()
+    if configured:
+        return configured
+    key_path = resolve_env_path().parent / ".signing_key"
+    try:
+        if key_path.exists():
+            saved = key_path.read_text(encoding="utf-8").strip()
+            if saved:
+                return saved
+        key = secrets.token_hex(32)
+        fd = os.open(str(key_path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(key)
+        return key
+    except OSError:
+        return LEGACY_SIGNING_SECRET
 
 
 class Settings(BaseSettings):
@@ -80,7 +108,8 @@ class Settings(BaseSettings):
 
     # 处方电子签名密钥：绑定「内容哈希 + 签名医师 + 签名时间」生成签名令牌，
     # 校验签名/防篡改时复用；生产环境请通过环境变量 TCM_SIGNING_SECRET 覆盖为强随机值。
-    signing_secret: str = "tcm-doctor-default-signing-secret"
+    # 留空表示使用 get_signing_secret() 生成/读取的实例密钥，避免随源码公开的默认常量
+    signing_secret: str = ""
 
     # 备份加密口令：设置后，自动备份/手动导出/恢复均按 Fernet 加密（文件内含魔数标记，
     # 旧明文备份仍可正常恢复，向后兼容）。未设置则不加密（默认，避免遗忘口令导致不可恢复）。

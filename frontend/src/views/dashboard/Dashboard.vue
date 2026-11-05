@@ -289,7 +289,7 @@ async function renderVisitChart() {
 onMounted(() => { void loadDashboard(); void checkSetup() })
 
 // 主题切换后重绘图表（ECharts 读不到 CSS 变量，必须重新取色）
-onThemeChange(() => {
+const offThemeChange = onThemeChange(() => {
   const primary = themeVar('--tcm-primary') || '#8B4513'
   statCards.value[0].color = primary
   quickActions.value[0].color = primary
@@ -298,6 +298,7 @@ onThemeChange(() => {
   renderVisitChart()
 })
 onUnmounted(() => {
+  offThemeChange()
   if (chartResizeHandler) window.removeEventListener('resize', chartResizeHandler)
   visitChart?.dispose()
   visitChart = null

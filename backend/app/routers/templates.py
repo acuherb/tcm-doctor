@@ -40,6 +40,9 @@ def export_type(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # 内容库全量导出属管理操作；模板清单/基础数据包安装仍对所有登录账号开放
+    if not has_perm(current_user, "system:write"):
+        raise HTTPException(status_code=403, detail="仅管理员可导出内容库数据")
     if type_ not in TEMPLATE_TYPES:
         raise HTTPException(status_code=404, detail="未知模板类型")
     data = export_template(db, type_)
@@ -54,7 +57,7 @@ def export_type(
 
 @router.post("/import", summary="导入模板（上传 JSON 或 使用内置模板）")
 async def import_type(
-    type_: str = Query(..., description="模板类型：herbs/classic_formulas/acupoint_formulas/acupoints/knowledge"),
+    type_: str = Query(..., alias="type", description="模板类型：herbs/classic_formulas/acupoint_formulas/acupoints/knowledge"),
     use_bundled: bool = Query(False, description="true 时导入内置模板文件（忽略上传文件）"),
     dry_run: bool = Query(False, description="true 时仅预检，返回新增/更新/跳过计数，不写入"),
     file: UploadFile = File(None),

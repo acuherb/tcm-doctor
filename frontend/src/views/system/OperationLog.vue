@@ -253,7 +253,7 @@ async function exportCsv() {
     const url = window.URL.createObjectURL(new Blob([res]))
     const link = document.createElement('a')
     link.href = url
-    link.download = `operation_logs_${new Date().toISOString().slice(0, 10)}.csv`
+    link.download = `operation_logs_${new Date().toLocaleDateString('sv-SE')}.csv`
     link.click()
     window.URL.revokeObjectURL(url)
     ElMessage.success('已导出 CSV')

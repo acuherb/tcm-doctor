@@ -13,6 +13,9 @@ _IDCARD_RE = re.compile(r"(?<!\d)(\d{17}[\dXx])(?!\d)")
 def _mask_sensitive(text: str | None) -> str | None:
     if not text:
         return text
+    # 422 校验错误的 detail 是 list（非 str），此处必须容错，否则后台审计任务抛 TypeError、日志整条丢失
+    if not isinstance(text, str):
+        text = str(text)
     text = _PHONE_RE.sub(lambda m: m.group(1)[:3] + "****" + m.group(1)[-4:], text)
     text = _IDCARD_RE.sub(lambda m: m.group(1)[:6] + "********" + m.group(1)[-4:], text)
     return text

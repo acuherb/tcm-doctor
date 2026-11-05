@@ -8,10 +8,13 @@ import { applyTheme, isThemeKey } from '@/utils/theme'
 // 登录态就绪后同步服务端界面风格（多终端统一）；失败静默，沿用本地已应用主题
 async function syncTheme() {
   try {
-    const res = await api.get<AppConfig>('/config', { silent: true })
-    if (res.ui_theme && isThemeKey(res.ui_theme)) applyTheme(res.ui_theme)
+    // 用户主动切过的主题优先，避免每次登录/刷新被服务端默认风格覆盖；
+    // 未登录时该端点同样可读（仅品牌字段），普通账号不会再拿到 403。
+    if (localStorage.getItem('tcm-theme')) return
+    const res = await api.get<AppConfig>('/config/public', { silent: true })
+    if (res.ui_theme && isThemeKey(res.ui_theme)) applyTheme(res.ui_theme, false)
   } catch {
-    /* 无权限或后端不可用 */
+    /* 后端不可用时沿用本地主题 */
   }
 }
 
@@ -35,13 +38,22 @@ const DOMAIN_WRITE: Record<string, string | null> = {
 
 const USER_KEY = 'tcm_user'
 
+function readStoredUser(): TcmUser | null {
+  try {
+    const raw = localStorage.getItem(USER_KEY)
+    return raw ? (JSON.parse(raw) as TcmUser) : null
+  } catch {
+    // localStorage 被手工篡改/截断时不能让整个应用白屏
+    localStorage.removeItem(USER_KEY)
+    return null
+  }
+}
+
 export const useAuthStore = defineStore('auth', () => {
   // 会话凭证双轨：内存令牌（登录时 authorize 写入，供 axios 自动加 Bearer 头）+ 后端下发的 httpOnly + SameSite=Lax 会话 Cookie（刷新后由浏览器自动携带，XSS 无法读取）。
   // 二者任一有效即可通过后端鉴权。非凭证的用户快照仍缓存于 localStorage，仅为刷新后即时恢复 UI 状态，并非会话凭证本身。
   const token = ref<string>('')
-  const user = ref<TcmUser | null>(
-    JSON.parse(localStorage.getItem(USER_KEY) || 'null')
-  )
+  const user = ref<TcmUser | null>(readStoredUser())
 
   // 登录态以「已校验的用户快照」为准：localStorage 中的 user 在刷新后被重新加载，
   // 且 restore() 会用 Cookie/内存令牌调用 /auth/me 校验其有效性，无效则清空。

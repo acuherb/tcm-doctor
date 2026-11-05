@@ -398,7 +398,8 @@ function todayStr(): string {
 async function loadSuppliers() {
   try {
     const r = await api.get('/stock/suppliers')
-    supplierOptions.value = Array.isArray(r.data) ? r.data : (r.data?.items || [])
+    // api.ts 的响应拦截器已解包 response.data，r 本身就是数组
+    supplierOptions.value = Array.isArray(r) ? r : ((r as any)?.items || [])
   } catch { supplierOptions.value = [] }
 }
 

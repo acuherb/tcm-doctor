@@ -993,7 +993,7 @@ function openFollowupDialog(fu?: any, visit?: any) {
   } else {
     followupForm.value = {
       id: null,
-      followup_date: new Date().toISOString().slice(0, 10),
+      followup_date: new Date().toLocaleDateString('sv-SE'),
       treatment_type: '',
       improvement: '',
       feedback: '',

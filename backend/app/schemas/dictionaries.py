@@ -17,6 +17,7 @@ class DictTermCreate(BaseModel):
     pulse_type: str | None = Field(None, description="脉类(仅 pulse)")
     clinical_meaning: str | None = Field(None, description="临床主病(仅 pulse)")
     color: str | None = Field(None, description="自定义颜色(HEX)，用于标签/词条着色")
+    is_active: bool = Field(True, description="是否启用（新建与编辑行为一致）")
 
 
 class DictTermUpdate(BaseModel):

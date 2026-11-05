@@ -129,6 +129,8 @@ class PrescriptionResponse(BaseModel):
     treatment_frequency: str | None = None
     treatment_days: int | None = None
     acupuncture_fee: float | None = None
+    # 医生指定的复诊日期（由自动生成的随访提醒回填，编辑时回显避免被重算覆盖）
+    follow_up_date: str | None = None
     status: str
     reviewed_by: int | None
     # 收费状态快照（列表/详情批量回填，供前端收敛「收费」按钮）

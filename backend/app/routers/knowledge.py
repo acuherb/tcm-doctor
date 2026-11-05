@@ -9,8 +9,21 @@ from app.database import get_db
 from app.models.knowledge import KnowledgeEntry
 from app.routers.auth import get_current_user
 from app.models.user import User
+from app.permissions import has_perm
 
 logger = logging.getLogger(__name__)
+
+
+def _sync_vector_index(db: Session) -> None:
+    """知识条目增删改后同步向量索引（语义检索未启用时静默跳过）。
+
+    rebuild 会先清空旧集合再重建，保证删除/改名后的内容不再被 RAG 命中。
+    """
+    try:
+        from app.services import vector_store
+        vector_store.rebuild_from_knowledge_db(db)
+    except Exception as e:
+        logger.warning("知识库向量索引同步失败: %s", e)
 
 router = APIRouter(prefix="/knowledge", tags=["知识库"])
 
@@ -101,18 +114,7 @@ def create_entry(
     db.commit()
     db.refresh(entry)
 
-    # 同步到向量库
-    try:
-        from app.services.vector_store import vector_store
-        vector_store.add_documents([{
-            "id": f"entry_{entry.id}",
-            "title": entry.title,
-            "content": entry.content,
-            "category": entry.category,
-            "metadata": {"source": entry.source or ""},
-        }])
-    except Exception as e:
-        logger.warning("知识条目向量同步失败(id=%s): %s", entry.id, e)
+    _sync_vector_index(db)
 
     return {"id": entry.id, "title": entry.title}
 
@@ -151,6 +153,7 @@ def update_entry(
     entry.tags = tags
     db.commit()
     db.refresh(entry)
+    _sync_vector_index(db)
     return {"id": entry.id, "title": entry.title}
 
 
@@ -170,6 +173,7 @@ def batch_delete_entry(
     for e in rows:
         db.delete(e)
     db.commit()
+    _sync_vector_index(db)
     return {"deleted": len(rows), "ids": deleted_ids}
 
 
@@ -187,6 +191,7 @@ def delete_entry(
         raise HTTPException(status_code=404, detail="条目不存在")
     db.delete(entry)
     db.commit()
+    _sync_vector_index(db)
     return {"message": "已删除", "id": entry_id}
 
 
@@ -259,6 +264,7 @@ def import_knowledge(
             ))
             added += 1
     db.commit()
+    _sync_vector_index(db)
     return {"added": added, "updated": updated, "total": added + updated}
 
 

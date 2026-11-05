@@ -8,6 +8,7 @@
  */
 import { spawn, ChildProcess } from 'child_process'
 import * as http from 'http'
+import * as net from 'net'
 import * as path from 'path'
 import { app } from 'electron'
 
@@ -29,7 +30,8 @@ function getPythonCommand(): { cmd: string; args: string[] } {
     // 开发模式：使用系统 Python 运行 uvicorn
     const backendDir = path.resolve(__dirname, '..', 'backend')
     return {
-      cmd: 'python',
+      // Debian/macOS 上通常只有 python3；Windows 安装器多为 python
+      cmd: process.platform === 'win32' ? 'python' : 'python3',
       args: ['-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', String(8765)],
     }
   }
@@ -75,7 +77,20 @@ function waitForBackend(port: number, maxRetries = 20, interval = 500): Promise<
 /**
  * 启动 FastAPI 后端
  */
+/** 端口是否已被其它进程占用：避免健康检查命中别人启动的实例而「串库」。 */
+function isPortOccupied(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const server = net.createServer()
+    server.once('error', () => resolve(true))
+    server.once('listening', () => server.close(() => resolve(false)))
+    server.listen(port, '127.0.0.1')
+  })
+}
+
 export async function startPythonBackend(port: number): Promise<void> {
+  if (await isPortOccupied(port)) {
+    throw new Error(`端口 ${port} 已被占用，请先关闭占用进程或改用其它端口`)
+  }
   const { cmd, args } = getPythonCommand()
   const isPackaged = app.isPackaged
 

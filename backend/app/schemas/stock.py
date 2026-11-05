@@ -78,6 +78,7 @@ class StockBatchResponse(StockBatchBase):
     item_name: str | None = None
     unit: str = "g"
     herb_id: int | None = None  # 关联药材(仅中药物品)；前端按药材筛批次时使用
+    sell_price: float | None = None  # 物品默认售价；前端「按批次取价」据此回填单价
 
     model_config = {"from_attributes": True}
 

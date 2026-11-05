@@ -29,7 +29,7 @@
 docker run -d --name tcm-doctor -p 8765:8765 \
   -e HOST=0.0.0.0 -e PORT=8765 \
   -e DATABASE_URL=sqlite:////data/tcm_doctor.db \
-  -e SECRET_KEY=please-change-this-secret \
+  -e TCM_SIGNING_SECRET="$(openssl rand -hex 32)" \
   -e ALLOW_GUEST_LOGIN=true \
   -v tcm_data:/data \
   --restart unless-stopped \
@@ -42,7 +42,8 @@ docker run -d --name tcm-doctor -p 8765:8765 \
 |------|------|
 | `HOST` / `PORT` | 容器内必须 `0.0.0.0`，端口 `8765` |
 | `DATABASE_URL` | 建议指向挂载卷，如 `sqlite:////data/tcm_doctor.db` |
-| `SECRET_KEY` | 请改为随机字符串 |
+| `TCM_SIGNING_SECRET` | 处方签名密钥，请设为强随机值；留空时后端会在数据目录生成实例密钥 |
+| `TCM_BACKUP_PASSPHRASE` | 备份加密口令，留空表示明文快照；口令丢失将无法恢复备份 |
 | `ALLOW_GUEST_LOGIN` | `true` 允许游客免密浏览 |
 | `ENABLE_SEMANTIC_SEARCH` | `false`（关键词检索，轻量）；改 `true` 需镜像含 chromadb（见下） |
 | `DEEPSEEK_API_KEY` | 填入后启用 AI 智能辨证；留空则 AI 功能不可用，但录入/浏览正常 |

@@ -96,7 +96,8 @@ def list_charges(
     if start_date:
         q = q.filter(Charge.created_at >= start_date)
     if end_date:
-        q = q.filter(Charge.created_at < end_date + " 23:59:59")
+        # created_at 带微秒，用 .999999 上界才不会漏掉当日 23:59:59.xxx 的单据
+        q = q.filter(Charge.created_at <= end_date + " 23:59:59.999999")
     total = q.count()
     items = (
         q.order_by(Charge.created_at.desc())
@@ -200,7 +201,8 @@ def charge_stats(
     if start_date:
         q = q.filter(Charge.created_at >= start_date)
     if end_date:
-        q = q.filter(Charge.created_at < end_date + " 23:59:59")
+        # created_at 带微秒，用 .999999 上界才不会漏掉当日 23:59:59.xxx 的单据
+        q = q.filter(Charge.created_at <= end_date + " 23:59:59.999999")
     charges = q.all()
     paid_amount = Decimal("0.00")
     refunded_amount = Decimal("0.00")

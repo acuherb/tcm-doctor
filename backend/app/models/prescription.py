@@ -6,7 +6,7 @@ from sqlalchemy import String, Text, DateTime, Boolean, Integer, Numeric, JSON, 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
-from app.config import settings
+from app.config import settings, get_signing_secret, LEGACY_SIGNING_SECRET
 
 
 class ClassicFormula(Base):
@@ -194,9 +194,11 @@ class Prescription(Base):
         """
         if not self.signed:
             return False
-        return self.signature == compute_signature(
-            self.content_hash, self.signed_by, (self.signed_at.isoformat() if self.signed_at else ""), settings.signing_secret
-        )
+        args = (self.content_hash, self.signed_by, (self.signed_at.isoformat() if self.signed_at else ""))
+        if self.signature == compute_signature(*args, get_signing_secret()):
+            return True
+        # 兼容旧版本用公开默认常量签发的存量处方，避免升级后签名集体失效
+        return self.signature == compute_signature(*args, LEGACY_SIGNING_SECRET)
 
     def __repr__(self):
         return f"<Prescription(id={self.id}, formula='{self.formula_name}', status='{self.status}')>"

@@ -84,6 +84,13 @@ class Charge(Base):
             unique=True,
             sqlite_where=text("kind = 'prescription' AND status IN ('待收费', '已收费')"),
         ),
+        # 挂号费等非处方收费：同一次就诊同一类型只允许一笔在账，由数据库兜底并发重复开单
+        Index(
+            "uq_charges_visit_kind_active", "visit_id", "kind",
+            unique=True,
+            sqlite_where=text("prescription_id IS NULL AND visit_id IS NOT NULL "
+                              "AND kind <> 'prescription' AND status IN ('待收费', '已收费')"),
+        ),
     )
 
     def __repr__(self):

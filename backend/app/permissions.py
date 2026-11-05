@@ -155,6 +155,10 @@ def has_read(path: str, user) -> bool:
     """该账号能否读取该路径（user 为 User 对象）。"""
     if user is None:
         return False
+    # /auth 账号域由路由内 _require_perm 精确校验；中间件只负责登录态/强制改密/游客禁用。
+    # 这里若按未登记域 fail-closed，会把 /auth/users 等接口整段拒绝。
+    if _strip_api_prefix(path).startswith("/auth"):
+        return True
     domain = resolve_domain(path)
     if domain is None:
         # 未登记路径默认拒绝（fail-closed），与 has_write 一致；
@@ -170,6 +174,8 @@ def has_write(path: str, user) -> bool:
     """该账号能否写该路径。"""
     if user is None:
         return False
+    if _strip_api_prefix(path).startswith("/auth"):
+        return True  # 同 has_read：账号写操作由路由内 _require_perm("user:write") 兜底
     domain = resolve_domain(path)
     if domain is None:
         # 未登记路径默认拒绝写入（安全默认）

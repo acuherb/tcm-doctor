@@ -914,6 +914,8 @@ function applyPrescription(p: any) {
   f.acupoint_technique = p.acupoint_technique || ''
   f.treatment_frequency = p.treatment_frequency || ''
   f.treatment_days = p.treatment_days ?? null
+  // 回显医生指定的复诊日期，避免编辑保存时传空串导致按疗程重算覆盖
+  f.follow_up_date = p.follow_up_date || ''
   f.acupuncture_fee = p.acupuncture_fee ?? null
   f.items = ((p.items || []) as unknown as PrescriptionItem[]).map((i: PrescriptionItem) => ({
     herb_id: i.herb_id, herb_name: i.herb_name, dose: i.dose,
@@ -1084,7 +1086,8 @@ function applyStructuredFormula(f: any) {
   form.value.classic_formula_id = null
   if (f.preparation) form.value.preparation_method = f.preparation
   form.value.items = (f.herbs || []).map((h: any) => {
-    const doseNum = parseFloat(String(h.dose || '').replace(/[^\d.]/g, ''))
+    // 只取第一段数值："6~10g" 应解析为 6，旧写法去掉所有非数字会得到 610
+    const doseNum = parseFloat(String(h.dose || '').match(/[\d.]+/)?.[0] || '')
     const hit = h.herb_id ? herbCacheList.value.find((x: any) => x.id === h.herb_id) : null
     const herbName = hit ? hit.name : h.name
     return {

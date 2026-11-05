@@ -75,7 +75,7 @@ const clinicLogo = ref('')
 
 onMounted(async () => {
   try {
-    const res = await api.get<AppConfig>('/config')
+    const res = await api.get<AppConfig>('/config/public')
     clinicName.value = res.clinic_name?.trim() || ''
     clinicLogo.value = res.clinic_logo || ''
     applyBranding(clinicName.value, clinicLogo.value)

@@ -182,6 +182,7 @@ import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '@/utils/api'
 import { useAuthStore } from '@/store/auth'
+import { refreshDictColors } from '@/utils/dictColors'
 import type { DictionaryTerm } from '@/types'
 
 // 游客只读：隐藏所有写操作
@@ -425,6 +426,7 @@ async function save() {
     ElMessage.success('已保存')
     dialogVisible.value = false
     await loadTerms()
+    refreshDictColors()
   } catch {
     ElMessage.error('保存失败')
   }
@@ -439,6 +441,7 @@ async function remove(row: DictTerm) {
     await api.delete(`/dictionaries/${row.id}`)
     ElMessage.success('已删除')
     await loadTerms()
+    refreshDictColors()
   } catch {
     ElMessage.error('删除失败')
   }

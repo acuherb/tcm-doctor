@@ -81,13 +81,24 @@ export function useDictColors() {
       }
       colorMap.value = m
       loaded = true
-    }).catch(() => { loaded = true })
+    }).catch(() => {
+      // 失败不能封存缓存：否则后续所有颜色永远回退默认灰且不再重试
+      loaded = false
+      loadingPromise = null
+    })
   }
   // 取词条颜色：字典色优先，缺失回退默认色
   function termColor(name: string, termType: string, extra?: unknown): string {
     return colorMap.value[name] || defaultColorForType(termType, name, extra as Record<string, unknown> | undefined)
   }
-  return { colorMap, termColor }
+  return { colorMap, termColor, refreshDictColors }
+}
+
+/** 字典/基础数据包增删改后主动刷新共享颜色缓存，避免视图沿用首次加载的旧颜色 */
+export function refreshDictColors() {
+  loaded = false
+  loadingPromise = null
+  useDictColors()
 }
 
 // 库存「物品类别」自定义色：模块级缓存，全应用共享一次选项拉取

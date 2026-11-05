@@ -227,7 +227,7 @@ import type { RegistrationQueueItem } from '@/types'
 
 const router = useRouter()
 const methods = ['现金', '微信', '支付宝', '银行卡', '医保', '记账']
-const today = new Date().toISOString().slice(0, 10)
+const today = new Date().toLocaleDateString('sv-SE')
 
 // ── 挂号表单 ──
 const selectedPatientId = ref<number | null>(null)
@@ -334,10 +334,11 @@ async function loadPatientHistory(id: number) {
   try {
     const [visits, rx] = await Promise.all([
       api.get<any[]>(`/patients/${id}/visits`),
-      api.get<{ items: any[] }>('/prescriptions', { params: { patient_id: id, page: 1, page_size: 10 } }),
+      api.get<any[]>('/prescriptions', { params: { patient_id: id, limit: 10 } }),
     ])
     historyVisits.value = (visits || []).slice(0, 8)
-    historyRx.value = (rx?.items || []).slice(0, 8)
+    // 处方列表返回裸数组（不是 { items } 分页信封），这里需按实际形状解包
+    historyRx.value = (Array.isArray(rx) ? rx : (rx as any)?.items || []).slice(0, 8)
   } catch {
     historyVisits.value = []
     historyRx.value = []

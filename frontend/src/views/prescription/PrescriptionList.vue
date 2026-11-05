@@ -382,7 +382,7 @@ const router = useRouter()
 // 游客只读：隐藏所有写操作
 const auth = useAuthStore()
 const editable = computed(() => auth.canWrite('prescriptions'))
-const canCharge = computed(() => auth.can('billing:write'))
+const canCharge = computed(() => auth.can('billing:read') && auth.can('billing:write'))
 
 // ---- 移动端适配 ----
 const isMobile = ref(false)

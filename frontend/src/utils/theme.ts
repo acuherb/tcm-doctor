@@ -41,9 +41,11 @@ export function themeVars(names: string[]): Record<string, string> {
   return out
 }
 
-export function applyTheme(key: ThemeKey): void {
+export function applyTheme(key: ThemeKey, persist = true): void {
   document.documentElement.setAttribute('data-theme', key)
-  localStorage.setItem(STORAGE_KEY, key)
+  // 启动时套用默认主题不算「用户选择」，不要写入 localStorage；
+  // 否则登录态恢复时永远认为已有本地偏好，服务端配置的 ui_theme 就不会生效。
+  if (persist) localStorage.setItem(STORAGE_KEY, key)
   // 等样式重算完成后再通知，确保订阅方读到的变量已是新主题的值
   if (typeof requestAnimationFrame !== 'undefined') {
     requestAnimationFrame(() => {
@@ -64,5 +66,5 @@ export function isThemeKey(value: string): value is ThemeKey {
 }
 
 export function initTheme(): void {
-  applyTheme(getStoredTheme())
+  applyTheme(getStoredTheme(), false)
 }

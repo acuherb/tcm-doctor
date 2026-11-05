@@ -195,7 +195,7 @@ function unitOf(it: PurchaseItem) {
   return i ? i.unit : ''
 }
 function openCreate() {
-  form.supplier_id = null; form.order_date = new Date().toISOString().slice(0, 10)
+  form.supplier_id = null; form.order_date = new Date().toLocaleDateString('sv-SE')
   form.note = ''; form.items = []
   visible.value = true
 }

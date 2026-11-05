@@ -120,8 +120,9 @@ def test_void_dispensed_no_return_stock_keeps_stock(client, db_session, auth_hea
     assert rv.json()["status"] == "已取消"
     # 库存不回补（药已消耗/未退）
     assert float(_batch_qty(batch_id)) == float(before) - 20.0
-    # 不生成冲红流水
-    assert _void_txn_count(pres_id) == 0
+    # 药已交付患者：库存不回补，但仍需生成「只冲金额、不回数量」的冲红流水，
+    # 否则全额退费后报表仍把这笔记为已实现收入（见处方作废联动退费）。
+    assert _void_txn_count(pres_id) >= 1
 
 
 def test_void_not_dispensed_only_changes_status(client, db_session, auth_headers):

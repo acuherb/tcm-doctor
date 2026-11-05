@@ -47,10 +47,21 @@ def export_backup(
     if not os.path.exists(db_path):
         raise HTTPException(status_code=404, detail="数据库文件不存在")
 
-    # 复制到临时文件（避免锁定）
+    # 临时文件放数据库同目录：桌面版 CWD 是只读的安装目录，写 CWD 会直接 500
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    temp_path = os.path.join(os.getcwd(), f"tcm_backup_{timestamp}.db")
+    temp_path = os.path.join(os.path.dirname(os.path.abspath(db_path)), f"tcm_backup_{timestamp}.db")
     shutil.copy2(db_path, temp_path)
+    # 导出副本不携带会话令牌，避免备份文件外流即等于拿到管理员会话
+    try:
+        with sqlite3.connect(temp_path) as snap:
+            snap.execute("DELETE FROM auth_tokens")
+            snap.commit()
+    except sqlite3.OperationalError:
+        pass
+    try:
+        os.chmod(temp_path, 0o600)
+    except OSError:
+        pass
 
     # 启用备份加密时，导出文件一并加密（与自动备份一致），离线拷贝也受保护
     from app.services import backup_crypto
@@ -250,7 +261,8 @@ def run_auto_backup(current_user: User = Depends(get_current_user)):
         info = auto_backup.run_cycle(force=True)
     except Exception as e:
         logger.warning(f"手动触发自动备份失败: {e}")
-        raise HTTPException(status_code=500, detail=f"备份失败：{e}")
+        # 详情只写日志，不把服务器绝对路径/异常文本回显给客户端
+        raise HTTPException(status_code=500, detail="备份失败，请检查磁盘空间与数据目录权限")
     write_log(level="INFO", user_id=current_user.id, username=current_user.username,
               action="立即备份", endpoint="/api/v1/backup/auto/run", method="POST",
               status_code=200, success=True, message=f"生成快照 {info['name']}")
@@ -259,7 +271,8 @@ def run_auto_backup(current_user: User = Depends(get_current_user)):
 
 @router.get("/auto/download/{name}", summary="下载指定自动备份快照")
 def download_auto_backup(name: str, current_user: User = Depends(get_current_user)):
-    if not has_perm(current_user, "system:read"):
+    # 快照是整库（含患者数据），下载权限必须与手动导出一致；只读账号不应能取得全库副本
+    if not has_perm(current_user, "system:write"):
         raise HTTPException(status_code=403, detail="无权下载数据备份")
     if not AUTO_BACKUP_NAME_RE.fullmatch(name):
         raise HTTPException(status_code=400, detail="非法备份文件名")

@@ -333,13 +333,14 @@ onMounted(() => {
 })
 
 // 主题切换后重绘全部图表
-onThemeChange(() => {
+const offThemeChange = onThemeChange(() => {
   renderVisitChart()
   renderHerbChart()
   if (activeTab.value === 'prescriptions') renderPrescriptionCharts()
 })
 
 onUnmounted(() => {
+  offThemeChange()
   if (resizeBound) {
     window.removeEventListener('resize', resizeAllCharts)
     resizeBound = false

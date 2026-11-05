@@ -158,6 +158,9 @@ def login(payload: LoginRequest, request: Request, response: Response, db: Sessi
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="用户名或密码错误")
 
     _login_fails.pop(fail_key, None)
+    # 游客账号只能走 /auth/guest 并受 ALLOW_GUEST_LOGIN 控制，避免关闭游客后仍可用密码登录
+    if user.username == "guest" and not settings.allow_guest_login:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="游客登录已禁用")
     if not getattr(user, "is_active", True):
         write_log(level="WARN", user_id=user.id, username=user.username, action="登录失败",
                   endpoint="/api/v1/auth/login", method="POST", status_code=403,
@@ -286,6 +289,9 @@ def create_user(
     db: Session = Depends(get_db),
 ):
     _require_perm(current_user, "user:write")
+    # role=admin 会把 is_admin 置真并绕过整个权限表，必须限定由超级管理员授予
+    if payload.role == ROLE_ADMIN and not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="仅超级管理员可创建管理员账号")
     if payload.role not in VALID_ROLES:
         raise HTTPException(status_code=400, detail="角色非法")
     username = payload.username.strip()
@@ -336,6 +342,9 @@ def update_user(
 
     revoke_tokens = False
     if payload.role is not None:
+        # 提升为管理员同样是 is_admin 置位，禁止 user:write 账号自提权或互相提权
+        if payload.role == ROLE_ADMIN and not current_user.is_admin:
+            raise HTTPException(status_code=403, detail="仅超级管理员可设置管理员角色")
         if payload.role not in VALID_ROLES:
             raise HTTPException(status_code=400, detail="角色非法")
         # 防止把最后一个可管理账号降级

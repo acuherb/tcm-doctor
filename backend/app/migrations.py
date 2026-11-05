@@ -953,6 +953,18 @@ def m0023() -> None:
         "note TEXT",
         "created_at DATETIME",
         "kind VARCHAR(20) NOT NULL DEFAULT 'prescription'",
+        # 保留 _sync_model_columns 已补进旧表的后续列，避免重建时丢掉退款/作废审计数据
+        *[
+            f"{name} {sqltype}"
+            for name, sqltype in (
+                ("overpaid", "NUMERIC(12,2) DEFAULT 0"),
+                ("refund_amount", "NUMERIC(12,2) DEFAULT 0"),
+                ("cancelled_by", "VARCHAR(50)"),
+                ("cancelled_at", "DATETIME"),
+                ("cancel_reason", "VARCHAR(200)"),
+            )
+            if any(c["name"] == name for c in cols)
+        ],
         "FOREIGN KEY(prescription_id) REFERENCES prescriptions(id) ON DELETE SET NULL",
     ]
     with engine.begin() as conn:
@@ -960,10 +972,16 @@ def m0023() -> None:
         # 只拷贝新表实际存在的列：_sync_model_columns 可能已先补入后续迁移才引入的列
         # （如 overpaid/refund_amount），直接全量 INSERT 会报 "no such column"。
         new_col_names = {c.split()[0] for c in new_cols}
-        col_list = ", ".join(c["name"] for c in cols if c["name"] in new_col_names)
+        col_names = [c["name"] for c in cols if c["name"] in new_col_names]
+        col_list = ", ".join(col_names)
+        # _sync_model_columns 在迁移前补出的 kind 为 NULL，直接插入新表 NOT NULL 列会中断启动；
+        # 历史收费单都是处方收费，统一按 prescription 回填。
+        select_list = ", ".join(
+            "COALESCE(kind, 'prescription')" if c == "kind" else c for c in col_names
+        )
         if has_kind:
             conn.execute(text(
-                f"INSERT INTO charges_new ({col_list}) SELECT {col_list} FROM charges"
+                f"INSERT INTO charges_new ({col_list}) SELECT {select_list} FROM charges"
             ))
         else:
             # 极端情况：sync 尚未补 kind（理论不会发生），旧行按 prescription 处理
@@ -1143,6 +1161,75 @@ def m0025() -> None:
             "ON charges(prescription_id) "
             "WHERE kind = 'prescription' AND status IN ('待收费', '已收费')"
         ))
+
+
+@migration(
+    "0026",
+    "挂号费在账唯一性 + 存量库索引/就诊状态回填",
+)
+def m0026() -> None:
+    """补齐 create_all 不会为存量表追加的部分：
+    1) 挂号费按 (visit_id, kind) 建部分唯一索引（先冲正历史重复，避免建索引失败阻断启动）；
+    2) 旧库由 _sync_model_columns 补出的 visits.status 为 NULL，回填「待诊」；
+    3) 补建模型 __table_args__ 中新增的索引。
+    """
+    import logging as _logging
+    log = _logging.getLogger(__name__)
+    insp = inspect(engine)
+    tables = set(insp.get_table_names())
+    active = "status IN ('待收费', '已收费')"
+    with engine.begin() as conn:
+        if "charges" in tables:
+            cols = {c["name"] for c in insp.get_columns("charges")}
+            if {"visit_id", "kind", "status", "prescription_id"} <= cols:
+                conn.execute(text("UPDATE charges SET kind = 'prescription' WHERE kind IS NULL"))
+                dups = conn.execute(text(
+                    "SELECT visit_id, kind, COUNT(*) FROM charges "
+                    "WHERE prescription_id IS NULL AND visit_id IS NOT NULL "
+                    f"AND kind <> 'prescription' AND {active} "
+                    "GROUP BY visit_id, kind HAVING COUNT(*) > 1"
+                )).fetchall()
+                has_note = "note" in cols
+                for vid, kind, _ in dups:
+                    ids = [r[0] for r in conn.execute(text(
+                        "SELECT id FROM charges WHERE prescription_id IS NULL AND visit_id = :v "
+                        f"AND kind = :k AND {active} ORDER BY id"
+                    ), {"v": vid, "k": kind}).fetchall()]
+                    for extra in ids[1:]:
+                        if has_note:
+                            conn.execute(text(
+                                "UPDATE charges SET status = '已取消', "
+                                "note = COALESCE(note, '') || '；重复挂号费开单自动冲正（迁移 0026）' "
+                                "WHERE id = :i"
+                            ), {"i": extra})
+                        else:
+                            conn.execute(text("UPDATE charges SET status = '已取消' WHERE id = :i"),
+                                         {"i": extra})
+                conn.execute(text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_charges_visit_kind_active "
+                    "ON charges(visit_id, kind) WHERE prescription_id IS NULL "
+                    f"AND visit_id IS NOT NULL AND kind <> 'prescription' AND {active}"
+                ))
+        if "visits" in tables:
+            if "status" in {c["name"] for c in insp.get_columns("visits")}:
+                conn.execute(text("UPDATE visits SET status = '待诊' WHERE status IS NULL OR status = ''"))
+            for ddl in (
+                "CREATE INDEX IF NOT EXISTS idx_visits_patient_date ON visits(patient_id, visit_date)",
+                "CREATE INDEX IF NOT EXISTS idx_visits_registered_at ON visits(registered_at)",
+                "CREATE INDEX IF NOT EXISTS idx_visits_status ON visits(status)",
+            ):
+                try:
+                    conn.execute(text(ddl))
+                except Exception as e:
+                    log.warning("m0026 补建索引失败（不影响其它迁移）: %s", e)
+        if "stock_transactions" in tables:
+            try:
+                conn.execute(text(
+                    "CREATE INDEX IF NOT EXISTS ix_stock_transactions_item_created "
+                    "ON stock_transactions(item_id, created_at)"
+                ))
+            except Exception as e:
+                log.warning("m0026 补建库存流水索引失败: %s", e)
 
 
 def run_migrations() -> None:

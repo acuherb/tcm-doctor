@@ -55,7 +55,7 @@
       <el-button @click="$emit('update:visible', false)">{{ activeCharge ? '完成' : '取消' }}</el-button>
       <el-button
         v-if="!activeCharge" type="warning"
-        :loading="charging" :disabled="checking || submitted" @click="submit"
+        :loading="charging" :disabled="checking || submitted || checkFailed" @click="submit"
       >确认收费</el-button>
     </template>
 
@@ -80,6 +80,7 @@ const paid = ref(0)
 const charging = ref(false)
 const submitted = ref(false)       // 本次已成功提交，禁止再次点击
 const checking = ref(false)
+const checkFailed = ref(false)  // 在账查询失败时不允许开单，避免重复收现金
 const existingCharge = ref<Charge | null>(null)
 const createdCharge = ref<Charge | null>(null)
 const receiptVisible = ref(false)
@@ -97,6 +98,7 @@ watch(() => props.visible, async (v) => {
   method.value = '现金'
   paid.value = 0
   submitted.value = false
+  checkFailed.value = false
   createdCharge.value = null
   existingCharge.value = null
   receiptVisible.value = false
@@ -110,6 +112,8 @@ watch(() => props.visible, async (v) => {
     ) || null
   } catch {
     existingCharge.value = null
+    checkFailed.value = true
+    ElMessage.error('无法确认是否已有在账收费单，请稍后重试')
   } finally {
     checking.value = false
     // 下一次 tick 才能拿到 payable（依赖 discount 已置 0）
@@ -118,7 +122,7 @@ watch(() => props.visible, async (v) => {
 })
 
 async function submit() {
-  if (!props.prescription?.id || submitted.value || activeCharge.value) return
+  if (!props.prescription?.id || submitted.value || activeCharge.value || checkFailed.value) return
   if (paid.value < payable.value - 1e-6) {
     ElMessage.warning('实收金额不能小于应付金额')
     return

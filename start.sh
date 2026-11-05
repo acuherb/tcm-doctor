@@ -30,7 +30,10 @@ if [ ! -f "backend/.env" ]; then
   cat > backend/.env <<'EOF'
 APP_NAME=tcm-doctor
 DATABASE_URL=sqlite:///./tcm_doctor.db
-SECRET_KEY=dev-secret-change-me
+# SECRET_KEY 是已废弃的死配置。签名密钥留空时后端会在数据目录生成随机实例密钥
+# （不随备份导出）；备份加密口令留空表示明文快照，生产环境务必配置强随机值。
+TCM_SIGNING_SECRET=
+TCM_BACKUP_PASSPHRASE=
 DEEPSEEK_API_KEY=
 HOST=127.0.0.1
 PORT=8765

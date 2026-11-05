@@ -18,6 +18,7 @@ class PatientCreate(BaseModel):
     allergy_history: str | None = Field(None, description="过敏史")
     medical_history: str | None = Field(None, description="既往史")
     notes: str | None = Field(None, description="备注")
+    tags: list[str] | None = Field(None, description="患者标签（建档时即可带上）")
 
 
 class PatientUpdate(BaseModel):
