@@ -330,6 +330,35 @@
         <el-button type="primary" @click="doPrint">打印</el-button>
       </template>
     </el-dialog>
+
+    <!-- 发药逐项核对 -->
+    <el-dialog v-model="dispenseDialogVisible" title="发药核对" width="560px" destroy-on-close>
+      <el-alert type="warning" :closable="false" show-icon
+        title="请逐项核对处方明细与实物一致后再发药，降低错发/漏发风险" />
+      <div v-if="dispenseTarget" class="dispense-check">
+        <div class="dispense-check__head">
+          <span>处方 #{{ dispenseTarget.id }}「{{ dispenseTarget.formula_name || '自拟方' }}」</span>
+          <el-checkbox :model-value="dispenseAllChecked" @update:model-value="toggleAllDispense">
+            全部核对
+          </el-checkbox>
+        </div>
+        <div v-for="grp in ['药味', '配穴', '针剂']" :key="grp">
+          <template v-if="dispenseItemList.some(x => x.group === grp)">
+            <div class="dispense-check__group">{{ grp }}</div>
+            <div v-for="x in dispenseItemList.filter(i => i.group === grp)" :key="x.key" class="dispense-check__row">
+              <el-checkbox v-model="dispenseChecks[x.key]">{{ x.label }}</el-checkbox>
+            </div>
+          </template>
+        </div>
+        <p v-if="dispenseItemList.length === 0" class="dispense-check__empty">该处方无明细</p>
+      </div>
+      <template #footer>
+        <el-button @click="dispenseDialogVisible = false">取消</el-button>
+        <el-button type="warning" :loading="dispensing" :disabled="!dispenseAllChecked" @click="confirmDispense">
+          确认发药（已核对 {{ dispenseItemList.filter(x => dispenseChecks[x.key]).length }}/{{ dispenseItemList.length }}）
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -447,17 +476,67 @@ async function reviewPrescription(row: any) {
   } catch {}
 }
 
-async function dispensePrescription(row: any) {
+// 发药逐项核对：列出处方全部明细（药味/配穴/针剂），逐项勾选确认后才发药，降低错发/漏发风险
+const dispenseDialogVisible = ref(false)
+const dispenseTarget = ref<any>(null)
+const dispenseChecks = ref<Record<string, boolean>>({})
+const dispensing = ref(false)
+
+const dispenseItemList = computed(() => {
+  const r = dispenseTarget.value
+  if (!r) return []
+  const list: Array<{ key: string; group: string; label: string }> = []
+  for (const it of (r.items || [])) {
+    list.push({ key: `herb-${it.id}`, group: '药味', label: `${it.herb_name} ${it.dose}${it.dose ? 'g' : ''}${it.special_method ? '（' + it.special_method + '）' : ''}` })
+  }
+  for (const a of (r.acupoints || [])) {
+    list.push({ key: `acu-${a.id}`, group: '配穴', label: `${a.acupoint_name}${a.technique ? ' · ' + a.technique : ''}` })
+  }
+  for (const j of (r.injections || [])) {
+    list.push({ key: `inj-${j.id}`, group: '针剂', label: `${j.drug_name}${j.dose ? ' ' + j.dose : ''}${j.usage ? ' · ' + j.usage : ''}` })
+  }
+  return list
+})
+
+const dispenseAllChecked = computed(() =>
+  dispenseItemList.value.length > 0 &&
+  dispenseItemList.value.every((x) => dispenseChecks.value[x.key])
+)
+
+function openDispenseDialog(row: any) {
+  dispenseTarget.value = row
+  const checks: Record<string, boolean> = {}
+  for (const x of dispenseItemList.value) checks[x.key] = false
+  dispenseChecks.value = checks
+  dispenseDialogVisible.value = true
+}
+
+function toggleAllDispense(val: boolean) {
+  const checks: Record<string, boolean> = {}
+  for (const x of dispenseItemList.value) checks[x.key] = val
+  dispenseChecks.value = checks
+}
+
+async function confirmDispense() {
+  const r = dispenseTarget.value
+  if (!r) return
+  if (!dispenseAllChecked.value) {
+    ElMessage.warning('请先逐项核对全部明细后再发药')
+    return
+  }
+  dispensing.value = true
   try {
-    await ElMessageBox.confirm(
-      `确认发药？将自动扣减库存。处方 #${row.id}「${row.formula_name || '自拟方'}」`,
-      '发药确认',
-      { confirmButtonText: '确认发药', cancelButtonText: '取消', type: 'warning' }
-    )
-    await api.put(`/prescriptions/${row.id}/dispense`)
+    await api.put(`/prescriptions/${r.id}/dispense`)
     ElMessage.success('发药成功，库存已扣减')
+    dispenseDialogVisible.value = false
     loadPrescriptions()
-  } catch {}
+  } catch {} finally {
+    dispensing.value = false
+  }
+}
+
+async function dispensePrescription(row: any) {
+  openDispenseDialog(row)
 }
 
 async function voidPrescription(row: any) {
@@ -523,6 +602,35 @@ onMounted(async () => {
 
 <style scoped lang="scss">
 .prescription-list {
+  .dispense-check {
+    margin-top: 12px;
+
+    &__head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    &__group {
+      font-size: 13px;
+      color: #8b5e34;
+      margin: 10px 0 4px;
+      border-left: 3px solid #d9a441;
+      padding-left: 8px;
+    }
+
+    &__row {
+      padding: 2px 0;
+    }
+
+    &__empty {
+      color: #999;
+      font-size: 13px;
+    }
+  }
+
   .main-card {
     :deep(.el-card__header) {
       padding: 14px 18px;
