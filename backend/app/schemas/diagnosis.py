@@ -32,6 +32,7 @@ class DiagnosisAnalyzeRequest(BaseModel):
     tongue_image: str | None = Field(None, description="舌象图片base64 data URL")
     face_image: str | None = Field(None, description="面色图片base64 data URL")
     lab_report_images: list[str] | None = Field(None, description="化验单/影像报告图片列表")
+    patient_id: int | None = Field(None, description="关联患者ID，用于向AI注入既往病史与疗效以供复诊对比")
 
 
 class DiagnosisChatResponse(BaseModel):

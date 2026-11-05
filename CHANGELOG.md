@@ -45,6 +45,28 @@
 - 用真实 `templates/releases/tcm-base-core.zip` 实跑：5 个文件 sha256 全通过、2217 条、顺序 `core → formulas → books`；
   只选 `formulas` 时自动补 `core`。
 
+## 2026-11-05（续）— AI 辨证读既往疗效 / 复诊对比
+
+### 决定
+评估中 P0 项：原 AI 辨证只把**当次**四诊拼进 prompt，完全忽略既往就诊、随访疗效与复诊对比。
+本次让 AI 在辨证时能看到该患者既往病历摘要，复诊时对比证型/舌脉变化、沿用有效思路、规避无效方案。
+
+### 改动
+- `backend/app/medical_record.py` 新增 `summarize_prior_history(record, max_visits=10, max_followups=8)`：
+  从 `build_record` 结果提炼「既往病史与疗效回顾」文本（不含图片、限条数，控制 token），逐诊列出主诉/病名证型治法/处方与药味、AI 辨证摘要，并附疗效随访（改善程度+反馈）。
+- `backend/app/services/ai_diagnosis_service.py`：
+  - `analyze` / `analyze_stream` 新增 `patient_id` 参数；`DiagnosisAnalyzeRequest` 增加 `patient_id` 字段。
+  - 复用 `build_record` 生成既往摘要，注入到四诊辨证 user_message 末尾，并附「复诊参考要求」（对比证型/舌脉/疗效趋势、沿用有效思路、规避既往无效/不适方案）。
+  - 对话式 `chat` / `chat_stream` 也把既往摘要作为系统上下文注入（已有 `patient_id`）。
+  - 无 API Key 的本地规则辨证分支同样罗列既往病史（明确标注未据此动态调整），保证未配置 Key 时功能也可见。
+  - 新增 `_prior_history_block` 共享方法，失败非关键忽略。
+- `backend/app/routers/diagnosis.py`：`/diagnosis/analyze` 与 `/analyze/stream` 透传 `patient_id`。
+- `frontend/src/views/patient/VisitRecord.vue`：辨证请求 payload 带上 `patient_id`，触发既往注入。
+
+### 验证
+- 后端新增 `tests/test_ai_prior_history.py`（4 项，含摘要内容、空记录、注入与无 patient_id 不注入），全量 `pytest` **53 passed**。
+- 前端 `vue-tsc --noEmit` 与 `npm run build` 退出码 0。
+
 ## 2026-11-04 — 作废入口收敛到详情弹窗，避免列表误点
 
 ### 决定

@@ -115,6 +115,7 @@ async def diagnosis_analyze(data: DiagnosisAnalyzeRequest, current_user: User = 
         tongue_image=data.tongue_image,
         face_image=data.face_image,
         lab_report_images=data.lab_report_images,
+        patient_id=data.patient_id,
         db=db,
     )
     return DiagnosisAnalyzeResponse(**result)
@@ -151,6 +152,7 @@ async def diagnosis_analyze_stream(data: DiagnosisAnalyzeRequest, current_user: 
             tongue_image=data.tongue_image,
             face_image=data.face_image,
             lab_report_images=data.lab_report_images,
+            patient_id=data.patient_id,
             db=db,
         ):
             yield chunk

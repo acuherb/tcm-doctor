@@ -129,6 +129,12 @@ class DiagnosisService:
         if context:
             api_messages.append({"role": "system", "content": f"参考以下中医知识库内容：\n\n{context}"})
         api_messages.extend(self._build_messages_from_db(conv, db))
+        prior = self._prior_history_block(patient_id, db)
+        if prior:
+            api_messages.append({
+                "role": "system",
+                "content": prior + "\n\n（以上为该患者既往病历摘要，请结合参考，复诊时对比证型/舌脉变化与疗效趋势。）",
+            })
         user_msg = self._build_user_message(message, images)
         api_messages.append(user_msg)
 
@@ -171,9 +177,12 @@ class DiagnosisService:
         tongue_image: str | None = None,
         face_image: str | None = None,
         lab_report_images: list[str] | None = None,
+        patient_id: int | None = None,
         db: Session | None = None,
     ) -> dict:
-        """四诊信息 → 辨证分析（支持图片）"""
+        """四诊信息 → 辨证分析（支持图片）；可带 patient_id 以注入既往病史/疗效供复诊对比"""
+        # 既往病史/疗效：两种分支都需要，提前算好
+        prior = self._prior_history_block(patient_id, db) if (patient_id and db) else ""
         if not settings.deepseek_api_key:
             return self._rule_based_analyze(
                 chief_complaint=chief_complaint,
@@ -186,6 +195,7 @@ class DiagnosisService:
                 pulse=pulse,
                 ten_aspects=ten_aspects,
                 ten_answers=ten_answers,
+                prior_history=prior,
             )
 
         # 构建四诊摘要
@@ -250,6 +260,14 @@ class DiagnosisService:
             "4. 不要在代码块之外再解释它。"
         )
 
+        # 注入既往病史/疗效（复诊对比依据，复用上方已计算的 prior）
+        if prior:
+            user_message += "\n\n" + prior
+            user_message += (
+                "\n\n【复诊参考要求】若本次为复诊：请明确对比本次与最近一次就诊的证型/舌脉/症状变化与疗效趋势；"
+                "既往有效的方剂思路可酌情沿用或化裁并说明依据；避免重复既往已明确无效或患者反馈不适的方案。"
+            )
+
         # RAG
         context = ""
         search_query = chief_complaint or " ".join(filter(None, [observation, inquiry, pulse]))
@@ -313,6 +331,7 @@ class DiagnosisService:
         pulse: str | None = None,
         ten_aspects: str | None = None,
         ten_answers: dict | None = None,
+        prior_history: str | None = None,
     ) -> dict:
         """未配置 API Key 时的降级辨证：基于「问诊十问」规则引擎 + 四诊文本，生成可回填的真实辨证结果（零成本、即时）"""
         from app.services.constitution_evaluator import evaluate_constitution
@@ -357,6 +376,13 @@ class DiagnosisService:
             parts.append(header)
 
         analysis = "\n".join(parts)
+
+        # 既往病史/疗效（仅罗列信息，规则引擎不据此动态调整，避免误导）
+        if prior_history:
+            analysis += (
+                "\n\n【既往病史与疗效回顾】\n" + prior_history +
+                "\n（注：未配置 API Key 时为本地规则辨证，未结合既往疗效做动态调整，仅供信息参考。）"
+            )
 
         # 结构化回填：主证作为证型；治法从方域提示推导；病名缺省由主诉推断
         tcm_syndrome = rule["primary_type"] if had_ten_answers else None
@@ -699,9 +725,11 @@ class DiagnosisService:
         tongue_image: str | None = None,
         face_image: str | None = None,
         lab_report_images: list[str] | None = None,
+        patient_id: int | None = None,
         db: Session | None = None,
     ) -> AsyncGenerator[str, None]:
-        """流式四诊辨证分析"""
+        """流式四诊辨证分析；可带 patient_id 以注入既往病史/疗效供复诊对比"""
+        prior = self._prior_history_block(patient_id, db) if (patient_id and db) else ""
         if not settings.deepseek_api_key:
             fallback = self._rule_based_analyze(
                 chief_complaint=chief_complaint,
@@ -714,6 +742,7 @@ class DiagnosisService:
                 pulse=pulse,
                 ten_aspects=ten_aspects,
                 ten_answers=ten_answers,
+                prior_history=prior,
             )
             text = (fallback.get("syndrome_analysis") or "") + "\n"
             for line in text.split("\n"):
@@ -769,6 +798,14 @@ class DiagnosisService:
             "也不要使用一级/二级大标题，统一用三级及以下小标题。"
         )
 
+        # 注入既往病史/疗效（复诊对比依据，复用上方已计算的 prior）
+        if prior:
+            user_message += "\n\n" + prior
+            user_message += (
+                "\n\n【复诊参考要求】若本次为复诊：请明确对比本次与最近一次就诊的证型/舌脉/症状变化与疗效趋势；"
+                "既往有效的方剂思路可酌情沿用或化裁并说明依据；避免重复既往已明确无效或患者反馈不适的方案。"
+            )
+
         context = ""
         search_query = chief_complaint or " ".join(filter(None, [observation, inquiry, pulse]))
         if db and search_query:
@@ -804,6 +841,20 @@ class DiagnosisService:
         safety_warnings = self._check_safety_in_reply(full_reply, db)
         yield f"data: {json.dumps({'type': 'warnings', 'warnings': safety_warnings}, ensure_ascii=False)}\n\n"
         yield "data: [DONE]\n\n"
+
+    def _prior_history_block(self, patient_id: int | None, db: Session | None) -> str:
+        """生成该患者既往病史/疗效摘要，供 AI 辨证 prompt 使用；失败或非关键则忽略。"""
+        if not db or not patient_id:
+            return ""
+        try:
+            from app.medical_record import build_record, summarize_prior_history
+            rec = build_record(db, int(patient_id), include_images=False)
+            if not rec:
+                return ""
+            return summarize_prior_history(rec)
+        except Exception as e:
+            logger.warning("生成既往病史摘要失败（非关键，已忽略）: %s", e)
+            return ""
 
     def _build_user_message(self, message: str, images: list[str] | None = None) -> dict:
         """构建用户消息，支持多模态（文字+图片）"""
@@ -997,6 +1048,12 @@ class DiagnosisService:
         if context:
             api_messages.append({"role": "system", "content": f"参考以下中医知识库内容：\n\n{context}"})
         api_messages.extend(self._build_messages_from_db(conv, db))
+        prior = self._prior_history_block(patient_id, db)
+        if prior:
+            api_messages.append({
+                "role": "system",
+                "content": prior + "\n\n（以上为该患者既往病历摘要，请结合参考，复诊时对比证型/舌脉变化与疗效趋势。）",
+            })
         user_msg = self._build_user_message(message, images)
         api_messages.append(user_msg)
 

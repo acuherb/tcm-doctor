@@ -140,6 +140,48 @@ def build_record(db: Session, patient_id: int, include_images: bool = False) -> 
     }
 
 
+def summarize_prior_history(record: dict, max_visits: int = 10, max_followups: int = 8) -> str:
+    """生成供 AI 辨证参考的「既往病史与疗效回顾」文本（不含图片，限条数，控制 token）。
+
+    用于把患者历史辨证/处方/随访疗效喂给 AI，让其在复诊时对比证型/舌脉变化、
+    沿用有效思路、规避既往无效或不适方案。无既往记录时返回空串。
+    """
+    visits = record.get("visits") or []
+    followups = record.get("followups") or []
+    if not visits and not followups:
+        return ""
+
+    lines = ["【既往病史与疗效回顾】（供本次辨证参考，请结合对比，勿直接复述）"]
+    for v in (visits[-max_visits:] if len(visits) > max_visits else visits):
+        parts = [f"- {v.get('visit_date') or ''} {v.get('visit_type') or '就诊'}"]
+        if v.get("chief_complaint"):
+            parts.append(f"主诉：{v['chief_complaint']}")
+        if v.get("tcm_disease") or v.get("tcm_syndrome"):
+            parts.append(f"病名/证型：{v.get('tcm_disease') or '—'}/{v.get('tcm_syndrome') or '—'}")
+        if v.get("treatment_method"):
+            parts.append(f"治法：{v['treatment_method']}")
+        rxs = v.get("prescriptions") or []
+        rx_texts = []
+        for r in rxs:
+            herbs = [d for d in r.get("details", []) if d.get("category") == "prescription_items"]
+            h = "、".join(f"{d.get('herb_name')}{d.get('dose') or ''}" for d in herbs[:8])
+            rx_texts.append((r.get("formula_name") or "自拟方") + (f"（{h}）" if h else ""))
+        if rx_texts:
+            parts.append("处方：" + "；".join(rx_texts))
+        ai = (v.get("ai_analysis") or "")[:200]
+        if ai:
+            parts.append(f"辨证摘要：{ai}")
+        lines.append("｜".join(parts))
+
+    if followups:
+        lines.append("疗效随访：")
+        for f in (followups[-max_followups:] if len(followups) > max_followups else followups):
+            lines.append(
+                f"- {f.get('followup_date') or ''} 改善：{f.get('improvement') or '—'}｜反馈：{f.get('feedback') or '—'}"
+            )
+    return "\n".join(lines)
+
+
 # ── 打印视图 ──
 
 _FIELD_LABELS = {

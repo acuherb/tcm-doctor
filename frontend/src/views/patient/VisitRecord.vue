@@ -791,6 +791,7 @@ async function aiAssist() {
     tongue_body: form.value.tongue_body,
     tongue_coat: form.value.tongue_coat,
     pulse: form.value.pulse.join('、'),
+    patient_id: patientId,
     patient_gender: patient.value?.gender || '',
     patient_age: patient.value?.birth_date ? calcAge(patient.value.birth_date) : null,
     patient_height_cm: patient.value?.height ?? null,
