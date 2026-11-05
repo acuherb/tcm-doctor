@@ -13,6 +13,9 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
     password_hash: Mapped[str] = mapped_column(String(200), nullable=False)
     display_name: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    department: Mapped[str | None] = mapped_column(
+        String(50), nullable=True, comment="所属科室（挂号台科室下拉由启用账号去重派生）"
+    )
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, comment="超级管理员：拥有全部权限，绕过权限表")
     role: Mapped[str] = mapped_column(String(20), default="viewer", nullable=False, comment="角色模板/显示标签: admin/doctor/pharmacist/viewer/custom")
     permissions: Mapped[str] = mapped_column(Text, default="", nullable=False, comment="权限点清单(逗号分隔)，为空时回退到角色默认集")

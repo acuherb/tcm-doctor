@@ -106,8 +106,19 @@
               </el-collapse-item>
             </el-collapse>
 
-            <el-form-item label="科室/医师">
-              <el-input v-model="department" placeholder="如：中医内科 / 张医师" />
+            <el-form-item label="科室">
+              <el-select v-model="department" clearable filterable placeholder="选择科室" style="width:100%"
+                @change="onDepartmentChange">
+                <el-option v-for="d in departmentOptions" :key="d" :label="d" :value="d" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="接诊医师">
+              <el-select v-model="doctorId" clearable filterable placeholder="选择医师（可选）" style="width:100%"
+                @change="onDoctorChange">
+                <el-option v-for="d in filteredDoctors" :key="d.id"
+                  :label="d.department ? `${d.name}（${d.department}）` : d.name" :value="d.id" />
+              </el-select>
+              <div class="opt-hint">选项来自「账号管理」中启用的医生/管理员账号</div>
             </el-form-item>
             <el-form-item label="挂号费">
               <el-input-number v-model="regFee" :min="0" :precision="2" :step="1" style="width:160px" />
@@ -146,7 +157,11 @@
                 <el-link type="primary" :underline="false" @click="openPatientDetail(row.patient_id)">{{ row.patient_name || '-' }}</el-link>
               </template>
             </el-table-column>
-            <el-table-column prop="department" label="科室/医师" min-width="110" show-overflow-tooltip />
+            <el-table-column label="科室 / 接诊医师" min-width="140" show-overflow-tooltip>
+              <template #default="{ row }">
+                {{ [row.department, row.doctor_name].filter(Boolean).join(' / ') || '—' }}
+              </template>
+            </el-table-column>
             <el-table-column label="挂号费" width="90" align="right">
               <template #default="{ row }">
                 <span v-if="row.registration_fee">¥{{ Number(row.registration_fee).toFixed(2) }}</span>
@@ -259,6 +274,31 @@ const np = reactive({
   allergy_history: '', medical_history: '', notes: '',
 })
 const department = ref('')
+const doctorId = ref<number | null>(null)
+// 科室与接诊医师均由「账号管理」中启用的医生/管理员账号派生
+interface DoctorOption { id: number; name: string; department: string }
+const departmentOptions = ref<string[]>([])
+const doctors = ref<DoctorOption[]>([])
+const filteredDoctors = computed(() =>
+  department.value ? doctors.value.filter(d => d.department === department.value) : doctors.value
+)
+
+async function loadOptions() {
+  try {
+    const r = await api.get<{ departments: string[]; doctors: DoctorOption[] }>('/registration/options')
+    departmentOptions.value = r.departments || []
+    doctors.value = r.doctors || []
+  } catch { /* 拦截器已提示 */ }
+}
+function onDoctorChange() {
+  const d = doctors.value.find(x => x.id === doctorId.value)
+  if (d?.department) department.value = d.department  // 选医师自动带出其科室
+}
+function onDepartmentChange() {
+  const d = doctors.value.find(x => x.id === doctorId.value)
+  if (d && d.department && d.department !== department.value) doctorId.value = null
+}
+
 const regFee = ref(0)
 const payMethod = ref('现金')
 const paid = ref(0)
@@ -331,6 +371,7 @@ async function submitRegister() {
   try {
     const payload: any = {
       department: department.value || null,
+      doctor_id: doctorId.value,
       registration_fee: regFee.value,
     }
     if (selectedPatientId.value) payload.patient_id = selectedPatientId.value
@@ -374,7 +415,7 @@ async function submitRegister() {
     historyVisits.value = []; historyRx.value = []; historyOpen.value = []
     dups.value = []; dupChecked.value = false
     Object.assign(np, { name: '', gender: null, birth_date: null, phone: '', id_card: '', address: '', height: null, weight: null, allergy_history: '', medical_history: '', notes: '' })
-    department.value = ''; regFee.value = 0; paid.value = 0; showNewPatient.value = []
+    department.value = ''; doctorId.value = null; regFee.value = 0; paid.value = 0; showNewPatient.value = []
     loadQueue()
   } catch { /* 拦截器已提示 */ } finally {
     submitting.value = false
@@ -499,7 +540,7 @@ async function collectRegFee(row: RegistrationQueueItem) {
 // 新建患者表单变化即触发查重（防抖）
 watch(() => [np.name, np.phone, np.id_card], () => scheduleDupCheck())
 
-onMounted(loadQueue)
+onMounted(() => { loadQueue(); loadOptions() })
 </script>
 
 <style scoped lang="scss">
@@ -531,4 +572,5 @@ onMounted(loadQueue)
 .queue-table { :deep(.el-tag--primary) { --el-tag-bg-color: #ecf5ff; --el-tag-text-color: #409eff; --el-tag-border-color: #d9ecff; } }
 .op-wrap { display: inline-block; margin-right: 8px; }
 .dlg-body { font-size: 14px; line-height: 1.8; }
+.opt-hint { font-size: 12px; color: #8a8170; line-height: 1.4; margin-top: 2px; }
 </style>

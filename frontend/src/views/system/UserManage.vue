@@ -1,4 +1,4 @@
-🤖 AI 配置<template>
+<template>
   <div class="user-manage">
     <el-card shadow="hover" class="main-card">
       <template #header>
@@ -43,6 +43,12 @@
         <el-table-column label="角色" width="110">
           <template #default="{ row }">
             <el-tag :type="roleTagType(row.role)" size="small" effect="light" round>{{ roleLabelOf(row.role) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="所属科室" width="120">
+          <template #default="{ row }">
+            <span v-if="row.department">{{ row.department }}</span>
+            <span v-else class="perm-inherit">未设置</span>
           </template>
         </el-table-column>
         <el-table-column label="权限" min-width="240">
@@ -94,6 +100,9 @@
             </div>
             <el-tag :type="roleTagType(row.role)" size="small" effect="light" round>{{ roleLabelOf(row.role) }}</el-tag>
           </div>
+          <div class="card-row" v-if="row.department">
+            <span class="label">所属科室</span><span class="value">{{ row.department }}</span>
+          </div>
           <div class="card-body">
             <div class="card-row">
               <span class="label">状态</span>
@@ -135,6 +144,13 @@
         </el-form-item>
         <el-form-item label="显示名称" prop="display_name">
           <el-input v-model="form.display_name" placeholder="如 张医生（可留空）" />
+        </el-form-item>
+        <el-form-item label="所属科室" prop="department">
+          <el-select v-model="form.department" filterable allow-create clearable default-first-option
+            placeholder="可选已有科室，也可直接输入新建" style="width:100%">
+            <el-option v-for="d in departmentOptions" :key="d" :label="d" :value="d" />
+          </el-select>
+          <div class="opt-hint">医生/管理员账号设置后，会出现在挂号台的科室与接诊医师下拉中</div>
         </el-form-item>
         <el-form-item label="角色模板" prop="role">
           <el-select v-model="form.role" style="width:100%" @change="onRoleChange">
@@ -191,7 +207,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
+import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage, type FormInstance } from 'element-plus'
 import { Plus, InfoFilled, WarningFilled } from '@element-plus/icons-vue'
 import api, { errMsg } from '@/utils/api'
@@ -202,6 +218,7 @@ interface AccountRow {
   id: number
   username: string
   display_name: string | null
+  department: string | null
   role: string
   permissions: string[]
   is_active: boolean
@@ -241,11 +258,17 @@ function permLabel(key: string) {
 const form = reactive({
   username: '',
   display_name: '',
+  department: '' as string,
   role: 'viewer',
   password: '',
   must_change_password: true,
   permissions: [] as string[],
 })
+
+// 已有科室去重，供表单快速选择；允许直接输入新科室（不另建字典，始终由账号派生）
+const departmentOptions = computed(() =>
+  [...new Set(users.value.map(u => (u.department || '').trim()).filter(Boolean))].sort()
+)
 
 // 选择角色模板时，预填其默认权限集（自定义角色不覆盖已勾选权限）
 function onRoleChange(role: string) {
@@ -306,6 +329,7 @@ async function loadCatalog() {
 function resetForm() {
   form.username = ''
   form.display_name = ''
+  form.department = ''
   form.role = 'viewer'
   form.password = ''
   form.must_change_password = true
@@ -323,6 +347,7 @@ function openEdit(row: AccountRow) {
   editId.value = row.id
   form.username = row.username
   form.display_name = row.display_name || ''
+  form.department = row.department || ''
   form.role = row.role
   form.permissions = row.permissions ? [...row.permissions] : [...(permCatalog.value.role_defaults[row.role] || [])]
   dialogVisible.value = true
@@ -337,6 +362,7 @@ async function save() {
     if (isEdit.value && editId.value !== null) {
       await api.put(`/auth/users/${editId.value}`, {
         display_name: form.display_name,
+        department: form.department,
         role: form.role,
         permissions: form.permissions,
       })
@@ -349,6 +375,7 @@ async function save() {
       await api.post('/auth/users', {
         username: form.username,
         display_name: form.display_name,
+        department: form.department,
         role: form.role,
         password: form.password,
         must_change_password: form.must_change_password,

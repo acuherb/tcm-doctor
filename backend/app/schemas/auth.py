@@ -11,6 +11,7 @@ class UserOut(BaseModel):
     id: int
     username: str
     display_name: str | None = None
+    department: str | None = None
     is_admin: bool
     role: str = "viewer"
     permissions: list[str] = []
@@ -42,6 +43,7 @@ class ChangePasswordRequest(BaseModel):
 class UserCreateRequest(BaseModel):
     username: str
     display_name: str | None = None
+    department: str | None = None
     role: str = "viewer"
     password: str
     must_change_password: bool = True
@@ -50,6 +52,7 @@ class UserCreateRequest(BaseModel):
 
 class UserUpdateRequest(BaseModel):
     display_name: str | None = None
+    department: str | None = None
     role: str | None = None
     permissions: list[str] | None = None  # 显式权限集；为空则不改动
     is_active: bool | None = None

@@ -22,6 +22,7 @@ export interface TcmUser {
   id: number
   username: string
   display_name?: string | null
+  department?: string | null
   is_admin?: boolean
   role?: string
   permissions?: string[]
@@ -56,6 +57,8 @@ export interface Visit {
   registered_at?: string | null
   registrar_id?: number | null
   department?: string | null
+  doctor_id?: number | null
+  doctor_name?: string | null
   status?: string | null
   tongue_body_term_id?: number | null
   tongue_coat_term_id?: number | null
@@ -74,9 +77,11 @@ export interface RegistrationCreate {
     birth_date?: string | null
   }
   department?: string | null
+  doctor_id?: number | null
   registration_fee?: number
   payment_method?: string | null
   paid?: number | null
+  force?: boolean
 }
 
 export interface RegistrationUpdate {

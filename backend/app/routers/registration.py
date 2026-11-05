@@ -50,7 +50,8 @@ class RegistrationCreate(BaseModel):
     patient_id: int | None = Field(default=None, description="选择已有患者")
     # 复用患者建档 schema，与「患者列表-新增患者」字段完全一致，保证挂号建档信息互通
     new_patient: PatientCreate | None = Field(default=None, description="或在挂号时新建患者")
-    department: str | None = Field(default=None, description="科室/接诊医师")
+    department: str | None = Field(default=None, description="科室（建议取自 /registration/options）")
+    doctor_id: int | None = Field(default=None, description="接诊医师账号ID（须为启用的医生/管理员账号）")
     registration_fee: float = Field(default=0.0, ge=0, description="挂号费(元)")
     # 开单即收（前台直接收挂号费）
     payment_method: str | None = Field(default=None, description="收款方式")
@@ -132,7 +133,23 @@ def _can_revert(v: Visit, ev: dict) -> tuple[bool, str]:
     return False, f"当前状态「{v.status}」不可撤销"
 
 
-def _serialize_visit(v: Visit, patient_name: str | None) -> dict:
+def _doctor_names(db: Session, visits: list[Visit]) -> dict[int, str]:
+    """批量取接诊医师显示名，避免队列 N+1。"""
+    ids = {v.doctor_id for v in visits if v.doctor_id}
+    if not ids:
+        return {}
+    return {
+        u.id: (u.display_name or u.username)
+        for u in db.query(User).filter(User.id.in_(ids)).all()
+    }
+
+
+def _appointable(u: User) -> bool:
+    """可接诊账号：启用，且角色为医生/管理员（含超级管理员）。"""
+    return bool(u.is_active and (u.is_admin or u.role in ("doctor", "admin")))
+
+
+def _serialize_visit(v: Visit, patient_name: str | None, doctor_name: str | None = None) -> dict:
     return {
         "id": v.id,
         "patient_id": v.patient_id,
@@ -145,6 +162,8 @@ def _serialize_visit(v: Visit, patient_name: str | None) -> dict:
         "registered_at": v.registered_at.isoformat() if v.registered_at else None,
         "registrar_id": v.registrar_id,
         "department": v.department,
+        "doctor_id": v.doctor_id,
+        "doctor_name": doctor_name,
         "status": v.status,
         "created_at": v.created_at.isoformat() if v.created_at else None,
     }
@@ -219,6 +238,15 @@ def register(
         raise HTTPException(status_code=403, detail="无权进行挂号登记")
 
     day = _today()
+    # 接诊医师必须来自账号管理中的启用医生/管理员账号，杜绝手写姓名与已停用账号
+    doctor = None
+    if payload.doctor_id is not None:
+        doctor = db.query(User).filter(User.id == payload.doctor_id).first()
+        if not doctor or not _appointable(doctor):
+            raise HTTPException(status_code=400, detail="指定的接诊医师不存在、已停用或不是医生账号")
+    # 选了医师就以其所属科室为准，保证科室与账号管理始终一致
+    department = (doctor.department if doctor and doctor.department else payload.department)
+
     # 同日重复挂号：先提示前台，确认后以 force=True 放行，避免误点产生两条就诊 + 两张挂号费单
     duplicate_of = None
     if payload.patient_id:
@@ -259,7 +287,8 @@ def register(
                 queue_no=_next_queue_no(db, day),
                 registered_at=datetime.now(),
                 registrar_id=current_user.id,
-                department=payload.department,
+                department=department,
+                doctor_id=payload.doctor_id,
                 registration_fee=Decimal(str(payload.registration_fee)) if payload.registration_fee else None,
             )
             db.add(visit)
@@ -277,7 +306,7 @@ def register(
                     amount=payload.registration_fee,
                     patient_name=patient.name,
                     title="挂号费",
-                    note=f"挂号费（{payload.department or '门诊'}）",
+                    note=f"挂号费（{department or '门诊'}）",
                     payment_method=payload.payment_method,
                     paid=payload.paid if payload.paid is not None else payload.registration_fee,
                 )
@@ -288,7 +317,8 @@ def register(
             if charge is not None:
                 db.refresh(charge)
             return {
-                "visit": _serialize_visit(visit, patient.name),
+                "visit": _serialize_visit(visit, patient.name,
+                                          (doctor.display_name or doctor.username) if doctor else None),
                 "charge": ChargeResponse.model_validate(charge).model_dump() if charge else None,
                 "duplicate_of": duplicate_of,
             }
@@ -324,9 +354,10 @@ def queue(
         q = q.filter(Visit.status == status)
     rows = q.order_by(Visit.queue_no.asc()).all()
 
+    doctor_names = _doctor_names(db, [v for v, _ in rows])
     items = []
     for v, pname in rows:
-        d = _serialize_visit(v, pname)
+        d = _serialize_visit(v, pname, doctor_names.get(v.doctor_id))
         ch = (
             db.query(Charge)
             .filter(Charge.visit_id == v.id, Charge.kind == "registration")
@@ -347,6 +378,34 @@ def queue(
     return {"items": items, "date": day}
 
 
+@router.get("/options", summary="挂号可选科室与接诊医师（由启用账号派生）")
+def registration_options(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """科室不另建字典：直接由「启用的医生/管理员账号」的 department 去重派生，
+    保证科室与医师永远来自账号管理，不会出现字典里有科室却没医生、或停用账号仍可挂号。
+
+    单独提供此接口而非复用 /auth/users：挂号员通常只有 patient:read/write，
+    没有 user:read；也不应把账号权限等敏感信息暴露给前台。
+    """
+    if not has_perm(current_user, "patient:read"):
+        raise HTTPException(status_code=403, detail="无权查看挂号选项")
+    users = db.query(User).filter(User.is_active.is_(True)).order_by(User.id).all()
+    appointable = [u for u in users if _appointable(u)]
+    departments = sorted({u.department.strip() for u in appointable
+                          if u.department and u.department.strip()})
+    doctors = [
+        {
+            "id": u.id,
+            "name": u.display_name or u.username,
+            "department": (u.department or "").strip(),
+        }
+        for u in appointable
+    ]
+    return {"departments": departments, "doctors": doctors}
+
+
 @router.get("/{visit_id}", summary="挂号/就诊详情（含收费单）")
 def visit_detail(visit_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if not has_perm(current_user, "patient:read"):
@@ -355,7 +414,7 @@ def visit_detail(visit_id: int, db: Session = Depends(get_db), current_user: Use
     if not v:
         raise HTTPException(status_code=404, detail="就诊记录不存在")
     pat = db.query(Patient).filter(Patient.id == v.patient_id).first()
-    d = _serialize_visit(v, pat.name if pat else None)
+    d = _serialize_visit(v, pat.name if pat else None, _doctor_names(db, [v]).get(v.doctor_id))
     charges = db.query(Charge).filter(Charge.visit_id == v.id).all()
     d["charges"] = [ChargeResponse.model_validate(c).model_dump() for c in charges]
     ev = _visit_evidence(db, v)
@@ -408,7 +467,7 @@ def update_registration(
     db.commit()
     db.refresh(v)
     pat = db.query(Patient).filter(Patient.id == v.patient_id).first()
-    return _serialize_visit(v, pat.name if pat else None)
+    return _serialize_visit(v, pat.name if pat else None, _doctor_names(db, [v]).get(v.doctor_id))
 
 
 @router.post("/{visit_id}/call", summary="叫号/接诊（待诊 -> 已接诊）")
@@ -460,4 +519,4 @@ def revert_visit(
         target=f"visit:{v.id}",
     )
     pat = db.query(Patient).filter(Patient.id == v.patient_id).first()
-    return _serialize_visit(v, pat.name if pat else None)
+    return _serialize_visit(v, pat.name if pat else None, _doctor_names(db, [v]).get(v.doctor_id))

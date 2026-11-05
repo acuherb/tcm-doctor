@@ -409,6 +409,45 @@
 - 更新 `test_registration.py` / `test_charge_idempotency.py` 中两处「没写病历就点完成」的旧行为断言。
 - 后端全量 `pytest` **118 passed**；前端 `vue-tsc 0`、`npm run build 0`、lint 干净。
 
+## 2026-11-05（续十七）— 挂号台科室/医师与账号管理联动
+
+### 问题
+挂号台的「科室/接诊医师」是手写输入框，与账号管理完全无关：账号里没有科室字段，
+停用甚至不存在的医生照样能挂号；`Visit.doctor_id` 一直是没人写的死字段。
+
+### 决定
+科室不另建字典，直接由**启用医生/管理员账号的 `department` 去重派生**——
+「字典里有科室却没医生」「停用账号仍可挂号」这两类漂移从根上消失。
+
+### 后端
+- `User` 新增 `department`（`String(50)`，可空）；存量库由 `run_migrations()` 中的
+  `_sync_model_columns()` 自动补列，无需单独编号迁移。
+- `UserOut / UserCreateRequest / UserUpdateRequest` 同步增加该字段；
+  `POST /auth/users`、`PUT /auth/users/{id}` 写入时 `strip()` 并把空串归一为 `None`。
+- 新增 `GET /registration/options`：返回 `departments` 与 `doctors`（`id / name / department`），
+  仅取启用且角色为医生/管理员的账号。只需 `patient:read`，不复用 `/auth/users`，
+  避免把账号权限等敏感信息暴露给挂号员。
+- `RegistrationCreate` 增加 `doctor_id`；挂号时校验必须指向可接诊账号，落库到 `Visit.doctor_id`，
+  并**以该账号所属科室为准**（仍兼容只填科室、不选医师的旧用法）；挂号费备注同步。
+- 队列/详情用 `_doctor_names()` 批量取名避免 N+1，响应增加 `doctor_id / doctor_name`。
+
+### 前端
+- `UserManage.vue`：表格与移动卡片显示所属科室；表单新增可搜索、可新建的科室下拉；
+  创建 / 编辑 / 保存同步维护 `department`。
+- `RegistrationView.vue`：科室与接诊医师改为下拉联动（按科室过滤医师、选医师自动带出科室），
+  提交携带 `doctor_id`；队列列显示「科室 / 医师」。
+
+### 验证
+- 新增 `tests/test_registration_doctors.py`（6 项：账号 CRUD 持久化、选项只来自启用可接诊账号、
+  选项不要求 `user:read`、挂号落库 `doctor_id`、非法医师被拒、仅填科室仍可用）。
+- 后端全量 `pytest -q` **124 passed**；前端 `npm run build` 退出码 0、lint 0 错误。
+- **同日修复**：`UserManage.vue` 新增的 `departmentOptions` 漏导入 `computed`，账号管理页挂载时抛
+  `ReferenceError: computed is not defined`（连带 `$setup.users is undefined`）。已补齐导入，
+  并清理文件开头误粘贴的裸文本；全仓 42 个 `.vue` 扫描确认无其它 Vue API 漏导入。
+- **门禁缺口**：根 `tsconfig.json` 是 solution 配置（`files: []` + `references`），
+  `vue-tsc --noEmit` 实际空跑、退出码恒为 0，故此类运行时错误未被拦住；需显式
+  `-p tsconfig.app.json` 才做真检查（当前全项目有 235 个既存类型错误，待另行治理）。
+
 ## 2026-11-04 — 作废入口收敛到详情弹窗，避免列表误点
 
 ### 决定

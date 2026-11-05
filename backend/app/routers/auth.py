@@ -303,6 +303,7 @@ def create_user(
     user = User(
         username=username,
         display_name=(payload.display_name or "").strip() or None,
+        department=(payload.department or "").strip() or None,
         password_hash=_hash_password(payload.password),
         role=payload.role,
         is_admin=(payload.role == ROLE_ADMIN),
@@ -350,6 +351,8 @@ def update_user(
         user.permissions = ",".join(payload.permissions)
     if payload.display_name is not None:
         user.display_name = payload.display_name.strip() or None
+    if payload.department is not None:
+        user.department = payload.department.strip() or None
     if payload.reset_password:
         # 改密码必须显式声明 reset_password=true，避免误提交 password 字段静默覆盖密码
         if not payload.password:
