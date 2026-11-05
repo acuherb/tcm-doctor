@@ -22,6 +22,7 @@ from app.models.billing import Charge
 from app.routers.auth import get_current_user
 from app.permissions import has_perm
 from app.schemas.billing import ChargeCreate, ChargeResponse
+from app.schemas.patient import PatientCreate
 from app.services.billing_service import create_charge, VALID_METHODS
 
 logger = logging.getLogger(__name__)
@@ -32,16 +33,10 @@ def _today() -> str:
     return datetime.now().strftime("%Y-%m-%d")
 
 
-class NewPatientMini(BaseModel):
-    name: str = Field(..., min_length=1, max_length=50, description="姓名")
-    phone: str | None = Field(None, description="电话")
-    gender: str | None = Field(None, description="性别")
-    birth_date: str | None = Field(None, description="出生日期")
-
-
 class RegistrationCreate(BaseModel):
     patient_id: int | None = Field(default=None, description="选择已有患者")
-    new_patient: NewPatientMini | None = Field(default=None, description="或在挂号时新建患者")
+    # 复用患者建档 schema，与「患者列表-新增患者」字段完全一致，保证挂号建档信息互通
+    new_patient: PatientCreate | None = Field(default=None, description="或在挂号时新建患者")
     department: str | None = Field(default=None, description="科室/接诊医师")
     registration_fee: float = Field(default=0.0, ge=0, description="挂号费(元)")
     # 开单即收（前台直接收挂号费）
@@ -101,12 +96,8 @@ def register(
         if not patient:
             raise HTTPException(status_code=404, detail="患者不存在")
     elif payload.new_patient:
-        patient = Patient(
-            name=payload.new_patient.name,
-            phone=payload.new_patient.phone,
-            gender=payload.new_patient.gender,
-            birth_date=payload.new_patient.birth_date,
-        )
+        # 直接使用患者建档 schema，所有字段（含身份证/地址/过敏史/既往史等）一致落地
+        patient = Patient(**payload.new_patient.model_dump())
         db.add(patient)
         db.flush()
     else:
