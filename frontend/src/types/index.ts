@@ -101,6 +101,10 @@ export interface Prescription {
   formula_name?: string
   total_price?: number | null
   patient_name?: string | null
+  // 在账收费单状态（列表/详情批量回填，用于收敛「收费」按钮）
+  charge_id?: number | null
+  charge_no?: string | null
+  charge_status?: string | null
   doctor_id?: number | null
   classic_formula_id?: number | null
   acupoint_formula_id?: number | null

@@ -118,7 +118,7 @@
               <el-button v-if="editable && row.status !== '已发药' && row.status !== '已取消'" link type="primary" size="small" @click="$router.push(`/prescriptions/new?id=${row.id}`)">编辑</el-button>
               <el-button v-if="editable && row.status === '已开'" link type="success" size="small" @click="reviewPrescription(row)">审核</el-button>
               <el-button v-if="editable && row.status === '已审核'" link type="warning" size="small" @click="dispensePrescription(row)">发药</el-button>
-              <el-button v-if="canCharge && row.status !== '已取消'" link type="danger" size="small" @click="openCharge(row)">收费</el-button>
+              <el-button v-if="canCharge && row.status !== '已取消'" link :type="chargeBtnType(row)" size="small" @click="onChargeButton(row)">{{ chargeBtnLabel(row) }}</el-button>
               <el-button link type="info" size="small" @click="printPrescription(row)">打印</el-button>
             </div>
           </template>
@@ -171,7 +171,7 @@
             <el-button v-if="editable && row.status !== '已发药' && row.status !== '已取消'" link type="primary" size="small" @click="$router.push(`/prescriptions/new?id=${row.id}`)">编辑</el-button>
             <el-button v-if="editable && row.status === '已开'" link type="success" size="small" @click="reviewPrescription(row)">审核</el-button>
             <el-button v-if="editable && row.status === '已审核'" link type="warning" size="small" @click="dispensePrescription(row)">发药</el-button>
-            <el-button v-if="canCharge && row.status !== '已取消'" link type="danger" size="small" @click="openCharge(row)">收费</el-button>
+            <el-button v-if="canCharge && row.status !== '已取消'" link :type="chargeBtnType(row)" size="small" @click="onChargeButton(row)">{{ chargeBtnLabel(row) }}</el-button>
             <el-button link type="info" size="small" @click="printPrescription(row)">打印</el-button>
           </div>
         </div>
@@ -369,6 +369,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Star } from '@element-plus/icons-vue'
 import ChargeDialog from '@/components/ChargeDialog.vue'
@@ -377,6 +378,7 @@ import { debounce } from '@/utils/search'
 import type { Patient, Prescription, AppConfig } from '@/types'
 import { useAuthStore } from '@/store/auth'
 
+const router = useRouter()
 // 游客只读：隐藏所有写操作
 const auth = useAuthStore()
 const editable = computed(() => auth.canWrite('prescriptions'))
@@ -543,21 +545,51 @@ async function confirmDispense() {
 }
 
 async function dispensePrescription(row: any) {
+  // 未收费发药只做软提示，不硬拦（小诊所常有先抓药后结账）
+  if (row.charge_status !== '已收费') {
+    try {
+      await ElMessageBox.confirm(
+        `该处方${row.charge_status === '待收费' ? '尚未收款' : '暂无收费单'}，确认仍要发药？\n发药会扣减库存，请确认后续收款安排。`,
+        '未收费发药提醒', { type: 'warning', confirmButtonText: '仍要发药', cancelButtonText: '先去收费' }
+      )
+    } catch { return }
+  }
   openDispenseDialog(row)
 }
 
-// 收费：从处方一键开单并收款（开方 -> 收费闭环）
+// 收费：按钮按「在账收费单状态」收敛，避免点一次收费后还能继续重复收费
 const chargeVisible = ref(false)
 const chargeTarget = ref<any>(null)
+function chargeBtnLabel(row: any): string {
+  if (row.charge_status === '已收费') return '已收费'
+  if (row.charge_status === '待收费') return '去收款'
+  return '收费'
+}
+function chargeBtnType(row: any): 'danger' | 'warning' | 'info' {
+  if (row.charge_status === '已收费') return 'info'
+  if (row.charge_status === '待收费') return 'warning'
+  return 'danger'
+}
+function onChargeButton(row: any) {
+  // 已有在账单：跳收费台查看/收款；无单才打开收费弹窗
+  if (row.charge_id) {
+    router.push({ path: '/billing', query: { charge_id: String(row.charge_id) } })
+  } else {
+    openCharge(row)
+  }
+}
 function openCharge(row: any) {
   chargeTarget.value = row
   chargeVisible.value = true
 }
 
 async function voidPrescription(row: any) {
+  const feeNote = row.charge_status === '已收费'
+    ? '\n已收的费用将自动全额退费；待收单将自动作废。'
+    : (row.charge_status === '待收费' ? '\n待收收费单将自动作废。' : '')
   const msg = row.status === '已发药'
-    ? `确认作废处方 #${row.id}「${row.formula_name || '自拟方'}」？已发药的处方将退回库存并生成冲红记录。`
-    : `确认作废处方 #${row.id}「${row.formula_name || '自拟方'}」？`
+    ? `确认作废处方 #${row.id}「${row.formula_name || '自拟方'}」？已发药的处方将退回库存并生成冲红记录。${feeNote}`
+    : `确认作废处方 #${row.id}「${row.formula_name || '自拟方'}」？${feeNote}`
   try {
     await ElMessageBox.confirm(msg, '作废确认', {
       confirmButtonText: '确认作废', cancelButtonText: '取消', type: 'warning',

@@ -201,12 +201,14 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import api from '@/utils/api'
 import { useAuthStore } from '@/store/auth'
 import type { Charge, ChargeStats } from '@/types'
 import ReceiptDialog from '@/components/ReceiptDialog.vue'
 
+const route = useRoute()
 const auth = useAuthStore()
 const canWrite = computed(() => auth.can('billing:write'))
 
@@ -373,10 +375,18 @@ function updateViewport() {
   isMobile.value = window.innerWidth < 768
 }
 
-onMounted(() => {
+onMounted(async () => {
   updateViewport()
   window.addEventListener('resize', updateViewport)
   loadAll()
+  // 从处方列表「去收款 / 已收费」跳转过来时直达该单收据
+  const cid = Number(route.query.charge_id)
+  if (cid) {
+    try {
+      receiptCharge.value = await api.get<Charge>(`/billing/charges/${cid}`)
+      receiptVisible.value = true
+    } catch { /* 拦截器已提示 */ }
+  }
 })
 onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
 </script>

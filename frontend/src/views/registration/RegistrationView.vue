@@ -345,6 +345,9 @@ async function submitRegister() {
       }
     }
     ElMessage.success(`挂号成功，排队号 ${r.visit.queue_no}`)
+    if (r.duplicate_of) {
+      ElMessage.warning(`该患者今日已挂过号（就诊 #${r.duplicate_of}），本次为再次挂号，请核对是否重复收取挂号费`)
+    }
     // 重置
     selectedPatientId.value = null; selectedPatient.value = null; patientOptions.value = []
     historyVisits.value = []; historyRx.value = []; historyOpen.value = []

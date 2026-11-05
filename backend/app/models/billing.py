@@ -7,7 +7,7 @@ kind 区分收费类型：prescription=处方收费，registration=挂号费（�
 from datetime import datetime
 from decimal import Decimal
 from sqlalchemy import (
-    Integer, String, Numeric, DateTime, Text, Index, ForeignKey,
+    Integer, String, Numeric, DateTime, Text, Index, ForeignKey, text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -76,6 +76,14 @@ class Charge(Base):
         Index("idx_charges_status", "status"),
         Index("idx_charges_created_at", "created_at"),
         Index("idx_charges_patient_created", "patient_id", "created_at"),
+        # 一处方只能有一笔「在账」的钱：待收费/已收费 互斥。
+        # 已退费、已取消是终态历史，不占用唯一性（退费后可合法重新开单）。
+        # 挂号费等非处方收费按 (visit_id, kind) 同理，允许多个 NULL（处方收费 visit_id 也可能重复）。
+        Index(
+            "uq_charges_prescription_active", "prescription_id",
+            unique=True,
+            sqlite_where=text("kind = 'prescription' AND status IN ('待收费', '已收费')"),
+        ),
     )
 
     def __repr__(self):

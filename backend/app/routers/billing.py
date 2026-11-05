@@ -7,6 +7,7 @@ import logging
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import text
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
@@ -30,6 +31,28 @@ router = APIRouter(prefix="/billing", tags=["收费管理"])
 
 def _charge_to_response(c: Charge) -> ChargeResponse:
     return ChargeResponse.model_validate(c)
+
+
+def _transition(db: Session, charge_id: int, expected: str, new: str) -> None:
+    """条件 UPDATE 原子占用状态：并发下只有一个请求能把旧状态改成新状态。
+
+    取代「读状态 → 判断 → 写」的 TOCTOU 模式；失败即回滚并提示刷新，天然幂等。
+    """
+    # 用原生 SQL 绕过 ORM identity map，避免 Query.update() 触发 autoflush
+    # 把服务层刚设好的内存状态提前写回，导致 WHERE 条件失配。
+    # no_autoflush：服务层已把新状态设在 ORM 对象上，若此刻被 autoflush 提前写回，
+    # WHERE status = expected 就会失配。显式禁用，不依赖 Session 全局配置。
+    with db.no_autoflush:
+        n = db.execute(
+            text("UPDATE charges SET status = :new WHERE id = :id AND status = :expected"),
+            {"new": new, "id": charge_id, "expected": expected},
+        ).rowcount
+    if n != 1:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail=f"收费单状态已变更（需为「{expected}」），请刷新后重试",
+        )
 
 
 @router.post("/charges", response_model=ChargeResponse, summary="开具收费单（可同时收款）")
@@ -117,6 +140,7 @@ def pay_charge(
     if charge.status != "待收费":
         raise HTTPException(status_code=400, detail=f"该收费单状态为「{charge.status}」，不可收款")
     apply_payment(charge, payload.payment_method, payload.paid, current_user)
+    _transition(db, charge.id, "待收费", "已收费")
     db.commit()
     db.refresh(charge)
     return _charge_to_response(charge)
@@ -134,6 +158,7 @@ def refund_charge(
         raise HTTPException(status_code=404, detail="收费单不存在")
     # 实退金额落库，支持部分退费；原因必填由 schema + 服务层双重保证
     refund_charge_record(charge, payload.refund_amount, payload.reason, current_user)
+    _transition(db, charge.id, "已收费", "已退费")
     db.commit()
     db.refresh(charge)
     return _charge_to_response(charge)
@@ -151,6 +176,7 @@ def cancel_charge(
     if not charge:
         raise HTTPException(status_code=404, detail="收费单不存在")
     cancel_charge_record(charge, payload.reason, current_user)
+    _transition(db, charge.id, "待收费", "已取消")
     db.commit()
     db.refresh(charge)
     return _charge_to_response(charge)

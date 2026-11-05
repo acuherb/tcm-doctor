@@ -233,6 +233,63 @@ def _doctor_snapshot(user: User) -> tuple[int | None, str | None]:
     return user.id, name
 
 
+def _active_charges(db: Session, prescription_id: int) -> list:
+    """该处方的在账收费单（待收费/已收费）。已退费、已取消为终态历史，不算在账。"""
+    from app.models.billing import Charge
+
+    return (
+        db.query(Charge)
+        .filter(
+            Charge.prescription_id == prescription_id,
+            Charge.kind == "prescription",
+            Charge.status.in_(("待收费", "已收费")),
+        )
+        .all()
+    )
+
+
+def _settle_prescription_charges(db: Session, prescription_id: int, current_user) -> None:
+    """处方作废联动：已收的自动全额退，待收的自动作废，钱不留在账上。
+
+    与「退号联动退挂号费」保持同一口径；处方已取消时路由直接幂等返回，不会重复退。
+    """
+    from app.services.billing_service import refund_charge_record, cancel_charge_record
+
+    for c in _active_charges(db, prescription_id):
+        if c.status == "已收费":
+            refund_charge_record(c, None, f"处方 #{prescription_id} 作废联动退费", current_user)
+        else:
+            cancel_charge_record(c, f"处方 #{prescription_id} 作废联动清待收单", current_user)
+
+
+def _attach_charge_info(db: Session, rows: list) -> list:
+    """批量回填处方的「在账收费单」信息，避免 N+1；前端据此收敛收费按钮。
+
+    已退费/已取消是终态历史，不回填 —— 这类处方可以合法重新开单收费。
+    """
+    from app.models.billing import Charge
+
+    if not rows:
+        return rows
+    active = (
+        db.query(Charge)
+        .filter(
+            Charge.prescription_id.in_([r.id for r in rows]),
+            Charge.kind == "prescription",
+            Charge.status.in_(("待收费", "已收费")),
+        )
+        .order_by(Charge.id)
+        .all()
+    )
+    by_pid = {c.prescription_id: c for c in active}
+    for r in rows:
+        c = by_pid.get(r.id)
+        r.charge_id = c.id if c else None
+        r.charge_no = c.charge_no if c else None
+        r.charge_status = c.status if c else None
+    return rows
+
+
 @router.get("", response_model=list[PrescriptionResponse], summary="处方列表")
 def list_prescriptions(
     patient_id: int | None = Query(None),
@@ -251,7 +308,7 @@ def list_prescriptions(
         names = {p.id: p.name for p in db.query(Patient).filter(Patient.id.in_(pids)).all()}
         for r in rows:
             r.patient_name = names.get(r.patient_id)
-    return rows
+    return _attach_charge_info(db, rows)
 
 
 def _compute_total_price(db: Session, items, doses: int, acupuncture_fee: float | None = None) -> float | None:
@@ -402,7 +459,7 @@ def get_prescription(prescription_id: int, db: Session = Depends(get_db)):
         patient = db.query(Patient).filter(Patient.id == prescription.patient_id).first()
         if patient:
             prescription.patient_name = patient.name
-    return prescription
+    return _attach_charge_info(db, [prescription])[0]
 
 
 @router.put("/{prescription_id}", response_model=PrescriptionResponse, summary="编辑处方(发药前可修改)")
@@ -414,6 +471,18 @@ def update_prescription(prescription_id: int, data: PrescriptionCreate, current_
         raise HTTPException(status_code=404, detail="处方不存在")
     if prescription.status in ("已发药", "已取消"):
         raise HTTPException(status_code=400, detail=f"处方状态为'{prescription.status}'，不可修改")
+
+    # 已有在账收费单时冻结金额：收费单是 total_price 的快照，改方不改钱会造成账实不符。
+    # 医嘱/诊断/备注等不影响金额的字段仍可修改；要改方请先退费或作废重开。
+    if _active_charges(db, prescription.id):
+        from app.models.billing import _to_decimal
+
+        new_total = _compute_total_price(db, data.items, data.doses, data.acupuncture_fee)
+        if _to_decimal(new_total or 0) != _to_decimal(prescription.total_price or 0):
+            raise HTTPException(
+                status_code=400,
+                detail="该处方已有在账收费单，金额不可修改；请先退费或作废后重开（医嘱/备注仍可修改）",
+            )
 
     # 数据完整性：就诊必须属于所选患者，避免处方挂在 A 患者却指向 B 患者的就诊
     visit = db.query(Visit).filter(Visit.id == data.visit_id).first()
@@ -509,6 +578,15 @@ def delete_prescription(prescription_id: int, current_user: User = Depends(get_c
         raise HTTPException(status_code=404, detail="处方不存在")
     if prescription.status in ("已发药", "已取消"):
         raise HTTPException(status_code=400, detail=f"处方状态为'{prescription.status}'，不可删除")
+    # 已收费处方不可物理删除：删除不可逆，且会让收费单失去处方快照。
+    # 引导走「作废」（自动退费、保留完整审计链）；仅有待收费单则自动作废该单。
+    from app.services.billing_service import cancel_charge_record
+
+    active = _active_charges(db, prescription.id)
+    if any(c.status == "已收费" for c in active):
+        raise HTTPException(status_code=400, detail="该处方已收费，请先「作废」（自动退费）后再删除")
+    for c in active:
+        cancel_charge_record(c, f"处方 #{prescription.id} 删除联动清待收单", current_user)
     # 级联清理该处方自动生成的随访提醒，避免工作台出现指向已删处方的死链
     db.query(FollowUpReminder).filter(
         FollowUpReminder.source_type == "prescription",
@@ -578,6 +656,8 @@ def void_prescription(
                 note=f"处方#{prescription.id}作废冲红(退回批次#{t.batch_id})",
             ))
 
+    # 作废联动退费 / 清待收单：已收的钱自动全额退，避免「方废了钱还挂在账上」
+    _settle_prescription_charges(db, prescription.id, current_user)
     prescription.status = "已取消"
     db.commit()
     db.refresh(prescription)

@@ -22,6 +22,19 @@ from app.models.user import User
 from app.schemas.billing import ChargeCreate
 
 VALID_METHODS = ("现金", "微信", "支付宝", "银行卡", "医保", "记账")
+# 「在账」状态：一张处方/一次就诊同时最多只能有一笔。已退费、已取消是终态历史，
+# 不占用唯一性 —— 退费后患者重新决定付费时可以合法开新单，旧单完整留痕。
+ACTIVE_STATUSES = ("待收费", "已收费")
+
+
+def find_active_charge(db: Session, *, prescription_id=None, visit_id=None, kind="prescription") -> Optional[Charge]:
+    """查找该处方/就诊的「在账」收费单（get-or-create 的 get 部分）。"""
+    q = db.query(Charge).filter(Charge.status.in_(ACTIVE_STATUSES), Charge.kind == kind)
+    if prescription_id is not None:
+        q = q.filter(Charge.prescription_id == prescription_id)
+    if visit_id is not None:
+        q = q.filter(Charge.visit_id == visit_id)
+    return q.order_by(Charge.id).first()
 
 
 def generate_charge_no(db: Session) -> str:
@@ -108,16 +121,39 @@ def cancel_charge_record(
     charge.cancel_reason = reason.strip()
 
 
+def _reuse(
+    db: Session, existing: Charge, payload: ChargeCreate,
+    current_user: Optional[User], commit: bool,
+) -> Charge:
+    """复用在账单：已是「已收费」直接返回（幂等）；仍是「待收费」且本次带收款信息则补收款。"""
+    if (
+        existing.status == "待收费"
+        and payload.payment_method
+        and payload.paid is not None
+    ):
+        apply_payment(existing, payload.payment_method, payload.paid, current_user)
+        if commit:
+            db.commit()
+            db.refresh(existing)
+    return existing
+
+
 def create_charge(
     db: Session, payload: ChargeCreate, current_user: Optional[User] = None,
     commit: bool = True, _retry: int = 0,
 ) -> Charge:
     """创建收费单。
 
-    - 处方收费（prescription_id 给定）：金额从处方 total_price 快照，且同一处方「待收费」单复用。
-    - 非处方收费（挂号费等）：需 amount + (patient_id 或 visit_id)；同 visit_id + kind 的
-      「待收费」单复用（接口重试不重复开单）。
-    - 传入 payment_method + paid 则直接置「已收费」。
+    **幂等语义（get-or-create）**：以处方 / (就诊+类型) 为幂等键，只要已存在
+    「待收费 / 已收费」的在账单，一律返回同一张单，不新建、不重复收钱。
+    重复点击、网络重试、两个前台并发，都收敛到同一张单（返回 200 而非 409 —— 收费
+    是收现金的动作，409 会让「响应丢失」的前台误以为失败而再收一次）。
+
+    - 处方收费（prescription_id 给定）：金额从处方 total_price 快照。
+    - 非处方收费（挂号费等）：需 amount + (patient_id 或 visit_id)。
+    - 复用「待收费」单时，若本次带 payment_method + paid 则顺带完成收款
+      （覆盖「先开单、后从处方列表收费」的路径）。
+    - 已退费 / 已取消是终态历史，不占用唯一性，可合法重开新单。
     - commit=False 时只 flush，不提交，供调用方把收费单纳入自己的事务。
     """
     prescription = None
@@ -128,27 +164,13 @@ def create_charge(
             raise HTTPException(status_code=404, detail="处方不存在")
         if prescription.status == "已取消":
             raise HTTPException(status_code=400, detail="已取消的处方不可收费")
-        existing = (
-            db.query(Charge)
-            .filter(Charge.prescription_id == prescription.id, Charge.status == "待收费")
-            .first()
-        )
+        existing = find_active_charge(db, prescription_id=prescription.id, kind="prescription")
         if existing:
-            return existing
+            return _reuse(db, existing, payload, current_user, commit)
     elif payload.visit_id is not None:
-        # 非处方收费幂等：同一就诊、同一类型只保留一张待收费单
-        existing = (
-            db.query(Charge)
-            .filter(
-                Charge.prescription_id.is_(None),
-                Charge.visit_id == payload.visit_id,
-                Charge.kind == kind,
-                Charge.status == "待收费",
-            )
-            .first()
-        )
+        existing = find_active_charge(db, visit_id=payload.visit_id, kind=kind)
         if existing:
-            return existing
+            return _reuse(db, existing, payload, current_user, commit)
 
     if prescription:
         amount = _to_decimal(prescription.total_price or 0)
@@ -194,7 +216,9 @@ def create_charge(
     if payload.payment_method and payload.paid is not None:
         apply_payment(charge, payload.payment_method, payload.paid, current_user)
 
-    # 单号唯一约束兜底：并发撞号时重试一次（重取单号）。
+    # 数据库兜底：部分唯一索引保证「一张处方/一次就诊只有一笔在账的钱」。
+    # 并发下第二个 INSERT 会撞约束；回滚后先尝试取回对方已建的单（幂等返回），
+    # 取不到才说明是单号撞车，重取单号重试一次。
     # 不使用 SAVEPOINT —— pysqlite 默认驱动下 begin_nested() 会连带提交外层事务，
     # 破坏「挂号三件套同生共死」的原子性。commit=False 时把冲突上抛给调用方
     # （register 的整体回滚重试），由调用方决定事务边界。
@@ -210,5 +234,12 @@ def create_charge(
             raise
         db.rollback()
         if _retry >= 1:
-            raise HTTPException(status_code=409, detail="收费单号冲突，请重试")
+            raise HTTPException(status_code=409, detail="收费单冲突，请重试")
+        winner = None
+        if payload.prescription_id:
+            winner = find_active_charge(db, prescription_id=payload.prescription_id, kind="prescription")
+        elif payload.visit_id is not None:
+            winner = find_active_charge(db, visit_id=payload.visit_id, kind=kind)
+        if winner:
+            return _reuse(db, winner, payload, current_user, commit=True)
         return create_charge(db, payload, current_user, commit=True, _retry=1)

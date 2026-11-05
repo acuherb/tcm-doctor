@@ -1056,6 +1056,95 @@ def m0024() -> None:
                 ))
 
 
+@migration(
+    "0025",
+    "收费单：冲正历史重复开单 + 一处方一笔在账（部分唯一索引）",
+)
+def m0025() -> None:
+    """根治「点一次收费还能继续重复收费」：
+
+    1) 冲正存量脏数据：同一处方下若有多张「待收费/已收费」单，保留最早一张，
+       其余标记为「已取消」并在 note 写明冲正原因（不删除、不改动真实收款金额，可回溯）。
+       被冲正的单不再计入营收统计，账实恢复一致。
+    2) 建部分唯一索引，让「一处方只能有一笔在账的钱」由数据库兜底：
+       已退费/已取消是终态历史，不占用唯一性，退费后仍可合法重新开单。
+    """
+    insp = inspect(engine)
+    if "charges" not in set(insp.get_table_names()):
+        return
+    cols = {c["name"] for c in insp.get_columns("charges")}
+    active_cond = "status IN ('待收费', '已收费')"
+
+    with engine.begin() as conn:
+        # 旧数据中 kind 可能为 NULL，统一规范成处方收费，保证索引条件与查询口径一致
+        conn.execute(text("UPDATE charges SET kind = 'prescription' WHERE kind IS NULL"))
+
+        dups = conn.execute(text(
+            "SELECT prescription_id, COUNT(*) AS c FROM charges "
+            f"WHERE prescription_id IS NOT NULL AND kind = 'prescription' AND {active_cond} "
+            "GROUP BY prescription_id HAVING c > 1"
+        )).fetchall()
+        has_cancel_reason = "cancel_reason" in cols
+        has_note = "note" in cols
+        for pid, _ in dups:
+            ids = [r[0] for r in conn.execute(
+                text("SELECT id FROM charges WHERE prescription_id = :p "
+                     f"AND kind = 'prescription' AND {active_cond} ORDER BY id"),
+                {"p": pid},
+            ).fetchall()]
+            keep = ids[0]
+            for extra in ids[1:]:
+                old_note = ""
+                if has_note:
+                    old_note = conn.execute(
+                        text("SELECT COALESCE(note, '') FROM charges WHERE id = :i"),
+                        {"i": extra},
+                    ).scalar() or ""
+                note = (old_note + "；" if old_note else "") + \
+                    f"重复开单自动冲正（迁移 0025，保留收费单 #{keep}）"
+                sets = ["status = '已取消'"]
+                params: dict = {"i": extra}
+                if has_note:
+                    sets.append("note = :note")
+                    params["note"] = note
+                if has_cancel_reason:
+                    sets.append("cancel_reason = :reason")
+                    params["reason"] = "重复开单自动冲正（迁移 0025）"
+                if "cancelled_by" in cols:
+                    sets.append("cancelled_by = '系统迁移'")
+                if "cancelled_at" in cols:
+                    sets.append("cancelled_at = CURRENT_TIMESTAMP")
+                conn.execute(text(f"UPDATE charges SET {', '.join(sets)} WHERE id = :i"), params)
+
+        # 非处方收费（挂号费）同 visit+kind 也只保留一笔在账
+        if "visit_id" in cols:
+            vdups = conn.execute(text(
+                "SELECT visit_id, kind, COUNT(*) AS c FROM charges "
+                "WHERE prescription_id IS NULL AND visit_id IS NOT NULL AND "
+                f"kind <> 'prescription' AND {active_cond} "
+                "GROUP BY visit_id, kind HAVING c > 1"
+            )).fetchall()
+            for vid, k, _ in vdups:
+                ids = [r[0] for r in conn.execute(
+                    text("SELECT id FROM charges WHERE prescription_id IS NULL AND visit_id = :v "
+                         f"AND kind = :k AND {active_cond} ORDER BY id"),
+                    {"v": vid, "k": k},
+                ).fetchall()]
+                for extra in ids[1:]:
+                    sets = ["status = '已取消'"]
+                    if has_note:
+                        sets.append("note = COALESCE(note, '') || '；重复挂号费开单自动冲正（迁移 0025）'")
+                    conn.execute(text(
+                        f"UPDATE charges SET {', '.join(sets)} WHERE id = :i"
+                    ), {"i": extra})
+
+        conn.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_charges_prescription_active "
+            "ON charges(prescription_id) "
+            "WHERE kind = 'prescription' AND status IN ('待收费', '已收费')"
+        ))
+
+
 def run_migrations() -> None:
     """应用所有未执行过的迁移（幂等：以 schema_migrations 表记录为准）"""
     with engine.begin() as conn:

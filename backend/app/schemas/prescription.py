@@ -131,6 +131,10 @@ class PrescriptionResponse(BaseModel):
     acupuncture_fee: float | None = None
     status: str
     reviewed_by: int | None
+    # 收费状态快照（列表/详情批量回填，供前端收敛「收费」按钮）
+    charge_id: int | None = None
+    charge_no: str | None = None
+    charge_status: str | None = None
     doctor_id: int | None = None
     doctor_name: str | None = None
     created_at: datetime | None

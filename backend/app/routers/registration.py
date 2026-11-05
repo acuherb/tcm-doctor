@@ -99,14 +99,15 @@ def _active_registration_today(db: Session, patient_id: int, day: str) -> Visit 
     )
 
 
-def _settle_registration_charges(db: Session, visit_id: int, current_user: User) -> int:
-    """退号联动：已收的挂号费自动全额退费，待收的挂号费自动作废，钱不留在账上。
+def _settle_visit_charges(db: Session, visit_id: int, current_user: User) -> int:
+    """退号联动：该就诊下**所有**在账收费单（挂号费 + 处方收费）一并结算。
 
-    返回被处理的收费单数，便于调用方告知前台。
+    已收的全额退、待收的作废，钱不留在账上。此前只看挂号费，患者退号后
+    处方收费仍挂在账上，是收费台最容易被投诉的漏洞。返回处理数供前台提示。
     """
     charges = (
         db.query(Charge)
-        .filter(Charge.visit_id == visit_id, Charge.kind == "registration")
+        .filter(Charge.visit_id == visit_id, Charge.status.in_(("待收费", "已收费")))
         .all()
     )
     handled = 0
@@ -120,6 +121,15 @@ def _settle_registration_charges(db: Session, visit_id: int, current_user: User)
     return handled
 
 
+# 就诊状态单向流转：禁止回跳（尤其「已完成 → 已取消」会二次触发退挂号费）
+ALLOWED_VISIT_TRANSITIONS = {
+    "待诊": ("待诊", "已接诊", "已取消"),
+    "已接诊": ("已完成", "已取消", "已接诊"),
+    "已完成": ("已完成",),
+    "已取消": ("已取消",),
+}
+
+
 @router.post("", summary="挂号登记（新建/选择患者 + 创建就诊 + 收挂号费）")
 def register(
     payload: RegistrationCreate,
@@ -131,13 +141,16 @@ def register(
 
     day = _today()
     # 同日重复挂号：先提示前台，确认后以 force=True 放行，避免误点产生两条就诊 + 两张挂号费单
-    if payload.patient_id and not payload.force:
+    duplicate_of = None
+    if payload.patient_id:
         dup = _active_registration_today(db, payload.patient_id, day)
         if dup:
-            raise HTTPException(
-                status_code=409,
-                detail=f"该患者今日已挂号（队列号 {dup.queue_no}），请确认是否仍要挂号",
-            )
+            if not payload.force:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"该患者今日已挂号（队列号 {dup.queue_no}），请确认是否仍要挂号",
+                )
+            duplicate_of = dup.id  # force 放行：回传前一次就诊，提醒前台核对是否重复收挂号费
 
     # 「患者 + 就诊 + 挂号费收费单」在**同一事务**内提交（服务层 commit=False）。
     # 排队号由 (visit_date, queue_no) 唯一约束兜底，并发撞号时整体回滚重试，
@@ -198,6 +211,7 @@ def register(
             return {
                 "visit": _serialize_visit(visit, patient.name),
                 "charge": ChargeResponse.model_validate(charge).model_dump() if charge else None,
+                "duplicate_of": duplicate_of,
             }
         except IntegrityError:
             db.rollback()
@@ -274,9 +288,15 @@ def update_registration(
     if payload.status is not None:
         if payload.status not in ("待诊", "已接诊", "已完成", "已取消"):
             raise HTTPException(status_code=400, detail="无效的就诊状态")
-        # 退号联动：已收挂号费自动全额退、待收挂号费自动作废，钱不留在账上
+        # 状态单向流转，禁止回跳（已完成/已取消为终态）
+        if payload.status not in ALLOWED_VISIT_TRANSITIONS.get(v.status or "", ()):
+            raise HTTPException(
+                status_code=400,
+                detail=f"就诊状态不可从「{v.status}」变更为「{payload.status}」",
+            )
+        # 退号联动：该就诊下挂号费 + 处方收费单全部结算，钱不留在账上
         if payload.status == "已取消" and v.status != "已取消":
-            _settle_registration_charges(db, v.id, current_user)
+            _settle_visit_charges(db, v.id, current_user)
         v.status = payload.status
     if payload.department is not None:
         v.department = payload.department
