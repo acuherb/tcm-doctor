@@ -13,7 +13,7 @@
 - 自动备份下载权限与手动导出对齐、快照剥离 `auth_tokens`、原子落盘并过滤损坏快照；导出临时文件写入数据目录且 0600。
 - 日志列表不再向普通账号下发完整 traceback、CSV 公式转义、`logs/clean` 权限点修正、5xx 统一文案、422 审计日志容错。
 - 新增免鉴权 `/config/public` 品牌端点；Electron `file://` 的 `null` Origin 放行 + CORS 预检豁免鉴权。
-- 容器改为非 root；`pyproject.toml` 补齐备份加密所需的 `cryptography`。
+- 容器改为非 root；`pyproject.toml` 补齐备份加密所需的 `cryptography`；批次列表预加载物品消除 N+1。
 
 ### 业务与数据
 - 处方金额链：新建补计针灸费、金额冻结改为比较「改前/改后重算值」、发药不再重算账单快照；已审核改方退回待审核。

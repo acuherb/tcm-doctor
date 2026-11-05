@@ -175,7 +175,10 @@ def list_batches(
     page_size: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),
 ):
-    q = db.query(StockBatch).join(StockItem, StockBatch.item_id == StockItem.id)
+    # 预加载物品，避免 _batch_resp 逐行访问 b.item 造成 N+1 查询
+    q = db.query(StockBatch).options(joinedload(StockBatch.item)).join(
+        StockItem, StockBatch.item_id == StockItem.id
+    )
     if item_id is not None:
         q = q.filter(StockBatch.item_id == item_id)
     if herb_id is not None:
