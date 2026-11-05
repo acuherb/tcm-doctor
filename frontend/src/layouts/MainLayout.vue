@@ -26,14 +26,6 @@
           <template #title>统计报表</template>
         </el-menu-item>
 
-        <el-sub-menu index="patient-group">
-          <template #title>
-            <el-icon><User /></el-icon>
-            <span>病号管理</span>
-          </template>
-          <el-menu-item index="/patients">患者列表</el-menu-item>
-        </el-sub-menu>
-
         <el-sub-menu index="frontdesk-group">
           <template #title>
             <el-icon><Money /></el-icon>
@@ -41,6 +33,14 @@
           </template>
           <el-menu-item v-if="auth.can('patient:write')" index="/registration">挂号台</el-menu-item>
           <el-menu-item v-if="auth.can('billing:read')" index="/billing">收费管理</el-menu-item>
+        </el-sub-menu>
+
+        <el-sub-menu index="patient-group">
+          <template #title>
+            <el-icon><User /></el-icon>
+            <span>病号管理</span>
+          </template>
+          <el-menu-item index="/patients">患者列表</el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu index="treatment-group">

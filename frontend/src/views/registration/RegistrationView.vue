@@ -37,6 +37,36 @@
               <el-alert v-if="selectedPatient.allergy_history" type="error" :closable="false" show-icon
                 :title="`过敏史：${selectedPatient.allergy_history}`" class="patient-summary__alert" />
               <div v-else-if="selectedPatient.phone" class="patient-summary__meta">{{ selectedPatient.phone }}</div>
+
+              <!-- 历史就诊/处方快捷查看：与档案互通，前台一眼看既往史 -->
+              <el-collapse v-model="historyOpen" class="history-collapse">
+                <el-collapse-item name="history">
+                  <template #title>
+                    历史就诊 / 处方
+                    <span class="history-count" v-if="historyVisits.length || historyRx.length">
+                      （就诊 {{ historyVisits.length }} · 处方 {{ historyRx.length }}）
+                    </span>
+                  </template>
+                  <div v-if="historyLoading" class="history-loading">加载中…</div>
+                  <template v-else>
+                    <div v-if="!historyVisits.length && !historyRx.length" class="history-empty">暂无历史记录</div>
+                    <div v-else class="history-block">
+                      <div v-if="historyVisits.length" class="history-sub">就诊记录</div>
+                      <div v-for="v in historyVisits" :key="'v'+v.id" class="history-item" @click="openPatientDetail(selectedPatient.id)">
+                        <span class="history-date">{{ v.visit_date }}</span>
+                        <span class="history-title">{{ v.chief_complaint || '就诊' }}</span>
+                        <el-tag v-if="v.status" size="small" effect="plain">{{ v.status }}</el-tag>
+                      </div>
+                      <div v-if="historyRx.length" class="history-sub">处方记录</div>
+                      <div v-for="rx in historyRx" :key="'r'+rx.id" class="history-item" @click="openPatientDetail(selectedPatient.id)">
+                        <span class="history-date">{{ (rx.created_at || '').slice(0, 10) }}</span>
+                        <span class="history-title">{{ rx.formula_name || rx.title || '处方' }}</span>
+                        <el-tag v-if="rx.status" size="small" effect="plain">{{ rx.status }}</el-tag>
+                      </div>
+                    </div>
+                  </template>
+                </el-collapse-item>
+              </el-collapse>
             </div>
 
             <el-collapse v-model="showNewPatient">
@@ -153,6 +183,11 @@ const selectedPatientId = ref<number | null>(null)
 const patientOptions = ref<any[]>([])
 const selectedPatient = ref<any>(null)  // 已选患者档案摘要（互通）
 const showNewPatient = ref<string[]>([])
+// 历史就诊/处方快捷查看
+const historyOpen = ref<string[]>([])
+const historyLoading = ref(false)
+const historyVisits = ref<any[]>([])
+const historyRx = ref<any[]>([])
 // 新建患者字段与「患者列表-新增患者」(PatientCreate) 完全一致
 const np = reactive({
   name: '', gender: null as string | null, birth_date: null as string | null, phone: '',
@@ -177,10 +212,32 @@ async function onSelectPatient() {
   if (!selectedPatientId.value) { selectedPatient.value = null; return }
   np.name = ''
   showNewPatient.value = []
+  historyOpen.value = ['history']
+  historyVisits.value = []
+  historyRx.value = []
   try {
     const r = await api.get<any>(`/patients/${selectedPatientId.value}`)
     selectedPatient.value = r
+    await loadPatientHistory(selectedPatientId.value)
   } catch { selectedPatient.value = null }
+}
+
+// 快捷加载患者历史就诊与处方（与档案互通）
+async function loadPatientHistory(id: number) {
+  historyLoading.value = true
+  try {
+    const [visits, rx] = await Promise.all([
+      api.get<any[]>(`/patients/${id}/visits`),
+      api.get<{ items: any[] }>('/prescriptions', { params: { patient_id: id, page: 1, page_size: 10 } }),
+    ])
+    historyVisits.value = (visits || []).slice(0, 8)
+    historyRx.value = (rx?.items || []).slice(0, 8)
+  } catch {
+    historyVisits.value = []
+    historyRx.value = []
+  } finally {
+    historyLoading.value = false
+  }
 }
 function openPatientDetail(id?: number) {
   if (!id) return
@@ -215,6 +272,7 @@ async function submitRegister() {
     ElMessage.success(`挂号成功，排队号 ${r.visit.queue_no}`)
     // 重置
     selectedPatientId.value = null; selectedPatient.value = null; patientOptions.value = []
+    historyVisits.value = []; historyRx.value = []; historyOpen.value = []
     Object.assign(np, { name: '', gender: null, birth_date: null, phone: '', id_card: '', address: '', height: null, weight: null, allergy_history: '', medical_history: '', notes: '' })
     department.value = ''; regFee.value = 0; paid.value = 0; showNewPatient.value = []
     loadQueue()
@@ -293,6 +351,14 @@ onMounted(loadQueue)
 .patient-summary__meta { color: #8a8170; font-size: 12px; }
 .patient-summary__link { margin-left: auto; }
 .patient-summary__alert { margin-top: 6px; }
+.history-collapse { margin-top: 8px; border: none; }
+.history-count { color: #8a8170; font-weight: 400; font-size: 12px; }
+.history-loading, .history-empty { color: #8a8170; font-size: 13px; padding: 4px 0; }
+.history-sub { font-size: 12px; color: #6b6454; margin: 6px 0 2px; font-weight: 600; }
+.history-item { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 6px; cursor: pointer; }
+.history-item:hover { background: #eef6f1; }
+.history-date { color: #8a8170; font-size: 12px; width: 80px; flex: 0 0 80px; }
+.history-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .queue-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 8px; flex-wrap: wrap; }
 .muted { color: #b0a394; }
 .queue-table { :deep(.el-tag--primary) { --el-tag-bg-color: #ecf5ff; --el-tag-text-color: #409eff; --el-tag-border-color: #d9ecff; } }
