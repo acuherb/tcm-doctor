@@ -86,6 +86,19 @@ export interface RegistrationUpdate {
 
 export interface RegistrationQueueItem extends Visit {
   registration_charge?: Charge | null
+  // 状态判定依据（后端按病历/处方/收费/发药等业务事实计算）
+  evidence?: {
+    has_record: boolean
+    prescription_count: number
+    unsettled_prescriptions: number
+    dispensed: boolean
+    paid_prescriptions: number
+    can_complete: boolean
+    completion_blockers: string[]
+    completion_warnings: string[]
+    can_revert: boolean
+    revert_hint: string
+  }
 }
 
 export interface RegistrationQueueResponse {

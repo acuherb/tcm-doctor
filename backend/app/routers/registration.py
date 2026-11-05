@@ -1,7 +1,14 @@
 """挂号（前台分诊登记）路由：把「挂号 → 就诊 → 开方 → 收费」连成闭环。
 
-挂号动作：登记/新建患者 + 创建就诊(Visit, 置待诊) + 生成挂号序号 + 记录挂号费(经收费单按 visit_id 关联)。
-之后医生从队列「接诊」进入开方（PrescriptionEditor?visit_id=...），开方后走收费单，形成完整业务闭环。
+挂号动作：登记/新建患者 + 创建就诊(Visit, 置待诊，主诉为占位符) + 生成挂号序号
++ 记录挂号费(经收费单按 visit_id 关联)。
+
+正确链路：队列「接诊」→ 患者详情自动打开**本次就诊**的编辑抽屉（不是直接跳开方页）
+→ 医生写主诉/四诊/辨证（保存病历即自动推进「已接诊」）→ 抽屉内「去开药」进开方页
+→ 收费 → 队列「完成」。
+
+状态不再纯靠按钮：能否「完成」由业务事实（本次是否有真实病历、处方收款/发药情况）决定；
+误点「接诊/完成」可经 /revert 受控回退并写审计日志（钱和药一动即禁止回退）。
 
 权限：登记与状态变更需 patient:write；查看队列/详情需 patient:read。
 """
@@ -20,6 +27,7 @@ from app.models.patient import Patient
 from app.models.visit import Visit
 from app.models.user import User
 from app.models.billing import Charge
+from app.models.prescription import Prescription
 from app.routers.auth import get_current_user
 from app.permissions import has_perm
 from app.schemas.billing import ChargeCreate, ChargeResponse
@@ -27,6 +35,8 @@ from app.schemas.patient import PatientCreate
 from app.services.billing_service import (
     create_charge, refund_charge_record, cancel_charge_record, VALID_METHODS,
 )
+from app.utils.operation_log import write_log
+from app.services.visit_state import has_real_record
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/registration", tags=["挂号"])
@@ -51,6 +61,75 @@ class RegistrationCreate(BaseModel):
 class RegistrationUpdate(BaseModel):
     status: str | None = Field(default=None, description="就诊状态: 待诊/已接诊/已完成/已取消")
     department: str | None = Field(default=None, description="科室/接诊医师")
+
+
+class RevertRequest(BaseModel):
+    reason: str = Field(..., min_length=1, max_length=200, description="撤销原因（必填，写审计日志）")
+
+
+def _visit_evidence(db: Session, v: Visit) -> dict:
+    """汇总该就诊的**业务事实**，作为状态判定依据（而非凭一次按钮点击）。
+
+    - has_record：主诉已脱离挂号占位符，且至少有一项四诊/诊断/治法/医嘱
+    - prescription_count / unsettled：该就诊下有效处方数及未收款数
+    - dispensed / paid：是否已发药、是否已有处方收款
+    """
+    has_record = has_real_record(v)
+
+    rxs = (
+        db.query(Prescription)
+        .filter(Prescription.visit_id == v.id, Prescription.status != "已取消")
+        .all()
+    )
+    active_charges: dict[int, str] = {}
+    if rxs:
+        for c in db.query(Charge).filter(
+            Charge.prescription_id.in_([r.id for r in rxs]),
+            Charge.kind == "prescription",
+            Charge.status.in_(("待收费", "已收费")),
+        ).all():
+            active_charges[c.prescription_id] = c.status
+    unsettled = sum(
+        1 for r in rxs
+        if active_charges.get(r.id) != "已收费"
+    )
+    return {
+        "has_record": has_record,
+        "prescription_count": len(rxs),
+        "unsettled_prescriptions": unsettled,
+        "dispensed": any(r.status == "已发药" for r in rxs),
+        "paid_prescriptions": sum(1 for s in active_charges.values() if s == "已收费"),
+    }
+
+
+def _completion_blockers(ev: dict) -> list[str]:
+    """「完成就诊」的硬性前置条件：必须留下真实的本次诊疗记录。"""
+    if not ev["has_record"]:
+        return ["尚未填写本次就诊病历（主诉 + 四诊/诊断/治法/医嘱任一）"]
+    return []
+
+
+def _completion_warnings(ev: dict) -> list[str]:
+    """不阻断业务的提醒：钱和药还没走完，但医生确实看完了。"""
+    warns = []
+    if ev["unsettled_prescriptions"]:
+        warns.append(f"有 {ev['unsettled_prescriptions']} 张处方尚未收款，完成后请引导患者缴费")
+    if ev["prescription_count"] and not ev["dispensed"]:
+        warns.append("处方尚未发药")
+    return warns
+
+
+def _can_revert(v: Visit, ev: dict) -> tuple[bool, str]:
+    """受控撤销：只在「钱和药都没动、也没写病历」时允许回退，避免把已完成状态当儿戏。"""
+    if v.status == "已接诊":
+        if ev["has_record"] or ev["prescription_count"]:
+            return False, "该就诊已写入病历或开方，不可撤回「待诊」"
+        return True, "叫号误操作，撤回「待诊」"
+    if v.status == "已完成":
+        if ev["dispensed"] or ev["paid_prescriptions"]:
+            return False, "已有处方发药或收款，不可撤销「已完成」（如需更正请走作废/退费流程）"
+        return True, "撤销「已完成」，回到「已接诊」"
+    return False, f"当前状态「{v.status}」不可撤销"
 
 
 def _serialize_visit(v: Visit, patient_name: str | None) -> dict:
@@ -255,6 +334,15 @@ def queue(
             .first()
         )
         d["registration_charge"] = ChargeResponse.model_validate(ch).model_dump() if ch else None
+        ev = _visit_evidence(db, v)
+        d["evidence"] = {
+            **ev,
+            "can_complete": not _completion_blockers(ev) and v.status == "已接诊",
+            "completion_blockers": _completion_blockers(ev),
+            "completion_warnings": _completion_warnings(ev),
+            "can_revert": _can_revert(v, ev)[0],
+            "revert_hint": _can_revert(v, ev)[1],
+        }
         items.append(d)
     return {"items": items, "date": day}
 
@@ -270,6 +358,15 @@ def visit_detail(visit_id: int, db: Session = Depends(get_db), current_user: Use
     d = _serialize_visit(v, pat.name if pat else None)
     charges = db.query(Charge).filter(Charge.visit_id == v.id).all()
     d["charges"] = [ChargeResponse.model_validate(c).model_dump() for c in charges]
+    ev = _visit_evidence(db, v)
+    d["evidence"] = {
+        **ev,
+        "can_complete": not _completion_blockers(ev) and v.status == "已接诊",
+        "completion_blockers": _completion_blockers(ev),
+        "completion_warnings": _completion_warnings(ev),
+        "can_revert": _can_revert(v, ev)[0],
+        "revert_hint": _can_revert(v, ev)[1],
+    }
     return d
 
 
@@ -294,6 +391,14 @@ def update_registration(
                 status_code=400,
                 detail=f"就诊状态不可从「{v.status}」变更为「{payload.status}」",
             )
+        # 「已完成」必须有业务依据：本次就诊留下真实病历，而不是点一下按钮就算看完
+        if payload.status == "已完成" and v.status != "已完成":
+            blockers = _completion_blockers(_visit_evidence(db, v))
+            if blockers:
+                raise HTTPException(
+                    status_code=400,
+                    detail="无法完成就诊：" + "；".join(blockers) + "。请先在患者详情完善本次就诊记录。",
+                )
         # 退号联动：该就诊下挂号费 + 处方收费单全部结算，钱不留在账上
         if payload.status == "已取消" and v.status != "已取消":
             _settle_visit_charges(db, v.id, current_user)
@@ -314,3 +419,45 @@ def call_visit(visit_id: int, db: Session = Depends(get_db), current_user: User 
 @router.post("/{visit_id}/complete", summary="完成就诊（已接诊 -> 已完成）")
 def complete_visit(visit_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     return update_registration(visit_id, RegistrationUpdate(status="已完成"), db, current_user)
+
+
+@router.post("/{visit_id}/revert", summary="撤销误操作（受控回退 + 写审计日志）")
+def revert_visit(
+    visit_id: int,
+    payload: RevertRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """点错「接诊 / 完成」时的补救通道，但只在业务事实允许时回退：
+
+    - 已接诊 → 待诊：仅限尚未写病历、未开方（纯叫号点错）
+    - 已完成 → 已接诊：仅限没有处方发药、没有处方收款（钱和药都没动）
+    - 已发药/已收款后不允许回退，只能走「作废 / 退费」重开，避免账实不符
+    每次撤销都记录操作人、时间、原因到操作日志。
+    """
+    if not has_perm(current_user, "patient:write"):
+        raise HTTPException(status_code=403, detail="无权变更就诊状态")
+    v = db.query(Visit).filter(Visit.id == visit_id).first()
+    if not v:
+        raise HTTPException(status_code=404, detail="就诊记录不存在")
+
+    ev = _visit_evidence(db, v)
+    ok, hint = _can_revert(v, ev)
+    if not ok:
+        raise HTTPException(status_code=400, detail=hint)
+
+    old_status = v.status
+    new_status = "待诊" if old_status == "已接诊" else "已接诊"
+    v.status = new_status
+    db.commit()
+    db.refresh(v)
+    write_log(
+        level="WARN",
+        user_id=current_user.id,
+        username=current_user.username,
+        action="撤销就诊状态",
+        message=f"就诊 #{v.id}（患者 #{v.patient_id}）状态 {old_status} → {new_status}；原因：{payload.reason}",
+        target=f"visit:{v.id}",
+    )
+    pat = db.query(Patient).filter(Patient.id == v.patient_id).first()
+    return _serialize_visit(v, pat.name if pat else None)

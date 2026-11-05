@@ -950,6 +950,11 @@ async function loadExistingVisit(visitId: number) {
     currentVisitId.value = res.id
     const { pulse, ...rest } = res
     Object.assign(form.value, rest)
+    // 挂号登记创建的是占位病历，主诉为占位符；进入编辑时清空，避免医生误存占位内容
+    if ((form.value.chief_complaint || '').trim() === '（待接诊）') {
+      form.value.chief_complaint = ''
+      ElMessage.info('本次为挂号转入的就诊，请填写主诉与四诊信息后保存')
+    }
     if (!form.value.visit_type) form.value.visit_type = '初诊'
     form.value.pulse = (res.pulse || '').split('、').filter(Boolean)
     form.value.pulse_term_ids = res.pulse_term_ids || []

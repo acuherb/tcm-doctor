@@ -304,6 +304,12 @@ def update_visit(
         raise HTTPException(status_code=404, detail="就诊记录不存在")
     for k, v in data.model_dump(exclude_unset=True).items():
         setattr(visit, k, v)
+    # 医生写下真实病历即视为开始诊疗，自动从「待诊」推进到「已接诊」。
+    # 状态不再只靠挂号台手动点，业务事实本身就能驱动流转。
+    from app.services.visit_state import has_real_record
+
+    if visit.status == "待诊" and has_real_record(visit):
+        visit.status = "已接诊"
     db.commit()
     db.refresh(visit)
     return visit

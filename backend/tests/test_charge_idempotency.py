@@ -277,7 +277,12 @@ def test_visit_state_machine_rejects_backwards_transition(client, db_session, au
         "new_patient": {"name": f"状态机_{s}"}, "registration_fee": 0,
     }, headers=auth_headers)
     vid = r.json()["visit"]["id"]
+    pid = r.json()["visit"]["patient_id"]
     assert client.post(f"/api/v1/registration/{vid}/call", headers=auth_headers).status_code == 200
+    # 完成就诊需先留下真实病历
+    assert client.put(f"/api/v1/patients/{pid}/visits/{vid}", json={
+        "chief_complaint": "头痛两日", "palpation": "脉弦",
+    }, headers=auth_headers).status_code == 200
     assert client.post(f"/api/v1/registration/{vid}/complete", headers=auth_headers).status_code == 200
     # 已完成是终态，不可回跳到已取消（否则会二次触发退挂号费）
     bad = client.patch(f"/api/v1/registration/{vid}", json={"status": "已取消"}, headers=auth_headers)

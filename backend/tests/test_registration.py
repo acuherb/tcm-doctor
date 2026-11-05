@@ -76,6 +76,7 @@ def test_queue_and_status_flow(client, db_session, auth_headers):
         "payment_method": "微信", "paid": 15.0,
     }, headers=auth_headers)
     vid = r.json()["visit"]["id"]
+    pid = r.json()["visit"]["patient_id"]
 
     # 队列可见
     q = client.get("/api/v1/registration/queue", headers=auth_headers)
@@ -83,14 +84,26 @@ def test_queue_and_status_flow(client, db_session, auth_headers):
     items = q.json()["items"]
     mine = next(i for i in items if i["id"] == vid)
     assert mine["registration_charge"]["status"] == "已收费"
+    assert mine["evidence"]["can_complete"] is False  # 未写病历，不允许完成
 
     # 接诊 -> 已接诊
     c = client.post(f"/api/v1/registration/{vid}/call", headers=auth_headers)
     assert c.status_code == 200
     assert c.json()["status"] == "已接诊"
 
+    # 完成就诊需有真实病历作为依据
+    blocked = client.post(f"/api/v1/registration/{vid}/complete", headers=auth_headers)
+    assert blocked.status_code == 400
+    assert "无法完成就诊" in blocked.json()["detail"]
+
+    rec = client.put(f"/api/v1/patients/{pid}/visits/{vid}", json={
+        "chief_complaint": "胃脘胀痛3天", "inquiry": "纳差", "tcm_syndrome": "肝气犯胃证",
+    }, headers=auth_headers)
+    assert rec.status_code == 200, rec.text
+
     # 完成 -> 已完成
     comp = client.post(f"/api/v1/registration/{vid}/complete", headers=auth_headers)
+    assert comp.status_code == 200, comp.text
     assert comp.json()["status"] == "已完成"
 
     # 按状态筛选

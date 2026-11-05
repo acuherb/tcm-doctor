@@ -1087,6 +1087,12 @@ onMounted(async () => {
   loading.value = true
   try {
     await loadPatientData()
+    // 从挂号台「接诊」跳入：自动打开本次挂号对应的就诊编辑抽屉，
+    // 由医生先完善病历（写病历会自动把「待诊」推进为「已接诊」），再在抽屉内「去开药」。
+    const vid = Number(route.query.visit_id)
+    if (route.query.open_visit === '1' && vid) {
+      openVisitDrawer(vid)
+    }
   } catch {}
   loading.value = false
 })

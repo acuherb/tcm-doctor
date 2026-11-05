@@ -166,10 +166,16 @@
                 <el-tag :type="statusType(row.status)" size="small" effect="light" round>{{ row.status }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="170" fixed="right">
+            <el-table-column label="操作" width="220" fixed="right">
               <template #default="{ row }">
                 <el-button v-if="row.status === '待诊'" link type="primary" size="small" @click="callVisit(row)">接诊</el-button>
-                <el-button v-if="row.status === '已接诊'" link type="success" size="small" @click="completeVisit(row)">完成</el-button>
+                <el-tooltip v-if="row.status === '已接诊'" :disabled="row.evidence?.can_complete"
+                  :content="(row.evidence?.completion_blockers || []).join('；') || '需先完善本次就诊记录'" placement="top">
+                  <span class="op-wrap">
+                    <el-button link type="success" size="small" :disabled="!row.evidence?.can_complete" @click="completeVisit(row)">完成</el-button>
+                  </span>
+                </el-tooltip>
+                <el-button v-if="row.evidence?.can_revert" link type="info" size="small" @click="openRevert(row)">撤销</el-button>
                 <el-button v-if="row.registration_charge && row.registration_charge.status === '待收费'" link type="warning" size="small" @click="collectRegFee(row)">收挂号费</el-button>
                 <el-button v-if="!['已完成','已取消'].includes(row.status)" link type="danger" size="small" @click="cancelVisit(row)">退号</el-button>
               </template>
@@ -178,6 +184,21 @@
         </el-col>
       </el-row>
     </el-card>
+
+    <!-- 撤销误操作：原因必填，写入操作日志 -->
+    <el-dialog v-model="revertVisible" title="撤销就诊状态" width="440px" append-to-body>
+      <div v-if="revertTarget" class="dlg-body">
+        <p>将 <b>{{ revertTarget.patient_name }}</b> 的本次就诊从「{{ revertTarget.status }}」回退？</p>
+        <el-alert type="warning" :closable="false" show-icon
+          :title="revertTarget.evidence?.revert_hint || '仅在未写病历、未发药、未收款时允许回退'" />
+        <el-input v-model="revertReason" type="textarea" :rows="2" style="margin-top: 12px"
+          placeholder="撤销原因（必填，将写入操作日志）" />
+      </div>
+      <template #footer>
+        <el-button @click="revertVisible = false">取消</el-button>
+        <el-button type="warning" :loading="reverting" @click="submitRevert">确认撤销</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -395,17 +416,61 @@ async function callVisit(row: RegistrationQueueItem) {
   try {
     await api.post(`/registration/${row.id}/call`)
     ElMessage.success('已叫号，进入接诊')
-    // 跳转到开方页（带入 visit 与 patient，闭合 挂号→就诊→开方 链路）
-    router.push({ path: '/prescriptions/new', query: { visit_id: String(row.id), patient_id: String(row.patient_id) } })
+    // 挂号时已创建本次就诊（占位病历），正确路径是去患者详情「完善本次就诊」，
+    // 由医生写主诉/四诊/辨证，再由就诊抽屉内的「去开药」进入开方页。
+    // 不再直接跳开方页，避免病历停留在占位符。
+    if (!row.patient_id) { loadQueue(); return }
+    router.push({
+      path: `/patients/${row.patient_id}`,
+      query: { visit_id: String(row.id), open_visit: '1' },
+    })
   } catch { /* 拦截器已提示 */ }
 }
 
 async function completeVisit(row: RegistrationQueueItem) {
+  const ev = row.evidence || {}
+  if (ev.can_complete === false) {
+    ElMessage.warning((ev.completion_blockers || []).join('；') || '请先完善本次就诊记录')
+    return
+  }
+  const lines = [
+    `本次就诊病历：${ev.has_record ? '已填写' : '未填写'}`,
+    `处方：${ev.prescription_count || 0} 张`,
+    ...(ev.completion_warnings || []),
+    '确认将本次就诊标记为「已完成」？',
+  ]
+  try {
+    await ElMessageBox.confirm(lines.join('\n'), '确认完成就诊', { type: 'info' })
+  } catch { return }
   try {
     await api.post(`/registration/${row.id}/complete`)
     ElMessage.success('就诊已完成')
     loadQueue()
   } catch { /* 拦截器已提示 */ }
+}
+
+// 误点「接诊 / 完成」的受控回退（后端按业务事实审批并写审计日志）
+const revertVisible = ref(false)
+const revertTarget = ref<RegistrationQueueItem | null>(null)
+const revertReason = ref('')
+const reverting = ref(false)
+function openRevert(row: RegistrationQueueItem) {
+  revertTarget.value = row
+  revertReason.value = ''
+  revertVisible.value = true
+}
+async function submitRevert() {
+  if (!revertTarget.value?.id) return
+  if (!revertReason.value.trim()) { ElMessage.warning('请填写撤销原因（将写入操作日志）'); return }
+  reverting.value = true
+  try {
+    await api.post(`/registration/${revertTarget.value.id}/revert`, { reason: revertReason.value.trim() })
+    ElMessage.success('已撤销，状态已回退')
+    revertVisible.value = false
+    loadQueue()
+  } catch { /* 拦截器已提示 */ } finally {
+    reverting.value = false
+  }
 }
 
 async function cancelVisit(row: RegistrationQueueItem) {
@@ -464,4 +529,6 @@ onMounted(loadQueue)
 .queue-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 8px; flex-wrap: wrap; }
 .muted { color: #b0a394; }
 .queue-table { :deep(.el-tag--primary) { --el-tag-bg-color: #ecf5ff; --el-tag-text-color: #409eff; --el-tag-border-color: #d9ecff; } }
+.op-wrap { display: inline-block; margin-right: 8px; }
+.dlg-body { font-size: 14px; line-height: 1.8; }
 </style>
