@@ -71,6 +71,20 @@
 
             <el-collapse v-model="showNewPatient">
               <el-collapse-item name="new" title="＋ 新建患者（字段与档案一致）">
+                <!-- 查重：同名/同证件疑似重复时警示，可直接选择已有患者 -->
+                <div v-if="dups.length && !dupChecked" class="dup-warn">
+                  <el-alert type="warning" :closable="false" show-icon>
+                    <template #title>疑似重复患者（{{ dups.length }} 位），请先确认是否为同一人</template>
+                    <div class="dup-list">
+                      <div v-for="d in dups" :key="d.id" class="dup-item">
+                        <span class="dup-meta">{{ d.name }} · {{ d.gender || '-' }} · {{ d.birth_date || '未知出生' }} · {{ d.phone || '无电话' }}</span>
+                        <el-button link type="primary" size="small" @click="selectExistingDup(d)">选择此人</el-button>
+                      </div>
+                    </div>
+                    <el-button size="small" type="primary" plain class="dup-confirm" @click="dupChecked = true">确认是新患者，继续建档</el-button>
+                  </el-alert>
+                </div>
+                <div v-else-if="dupLoading" class="dup-loading">查重中…</div>
                 <el-form label-width="72px" class="sub-form">
                   <el-form-item label="姓名"><el-input v-model="np.name" placeholder="必填" /></el-form-item>
                   <el-form-item label="性别">
@@ -168,10 +182,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '@/utils/api'
+import { findPatientDuplicates } from '@/utils/dedup'
 import type { RegistrationQueueItem } from '@/types'
 
 const router = useRouter()
@@ -188,6 +203,34 @@ const historyOpen = ref<string[]>([])
 const historyLoading = ref(false)
 const historyVisits = ref<any[]>([])
 const historyRx = ref<any[]>([])
+
+// 患者查重：防止同名/同身份证造成重复建档（就诊史分散）
+const dups = ref<any[]>([])
+const dupLoading = ref(false)
+const dupChecked = ref(false)  // 用户已确认"仍要新建"
+let dupTimer: ReturnType<typeof setTimeout> | null = null
+
+function scheduleDupCheck() {
+  dupChecked.value = false
+  if (dupTimer) clearTimeout(dupTimer)
+  dupTimer = setTimeout(runDupCheck, 400)
+}
+async function runDupCheck() {
+  const name = np.name.trim()
+  if (!name) { dups.value = []; return }
+  dupLoading.value = true
+  try {
+    dups.value = await findPatientDuplicates({ name, phone: np.phone || null, id_card: np.id_card || null })
+  } finally {
+    dupLoading.value = false
+  }
+}
+function selectExistingDup(d: any) {
+  // 直接选中该存量患者，避免重复建档
+  selectedPatientId.value = d.id
+  dups.value = []
+  onSelectPatient()
+}
 // 新建患者字段与「患者列表-新增患者」(PatientCreate) 完全一致
 const np = reactive({
   name: '', gender: null as string | null, birth_date: null as string | null, phone: '',
@@ -212,6 +255,8 @@ async function onSelectPatient() {
   if (!selectedPatientId.value) { selectedPatient.value = null; return }
   np.name = ''
   showNewPatient.value = []
+  dups.value = []
+  dupChecked.value = false
   historyOpen.value = ['history']
   historyVisits.value = []
   historyRx.value = []
@@ -249,6 +294,18 @@ async function submitRegister() {
   if (regFee.value > 0 && paid.value < regFee.value - 1e-6) {
     ElMessage.warning('实收不能小于挂号费'); return
   }
+  // 查重：存在疑似重复且未确认时，强制二次确认，避免重复建档
+  if (dups.value.length && !dupChecked.value) {
+    try {
+      await ElMessageBox.confirm(
+        `系统中已有 ${dups.value.length} 位疑似同名/同证件患者，确认要新建档案吗？\n如为同一人，请取消并在上方选择已有患者。`,
+        '疑似重复患者', { type: 'warning', confirmButtonText: '仍要新建', cancelButtonText: '去选择' }
+      )
+      dupChecked.value = true
+    } catch {
+      return  // 用户选择"去选择"，中止建档
+    }
+  }
   submitting.value = true
   try {
     const payload: any = {
@@ -273,6 +330,7 @@ async function submitRegister() {
     // 重置
     selectedPatientId.value = null; selectedPatient.value = null; patientOptions.value = []
     historyVisits.value = []; historyRx.value = []; historyOpen.value = []
+    dups.value = []; dupChecked.value = false
     Object.assign(np, { name: '', gender: null, birth_date: null, phone: '', id_card: '', address: '', height: null, weight: null, allergy_history: '', medical_history: '', notes: '' })
     department.value = ''; regFee.value = 0; paid.value = 0; showNewPatient.value = []
     loadQueue()
@@ -338,6 +396,9 @@ async function collectRegFee(row: RegistrationQueueItem) {
   } catch { /* 拦截器已提示 */ }
 }
 
+// 新建患者表单变化即触发查重（防抖）
+watch(() => [np.name, np.phone, np.id_card], () => scheduleDupCheck())
+
 onMounted(loadQueue)
 </script>
 
@@ -359,6 +420,12 @@ onMounted(loadQueue)
 .history-item:hover { background: #eef6f1; }
 .history-date { color: #8a8170; font-size: 12px; width: 80px; flex: 0 0 80px; }
 .history-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dup-warn { margin-bottom: 8px; }
+.dup-loading { color: #8a8170; font-size: 12px; margin-bottom: 6px; }
+.dup-list { margin: 2px 0 6px; }
+.dup-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 0; }
+.dup-meta { font-size: 12px; color: #6b6454; }
+.dup-confirm { margin-top: 2px; }
 .queue-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 8px; flex-wrap: wrap; }
 .muted { color: #b0a394; }
 .queue-table { :deep(.el-tag--primary) { --el-tag-bg-color: #ecf5ff; --el-tag-text-color: #409eff; --el-tag-border-color: #d9ecff; } }

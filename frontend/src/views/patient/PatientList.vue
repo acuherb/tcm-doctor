@@ -178,6 +178,20 @@
             </el-form-item>
           </el-col>
         </el-row>
+        <!-- 查重：同名/同证件疑似重复时警示 -->
+        <div v-if="dups.length && !dupChecked" class="dup-warn">
+          <el-alert type="warning" :closable="false" show-icon>
+            <template #title>疑似重复患者（{{ dups.length }} 位），请先确认是否为同一人</template>
+            <div class="dup-list">
+              <div v-for="d in dups" :key="d.id" class="dup-item">
+                <span class="dup-meta">{{ d.name }} · {{ d.gender || '-' }} · {{ d.birth_date || '未知出生' }} · {{ d.phone || '无电话' }}</span>
+                <el-button link type="primary" size="small" @click="goDetail(d)">查看</el-button>
+              </div>
+            </div>
+            <el-button size="small" type="primary" plain class="dup-confirm" @click="dupChecked = true">确认是新患者，继续建档</el-button>
+          </el-alert>
+        </div>
+        <div v-else-if="dupLoading" class="dup-loading">查重中…</div>
         <el-row :gutter="12">
           <el-col :xs="24" :sm="12">
             <el-form-item label="出生日期">
@@ -245,7 +259,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
@@ -253,6 +267,7 @@ import api from '@/utils/api'
 import type { Patient, DictionaryTerm } from '@/types'
 import { useAuthStore } from '@/store/auth'
 import { calcAge, calcBmi, bodyType } from '@/utils/health'
+import { findPatientDuplicates } from '@/utils/dedup'
 
 // 游客只读：隐藏所有写操作
 const auth = useAuthStore()
@@ -349,6 +364,33 @@ const newPatient = ref({
   tags: [] as string[],
 })
 
+// 患者查重：防止同名/同证件造成重复建档
+const dups = ref<any[]>([])
+const dupLoading = ref(false)
+const dupChecked = ref(false)
+let dupTimer: ReturnType<typeof setTimeout> | null = null
+function scheduleDupCheck() {
+  dupChecked.value = false
+  if (dupTimer) clearTimeout(dupTimer)
+  dupTimer = setTimeout(runDupCheck, 400)
+}
+async function runDupCheck() {
+  const name = newPatient.value.name.trim()
+  if (!name) { dups.value = []; return }
+  dupLoading.value = true
+  try {
+    dups.value = await findPatientDuplicates({
+      name, phone: newPatient.value.phone || null, id_card: newPatient.value.id_card || null,
+    })
+  } finally {
+    dupLoading.value = false
+  }
+}
+// 表单字段变化即触发查重（防抖）
+watch(() => [newPatient.value.name, newPatient.value.phone, newPatient.value.id_card], () => scheduleDupCheck())
+// 打开新增对话框时清查处重状态
+watch(showAddDialog, (v) => { if (v) { dups.value = []; dupChecked.value = false } })
+
 async function loadPatients() {
   try {
     const params: Record<string, unknown> = { page: page.value, page_size: pageSize.value }
@@ -390,12 +432,25 @@ async function addPatient() {
     ElMessage.warning('请输入患者姓名')
     return
   }
+  // 查重：存在疑似重复且未确认时，强制二次确认
+  if (dups.value.length && !dupChecked.value) {
+    try {
+      await ElMessageBox.confirm(
+        `系统中已有 ${dups.value.length} 位疑似同名/同证件患者，确认要新建档案吗？\n如为同一人，请取消并改用搜索选择已有患者。`,
+        '疑似重复患者', { type: 'warning', confirmButtonText: '仍要新建', cancelButtonText: '去搜索' }
+      )
+      dupChecked.value = true
+    } catch {
+      return
+    }
+  }
   submitting.value = true
   try {
     await api.post('/patients', newPatient.value)
     ElMessage.success('患者添加成功')
     showAddDialog.value = false
     newPatient.value = { name: '', gender: '男', birth_date: '', phone: '', id_card: '', address: '', height: null, weight: null, allergy_history: '', medical_history: '', notes: '', tags: [] }
+    dups.value = []; dupChecked.value = false
     loadPatients()
   } catch {
     // 已被拦截器处理
@@ -422,6 +477,12 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.dup-warn { margin-bottom: 12px; }
+.dup-loading { color: #8a8170; font-size: 12px; margin-bottom: 8px; }
+.dup-list { margin: 2px 0 6px; }
+.dup-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 0; }
+.dup-meta { font-size: 12px; color: #6b6454; }
+.dup-confirm { margin-top: 2px; }
 .patient-list {
   .main-card {
     border-radius: 12px;

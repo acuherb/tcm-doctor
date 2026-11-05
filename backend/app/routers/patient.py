@@ -121,6 +121,31 @@ def list_patients(
     return PatientListResponse(total=total, items=items, page=page, page_size=page_size)
 
 
+@router.get("/duplicates", response_model=list[PatientResponse], summary="疑似重复患者查重")
+def find_duplicates(
+    name: str = Query(..., description="姓名（必填）"),
+    phone: str | None = Query(None, description="电话"),
+    id_card: str | None = Query(None, description="身份证号"),
+    db: Session = Depends(get_db),
+):
+    """建档/挂号时查重：返回姓名相同、或身份证号相同、或电话相同的存量患者，
+    供前台确认是否为同一人，从源头避免「同名不同记录」造成就诊史分散。"""
+    from sqlalchemy import or_
+
+    conditions = [Patient.name == name]
+    if id_card:
+        conditions.append(Patient.id_card == id_card)
+    if phone:
+        conditions.append(Patient.phone == phone)
+    return (
+        db.query(Patient)
+        .filter(Patient.deleted_at.is_(None))
+        .filter(or_(*conditions))
+        .limit(20)
+        .all()
+    )
+
+
 @router.post("", response_model=PatientResponse, summary="新增患者")
 def create_patient(data: PatientCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     patient = Patient(**data.model_dump())
