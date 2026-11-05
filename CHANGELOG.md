@@ -175,6 +175,33 @@
   与 `tests/test_billing_permission_migration.py`（1 项：权限补齐/幂等）。
 - 后端全量 `pytest` **73 passed**；前端 `vue-tsc 0`、`npm run build 0`。
 
+## 2026-11-05（续七）— 挂号台：挂号 → 就诊 → 开方 → 收费 闭环
+
+### 动机
+此前流程直接「患者 → 开方」，缺前台挂号（排队号/挂号费/就诊状态）环节；收费与就诊未串联。
+本次补齐**挂号（分诊登记）**，使「挂号 → 就诊 → 开方 → 收费」形成完整业务闭环。
+
+### 后端
+- **Visit 模型**新增挂号字段：`queue_no`(当日排队号)、`registration_fee`(挂号费)、`registered_at`(挂号时间)、
+  `registrar_id`(挂号员)、`department`(科室/接诊医师)、`status`(待诊/已接诊/已完成/已取消)；并加索引。
+- **Charge 模型**：`prescription_id` 改为**可空**并新增 `kind`(prescription/registration)，支持「挂号费」等非处方收费。
+- **路由** `app/routers/registration.py`（`/api/v1/registration`，域登记 `patient:read`/`patient:write`）：
+  - `POST /` 挂号登记：选择/新建患者 → 创建就诊(待诊)+排队号 → 记录挂号费（可开单即收，生成 `kind=registration` 收费单）。
+  - `GET /queue` 今日挂号队列（状态筛选）、`GET /{id}` 详情(含收费单)、`PATCH /{id}` 改状态/科室、`POST /{id}/call`(接诊)、`POST /{id}/complete`(完成)。
+  - 共享 `app/services/billing_service.create_charge`：处方收费与非处方收费（挂号费）共用，统一金额量化/减免校验/重复开单复用/开单即收。
+- **权限**：`DOMAIN_PERMS` 登记 `/registration`；`billing` 域与 `billing:read/write` 权限点（前序已加）。
+- **迁移 0023**：存量库 `charges.prescription_id` 为 NOT NULL，SQLite 不支持改可空，故重建表（保留数据与索引/唯一约束）；新库由 `create_all` 直接建为可空。
+
+### 前端
+- **挂号台** `views/registration/RegistrationView.vue`：左侧挂号登记（患者检索/新建、科室、挂号费、收款方式/实收），
+  右侧今日队列（排队号/患者/挂号费/收费状态/就诊状态 + 接诊/完成/收挂号费/退号），「接诊」跳转 `/prescriptions/new?visit_id=&patient_id=` 闭合链路。
+- **收费管理** `BillingView.vue`：增加「类型」列(处方/挂号费)与类型筛选；列表接口支持 `kind` 参数。
+- 路由 `/registration` + 菜单「病号管理 → 挂号台」（`patient:write` 显隐）；`types/index.ts` 新增挂号相关类型与 Visit 挂号字段。
+
+### 验证
+- 新增 `tests/test_registration.py`（6 项：新建患者+挂号费即收、选择患者免挂号费、队列与状态流转、挂号费入收费单可退费、只读账号 403、迁移 0023 可空化）。
+- 后端全量 `pytest` **79 passed**；前端 `vue-tsc 0`、`npm run build 0`。
+
 ## 2026-11-04 — 作废入口收敛到详情弹窗，避免列表误点
 
 ### 决定

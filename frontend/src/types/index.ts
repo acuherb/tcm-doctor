@@ -46,13 +46,51 @@ export interface Patient {
 export interface Visit {
   id?: number
   patient_id?: number
+  patient_name?: string | null
   visit_date?: string
+  visit_type?: string | null
   chief_complaint?: string
+  // 挂号（前台分诊登记）字段
+  queue_no?: number | null
+  registration_fee?: number | null
+  registered_at?: string | null
+  registrar_id?: number | null
+  department?: string | null
+  status?: string | null
   tongue_body_term_id?: number | null
   tongue_coat_term_id?: number | null
   pulse_term_id?: number | null
   syndrome_term_id?: number | null
   [key: string]: any
+}
+
+// 挂号登记（前台分诊）
+export interface RegistrationCreate {
+  patient_id?: number
+  new_patient?: {
+    name: string
+    phone?: string | null
+    gender?: string | null
+    birth_date?: string | null
+  }
+  department?: string | null
+  registration_fee?: number
+  payment_method?: string | null
+  paid?: number | null
+}
+
+export interface RegistrationUpdate {
+  status?: string
+  department?: string | null
+}
+
+export interface RegistrationQueueItem extends Visit {
+  registration_charge?: Charge | null
+}
+
+export interface RegistrationQueueResponse {
+  items: RegistrationQueueItem[]
+  date: string
 }
 
 // 处方

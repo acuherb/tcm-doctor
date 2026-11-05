@@ -28,6 +28,7 @@ from app.routers import acupoint_formula
 from app.routers import stats, backup, auth, followup_reminders, stock
 from app.routers import system_log, templates
 from app.routers import billing
+from app.routers import registration
 from app.routers.auth import get_current_user, AUTH_COOKIE_NAME
 
 WRITE_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
@@ -552,6 +553,8 @@ app.include_router(system_log.router, prefix="/api/v1")
 app.include_router(templates.router, prefix="/api/v1")
 # 收费管理（开方 -> 收费闭环）
 app.include_router(billing.router, prefix="/api/v1")
+# 挂号（前台分诊登记）：挂号 -> 就诊 -> 开方 -> 收费 闭环入口
+app.include_router(registration.router, prefix="/api/v1")
 
 
 def _clean_env_value(value: str) -> str:

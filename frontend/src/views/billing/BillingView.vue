@@ -53,6 +53,10 @@
           <el-option label="已收费" value="已收费" />
           <el-option label="已退费" value="已退费" />
         </el-select>
+        <el-select v-model="kindFilter" placeholder="全部类型" clearable class="filter-mini" @change="loadCharges(true)">
+          <el-option label="处方收费" value="prescription" />
+          <el-option label="挂号费" value="registration" />
+        </el-select>
         <el-input v-model="patientFilter" placeholder="患者姓名" clearable class="filter-search"
           @clear="loadCharges(true)" @keyup.enter="loadCharges(true)" />
         <el-date-picker v-model="dateRange" type="daterange" value-format="YYYY-MM-DD"
@@ -66,7 +70,16 @@
       <el-table v-if="!isMobile" :data="charges" class="tcm-table" style="width:100%" empty-text="暂无收费单">
         <el-table-column prop="charge_no" label="单号" width="165" />
         <el-table-column prop="patient_name" label="患者" min-width="100" show-overflow-tooltip />
-        <el-table-column prop="prescription_title" label="处方" min-width="120" show-overflow-tooltip />
+        <el-table-column label="类型" width="90">
+          <template #default="{ row }">
+            <el-tag :type="row.kind === 'registration' ? 'warning' : 'info'" size="small" effect="plain">
+              {{ row.kind === 'registration' ? '挂号费' : '处方' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="prescription_title" label="项目" min-width="120" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.kind === 'registration' ? '挂号费' : (row.prescription_title || '-') }}</template>
+        </el-table-column>
         <el-table-column label="应收" width="100" align="right">
           <template #default="{ row }">¥{{ Number(row.amount).toFixed(2) }}</template>
         </el-table-column>
@@ -182,6 +195,7 @@ const stats = ref<ChargeStats>({
   paid_count: 0, refunded_count: 0, pending_count: 0, total_count: 0,
 })
 const statusFilter = ref('')
+const kindFilter = ref('')
 const patientFilter = ref('')
 const dateRange = ref<[string, string] | null>(null)
 const isMobile = ref(false)
@@ -214,6 +228,7 @@ async function loadCharges(reset = false) {
       page: page.value, page_size: pageSize.value, ...dateParams(),
     }
     if (statusFilter.value) params.status = statusFilter.value
+    if (kindFilter.value) params.kind = kindFilter.value
     if (patientFilter.value) params.patient_name = patientFilter.value.trim()
     const res = await api.get<{ items: Charge[]; total: number }>('/billing/charges', { params })
     charges.value = res.items || []

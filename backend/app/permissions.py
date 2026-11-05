@@ -97,6 +97,8 @@ DOMAIN_PERMS: dict[str, tuple[str, str | None]] = {
     # 此前未登记导致按 fail-closed 全量 403，模板工具栏与一键安装都不可用。
     "/templates": ("*", "system:write"),
     "/billing": ("billing:read", "billing:write"),
+    # 挂号（前台分诊登记）：登记/改状态需 patient:write，查看队列需 patient:read
+    "/registration": ("patient:read", "patient:write"),
 }
 
 # 账号管理接口单独映射（中间件整体跳过 /auth，故在 auth 路由内自行校验 user:write）

@@ -14,7 +14,6 @@ from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
 from app.models.billing import Charge, _to_decimal
 from app.models.prescription import Prescription
-from app.models.patient import Patient
 from app.models.user import User
 from app.routers.auth import get_current_user
 from app.schemas.billing import (
@@ -46,68 +45,13 @@ def create_charge(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """为处方生成收费单；传入收款方式与实收金额则直接置为「已收费」。
+    """为处方生成收费单（prescription_id 给定）；或创建非处方收费（如挂号费，prescription_id 留空）。
 
-    - 同一处方已有「待收费」单时返回该单（避免重复开单）。
-    - 金额以处方 total_price 快照，减免不得超过原价。
+    传入收款方式与实收金额则直接置为「已收费」。同一处方已有「待收费」单时复用，避免重复开单。
     """
-    prescription = db.query(Prescription).filter(Prescription.id == payload.prescription_id).first()
-    if not prescription:
-        raise HTTPException(status_code=404, detail="处方不存在")
-    if prescription.status == "已取消":
-        raise HTTPException(status_code=400, detail="已取消的处方不可收费")
+    from app.services.billing_service import create_charge as _svc_create
 
-    existing = (
-        db.query(Charge)
-        .filter(Charge.prescription_id == prescription.id, Charge.status == "待收费")
-        .first()
-    )
-    if existing:
-        return _charge_to_response(existing)
-
-    amount = _to_decimal(prescription.total_price or 0)
-    discount = _to_decimal(payload.discount)
-    if discount > amount:
-        raise HTTPException(status_code=400, detail="减免金额不能超过应收原价")
-    payable = (amount - discount).max(Decimal("0.00"))
-
-    patient_name = None
-    if prescription.patient_id:
-        pat = db.query(Patient).filter(Patient.id == prescription.patient_id).first()
-        patient_name = pat.name if pat else None
-
-    charge = Charge(
-        charge_no=_gen_charge_no(db),
-        prescription_id=prescription.id,
-        patient_id=prescription.patient_id,
-        visit_id=prescription.visit_id,
-        patient_name=patient_name,
-        prescription_title=prescription.formula_name or "自拟方",
-        amount=amount,
-        discount=discount,
-        payable=payable,
-        paid=Decimal("0.00"),
-        status="待收费",
-        note=payload.note,
-    )
-
-    # 开单即收
-    if payload.payment_method and payload.paid is not None:
-        if payload.payment_method not in VALID_METHODS:
-            raise HTTPException(status_code=400, detail="无效的收款方式")
-        paid = _to_decimal(payload.paid)
-        if paid < payable:
-            raise HTTPException(status_code=400, detail="实收金额小于应付金额")
-        charge.paid = paid
-        charge.payment_method = payload.payment_method
-        charge.status = "已收费"
-        charge.cashier_id = current_user.id
-        charge.cashier_name = current_user.display_name or current_user.username
-        charge.paid_at = datetime.now()
-
-    db.add(charge)
-    db.commit()
-    db.refresh(charge)
+    charge = _svc_create(db, payload, current_user)
     return _charge_to_response(charge)
 
 
@@ -117,6 +61,7 @@ def list_charges(
     patient_id: int | None = Query(None),
     patient_name: str | None = Query(None, description="患者姓名模糊匹配"),
     status: str | None = Query(None),
+    kind: str | None = Query(None, description="收费类型: prescription/registration"),
     start_date: str | None = Query(None, description="创建日期起 yyyy-mm-dd"),
     end_date: str | None = Query(None, description="创建日期止 yyyy-mm-dd"),
     page: int = Query(1, ge=1),
@@ -128,6 +73,8 @@ def list_charges(
         q = q.filter(Charge.prescription_id == prescription_id)
     if patient_id is not None:
         q = q.filter(Charge.patient_id == patient_id)
+    if kind:
+        q = q.filter(Charge.kind == kind)
     if patient_name:
         q = q.filter(Charge.patient_name.contains(patient_name))
     if status:

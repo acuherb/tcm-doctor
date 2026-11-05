@@ -1,6 +1,7 @@
 """就诊记录 ORM 模型"""
 from datetime import datetime
-from sqlalchemy import String, Text, DateTime, Integer, ForeignKey, JSON, Index
+from decimal import Decimal
+from sqlalchemy import String, Text, DateTime, Integer, ForeignKey, JSON, Index, Numeric
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -11,6 +12,8 @@ class Visit(Base):
     __tablename__ = "visits"
     __table_args__ = (
         Index("idx_visits_patient_date", "patient_id", "visit_date"),
+        Index("idx_visits_registered_at", "registered_at"),
+        Index("idx_visits_status", "status"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -56,6 +59,18 @@ class Visit(Base):
     # 父子关联：复诊指向其初诊，构成一次完整就诊（初诊→复诊链）
     parent_visit_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("visits.id", ondelete="SET NULL"), comment="父就诊ID(复诊指向其初诊，构成一次完整就诊)", nullable=True
+    )
+
+    # ── 挂号（前台分诊登记）字段：使「挂号 → 就诊 → 开方 → 收费」形成闭环 ──
+    queue_no: Mapped[int | None] = mapped_column(Integer, comment="挂号序号(当日排队号)", nullable=True)
+    registration_fee: Mapped[Decimal | None] = mapped_column(
+        Numeric(8, 2), comment="挂号费(元)；经收费单按 visit_id 关联收取", nullable=True
+    )
+    registered_at: Mapped[datetime | None] = mapped_column(DateTime, comment="挂号时间", nullable=True)
+    registrar_id: Mapped[int | None] = mapped_column(Integer, comment="挂号员ID", nullable=True)
+    department: Mapped[str | None] = mapped_column(String(50), comment="科室/接诊医师(挂号时填写)", nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(20), default="待诊", server_default="待诊", comment="就诊状态: 待诊/已接诊/已完成/已取消"
     )
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)

@@ -9,7 +9,15 @@ from pydantic import BaseModel, Field
 
 
 class ChargeCreate(BaseModel):
-    prescription_id: int
+    # 处方收费（默认）：传 prescription_id，金额从处方快照自动计算
+    prescription_id: Optional[int] = Field(default=None, description="关联处方(处方收费时必填)")
+    # 非处方收费（如挂号费）：传 amount + (patient_id 或 visit_id)，prescription_id 留空
+    visit_id: Optional[int] = Field(default=None, description="关联就诊(挂号费等非处方收费)")
+    patient_id: Optional[int] = Field(default=None, description="关联患者")
+    amount: Optional[float] = Field(default=None, ge=0, description="应收原价(非处方收费时填)")
+    kind: str = Field(default="prescription", description="收费类型: prescription/registration")
+    title: Optional[str] = Field(default=None, description="标题快照(非处方收费，如'挂号费')")
+    patient_name: Optional[str] = Field(default=None, description="患者姓名快照(非处方收费时填)")
     discount: float = Field(default=0.0, ge=0, description="减免金额（元）")
     # 开单同时收款：传入收款方式与实收金额则直接置为「已收费」
     payment_method: Optional[str] = Field(default=None, description="收款方式: 现金/微信/支付宝/银行卡/医保/记账")
@@ -29,11 +37,12 @@ class RefundRequest(BaseModel):
 class ChargeResponse(BaseModel):
     id: int
     charge_no: str
-    prescription_id: int
+    prescription_id: Optional[int] = None
     patient_id: Optional[int] = None
     visit_id: Optional[int] = None
     patient_name: Optional[str] = None
     prescription_title: Optional[str] = None
+    kind: str = "prescription"
     amount: float = 0.0
     discount: float = 0.0
     payable: float = 0.0

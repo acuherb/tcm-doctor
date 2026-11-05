@@ -907,6 +907,83 @@ def m0022() -> None:
                 )
 
 
+@migration(
+    "0023",
+    "收费单 prescription_id 改为可空（支持挂号费等非处方收费）",
+)
+def m0023() -> None:
+    """新增 挂号费 收费类型后，收费单不再必须绑定处方。
+
+    模型已将 prescription_id 设可为空（新库由 create_all 直接建为可空）；
+    存量库该列仍为 NOT NULL，SQLite 不支持 ALTER 改可空，故重建 charges 表：
+    去掉 prescription_id 的 NOT NULL 约束，保留全部数据与索引/唯一约束。
+    （kind 列由 _sync_model_columns 在迁移前补齐，故重建时已存在。）
+    """
+    insp = inspect(engine)
+    if "charges" not in set(insp.get_table_names()):
+        return
+    cols = insp.get_columns("charges")
+    pid = next((c for c in cols if c["name"] == "prescription_id"), None)
+    if pid is None:
+        return
+    if pid.get("nullable"):
+        return  # 新库已可空，无需重建
+
+    has_kind = any(c["name"] == "kind" for c in cols)
+    new_cols = [
+        "id INTEGER PRIMARY KEY AUTOINCREMENT",
+        "charge_no VARCHAR(32) NOT NULL",
+        "prescription_id INTEGER",
+        "patient_id INTEGER",
+        "visit_id INTEGER",
+        "patient_name VARCHAR(50)",
+        "prescription_title VARCHAR(120)",
+        "amount NUMERIC(12,2)",
+        "discount NUMERIC(12,2)",
+        "payable NUMERIC(12,2)",
+        "paid NUMERIC(12,2)",
+        "payment_method VARCHAR(20)",
+        "status VARCHAR(20)",
+        "cashier_id INTEGER",
+        "cashier_name VARCHAR(50)",
+        "paid_at DATETIME",
+        "refunded_by VARCHAR(50)",
+        "refunded_at DATETIME",
+        "refund_reason VARCHAR(200)",
+        "note TEXT",
+        "created_at DATETIME",
+        "kind VARCHAR(20) NOT NULL DEFAULT 'prescription'",
+        "FOREIGN KEY(prescription_id) REFERENCES prescriptions(id) ON DELETE SET NULL",
+    ]
+    with engine.begin() as conn:
+        conn.execute(text("CREATE TABLE charges_new (" + ", ".join(new_cols) + ")"))
+        col_list = ", ".join(c["name"] for c in cols)
+        if has_kind:
+            conn.execute(text(
+                f"INSERT INTO charges_new ({col_list}) SELECT {col_list} FROM charges"
+            ))
+        else:
+            # 极端情况：sync 尚未补 kind（理论不会发生），旧行按 prescription 处理
+            conn.execute(text(
+                f"INSERT INTO charges_new (id, charge_no, prescription_id, patient_id, visit_id, "
+                f"patient_name, prescription_title, amount, discount, payable, paid, payment_method, "
+                f"status, cashier_id, cashier_name, paid_at, refunded_by, refunded_at, refund_reason, "
+                f"note, created_at) "
+                f"SELECT id, charge_no, prescription_id, patient_id, visit_id, patient_name, "
+                f"prescription_title, amount, discount, payable, paid, payment_method, status, "
+                f"cashier_id, cashier_name, paid_at, refunded_by, refunded_at, refund_reason, note, "
+                f"created_at FROM charges"
+            ))
+        conn.execute(text("DROP TABLE charges"))
+        conn.execute(text("ALTER TABLE charges_new RENAME TO charges"))
+        # 重建索引/唯一约束
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_charges_no ON charges(charge_no)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_charges_status ON charges(status)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_charges_created_at ON charges(created_at)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_charges_patient_created ON charges(patient_id, created_at)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_charges_prescription ON charges(prescription_id)"))
+
+
 def run_migrations() -> None:
     """应用所有未执行过的迁移（幂等：以 schema_migrations 表记录为准）"""
     with engine.begin() as conn:

@@ -32,6 +32,7 @@
             <span>病号管理</span>
           </template>
           <el-menu-item index="/patients">患者列表</el-menu-item>
+          <el-menu-item v-if="auth.can('patient:write')" index="/registration">挂号台</el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu index="treatment-group">

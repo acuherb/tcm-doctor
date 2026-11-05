@@ -11,6 +11,7 @@ import Statistics from '@/views/dashboard/Statistics.vue'
 import PatientList from '@/views/patient/PatientList.vue'
 import PatientDetail from '@/views/patient/PatientDetail.vue'
 import ConstitutionScale from '@/views/patient/ConstitutionScale.vue'
+import RegistrationView from '@/views/registration/RegistrationView.vue'
 import HerbList from '@/views/herb/HerbList.vue'
 import AcupointList from '@/views/acupoint/AcupointList.vue'
 import StockOverview from '@/views/inventory/Overview.vue'
@@ -69,6 +70,12 @@ const routes: RouteRecordRaw[] = [
         name: 'PatientDetail',
         component: PatientDetail,
         meta: { title: '患者详情', hidden: true },
+      },
+      {
+        path: 'registration',
+        name: 'RegistrationView',
+        component: RegistrationView,
+        meta: { title: '挂号台', icon: 'Ticket', perm: 'patient:write' },
       },
       {
         path: 'constitution/:id?',

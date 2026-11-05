@@ -1,7 +1,8 @@
-"""收费单（处方 -> 收费）ORM 模型。
+"""收费单（处方 -> 收费 / 挂号费 等非处方收费）ORM 模型。
 
 业务定位：开方后生成收费单，记录应收/实收/收款方式与收银员，可打印收据；
 与发药/库存解耦（库存仍由「发药」环节扣减），此处只管「钱」的闭环。
+kind 区分收费类型：prescription=处方收费，registration=挂号费（无处方）。
 """
 from datetime import datetime
 from decimal import Decimal
@@ -26,15 +27,20 @@ class Charge(Base):
     # 收费单号：C + 时间(精确到秒) + 2 位随机数，保证可读且唯一
     charge_no: Mapped[str] = mapped_column(String(32), unique=True, nullable=False, comment="收费单号")
 
-    prescription_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("prescriptions.id", ondelete="SET NULL"), nullable=False, index=True,
-        comment="关联处方",
+    prescription_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("prescriptions.id", ondelete="SET NULL"), nullable=True, index=True,
+        comment="关联处方（挂号费等非处方收费可为空）",
     )
     patient_id: Mapped[int | None] = mapped_column(Integer, index=True, comment="关联患者")
     visit_id: Mapped[int | None] = mapped_column(Integer, comment="关联就诊")
     # 冗余快照，便于收据/统计直接展示，不随患者改名而变
     patient_name: Mapped[str | None] = mapped_column(String(50), comment="患者姓名(快照)")
     prescription_title: Mapped[str | None] = mapped_column(String(120), comment="处方标题(快照)")
+    # 收费类型：prescription=处方收费；registration=挂号费（无处方）
+    kind: Mapped[str] = mapped_column(
+        String(20), default="prescription", server_default="prescription",
+        comment="收费类型: prescription/registration",
+    )
 
     # 金额（元）：amount 为处方原始总价快照，payable = amount - discount
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"), comment="应收原价")

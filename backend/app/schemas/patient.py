@@ -174,6 +174,13 @@ class VisitResponse(BaseModel):
     doctor_notes: str | None
     doctor_id: int | None
     parent_visit_id: int | None
+    # 挂号（前台分诊登记）字段
+    queue_no: int | None = None
+    registration_fee: float | None = None
+    registered_at: datetime | None = None
+    registrar_id: int | None = None
+    department: str | None = None
+    status: str | None = None
     created_at: datetime | None
 
     model_config = {"from_attributes": True}
