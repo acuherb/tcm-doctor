@@ -144,6 +144,37 @@
 ### 验证
 - 前端 `vue-tsc 0`、`npm run build 0`。后端既有 `pytest` 全量通过（发药相关测试覆盖扣库存/冲红）。
 
+## 2026-11-05（续六）— 收费单闭环（P1 业务闭环：收费）
+
+### 动机
+原系统「开方 → 发药」之间缺收费环节：有处方总价却无收费单、无收款留痕、无收据，钱与账都不闭环。
+本次按「先做收费单」落地：**开方后生成收费单 → 收款记录 → 打印收据**，与发药/库存解耦（库存仍由发药扣减，收费只管钱）。
+
+### 后端
+- **新模型** `Charge`（`app/models/billing.py`）：单号、关联处方/患者/就诊、金额快照（应收/减免/应付/实收）、
+  收款方式、状态（待收费/已收费/已退费）、收银员与收款/退费时间、退费原因；含状态/时间/患者索引。
+  新表由启动 `create_all` 自动建，无需改表迁移。
+- **接口** `app/routers/billing.py`（`/api/v1/billing`，含对应 schema）：
+  - `POST /charges` 开单（可「开单即收」）；同一处方已有待收费单时返回原单，避免重复开单；减免不得超过原价、实收不得小于应付。
+  - `GET /charges` 列表（状态/患者/处方/日期筛选 + 分页）、`GET /charges/{id}` 详情（含处方明细快照，供收据）。
+  - `POST /charges/{id}/pay` 收款、`POST /charges/{id}/refund` 退费、`GET /charges/stats/summary` 金额汇总。
+- **权限**：新增 `billing:read/billing:write` 权限点、角色默认集（医生/药房）、`/billing` 路由域；
+  迁移 `0022` 为存量账号补齐 billing 并把空权限集按角色默认集显式化（解决前端 `auth.can` 只看显式数组导致「后端放行前端看不到入口」）。
+- **清空数据**：`reset_data` 删除顺序加入 `Charge`（收费单引用处方/就诊/患者，须先清，避免外键冲突）。
+
+### 前端
+- 新组件 `ReceiptDialog.vue`（收据：单号/患者/项目明细/应收-减免-实收/找零/收款方式/收银员，打印时仅保留收据区）、
+  `ChargeDialog.vue`（处方列表一键开单+收款，成功后弹收据）。
+- `PrescriptionList.vue`：操作列/移动卡片增加「收费」按钮（`billing:write` 才显示）。
+- 新页面 `views/billing/BillingView.vue`：金额汇总卡、状态/患者/日期筛选、分页列表、收款、退费、收据打印；
+  路由 `/billing` 与「处方管理 → 收费管理」菜单接入（按 `billing:read` 显隐）。
+- `store/auth.ts` 域映射、`types/index.ts` 新增 `Charge/ChargeStats`。
+
+### 验证
+- 新增 `tests/test_billing.py`（6 项：待收费→收款、开单即收、少收拒绝、退费、重复开单、列表与汇总）
+  与 `tests/test_billing_permission_migration.py`（1 项：权限补齐/幂等）。
+- 后端全量 `pytest` **73 passed**；前端 `vue-tsc 0`、`npm run build 0`。
+
 ## 2026-11-04 — 作废入口收敛到详情弹窗，避免列表误点
 
 ### 决定

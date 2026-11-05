@@ -111,13 +111,14 @@
             <span v-else class="rx-none">—</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="184" fixed="right">
+        <el-table-column label="操作" width="228" fixed="right">
           <template #default="{ row }">
             <div class="rx-ops">
               <el-button link type="primary" size="small" @click="viewDetail(row)">详情</el-button>
               <el-button v-if="editable && row.status !== '已发药' && row.status !== '已取消'" link type="primary" size="small" @click="$router.push(`/prescriptions/new?id=${row.id}`)">编辑</el-button>
               <el-button v-if="editable && row.status === '已开'" link type="success" size="small" @click="reviewPrescription(row)">审核</el-button>
               <el-button v-if="editable && row.status === '已审核'" link type="warning" size="small" @click="dispensePrescription(row)">发药</el-button>
+              <el-button v-if="canCharge && row.status !== '已取消'" link type="danger" size="small" @click="openCharge(row)">收费</el-button>
               <el-button link type="info" size="small" @click="printPrescription(row)">打印</el-button>
             </div>
           </template>
@@ -170,6 +171,7 @@
             <el-button v-if="editable && row.status !== '已发药' && row.status !== '已取消'" link type="primary" size="small" @click="$router.push(`/prescriptions/new?id=${row.id}`)">编辑</el-button>
             <el-button v-if="editable && row.status === '已开'" link type="success" size="small" @click="reviewPrescription(row)">审核</el-button>
             <el-button v-if="editable && row.status === '已审核'" link type="warning" size="small" @click="dispensePrescription(row)">发药</el-button>
+            <el-button v-if="canCharge && row.status !== '已取消'" link type="danger" size="small" @click="openCharge(row)">收费</el-button>
             <el-button link type="info" size="small" @click="printPrescription(row)">打印</el-button>
           </div>
         </div>
@@ -359,6 +361,9 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <!-- 收费（处方 -> 收费单 -> 收据） -->
+    <ChargeDialog v-model:visible="chargeVisible" :prescription="chargeTarget" @charged="loadPrescriptions" />
   </div>
 </template>
 
@@ -366,6 +371,7 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Star } from '@element-plus/icons-vue'
+import ChargeDialog from '@/components/ChargeDialog.vue'
 import api from '@/utils/api'
 import { debounce } from '@/utils/search'
 import type { Patient, Prescription, AppConfig } from '@/types'
@@ -374,6 +380,7 @@ import { useAuthStore } from '@/store/auth'
 // 游客只读：隐藏所有写操作
 const auth = useAuthStore()
 const editable = computed(() => auth.canWrite('prescriptions'))
+const canCharge = computed(() => auth.can('billing:write'))
 
 // ---- 移动端适配 ----
 const isMobile = ref(false)
@@ -537,6 +544,14 @@ async function confirmDispense() {
 
 async function dispensePrescription(row: any) {
   openDispenseDialog(row)
+}
+
+// 收费：从处方一键开单并收款（开方 -> 收费闭环）
+const chargeVisible = ref(false)
+const chargeTarget = ref<any>(null)
+function openCharge(row: any) {
+  chargeTarget.value = row
+  chargeVisible.value = true
 }
 
 async function voidPrescription(row: any) {

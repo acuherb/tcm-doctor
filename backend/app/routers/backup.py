@@ -170,10 +170,12 @@ def reset_data(
     from app.models.followup import FollowUp
     from app.models.followup_reminder import FollowUpReminder
     from app.models.user import AuthToken
+    from app.models.billing import Charge
 
     # 严格按「子表先于父表」顺序删除：启用 PRAGMA foreign_keys=ON 后，
     # 必须先清空子记录再删父记录，否则因缺级联而失败。覆盖会话/处方明细/随访/库存流水等全部子表。
     for model in [
+        Charge,                                     # 收费单（引用处方/就诊/患者，最先清）
         Message, Conversation,                      # 会话/消息
         AcupointPrescription, PrescriptionInjection, PrescriptionItem, Prescription,  # 处方及其明细
         FollowUp, FollowUpReminder,                  # 随访/提醒（引用患者/就诊）

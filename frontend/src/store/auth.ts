@@ -22,6 +22,7 @@ const DOMAIN_READ: Record<string, string> = {
   acupoints: 'dict:read', 'acupoint-formulas': 'dict:read', knowledge: 'dict:read',
   'book-library': 'dict:read', dictionaries: 'dict:read', stats: 'stats:read',
   backup: 'system:read', system: 'system:read', config: 'system:read',
+  billing: 'billing:read',
 }
 const DOMAIN_WRITE: Record<string, string | null> = {
   patients: 'patient:write', visits: 'patient:write', prescriptions: 'prescription:write',
@@ -29,6 +30,7 @@ const DOMAIN_WRITE: Record<string, string | null> = {
   acupoints: 'dict:write', 'acupoint-formulas': 'dict:write', knowledge: 'dict:write',
   'book-library': 'dict:write', dictionaries: 'dict:write', stats: 'stats:read',
   backup: 'system:write', system: 'system:write', config: 'system:write',
+  billing: 'billing:write',
 }
 
 const USER_KEY = 'tcm_user'

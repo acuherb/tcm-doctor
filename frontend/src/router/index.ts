@@ -24,6 +24,7 @@ import StockReports from '@/views/inventory/Reports.vue'
 import PrescriptionList from '@/views/prescription/PrescriptionList.vue'
 import PrescriptionEditor from '@/views/prescription/PrescriptionEditor.vue'
 import ClassicFormulaLib from '@/views/prescription/ClassicFormulaLib.vue'
+import BillingView from '@/views/billing/BillingView.vue'
 import AcupointFormulaLib from '@/views/acupoint/AcupointFormulaLib.vue'
 import KnowledgeSearch from '@/views/knowledge/KnowledgeSearch.vue'
 import BookLibrary from '@/views/knowledge/BookLibrary.vue'
@@ -146,6 +147,12 @@ const routes: RouteRecordRaw[] = [
         name: 'PrescriptionEditor',
         component: PrescriptionEditor,
         meta: { title: '开具处方', hidden: true },
+      },
+      {
+        path: 'billing',
+        name: 'BillingView',
+        component: BillingView,
+        meta: { title: '收费管理', icon: 'Money', perm: 'billing:read' },
       },
       {
         path: 'classic-formulas',

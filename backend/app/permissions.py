@@ -47,6 +47,10 @@ PERMISSION_GROUPS = [
     {"group": "统计", "perms": [
         {"key": "stats:read", "label": "查看统计报表"},
     ]},
+    {"group": "收费", "perms": [
+        {"key": "billing:read", "label": "查看收费单 / 收据"},
+        {"key": "billing:write", "label": "开具收费 / 收款 / 退费"},
+    ]},
     {"group": "用户与系统", "perms": [
         {"key": "user:read", "label": "查看账号"},
         {"key": "user:write", "label": "创建 / 管理账号与权限"},
@@ -62,8 +66,8 @@ ALL_PERMISSIONS = sorted({p["key"] for g in PERMISSION_GROUPS for p in g["perms"
 ROLE_DEFAULT_PERMSET = {
     ROLE_ADMIN: list(ALL_PERMISSIONS),
     ROLE_DOCTOR: ["patient:read", "patient:write", "prescription:read", "prescription:write",
-                  "stock:read", "stock:write", "stats:read", "dict:read"],
-    ROLE_PHARMACIST: ["patient:read", "stock:read", "stock:write", "dict:read", "stats:read"],
+                  "stock:read", "stock:write", "stats:read", "dict:read", "billing:read", "billing:write"],
+    ROLE_PHARMACIST: ["patient:read", "stock:read", "stock:write", "dict:read", "stats:read", "billing:read", "billing:write"],
     ROLE_VIEWER: ["patient:read", "prescription:read", "stock:read", "dict:read", "stats:read"],
     ROLE_CUSTOM: [],
 }
@@ -92,6 +96,7 @@ DOMAIN_PERMS: dict[str, tuple[str, str | None]] = {
     # 模板/基础数据包：清单与导出对所有登录账号可读，导入（写内容库）要求 system:write。
     # 此前未登记导致按 fail-closed 全量 403，模板工具栏与一键安装都不可用。
     "/templates": ("*", "system:write"),
+    "/billing": ("billing:read", "billing:write"),
 }
 
 # 账号管理接口单独映射（中间件整体跳过 /auth，故在 auth 路由内自行校验 user:write）

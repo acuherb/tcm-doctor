@@ -726,15 +726,33 @@ def m0018() -> None:
             ))
 
     # 2) version 列：仅对存在的存量表补齐；新库已由 create_all 建好（_sync 会跳过该列）
+    #    注意：必须每表重新 inspect（不可复用上面的 insp）。SQLite 方言对 ALTER ADD COLUMN
+    #    不做 info-cache 失效，复用缓存会误判后续表仍缺列而重复 ADD COLUMN；SQLite 对重名列
+    #    的 ADD COLUMN 是静默无效果的，导致 visits/prescriptions/followups 的 version 列停留在
+    #    可空无默认值的状态，旧数据 version 为 NULL → ORM 乐观锁 UPDATE 变成 `version IS NULL`
+    #    永远匹配不到（或直接报缺少绑定参数），进而处方编辑/回填/签名全部失败。
+    #    因此这里对「列已存在」的情况再做两步兜底：补默认值 + 回填 NULL。
     version_tables = [t for t in ("patients", "visits", "prescriptions", "followups") if t in existing_tables]
-    with engine.begin() as conn:
-        for t in version_tables:
-            cols = {c["name"] for c in insp.get_columns(t)}
-            if "version" in cols:
-                continue
-            conn.execute(text(
-                f"ALTER TABLE {t} ADD COLUMN version INTEGER NOT NULL DEFAULT 1"
-            ))
+    for t in version_tables:
+        if "version" not in {c["name"] for c in inspect(engine).get_columns(t)}:
+            with engine.begin() as conn:
+                conn.execute(text(
+                    f"ALTER TABLE {t} ADD COLUMN version INTEGER NOT NULL DEFAULT 1"
+                ))
+            continue
+        # 历史库：列已存在但可能可空/无默认值，且存量行 version 为 NULL —— 就地修正。
+        # SQLite 不支持 ALTER COLUMN SET DEFAULT / SET NOT NULL，只能回填 NULL 值；
+        # 新写入仍由 ORM 的 server_default=1 保证，因此这里以「回填」为主。
+        with engine.begin() as conn:
+            if engine.dialect.name == "postgresql":
+                try:
+                    conn.execute(text(f"ALTER TABLE {t} ALTER COLUMN version SET DEFAULT 1"))
+                    conn.execute(text(f"ALTER TABLE {t} ALTER COLUMN version SET NOT NULL"))
+                except Exception as e:
+                    logging.getLogger(__name__).warning(
+                        "m0018: 为 %s.version 补默认值/非空约束失败（不影响 NULL 回填）—— %s", t, e
+                    )
+            conn.execute(text(f"UPDATE {t} SET version = 1 WHERE version IS NULL"))
 
 
 @migration(
@@ -762,8 +780,14 @@ def m0019() -> None:
             if col in existing:
                 continue
             conn.execute(text(f"ALTER TABLE prescriptions ADD COLUMN {col} {ctype}"))
+        # 兜底：早期版本的 m0018 因 Inspector 缓存问题未能给本表补上 NOT NULL DEFAULT 1，
+        # 存量行 version 可能为 NULL。乐观锁的 `WHERE version = NULL` 永远匹配不到，
+        # 后续任何处方 UPDATE（编辑/发药/签名）都会失败，故在回填前先修正。
+        conn.execute(text("UPDATE prescriptions SET version = 1 WHERE version IS NULL"))
 
-    # 回填：为存量处方建立内容哈希基线（之后任何内容改动都可被 verify 检出）
+    # 回填：为存量处方建立内容哈希基线（之后任何内容改动都可被 verify 检出）。
+    # 用 Core UPDATE 而非 ORM 赋值：ORM 的 version_id_col 会给每行追加乐观锁条件，
+    # 对版本号缺失/不一致的存量行会抛 StatementError 或 StaleDataError，迁移不应依赖业务乐观锁。
     Session = sessionmaker(bind=engine)
     s = Session()
     try:
@@ -777,9 +801,14 @@ def m0019() -> None:
             .filter(Prescription.content_hash.is_(None))
             .all()
         )
-        for p in rows:
-            p.content_hash = compute_prescription_hash(p)
-        s.commit()
+        updates = [{"pid": p.id, "h": compute_prescription_hash(p)} for p in rows]
+        s.rollback()
+        if updates:
+            with engine.begin() as conn:
+                conn.execute(
+                    text("UPDATE prescriptions SET content_hash = :h WHERE id = :pid"),
+                    updates,
+                )
     finally:
         s.close()
 
@@ -800,6 +829,82 @@ def m0020() -> None:
             ("idx_patients_phone", "phone"),
         ):
             conn.execute(text(f"CREATE INDEX IF NOT EXISTS {idx_name} ON patients({cols})"))
+
+
+@migration(
+    "0021",
+    "乐观锁脏数据修复：回填 patients/visits/prescriptions/followups 中为 NULL 的 version",
+)
+def m0021() -> None:
+    """修复早期 m0018 留下的 version=NULL 脏数据。
+
+    背景：旧版 m0018 里复用了同一个 Inspector 缓存来判断「表是否缺 version 列」，
+    SQLite 方言对 ALTER ADD COLUMN 不失效 info-cache，导致第一张表之后的
+    visits / prescriptions / followups 被重复 `ADD COLUMN version INTEGER`
+    （SQLite 对重名列静默无效），version 列于是停留在「可空、无默认值」。
+    存量行 version 为 NULL 时，ORM 乐观锁生成的 `WHERE version = NULL` 永远不匹配，
+    表现为启动期回填报「缺少绑定参数 prescriptions_version」，或任意编辑报 409/500。
+
+    该迁移幂等：只对仍存在 NULL 的表做回填，已修复的库为空操作。
+    """
+    insp = inspect(engine)
+    existing_tables = set(insp.get_table_names())
+    for t in ("patients", "visits", "prescriptions", "followups"):
+        if t not in existing_tables:
+            continue
+        cols = {c["name"] for c in inspect(engine).get_columns(t)}
+        if "version" not in cols:
+            continue
+        with engine.begin() as conn:
+            result = conn.execute(text(f"UPDATE {t} SET version = 1 WHERE version IS NULL"))
+            if result.rowcount:
+                logging.getLogger(__name__).warning(
+                    "m0021: %s 回填 %d 行 version=NULL -> 1", t, result.rowcount
+                )
+
+
+@migration(
+    "0022",
+    "收费权限补齐：为存量账号追加 billing 读写并显式化角色默认权限集",
+)
+def m0022() -> None:
+    """新增 /billing 域后的存量账号权限对齐。
+
+    两个问题：
+    1) 显式配置过权限的账号不会自动获得 billing 读写（user_permissions 在 permissions
+       非空时直接使用，不回退角色默认集）；
+    2) permissions 为空的账号虽然后端按角色默认集放行，但前端 auth.can() 只看显式数组，
+       会导致「后端可收费、前端看不到收费按钮/菜单」。
+
+    处理：对非管理员账号计算其有效权限集（显式集，或角色默认集），凡含处方/库存写权限者
+    追加 billing:read/billing:write，并把结果写回 permissions（空集账号一并显式化）。
+    只读账号、管理员不变。幂等：仅补齐缺失权限，不覆盖管理员后续的自定义调整。
+    """
+    from app.permissions import ROLE_DEFAULT_PERMSET
+
+    insp = inspect(engine)
+    if "users" not in set(insp.get_table_names()):
+        return
+    user_cols = {c["name"] for c in insp.get_columns("users")}
+    with engine.begin() as conn:
+        rows = conn.execute(text("SELECT id, role, is_admin, permissions FROM users")).fetchall()
+        for row in rows:
+            uid = row[0]
+            role = row[1]
+            is_admin = bool(row[2]) if "is_admin" in user_cols else False
+            raw = row[3]
+            if is_admin:
+                continue  # 超级用户绕过权限表，前端 auth.can() 亦直接放行
+            perms = [p for p in (raw or "").split(",") if p]
+            effective = perms if perms else list(ROLE_DEFAULT_PERMSET.get(role, []))
+            if "prescription:write" not in effective and "stock:write" not in effective:
+                continue  # 只读账号不授予收费
+            added = [p for p in ("billing:read", "billing:write") if p not in effective]
+            if added or not perms:
+                conn.execute(
+                    text("UPDATE users SET permissions = :p WHERE id = :id"),
+                    {"p": ",".join(effective + added), "id": uid},
+                )
 
 
 def run_migrations() -> None:

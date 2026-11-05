@@ -65,6 +65,7 @@
             <span>处方管理</span>
           </template>
           <el-menu-item index="/prescriptions">处方列表</el-menu-item>
+          <el-menu-item v-if="auth.can('billing:read')" index="/billing">收费管理</el-menu-item>
           <el-menu-item index="/classic-formulas">中药方库</el-menu-item>
           <el-menu-item index="/acupoint-formulas">针灸方库</el-menu-item>
         </el-sub-menu>

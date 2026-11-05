@@ -61,6 +61,8 @@ export interface Prescription {
   visit_id?: number
   patient_id?: number
   formula_name?: string
+  total_price?: number | null
+  patient_name?: string | null
   doctor_id?: number | null
   classic_formula_id?: number | null
   acupoint_formula_id?: number | null
@@ -271,4 +273,40 @@ export interface KnowledgeSource {
   id?: number
   title?: string
   [key: string]: any
+}
+
+// 收费单
+export interface Charge {
+  id?: number
+  charge_no?: string
+  prescription_id?: number
+  patient_id?: number | null
+  visit_id?: number | null
+  patient_name?: string | null
+  prescription_title?: string | null
+  amount?: number
+  discount?: number
+  payable?: number
+  paid?: number
+  payment_method?: string | null
+  status?: string
+  cashier_name?: string | null
+  paid_at?: string | null
+  refunded_by?: string | null
+  refunded_at?: string | null
+  refund_reason?: string | null
+  note?: string | null
+  created_at?: string | null
+  prescription?: Prescription
+  [key: string]: any
+}
+
+export interface ChargeStats {
+  paid_amount: number
+  refunded_amount: number
+  pending_amount: number
+  paid_count: number
+  refunded_count: number
+  pending_count: number
+  total_count: number
 }

@@ -27,6 +27,7 @@ from app.routers import patient, herb, prescription, knowledge, diagnosis, dicti
 from app.routers import acupoint_formula
 from app.routers import stats, backup, auth, followup_reminders, stock
 from app.routers import system_log, templates
+from app.routers import billing
 from app.routers.auth import get_current_user, AUTH_COOKIE_NAME
 
 WRITE_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
@@ -549,6 +550,8 @@ app.include_router(followup_reminders.router, prefix="/api/v1")
 app.include_router(system_log.router, prefix="/api/v1")
 # 模板导入导出 / 基础数据包一键安装（此前漏注册，导致相关接口全部 404）
 app.include_router(templates.router, prefix="/api/v1")
+# 收费管理（开方 -> 收费闭环）
+app.include_router(billing.router, prefix="/api/v1")
 
 
 def _clean_env_value(value: str) -> str:
