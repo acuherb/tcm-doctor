@@ -1,6 +1,6 @@
 """问诊十问记录 ORM 模型 — 保存每次问诊十问的原始答案与评估结果，形成病例信息链"""
 from datetime import datetime
-from sqlalchemy import String, Integer, ForeignKey, JSON, DateTime
+from sqlalchemy import String, Integer, ForeignKey, JSON, DateTime, Index
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -9,6 +9,10 @@ from app.database import Base
 class InquiryRecord(Base):
     """经方家问诊十问记录"""
     __tablename__ = "inquiry_records"
+    __table_args__ = (
+        Index("idx_inquiry_patient", "patient_id"),
+        Index("idx_inquiry_visit", "visit_id"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     patient_id: Mapped[int] = mapped_column(Integer, ForeignKey("patients.id", ondelete="CASCADE"), nullable=False, comment="患者ID")

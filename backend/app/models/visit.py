@@ -1,6 +1,6 @@
 """就诊记录 ORM 模型"""
 from datetime import datetime
-from sqlalchemy import String, Text, DateTime, Integer, ForeignKey, JSON
+from sqlalchemy import String, Text, DateTime, Integer, ForeignKey, JSON, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -9,6 +9,9 @@ from app.database import Base
 class Visit(Base):
     """就诊记录 — 中医特色: 含四诊信息 + 辨证论治"""
     __tablename__ = "visits"
+    __table_args__ = (
+        Index("idx_visits_patient_date", "patient_id", "visit_date"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     patient_id: Mapped[int] = mapped_column(Integer, ForeignKey("patients.id", ondelete="CASCADE"), nullable=False)
@@ -56,6 +59,8 @@ class Visit(Base):
     )
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    # 乐观锁
+    version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1", comment="乐观锁版本号")
 
     # 关系
     patient: Mapped["Patient"] = relationship(back_populates="visits")
@@ -64,6 +69,8 @@ class Visit(Base):
     tongue_coat_term: Mapped["DictionaryTerm | None"] = relationship("DictionaryTerm", foreign_keys=[tongue_coat_term_id])
     pulse_term: Mapped["DictionaryTerm | None"] = relationship("DictionaryTerm", foreign_keys=[pulse_term_id])
     syndrome_term: Mapped["DictionaryTerm | None"] = relationship("DictionaryTerm", foreign_keys=[syndrome_term_id])
+
+    __mapper_args__ = {"version_id_col": version}
 
     @property
     def tongue_body_term_name(self):

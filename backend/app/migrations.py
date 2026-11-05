@@ -636,6 +636,10 @@ def _sync_model_columns() -> None:
             if col.primary_key:
                 # 已有数据的表无法安全追加主键列，跳过（极端情况）
                 continue
+            if col.name == "version":
+                # 乐观锁版本列由专用迁移(0018)以 NOT NULL DEFAULT 1 补齐；
+                # 此处若建成可空列，会因 version_id_col 的 `version = NULL` 判定导致所有 UPDATE 失效。
+                continue
             try:
                 try:
                     col_type = col.type.compile(dialect=engine.dialect)
@@ -678,6 +682,59 @@ def m0017() -> None:
         logging.getLogger(__name__).info("已将 .env 中的诊所品牌信息迁移至 branding_config")
     finally:
         db.close()
+
+
+@migration(
+    "0018",
+    "索引与健壮性：补齐高频查询索引，并为患者/就诊/处方/随访加乐观锁 version 列",
+)
+def m0018() -> None:
+    """存量库补齐：
+
+    1) 高频过滤/排序列的索引（新库已由模型 __table_args__ 经 create_all 建好，此处幂等补齐）：
+       - visits(patient_id, visit_date)  病历聚合按患者+日期排序
+       - prescriptions(patient_id, visit_id)  按患者/就诊查方
+       - followups(patient_id, visit_id)
+       - inquiry_records(patient_id, visit_id)
+       - conversations(patient_id, last_message_at)
+       - patients(deleted_at)  软删除过滤
+    2) 乐观锁 version 列：NOT NULL DEFAULT 1，配合 ORM version_id_col 在并发编辑时做版本校验，
+       冲突由全局异常处理器转 409。必须 NOT NULL（否则 version_id_col 的 `version = NULL` 判定会让 UPDATE 全部失效）。
+    """
+    insp = inspect(engine)
+    existing_tables = set(insp.get_table_names())
+
+    # 1) 索引（CREATE INDEX IF NOT EXISTS 在 SQLite 3.9+ / Postgres 9.5+ 均支持）
+    index_cmds = [
+        ("idx_visits_patient_date", "visits", "patient_id, visit_date"),
+        ("idx_prescriptions_patient", "prescriptions", "patient_id"),
+        ("idx_prescriptions_visit", "prescriptions", "visit_id"),
+        ("idx_followups_patient", "followups", "patient_id"),
+        ("idx_followups_visit", "followups", "visit_id"),
+        ("idx_inquiry_patient", "inquiry_records", "patient_id"),
+        ("idx_inquiry_visit", "inquiry_records", "visit_id"),
+        ("idx_conversations_patient", "conversations", "patient_id"),
+        ("idx_conversations_last_msg", "conversations", "last_message_at"),
+        ("idx_patients_deleted_at", "patients", "deleted_at"),
+    ]
+    with engine.begin() as conn:
+        for idx_name, table, cols in index_cmds:
+            if table not in existing_tables:
+                continue
+            conn.execute(text(
+                f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table}({cols})"
+            ))
+
+    # 2) version 列：仅对存在的存量表补齐；新库已由 create_all 建好（_sync 会跳过该列）
+    version_tables = [t for t in ("patients", "visits", "prescriptions", "followups") if t in existing_tables]
+    with engine.begin() as conn:
+        for t in version_tables:
+            cols = {c["name"] for c in insp.get_columns(t)}
+            if "version" in cols:
+                continue
+            conn.execute(text(
+                f"ALTER TABLE {t} ADD COLUMN version INTEGER NOT NULL DEFAULT 1"
+            ))
 
 
 def run_migrations() -> None:

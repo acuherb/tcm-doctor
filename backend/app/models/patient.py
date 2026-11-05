@@ -1,6 +1,6 @@
 """患者 ORM 模型"""
 from datetime import datetime
-from sqlalchemy import String, Text, DateTime, JSON, Integer, Float
+from sqlalchemy import String, Text, DateTime, JSON, Integer, Float, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -9,6 +9,9 @@ from app.database import Base
 class Patient(Base):
     """患者基本信息"""
     __tablename__ = "patients"
+    __table_args__ = (
+        Index("idx_patients_deleted_at", "deleted_at"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(50), nullable=False, comment="姓名")
@@ -30,10 +33,14 @@ class Patient(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(
         DateTime, nullable=True, comment="软删除时间；非空表示已归档删除，医疗记录仍保留"
     )
+    # 乐观锁：并发编辑（同患者/就诊/处方）时由 SQLAlchemy 自动校验版本，冲突抛 StaleDataError
+    version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1", comment="乐观锁版本号")
 
     # 关系
     visits: Mapped[list["Visit"]] = relationship(back_populates="patient", cascade="all, delete-orphan")
     followups: Mapped[list["FollowUp"]] = relationship(back_populates="patient", cascade="all, delete-orphan")
+
+    __mapper_args__ = {"version_id_col": version}
 
     def __repr__(self):
         return f"<Patient(id={self.id}, name='{self.name}')>"

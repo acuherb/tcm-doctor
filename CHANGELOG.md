@@ -67,6 +67,28 @@
 - 后端新增 `tests/test_ai_prior_history.py`（4 项，含摘要内容、空记录、注入与无 patient_id 不注入），全量 `pytest` **53 passed**。
 - 前端 `vue-tsc --noEmit` 与 `npm run build` 退出码 0。
 
+## 2026-11-05（续二）— 索引与健壮性（高频查询索引 + 乐观锁）
+
+### 动机
+`migrations.py` 没有 `CREATE INDEX`，存量库不会自动补索引；数据量增长后就诊/处方/随访按患者查询会变慢。
+此外缺乐观锁，并发编辑同一患者/就诊/处方可能静默覆盖彼此的改动。
+
+### 改动
+- **模型层索引**（`__table_args__`）：新库由 `create_all` 直接落地
+  - `visits(patient_id, visit_date)`、`prescriptions(patient_id, visit_id)`、`followups(patient_id, visit_id)`、
+    `inquiry_records(patient_id, visit_id)`、`conversations(patient_id, last_message_at)`、`patients(deleted_at)`。
+- **迁移 0018**：存量库用 `CREATE INDEX IF NOT EXISTS` 幂等补齐上述索引；
+  并为 `patients/visits/prescriptions/followups` 加 `version` 列（`INTEGER NOT NULL DEFAULT 1`）。
+- **乐观锁**：对 `Patient/Visit/Prescription/FollowUp` 启用 SQLAlchemy 原生 `version_id_col`；
+  并发提交时版本不符自动抛 `StaleDataError`。
+  - 关键护栏：`_sync_model_columns` 跳过 `version` 列（否则会被建成可空列，导致所有 `UPDATE` 因 `version = NULL` 判定失效）。
+  - `main.py` 新增全局 `StaleDataError → 409` 处理器，返回「该记录已被他人修改，请刷新后重试」。
+- **前端** `utils/api.ts`：拦截器对 409 给出明确 warning 提示，便于用户感知并发冲突。
+
+### 验证
+- 新增 `tests/test_indexes_optimistic.py`（4 项）：索引存在、version 列存在、正常更新版本自增、双会话并发冲突抛 `StaleDataError`。
+- 后端全量 `pytest` **57 passed**；前端 `vue-tsc 0`、`npm run build 0`。
+
 ## 2026-11-04 — 作废入口收敛到详情弹窗，避免列表误点
 
 ### 决定

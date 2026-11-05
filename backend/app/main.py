@@ -10,6 +10,7 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 from pathlib import Path
 from fastapi import FastAPI, Request, Depends, HTTPException
+from sqlalchemy.orm.exc import StaleDataError
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -143,6 +144,19 @@ async def _http_exception_handler(request: Request, exc: HTTPException):
 @app.exception_handler(RequestValidationError)
 async def _validation_exception_handler(request: Request, exc: RequestValidationError):
     return JSONResponse(status_code=422, content={"detail": exc.errors()})
+
+
+@app.exception_handler(StaleDataError)
+async def _stale_data_handler(request: Request, exc: StaleDataError):
+    """乐观锁冲突：并发编辑同一记录（患者/就诊/处方/随访）时，对方已先提交。
+
+    返回 409 让前端提示「数据已被他人修改，请刷新后重试」，而非 500。
+    """
+    logger.warning("乐观锁冲突(409): %s %s — %s", request.method, request.url.path, exc)
+    return JSONResponse(
+        status_code=409,
+        content={"detail": "该记录已被其他人修改，请刷新页面后重试（避免覆盖他人改动）"},
+    )
 
 
 @app.exception_handler(Exception)

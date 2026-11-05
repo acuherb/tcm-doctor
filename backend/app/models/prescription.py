@@ -1,6 +1,6 @@
 """处方 ORM 模型"""
 from datetime import datetime
-from sqlalchemy import String, Text, DateTime, Boolean, Integer, Numeric, JSON, ForeignKey
+from sqlalchemy import String, Text, DateTime, Boolean, Integer, Numeric, JSON, ForeignKey, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -27,6 +27,10 @@ class ClassicFormula(Base):
 class Prescription(Base):
     """处方记录"""
     __tablename__ = "prescriptions"
+    __table_args__ = (
+        Index("idx_prescriptions_patient", "patient_id"),
+        Index("idx_prescriptions_visit", "visit_id"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     visit_id: Mapped[int] = mapped_column(Integer, ForeignKey("visits.id", ondelete="CASCADE"), nullable=False)
@@ -52,12 +56,16 @@ class Prescription(Base):
     doctor_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id", ondelete="SET NULL"), comment="开方医师账号")
     doctor_name: Mapped[str | None] = mapped_column(String(50), comment="开方医师姓名快照（账号改名前打印仍正确）")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    # 乐观锁
+    version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1", comment="乐观锁版本号")
 
     # 关系
     visit: Mapped["Visit"] = relationship(back_populates="prescriptions")
     items: Mapped[list["PrescriptionItem"]] = relationship(back_populates="prescription", cascade="all, delete-orphan")
     acupoints: Mapped[list["AcupointPrescription"]] = relationship(back_populates="prescription", cascade="all, delete-orphan")
     injections: Mapped[list["PrescriptionInjection"]] = relationship(back_populates="prescription", cascade="all, delete-orphan")
+
+    __mapper_args__ = {"version_id_col": version}
 
     def __repr__(self):
         return f"<Prescription(id={self.id}, formula='{self.formula_name}', status='{self.status}')>"

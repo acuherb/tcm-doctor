@@ -1,6 +1,6 @@
 """对话 ORM 模型"""
 from datetime import datetime
-from sqlalchemy import String, Text, Integer, DateTime, JSON, ForeignKey
+from sqlalchemy import String, Text, Integer, DateTime, JSON, ForeignKey, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -9,6 +9,10 @@ from app.database import Base
 class Conversation(Base):
     """AI 问诊对话"""
     __tablename__ = "conversations"
+    __table_args__ = (
+        Index("idx_conversations_patient", "patient_id"),
+        Index("idx_conversations_last_msg", "last_message_at"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     uuid: Mapped[str] = mapped_column(String(36), unique=True, nullable=False, comment="对外 UUID")

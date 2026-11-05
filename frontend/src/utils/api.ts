@@ -68,6 +68,12 @@ api.interceptors.response.use(
       }
       return Promise.reject(error)
     }
+    // 409 乐观锁冲突：并发编辑同一记录，对方已先提交。明确提示刷新，避免误以为失败。
+    if (status === 409) {
+      const msg = error.response?.data?.detail || '数据已被他人修改，请刷新页面后重试'
+      if (!cfg?.silent) ElMessage.warning(msg)
+      return Promise.reject(error)
+    }
     // 组件自行处理（config.silent）的错误不再弹全局提示，避免重复报错
     if (!cfg?.silent) {
       const msg = error.response?.data?.detail || error.message || '请求失败'
