@@ -32,7 +32,15 @@
             <span>病号管理</span>
           </template>
           <el-menu-item index="/patients">患者列表</el-menu-item>
+        </el-sub-menu>
+
+        <el-sub-menu index="frontdesk-group">
+          <template #title>
+            <el-icon><Money /></el-icon>
+            <span>挂号收费</span>
+          </template>
           <el-menu-item v-if="auth.can('patient:write')" index="/registration">挂号台</el-menu-item>
+          <el-menu-item v-if="auth.can('billing:read')" index="/billing">收费管理</el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu index="treatment-group">
@@ -66,7 +74,6 @@
             <span>处方管理</span>
           </template>
           <el-menu-item index="/prescriptions">处方列表</el-menu-item>
-          <el-menu-item v-if="auth.can('billing:read')" index="/billing">收费管理</el-menu-item>
           <el-menu-item index="/classic-formulas">中药方库</el-menu-item>
           <el-menu-item index="/acupoint-formulas">针灸方库</el-menu-item>
         </el-sub-menu>
@@ -197,7 +204,7 @@ import { useRoute, useRouter } from 'vue-router'
 import {
   HomeFilled, User, FirstAidKit, Document, Search,
   ChatDotRound, Setting, Fold, Expand, Box, DataAnalysis, Reading,
-  UserFilled, ArrowDown, Check,
+  UserFilled, ArrowDown, Check, Money,
 } from '@element-plus/icons-vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { useAuthStore } from '@/store/auth'
