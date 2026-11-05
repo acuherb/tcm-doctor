@@ -15,6 +15,7 @@ from datetime import datetime
 from pathlib import Path
 
 from app.config import settings
+from app.services import backup_crypto
 
 logger = logging.getLogger(__name__)
 
@@ -140,9 +141,12 @@ def create_backup(reason: str = "manual") -> dict:
             dest = None
             source.close()
             source = None
-            if not tmp.read_bytes()[:16].startswith(b"SQLite format 3\x00"):
+            raw = tmp.read_bytes()
+            if not raw[:16].startswith(b"SQLite format 3\x00"):
                 raise RuntimeError("快照校验失败：不是合法的 SQLite 文件")
-            os.replace(tmp, target)
+            # 启用备份加密时产出密文（含魔数头），否则明文；旧明文备份仍可恢复
+            payload = backup_crypto.maybe_encrypt(raw)
+            target.write_bytes(payload)
         finally:
             if dest is not None:
                 dest.close()

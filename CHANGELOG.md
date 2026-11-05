@@ -113,6 +113,23 @@
 - 新增 `tests/test_prescription_integrity.py`（5 项）：哈希稳定性、签名置位与有效、编辑后签名失效、外部篡改检出、已取消拒绝签名。
 - 后端全量 `pytest` **60 passed**；前端 `vue-tsc 0`、`npm run build 0`。
 
+## 2026-11-05（续四）— 备份加密（P1）+ 检索索引（P2）
+
+### 动机
+自动/手动备份、导出均为**明文 SQLite**（含患者隐私），离线拷贝或备份介质丢失即泄露；患者按姓名/电话检索无索引。
+
+### 改动
+- **可选备份加密** `app/services/backup_crypto.py`：设置 `TCM_BACKUP_PASSPHRASE` 后用 Fernet 加密。
+  - 密钥由口令 SHA-256 确定性派生；密文文件带 `TCMENC1\n` 魔数头，**旧明文备份仍可恢复（向后兼容）**，未设口令则不加密（避免遗忘口令导致不可恢复）。
+  - `auto_backup.create_backup` 写快照时按需加密；`routers/backup.py` 导出时加密、导入时解密（解密失败给出明确提示：需配置相同口令）。
+  - `/backup/auto/status` 新增 `encryption_enabled` 与 `encryption_note`，便于管理员确认加密状态。
+  - `requirements.txt` 固定 `cryptography==43.0.0`。
+- **检索索引**：`patients(name)`、`patients(phone)` 模型 `__table_args__` + 迁移 `0020`（`CREATE INDEX IF NOT EXISTS`）补齐，加速患者检索/去重。
+
+### 验证
+- 新增 `tests/test_backup_crypto.py`（6 项）：加解密往返、明文兼容、无口令时不加密、无口令解密报错、自动备份加密可恢复、无口令自动备份为明文。
+- 后端全量 `pytest` **66 passed**；前端无需改动（加密经环境变量配置）。
+
 ## 2026-11-04 — 作废入口收敛到详情弹窗，避免列表误点
 
 ### 决定

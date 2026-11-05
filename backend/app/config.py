@@ -82,6 +82,11 @@ class Settings(BaseSettings):
     # 校验签名/防篡改时复用；生产环境请通过环境变量 TCM_SIGNING_SECRET 覆盖为强随机值。
     signing_secret: str = "tcm-doctor-default-signing-secret"
 
+    # 备份加密口令：设置后，自动备份/手动导出/恢复均按 Fernet 加密（文件内含魔数标记，
+    # 旧明文备份仍可正常恢复，向后兼容）。未设置则不加密（默认，避免遗忘口令导致不可恢复）。
+    # 强烈建议生产环境通过环境变量 TCM_BACKUP_PASSPHRASE 设为强随机值；务必妥善保管，遗忘则备份不可解密。
+    backup_passphrase: str = ""
+
     # 操作日志保留天数：启动时自动清理超期日志，防止日志表无限增长；
     # 设为 0 表示不自动清理（仍可在界面手动清理）
     log_retention_days: int = 180

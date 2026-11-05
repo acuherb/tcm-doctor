@@ -784,6 +784,24 @@ def m0019() -> None:
         s.close()
 
 
+@migration(
+    "0020",
+    "索引补齐：patients(name/phone) 加速患者检索/去重",
+)
+def m0020() -> None:
+    """存量库补齐患者姓名/电话索引（新库已由模型 __table_args__ 经 create_all 建好）。"""
+    insp = inspect(engine)
+    existing_tables = set(insp.get_table_names())
+    if "patients" not in existing_tables:
+        return
+    with engine.begin() as conn:
+        for idx_name, cols in (
+            ("idx_patients_name", "name"),
+            ("idx_patients_phone", "phone"),
+        ):
+            conn.execute(text(f"CREATE INDEX IF NOT EXISTS {idx_name} ON patients({cols})"))
+
+
 def run_migrations() -> None:
     """应用所有未执行过的迁移（幂等：以 schema_migrations 表记录为准）"""
     with engine.begin() as conn:

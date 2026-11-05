@@ -52,6 +52,12 @@ def export_backup(
     temp_path = os.path.join(os.getcwd(), f"tcm_backup_{timestamp}.db")
     shutil.copy2(db_path, temp_path)
 
+    # 启用备份加密时，导出文件一并加密（与自动备份一致），离线拷贝也受保护
+    from app.services import backup_crypto
+    if backup_crypto.encryption_enabled():
+        p = Path(temp_path)
+        p.write_bytes(backup_crypto.encrypt(p.read_bytes()))
+
     background.add_task(os.remove, temp_path)
     return FileResponse(
         path=temp_path,
@@ -75,6 +81,16 @@ async def import_backup(
     content = await file.read()
     if len(content) > MAX_BACKUP_BYTES:
         raise HTTPException(status_code=413, detail="备份文件过大（上限 200MB）")
+
+    # 0) 解密（若备份已加密）：明文备份（无魔数头）原样返回，向后兼容
+    from app.services import backup_crypto
+    try:
+        content = backup_crypto.decrypt(content)
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"备份解密失败：{e}。请确认已配置与备份时相同的 TCM_BACKUP_PASSPHRASE 后重试。",
+        )
 
     # 1) 校验是否为合法的 SQLite 文件，避免误覆盖导致数据库损坏/数据丢失
     if not content.startswith(b"SQLite format 3\x00"):
@@ -197,11 +213,18 @@ def auto_backup_status(current_user: User = Depends(get_current_user)):
     if not has_perm(current_user, "system:read"):
         raise HTTPException(status_code=403, detail="无权查看备份配置")
     items = auto_backup.list_backups()
+    from app.services import backup_crypto
     return {
         "config": auto_backup.load_config(),
         "dir": str(auto_backup.backup_dir()),
         "last_backup": items[0]["created_at"] if items else None,
         "items": items,
+        "encryption_enabled": backup_crypto.encryption_enabled(),
+        "encryption_note": (
+            "已启用备份加密（TCM_BACKUP_PASSPHRASE）：快照与导出均为密文，恢复需相同口令"
+            if backup_crypto.encryption_enabled()
+            else "未启用备份加密：备份为明文，建议通过 TCM_BACKUP_PASSPHRASE 环境变量设置强口令以加密患者隐私"
+        ),
     }
 
 

@@ -11,6 +11,8 @@ class Patient(Base):
     __tablename__ = "patients"
     __table_args__ = (
         Index("idx_patients_deleted_at", "deleted_at"),
+        Index("idx_patients_name", "name"),
+        Index("idx_patients_phone", "phone"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
