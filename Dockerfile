@@ -28,7 +28,8 @@ COPY backend/requirements.txt ./
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
-# 复制后端代码与种子数据（app/data 内含药材/方剂/知识库初始数据，需保留）
+# 复制后端代码（注意：app/data 已被 .dockerignore 排除，镜像不含任何知识/内容类初始数据，
+# 交付为「纯框架」；药材/方剂/穴位/知识等基础内容需从 GitHub Release 数据包「上传导入」）。
 COPY backend/ ./
 
 # 显式安装固定版本依赖见 requirements.txt（纯 Python wheel，无需 gcc/apt）：

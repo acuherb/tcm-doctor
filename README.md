@@ -312,7 +312,7 @@ npx electron-builder --win --x64
 - ✅ **数据字典**：舌质 / 舌苔 / 脉象 / 证候等受控词表（来自已提交仓库的 `backend/seed_dictionaries.py`，供辨证 UI 下拉使用）；
 - ❌ 五个内容库**为空**：中药材、中药方库、针灸方库、针灸穴位、医籍文库。
 
-> 维护者本机 `docker build` 时，若本地 `backend/app/data/*.json` 仍存在，镜像会额外种入这些**私有**内容；但从 GitHub 克隆的第三方不会拿到它们，开箱仍是空框架。需要基础内容，从 GitHub Releases 下载数据包后在各模块工具栏「上传导入」即可。
+> 镜像始终为**纯框架**：`.dockerignore` 已排除 `backend/app/data`，无论本地是否留有私有数据 JSON，`docker build` 产出的镜像都不含任何知识/内容类初始数据，开箱即为空框架（仅 `admin` / `guest` 账号与数据字典）。需要基础内容，从 GitHub Releases 下载数据包后在各模块工具栏「上传导入」即可。
 
 ### 入口在哪（重要）
 

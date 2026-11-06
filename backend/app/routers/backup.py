@@ -163,7 +163,7 @@ def reset_data(
 ):
     """清空所有数据（保留表结构）— 仅管理员可触发。
     清空后只重建框架基础（默认账号 + 数据字典 + 腧穴）；
-    药材/医籍文库/中药方库等「用户内容库」清空后保持为空，由用户自行导入模板。"""
+    药材/医籍文库/中药方库/针灸方库等「用户内容库」清空后保持为空，由用户自行导入模板。"""
     if not has_perm(current_user, "system:write"):
         raise HTTPException(status_code=403, detail="仅管理员可清空数据")
     from app.models.herb import Herb
@@ -172,7 +172,9 @@ def reset_data(
     )
     from app.models.prescription import (
         ClassicFormula, Prescription, PrescriptionItem, AcupointPrescription, PrescriptionInjection,
+        AcupointFormula,
     )
+    from app.models.acupuncture import Acupoint
     from app.models.patient import Patient
     from app.models.visit import Visit
     from app.models.knowledge import KnowledgeEntry
@@ -193,7 +195,7 @@ def reset_data(
         InquiryRecord, Visit,                        # 问诊记录/就诊（引用患者）
         StockTransaction, StockBatch, PurchaseItem, PurchaseOrder, StockItem,        # 库存/采购（引用物品/供应商）
         AuthToken, Patient,                         # 令牌/患者（最后删父表）
-        ClassicFormula, Herb, Supplier, KnowledgeEntry,  # 基础资料（被上述子表引用，置于其后）
+        ClassicFormula, Herb, Supplier, KnowledgeEntry, AcupointFormula, Acupoint,  # 基础资料（被上述子表引用，置于其后）
     ]:
         db.query(model).delete()
 
