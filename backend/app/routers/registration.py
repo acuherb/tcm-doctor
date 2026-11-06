@@ -28,7 +28,7 @@ from app.models.visit import Visit
 from app.models.user import User
 from app.models.billing import Charge
 from app.models.prescription import Prescription
-from app.models.schedule import Schedule
+from app.models.schedule import Schedule, ScheduleState
 from app.routers.auth import get_current_user
 from app.permissions import has_perm
 from app.schemas.billing import ChargeCreate, ChargeResponse
@@ -45,6 +45,38 @@ router = APIRouter(prefix="/registration", tags=["挂号"])
 
 def _today() -> str:
     return datetime.now().strftime("%Y-%m-%d")
+
+
+def _current_period() -> str:
+    """当前时段：12:00 前上午，之后下午（供挂号台按时段提示/筛选）。"""
+    return "morning" if datetime.now().hour < 12 else "afternoon"
+
+
+def _on_duty_today(db: Session) -> dict[int, set[str]] | None:
+    """排班启用时返回当日出诊医师 {doctor_id: {period, ...}}；未启用返回 None。
+
+    - 返回 None：未启用排班，保持原有「全部可接诊医师、医师可选」行为（旧库无感）。
+    - 返回 {}：已启用但今日无人出诊 → 挂号应被拒绝。
+    - 是否启用由 ScheduleState 标记决定，不能只靠 schedules 表是否为空推断，
+      否则「整周全员休诊」时表空会误判为未启用、休诊约束失效。
+    - 兼容升级前已排班但无标记的旧库：有记录即视为启用。
+
+    options 与 register 共用此函数，避免前端过滤与后端校验逻辑分叉。
+    """
+    state = db.query(ScheduleState).filter(ScheduleState.id == 1).first()
+    if state is not None and not state.enabled:
+        return None
+    if state is None and db.query(Schedule).count() == 0:
+        return None
+    rows = (
+        db.query(Schedule.doctor_id, Schedule.period)
+        .filter(Schedule.schedule_date == date.today())
+        .all()
+    )
+    result: dict[int, set[str]] = {}
+    for row in rows:
+        result.setdefault(row.doctor_id, set()).add(row.period)
+    return result
 
 
 class RegistrationCreate(BaseModel):
@@ -245,6 +277,18 @@ def register(
         doctor = db.query(User).filter(User.id == payload.doctor_id).first()
         if not doctor or not _appointable(doctor):
             raise HTTPException(status_code=400, detail="指定的接诊医师不存在、已停用或不是医生账号")
+
+    # 排班启用时，挂号必须落到「当日出诊」医师：前端下拉只是 UX，后端必须兜底，
+    # 否则绕过页面（直调 API / 不选医师 / 残留旧选择）仍可给休班医师挂号。
+    on_duty = _on_duty_today(db)
+    if on_duty is not None:
+        if not on_duty:
+            raise HTTPException(status_code=400, detail="今日无出诊医师，请先在「排班管理」安排值班")
+        if payload.doctor_id is None:
+            raise HTTPException(status_code=400, detail="已启用排班，请选择今日出诊医师")
+        if payload.doctor_id not in on_duty:
+            raise HTTPException(status_code=400, detail="该医师今日休诊，请选择今日出诊医师")
+
     # 选了医师就以其所属科室为准，保证科室与账号管理始终一致
     department = (doctor.department if doctor and doctor.department else payload.department)
 
@@ -398,11 +442,9 @@ def registration_options(
     appointable = [u for u in users if _appointable(u)]
     # 排班启用（排班表已有数据）时，仅展示当日出诊医师；否则保持原行为（全部可接诊医师），
     # 避免引入排班后反而把「未排班日」的挂号卡死——旧库无排班数据时完全无感。
-    schedule_enabled = db.query(Schedule).count() > 0
+    on_duty = _on_duty_today(db)
+    schedule_enabled = on_duty is not None
     if schedule_enabled:
-        today = date.today()
-        on_duty = {row.doctor_id for row in
-                   db.query(Schedule.doctor_id).filter(Schedule.schedule_date == today).all()}
         appointable = [u for u in appointable if u.id in on_duty]
     departments = sorted({u.department.strip() for u in appointable
                           if u.department and u.department.strip()})
@@ -411,10 +453,16 @@ def registration_options(
             "id": u.id,
             "name": u.display_name or u.username,
             "department": (u.department or "").strip(),
+            "periods": sorted(on_duty.get(u.id, set())) if schedule_enabled else [],
         }
         for u in appointable
     ]
-    return {"departments": departments, "doctors": doctors, "schedule_enabled": schedule_enabled}
+    return {
+        "departments": departments,
+        "doctors": doctors,
+        "schedule_enabled": schedule_enabled,
+        "current_period": _current_period(),
+    }
 
 
 @router.get("/{visit_id}", summary="挂号/就诊详情（含收费单）")

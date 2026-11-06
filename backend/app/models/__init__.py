@@ -16,7 +16,7 @@ from app.models.conversation import Conversation, Message
 from app.models.acupuncture import Acupoint, AcupointFormula
 from app.models.branding import BrandingConfig
 from app.models.billing import Charge
-from app.models.schedule import Schedule
+from app.models.schedule import Schedule, ScheduleState
 from app.models.user import User, AuthToken
 
 __all__ = [
@@ -47,6 +47,7 @@ __all__ = [
     "BrandingConfig",
     "Charge",
     "Schedule",
+    "ScheduleState",
     "User",
     "AuthToken",
     "OperationLog",

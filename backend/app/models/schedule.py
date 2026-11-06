@@ -1,6 +1,6 @@
 """排班 ORM 模型 — 固定排班表（医生 × 日期 × 时段）"""
 from datetime import datetime, date
-from sqlalchemy import String, Date, DateTime, Integer, ForeignKey, UniqueConstraint
+from sqlalchemy import String, Date, DateTime, Integer, Boolean, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -37,3 +37,17 @@ class Schedule(Base):
             "doctor_id", "schedule_date", "period", name="uq_schedule_doc_date_period"
         ),
     )
+
+
+class ScheduleState(Base):
+    """排班启用标记（单行，id=1）。
+
+    「是否启用排班」不能靠 schedules 表是否有记录推断：整周全员休诊时表为空，
+    若据此判定为未启用，就会退回「无约束、谁都能挂号」，与休诊的语义相悖。
+    只要管理员保存过一次排班，即置 enabled=True；「清空数据库」时一并重置。
+    """
+
+    __tablename__ = "schedule_state"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)

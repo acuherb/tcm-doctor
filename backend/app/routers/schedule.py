@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.user import User
-from app.models.schedule import Schedule
+from app.models.schedule import Schedule, ScheduleState
 from app.permissions import has_perm
 from app.routers.auth import get_current_user
 
@@ -18,6 +18,15 @@ router = APIRouter(prefix="/schedule", tags=["排班"])
 
 VALID_PERIODS = ("morning", "afternoon", "full")
 PERIOD_LABEL = {"morning": "上午", "afternoon": "下午", "full": "全天"}
+
+
+def _mark_enabled(db: Session) -> None:
+    """标记「已启用排班」。整周全员休诊时 schedules 表会空，必须靠此标记维持约束。"""
+    state = db.query(ScheduleState).filter(ScheduleState.id == 1).first()
+    if state is None:
+        db.add(ScheduleState(id=1, enabled=True))
+    elif not state.enabled:
+        state.enabled = True
 
 
 def _appointable(u: User) -> bool:
@@ -104,7 +113,7 @@ class WeekSaveBody(BaseModel):
     items: list[WeekSaveItem] = []
 
 
-# ── 按周保存：以 start 所在周为范围，删除这些医生本周已有排班后批量写入（幂等）──
+# ── 按周保存：以 start 所在周为范围，整周全量覆盖后批量写入（幂等）──
 @router.post("/week", summary="保存整周排班")
 def save_week(
     body: WeekSaveBody,
@@ -129,11 +138,12 @@ def save_week(
         if it.period not in VALID_PERIODS:
             raise HTTPException(status_code=400, detail=f"时段 {it.period} 非法（应为 morning/afternoon/full）")
 
-    # 删除这些医生本周已有排班，再批量写入（幂等 upsert）
+    # 整周全量覆盖：前端提交的是整张网格，休诊格不产生 item。
+    # 因此必须先清空「该周全部」排班（不能只删 items 里出现的医生，否则
+    # 把某医生整周改为休诊时其旧记录会残留 → 休诊永远改不掉、挂号仍能选到他）。
     deleted = (
         db.query(Schedule)
         .filter(
-            Schedule.doctor_id.in_(doctor_ids),
             Schedule.schedule_date >= monday,
             Schedule.schedule_date <= sunday,
         )
@@ -154,6 +164,7 @@ def save_week(
             )
         )
         created += 1
+    _mark_enabled(db)
     db.commit()
     return {"deleted": deleted, "created": created}
 
@@ -208,6 +219,7 @@ def copy_week(
             )
         )
         copied += 1
+    _mark_enabled(db)
     db.commit()
     return {"deleted": deleted, "copied": copied}
 
@@ -256,6 +268,7 @@ def upsert_schedule(
             note=body.note,
         )
         db.add(s)
+    _mark_enabled(db)
     db.commit()
     db.refresh(s)
     return _serialize(s, u.display_name or u.username)

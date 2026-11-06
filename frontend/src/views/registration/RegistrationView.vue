@@ -133,19 +133,29 @@
                 <el-option v-for="d in departmentOptions" :key="d" :label="d" :value="d" />
               </el-select>
             </el-form-item>
-            <el-form-item label="接诊医师">
-              <el-select v-model="doctorId" clearable filterable placeholder="选择医师（可选）" style="width:100%"
-                @change="onDoctorChange">
+            <el-form-item :label="scheduleEnabled ? '接诊医师（必选）' : '接诊医师'">
+              <el-select v-model="doctorId" clearable filterable
+                :placeholder="scheduleEnabled ? '请选择今日出诊医师' : '选择医师（可选）'" style="width:100%"
+                @change="onDoctorChange" @visible-change="onDoctorSelectOpen">
                 <el-option v-for="d in filteredDoctors" :key="d.id"
-                  :label="d.department ? `${d.name}（${d.department}）` : d.name" :value="d.id" />
+                  :label="`${d.name}${d.department ? `（${d.department}）` : ''}${periodText(d) ? ` · ${periodText(d)}出诊` : ''}`"
+                  :value="d.id" />
               </el-select>
               <div class="opt-hint">选项来自「账号管理」中启用的医生/管理员账号</div>
-              <el-text v-if="scheduleEnabled && !doctors.length" type="warning" size="small">
-                今日无排班出诊医师，请先在「排班管理」中设置
-              </el-text>
-              <el-text v-else-if="scheduleEnabled" type="info" size="small">
-                已按今日排班仅显示出诊医师
-              </el-text>
+              <template v-if="scheduleEnabled">
+                <el-checkbox v-model="currentPeriodOnly" size="small" style="margin-top:2px">
+                  仅看当前时段（{{ currentPeriod === 'morning' ? '上午' : '下午' }}）出诊
+                </el-checkbox>
+                <el-text v-if="!doctors.length" type="warning" size="small" style="display:block">
+                  今日无排班出诊医师，暂不可挂号，请先在「排班管理」安排值班
+                </el-text>
+                <el-text v-else-if="!filteredDoctors.length" type="warning" size="small" style="display:block">
+                  当前时段无出诊医师，可取消上方勾选查看今日其他时段出诊医师
+                </el-text>
+                <el-text v-else type="success" size="small" style="display:block">
+                  休诊医师不可挂号，仅显示今日出诊医师（后端同样校验）
+                </el-text>
+              </template>
             </el-form-item>
             <el-form-item label="挂号费">
               <el-input-number v-model="regFee" :min="0" :precision="2" :step="1" :style="{ width: isMobile ? '100%' : '160px' }" />
@@ -346,22 +356,46 @@ const np = reactive({
 const department = ref('')
 const doctorId = ref<number | null>(null)
 // 科室与接诊医师均由「账号管理」中启用的医生/管理员账号派生
-interface DoctorOption { id: number; name: string; department: string }
+interface DoctorOption { id: number; name: string; department: string; periods?: string[] }
 const departmentOptions = ref<string[]>([])
 const doctors = ref<DoctorOption[]>([])
 const scheduleEnabled = ref(false)  // 排班表已启用：医师下拉仅含当日出诊医师
-const filteredDoctors = computed(() =>
-  department.value ? doctors.value.filter(d => d.department === department.value) : doctors.value
-)
+const currentPeriod = ref<'morning' | 'afternoon'>('morning')
+const currentPeriodOnly = ref(true)  // 默认仅显示当前时段出诊医师，可一键查看全日出诊
+const PERIOD_LABEL: Record<string, string> = { morning: '上午', afternoon: '下午', full: '全天' }
+function periodText(d: DoctorOption): string {
+  const ps = d.periods || []
+  return ps.map(p => PERIOD_LABEL[p] || p).join('·')
+}
+const filteredDoctors = computed(() => {
+  let list = department.value
+    ? doctors.value.filter(d => d.department === department.value)
+    : doctors.value
+  if (scheduleEnabled.value && currentPeriodOnly.value) {
+    list = list.filter(d => {
+      const ps = d.periods || []
+      return !ps.length || ps.includes(currentPeriod.value) || ps.includes('full')
+    })
+  }
+  return list
+})
 
 async function loadOptions() {
   try {
-    const r = await api.get<{ departments: string[]; doctors: DoctorOption[]; schedule_enabled?: boolean }>('/registration/options')
+    const r = await api.get<{
+      departments: string[]; doctors: DoctorOption[];
+      schedule_enabled?: boolean; current_period?: 'morning' | 'afternoon'
+    }>('/registration/options')
     departmentOptions.value = r.departments || []
     doctors.value = r.doctors || []
     scheduleEnabled.value = !!r.schedule_enabled
+    currentPeriod.value = r.current_period || 'morning'
   } catch { /* 拦截器已提示 */ }
 }
+// 时段/科室筛选变化后，若已选医师不再可见则清空，避免提交「已休诊」的医师
+watch(filteredDoctors, (list) => {
+  if (doctorId.value !== null && !list.some(d => d.id === doctorId.value)) doctorId.value = null
+})
 function onDoctorChange() {
   const d = doctors.value.find(x => x.id === doctorId.value)
   if (d?.department) department.value = d.department  // 选医师自动带出其科室
@@ -369,6 +403,10 @@ function onDoctorChange() {
 function onDepartmentChange() {
   const d = doctors.value.find(x => x.id === doctorId.value)
   if (d && d.department && d.department !== department.value) doctorId.value = null
+}
+// 每次展开医师下拉都重新拉取，保证刚在「排班管理」改过的休诊/出诊即时生效
+function onDoctorSelectOpen(visible: boolean) {
+  if (visible) loadOptions()
 }
 
 const regFee = ref(0)
@@ -425,6 +463,9 @@ function openPatientDetail(id?: number) {
 
 async function submitRegister() {
   if (!canSubmit.value) { ElMessage.warning('请选择或新建患者'); return }
+  if (scheduleEnabled.value && doctorId.value === null) {
+    ElMessage.warning('已启用排班，请选择今日出诊医师'); return
+  }
   if (regFee.value > 0 && paid.value < regFee.value - 1e-6) {
     ElMessage.warning('实收不能小于挂号费'); return
   }

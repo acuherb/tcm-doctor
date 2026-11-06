@@ -175,6 +175,7 @@ def reset_data(
         AcupointFormula,
     )
     from app.models.acupuncture import Acupoint
+    from app.models.schedule import Schedule, ScheduleState
     from app.models.patient import Patient
     from app.models.visit import Visit
     from app.models.knowledge import KnowledgeEntry
@@ -196,6 +197,7 @@ def reset_data(
         StockTransaction, StockBatch, PurchaseItem, PurchaseOrder, StockItem,        # 库存/采购（引用物品/供应商）
         AuthToken, Patient,                         # 令牌/患者（最后删父表）
         ClassicFormula, Herb, Supplier, KnowledgeEntry, AcupointFormula, Acupoint,  # 基础资料（被上述子表引用，置于其后）
+        Schedule, ScheduleState,                       # 排班表与启用标记（清空后回到「未启用排班」）
     ]:
         db.query(model).delete()
 
