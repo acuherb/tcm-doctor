@@ -30,6 +30,7 @@ export const TEN_QUESTIONS: TenAspectQuestion[] = [
       { key: 'huge', label: '胃口过大、食不知饱' },
       { key: 'no', label: '没胃口、完全不饿' },
       { key: 'tasteless', label: '食之无味' },
+      { key: 'no_desire_food', label: '默默不欲饮食、心烦喜呕' },
     ],
   },
   {
@@ -60,6 +61,7 @@ export const TEN_QUESTIONS: TenAspectQuestion[] = [
       { key: 'unquenchable', label: '口渴，怎么喝都不解渴' },
       { key: 'cold_water', label: '口渴，想喝冰水' },
       { key: 'warm_water', label: '口渴，想喝温水' },
+      { key: 'bitter_dry', label: '口苦咽干、不想多饮' },
     ],
   },
   {
@@ -71,6 +73,7 @@ export const TEN_QUESTIONS: TenAspectQuestion[] = [
       { key: 'cold_all', label: '睡时全身冰冷' },
       { key: 'hot_upper_cold_lower', label: '上热下寒' },
       { key: 'mingled', label: '寒热并结' },
+      { key: 'alternating', label: '寒热往来、忽冷忽热，口苦咽干' },
       { key: 'hot_all', label: '全身燥热(长期低烧)' },
     ],
   },

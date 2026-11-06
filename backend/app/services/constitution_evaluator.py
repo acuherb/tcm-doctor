@@ -29,6 +29,7 @@ QUESTIONS = [
             {"key": "huge", "label": "胃口过大、食不知饱", "hits": {"胃热": 2, "热": 1}, "meridian": "阳明", "note": "阳明腑热"},
             {"key": "no", "label": "没胃口、完全不饿", "hits": {"脾虚": 2}, "meridian": "太阴", "note": "脾脏受损"},
             {"key": "tasteless", "label": "食之无味", "hits": {"脾虚": 1}, "meridian": "太阴", "note": "脾(胰)脏受损"},
+            {"key": "no_desire_food", "label": "默默不欲饮食、心烦喜呕", "hits": {"少阳": 2}, "meridian": "少阳", "note": "少阳枢机不利，胆热犯胃"},
         ],
     },
     {
@@ -59,6 +60,7 @@ QUESTIONS = [
             {"key": "unquenchable", "label": "口渴，怎么喝都不解渴", "hits": {"胃热": 2, "热": 1}, "meridian": "阳明", "note": "阳明经热，或肾阳虚以致金不能生水"},
             {"key": "cold_water", "label": "口渴，想喝冰水", "hits": {"热": 1}, "meridian": "阳明", "note": "里有热"},
             {"key": "warm_water", "label": "口渴，想喝温水", "hits": {"寒": 1}, "meridian": "少阴", "note": "里有寒"},
+            {"key": "bitter_dry", "label": "口苦咽干、不想多饮", "hits": {"少阳": 2}, "meridian": "少阳", "note": "少阳胆火上炎，枢机不利"},
         ],
     },
     {
@@ -70,6 +72,7 @@ QUESTIONS = [
             {"key": "cold_all", "label": "睡时全身冰冷", "hits": {"阳虚": 2, "寒": 1}, "meridian": "少阴", "note": "阳虚"},
             {"key": "hot_upper_cold_lower", "label": "上热下寒", "hits": {"阴阳分格": 2}, "meridian": "厥阴", "note": "阴阳分格"},
             {"key": "mingled", "label": "寒热并结", "hits": {"寒": 1, "热": 1, "阴阳分格": 1}, "meridian": "厥阴", "note": "阴阳相抟"},
+            {"key": "alternating", "label": "寒热往来、忽冷忽热，口苦咽干", "hits": {"少阳": 2}, "meridian": "少阳", "note": "少阳枢机不利，半表半里，宜和解"},
             {"key": "hot_all", "label": "全身燥热(长期低烧)", "hits": {"阳不入阴": 2, "阴虚": 1}, "meridian": "厥阴", "note": "阳不入阴"},
         ],
     },
@@ -130,10 +133,28 @@ MERIDIAN_TIE_PRIORITY = ["少阴", "太阴", "厥阴", "阳明", "太阳", "少�
 MERIDIAN_SUFFIX = {
     "太阳": ["表阳", "心阳"],
     "阳明": ["胃热", "热", "阴虚"],
-    "少阳": [],
+    "少阳": ["少阳"],
     "太阴": ["脾虚", "痰饮", "寒", "阳虚"],
     "少阴": ["肾阳", "心阳", "阳虚", "寒"],
     "厥阴": ["阴阳分格", "阳不入阴", "肝", "血虚", "热", "寒"],
+}
+
+# ── 判定参数 ────────────────────────────────────────────────
+# 旧实现「命中即 +1、max>=1 就定主经、并列全算合病」会把 5 个各 1 点的经判成 5 经合病。
+# 医疗场景宁可保守：证据不足时明确要求四诊合参，而不是给出一个看似确定的长标签。
+MIN_ABNORMAL_QUESTIONS = 2     # 至少 2 项异常才允许定主证
+MIN_MAIN_POINTS = 3            # 主经原始点数下限
+MIN_LEAD_GAP = 2               # 主经须领先次名至少 2 点
+MAX_PRIMARY_MERIDIANS = 2      # 并列最多取 2 经，避免「全经合病」
+MAX_SECONDARY = 2              # 倾向最多列 2 经
+SECONDARY_RATIO = 0.5          # 倾向至少达到主经的一半
+MERIDIAN_ORDER = ["太阳", "阳明", "少阳", "太阴", "少阴", "厥阴"]
+
+SUFFIX_NAMES = {
+    "寒": "里寒", "热": "里热", "阳虚": "阳气虚", "阴虚": "阴液亏", "表阳": "表虚不固",
+    "心阳": "心阳不足", "肾阳": "肾阳亏虚", "脾虚": "脾虚", "胃热": "胃家热",
+    "痰饮": "痰饮", "血虚": "血虚", "肝": "肝失疏泄", "肺": "肺气失和",
+    "阴阳分格": "阴阳分格", "阳不入阴": "阳不入阴", "少阳": "枢机不利",
 }
 
 # 寒热虚实对立调和：同为显著时提示寒热错杂，不再让两者简单累加成单一热/寒
@@ -145,87 +166,128 @@ LABELS = {
     "寒": "里寒", "热": "里热", "阳虚": "阳气不足", "阴虚": "阴液不足", "表阳": "表阳不固",
     "心阳": "心阳不足", "肾阳": "肾阳不足", "脾虚": "脾虚", "肝": "肝气/肝血失和", "肺": "肺气失和",
     "胃热": "胃家热/腑热", "痰饮": "痰饮水湿", "血虚": "血虚失养", "阴阳分格": "阴阳分格", "阳不入阴": "阳不入阴",
+    "少阳": "少阳枢机不利",
 }
 
 
 def evaluate_constitution(answers: dict, notes: dict | None = None) -> dict:
-    """问诊十问推理。
+    """问诊十问 → 六经偏性推理。
 
-    参数:
-        answers: {问诊key: 选项key}（选项key即 QUESTIONS[].options[].key；可为 "custom" 表示自填）
-        notes:  {问诊key: 自填补充描述}
-
-    返回:
-        {"primary_type": "...", "scores": {六经: 点数}, "secondary_types": [...],
-         "findings": [...], "suggestion": "...", "detail": {...}}
+    与旧版的区别：
+    - 选项的 hits 点数真正参与六经计分（不再一律 +1）；
+    - 按「异常题数」归一化，男女/不适用题数不同仍可比；
+    - 设主证阈值 + 领先差，证据不足时输出「需四诊合参」而不是长串合病；
+    - 并列最多 2 经、后缀只在单主经时拼，杜绝跨经硬拼；
+    - 寒热并见落地到主标签（寒热错杂），不再只写一句 findings；
+    - detail 同步主经/得分/判定依据，供前端与统计使用。
     """
-    dims: dict[str, int] = {}          # 寒热虚实脏腑累计
-    meridians: dict[str, int] = {}     # 六经累计
+    dims: dict[str, int] = {}          # 寒热虚实脏腑累计点数
+    raw: dict[str, int] = {}           # 六经原始点数（按 hits 加权）
     findings: list[str] = []
     notes = notes or {}
     custom_notes: list[str] = []
+    invalid_answers: list[str] = []
+    abnormal_count = 0
+    answered_count = 0
+    rank = {m: i for i, m in enumerate(MERIDIAN_TIE_PRIORITY)}
 
     for q in QUESTIONS:
         value = answers.get(q["key"])
         extra_note = (notes.get(q["key"]) or "").strip()
+        if value is not None:
+            answered_count += 1
 
+        # 自填描述保留原文，但不自动定性、不计分
         if value == "custom" or (value is None and extra_note):
-            # 自填项：保留原始描述，不自动定性
             if extra_note:
                 custom_notes.append(f"《{q['title']}》{extra_note}")
-                findings.append(f"《{q['title']}》 自述：{extra_note}")
+                findings.append(f"《{q['title']}》 自述（未纳入计分）：{extra_note}")
             continue
         if value is None:
             continue
         chosen = next((o for o in q["options"] if o["key"] == value), None)
         if not chosen:
+            invalid_answers.append(f"{q['key']}={value}")
             if extra_note:
-                findings.append(f"《{q['title']}》 补充：{extra_note}")
+                findings.append(f"《{q['title']}》 补充（未纳入计分）：{extra_note}")
             continue
-        for hit, point in chosen.get("hits", {}).items():
+
+        hits = chosen.get("hits") or {}
+        for hit, point in hits.items():
             dims[hit] = dims.get(hit, 0) + point
-        if chosen.get("meridian"):
-            meridians[chosen["meridian"]] = meridians.get(chosen["meridian"], 0) + 1
-        if chosen.get("note") and chosen["note"] not in ("睡眠正常", "食欲正常", "大便正常", "小便正常", "口渴正常", "寒热正常", "汗出正常", "体力正常", "性功能正常", "月经正常", "不涉及"):
+        meridian = chosen.get("meridian")
+        weight = sum(hits.values())
+        if meridian and weight:
+            raw[meridian] = raw.get(meridian, 0) + weight
+            abnormal_count += 1
+        # 正常选项（无 hits、无归经）不写 findings，也不占异常题数
+        if (hits or meridian) and chosen.get("note"):
             findings.append(f"《{q['title']}》 {chosen['note']}")
         if extra_note:
-            findings.append(f"《{q['title']}》 补充：{extra_note}")
+            findings.append(f"《{q['title']}》 补充（未纳入计分）：{extra_note}")
 
-    # 寒热对立调和：寒/热同为显著时，不累加为单一寒或热，而是提示寒热错杂
-    if cold_points(dims) >= 1 and hot_points(dims) >= 1:
-        findings.append("《寒热》 寒热之象并见，须防寒热错杂之证。")
+    if invalid_answers:
+        findings.append(f"《校验》 {len(invalid_answers)} 项答案不在题库中，未计分：{'、'.join(invalid_answers[:5])}")
 
-    # ── 六经主证（并列择优 + 合病识别）──────────────────
-    # primary_meridians：命中数 == 最高值的所有经，按优先级排序（主经在前）
-    if meridians:
-        max_c = max(meridians.values())
-        primary_meridians = sorted(
-            (m for m, c in meridians.items() if c == max_c),
-            key=lambda m: (MERIDIAN_TIE_PRIORITY.index(m) if m in MERIDIAN_TIE_PRIORITY else 99),
-        )
+    cold, hot = cold_points(dims), hot_points(dims)
+    mixed = (cold >= 1 and hot >= 1) or dims.get("阴阳分格", 0) >= 1 or dims.get("阳不入阴", 0) >= 1
+    if mixed:
+        findings.append("《寒热》 寒热/阴阳错杂，按错杂证处理，不再单向归为里寒或里热。")
+
+    # 按「异常题数」归一化成平均点数(0~3)供前端条块展示：男女/不适用题数不同仍可比；
+    # 原始点数另存 detail.raw_points 用于审计与阈值判定
+    scores = {m: round(raw.get(m, 0) / max(abnormal_count, 1), 2) for m in MERIDIAN_ORDER}
+    ranked_meridians = sorted(
+        ((m, raw[m]) for m in MERIDIAN_ORDER if raw.get(m, 0) > 0),
+        key=lambda x: (-x[1], rank.get(x[0], 99)),
+    )
+    top = ranked_meridians[0][1] if ranked_meridians else 0
+    second = ranked_meridians[1][1] if len(ranked_meridians) > 1 else 0
+
+    if abnormal_count == 0:
+        decision, primary_meridians = "balanced", []
+        primary_type = "平和(无明显偏颇)"
+    elif abnormal_count < MIN_ABNORMAL_QUESTIONS:
+        decision, primary_meridians = "insufficient", []
+        primary_type = "偏性初见(需四诊合参)"
+        findings.append("《判定》 仅 1 项异常，不足以定六经主证，请结合舌脉四诊。")
+    elif top < MIN_MAIN_POINTS or (len(ranked_meridians) > 1 and top - second < MIN_LEAD_GAP):
+        decision, primary_meridians = "undetermined", []
+        primary_type = "证候未定(需四诊合参)"
+        findings.append("《判定》 各经点数分散或偏低，未形成主证，不做合病推断，请结合舌脉四诊。")
     else:
-        primary_meridians = []
+        decision = "determined"
+        tied = [m for m, c in ranked_meridians if c == top]
+        primary_meridians = sorted(tied, key=lambda m: rank.get(m, 99))[:MAX_PRIMARY_MERIDIANS]
+        primary_type = _compose_primary(dims, primary_meridians, mixed)
 
-    # 生成主标签（支持合病）
-    primary_type = _compose_primary(dims, primary_meridians)
+    secondary_types = [
+        m for m, c in ranked_meridians
+        if m not in primary_meridians and c >= 2 and c >= top * SECONDARY_RATIO
+    ][:MAX_SECONDARY]
 
-    # 倾向：主经之外命中 >0 的六经（含并列次选经）
-    secondary_types = [m for m, c in sorted(meridians.items(), key=lambda x: -x[1]) if m not in primary_meridians and c >= 1]
-
-    # 六经分(供前端条块展示)
-    scores = {m: meridians.get(m, 0) for m in ["太阳", "阳明", "少阳", "太阴", "少阴", "厥阴"]}
-
-    # 方域提示：合病时拼接各经思路，主经在前
-    if primary_meridians:
+    if decision == "determined":
         suggestion = " · ".join(MERIDIAN_SUGGESTIONS[m] for m in primary_meridians)
-    else:
+    elif decision == "balanced":
         suggestion = "四肢五官和缓，阴阳调平，未见明显偏颇。"
+    else:
+        suggestion = "十问尚未形成可判定的六经主证，请结合舌脉、四诊与病程再定，不宜径投经方。"
 
-    ranked = sorted(dims.items(), key=lambda x: -x[1])
+    ranked_dims = sorted(dims.items(), key=lambda x: (-x[1], str(x[0])))
     detail = {
         "dims": dict(dims),
-        "labels": [LABELS.get(k, k) for k, _ in ranked if k in LABELS],
+        "labels": [LABELS.get(k, k) for k, _ in ranked_dims if k in LABELS],
         "custom_notes": custom_notes,
+        "primary_meridians": list(primary_meridians),
+        "scores": scores,
+        "raw_points": {m: raw.get(m, 0) for m in MERIDIAN_ORDER},
+        "answered_count": answered_count,
+        "abnormal_count": abnormal_count,
+        "invalid_answers": invalid_answers,
+        "decision": decision,
+        "cold_points": cold,
+        "hot_points": hot,
+        "system": "六经偏性（倪海厦十问）",
     }
 
     return {
@@ -236,42 +298,32 @@ def evaluate_constitution(answers: dict, notes: dict | None = None) -> dict:
         "findings": findings,
         "suggestion": suggestion,
         "detail": detail,
+        # 明确体系，避免与王琦九种体质混用
+        "system": "六经偏性（倪海厦十问）",
     }
 
 
-def _compose_primary(dims: dict[str, int], primary_meridians: list[str]) -> str:
-    """组合主标签，如“少阴·肾阳亏虚”、“少阴+太阴 合病”。
-
-    后缀必须与本经相符：只在 primary_meridians 对应的可承载后缀中择优，
-    避免把少阴的“肾阳”硬拼到纯太阴主证上。
-    """
+def _compose_primary(dims: dict[str, int], primary_meridians: list[str],
+                     mixed: bool = False) -> str:
+    """组合主标签。合病只列经名，不拼后缀，避免把 A 经的维度硬贴到 B 经上。"""
     if not primary_meridians:
         return "平和(无明显偏颇)"
-
-    # 本经可承载的后缀集合
-    allowed = set()
-    for m in primary_meridians:
-        allowed.update(MERIDIAN_SUFFIX.get(m, []))
-
-    suffix_names = {"寒": "里寒", "热": "里热", "阳虚": "阳气虚", "阴虚": "阴液亏",
-                    "表阳": "表虚不固", "心阳": "心阳不足", "肾阳": "肾阳亏虚", "脾虚": "脾虚",
-                    "胃热": "胃家热", "痰饮": "痰饮", "血虚": "血虚", "阴阳分格": "阴阳分格",
-                    "阳不入阴": "阳不入阴"}
-
-    ranked = sorted(dims.items(), key=lambda x: -x[1])
-    suffix = next((suffix_names[k] for k, _ in ranked if k in allowed and k in suffix_names), "")
-
     head = "+".join(primary_meridians) if len(primary_meridians) > 1 else primary_meridians[0]
-    if suffix:
-        return f"{head}·{suffix}"
-    return head
+    if mixed:
+        return f"{head}·寒热错杂"
+    if len(primary_meridians) > 1:
+        return f"{head} 合病"
+    allowed = set(MERIDIAN_SUFFIX.get(primary_meridians[0], []))
+    ranked = sorted(dims.items(), key=lambda x: (-x[1], str(x[0])))
+    suffix = next((SUFFIX_NAMES[k] for k, _ in ranked if k in allowed and k in SUFFIX_NAMES), "")
+    return f"{head}·{suffix}" if suffix else head
 
 
 def cold_points(dims: dict[str, int]) -> int:
-    """寒象总点数（用于寒热对调和判断）"""
+    """寒象总点数（仅用于寒热错杂提示，不改动各维度原始点数）。"""
     return sum(v for k, v in dims.items() if k in COLD_KEYS)
 
 
 def hot_points(dims: dict[str, int]) -> int:
-    """热象总点数（用于寒热对调和判断）"""
+    """热象总点数。"""
     return sum(v for k, v in dims.items() if k in HOT_KEYS)

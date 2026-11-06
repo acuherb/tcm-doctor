@@ -91,7 +91,7 @@ SEGMENT_CN: dict[str, str] = {
     "batch": "批次", "batches": "批次", "billing": "收费", "bulk": "批量", "bundle": "基础数据包",
     "bundles": "基础数据包", "call": "叫号", "cancel": "作废", "charges": "收费单", "chat": "对话",
     "classic-formulas": "经典方", "clean": "清理", "complete": "完成", "config": "配置",
-    "constitution": "体质辨识", "conversations": "会话", "dashboard": "工作台",
+    "constitution": "十问辨证", "conversations": "会话", "dashboard": "工作台",
     "diagnosis": "问诊", "dictionaries": "字典", "dispense": "发药", "download": "下载",
     "duplicates": "重复项", "entries": "条目", "export": "导出",
     "followup-reminders": "随访提醒", "followups": "随访", "guest": "游客", "herbs": "药材",

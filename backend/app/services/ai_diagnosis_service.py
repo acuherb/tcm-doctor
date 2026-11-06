@@ -30,7 +30,29 @@ TCM_SYSTEM_PROMPT = """你是一位以「倪海厦经方体系」为根基的中
 9. **图片解读**：舌苔/面色/化验单照片应描述并辨证，注明仅供参考，临床需四诊合参。
 10. **剂量个体化（结合患者体重/年龄/性别）**：推荐经方剂量须结合患者信息调整——以标准成人（约 60kg）为基准，患者体重明显偏高/偏低按比例增减；儿童、老人、久病体弱者相应减量；女性经期、孕期、产期注意用药禁忌；若患者体重/年龄未知，按常规成人量并在方后注明「剂量按常规成人，需结合体重/年龄调整」。严禁对所有人都给同一固定剂量。
 
+11. **体系隔离与规则基线**：本系统「问诊十问」采用倪海厦十问 + 六经辨证（不是王琦九种体质，也不是《景岳全书》十问歌）。检索结果中标注【另一体系·仅作背景】的条目（如「问诊十问歌」「体质学说」）属其他体系，仅可作背景参考，不得据此替换或推翻本系统的十问结论，也不得据此改用非经方。若给出【十问六经偏性】规则引擎基线，证型/治法/选方须与之相符；确有冲突须在病机分析中说明四诊依据；基线未形成主证时不得强行定经。
+
 请用中文回答，保持专业性与可读性。"""
+
+# 与本系统十问体系不同的知识库条目：检索命中时加标注并降权，避免 LLM 混用。
+# 条目标题可能被导入/改写（如「问诊十问歌(景岳全书)」「体质学说(王琦九种体质)」），
+# 故按关键词判定而非精确等值；正文明确写「王琦九种体质」的也一并隔离。
+_OTHER_SYSTEM_TITLE_KEYS = ("十问歌", "体质学说", "九种体质", "王琦")
+_OTHER_SYSTEM_CONTENT_KEYS = ("王琦九种体质", "九种体质")
+_OTHER_SYSTEM_FLAG = "【另一体系·仅作背景】"
+_OTHER_SYSTEM_NOTICE = (
+    "【体系提示】以下标注「另一体系·仅作背景」的条目采用《景岳全书》十问歌或王琦九种体质等"
+    "其他体系，仅可作背景参考，不得用于替换或推翻本系统倪海厦十问/六经辨证的结论。"
+)
+
+
+def _is_other_system(title: str | None, content: str | None = None) -> bool:
+    """判断是否属于与本系统十问/六经体系冲突的知识库条目。"""
+    t = title or ""
+    if any(k in t for k in _OTHER_SYSTEM_TITLE_KEYS):
+        return True
+    c = (content or "")[:500]
+    return any(k in c for k in _OTHER_SYSTEM_CONTENT_KEYS)
 
 
 class DiagnosisService:
@@ -217,6 +239,21 @@ class DiagnosisService:
         if ten_aspects:
             four_diag.append(f"【问诊十问】\n{ten_aspects}")
 
+        # 与无 API Key 的规则引擎共用同一套十问推理，保证两条分支结论口径一致
+        from app.services.constitution_evaluator import evaluate_constitution
+        answer_map = (ten_answers or {}).get("answers") or {}
+        note_map = (ten_answers or {}).get("notes") or {}
+        rule = evaluate_constitution(answer_map, note_map) if answer_map else None
+        if rule:
+            four_diag.append(
+                "【十问六经偏性（规则引擎基线）】\n"
+                f"主归偏性：{rule['primary_type']}\n"
+                f"主证六经：{'、'.join(rule['primary_meridians']) or '未定（需四诊合参）'}\n"
+                f"倾向六经：{'、'.join(rule['secondary_types']) or '无'}\n"
+                f"判定状态：{rule['detail']['decision']}\n"
+                f"方域提示：{rule['suggestion']}"
+            )
+
         patient_info = ""
         if patient_gender:
             patient_info += f"患者性别：{patient_gender}。"
@@ -240,6 +277,12 @@ class DiagnosisService:
 
         user_message = f"请根据以下四诊信息进行辨证分析：\n\n{patient_info}\n" + "\n".join(four_diag)
         user_message += "\n\n请给出：1.病机分析 2.中医病名 3.证型 4.治法 5.推荐方剂及加减 6.调护建议"
+        if rule:
+            user_message += (
+                "\n\n【辨证口径约束】上方【十问六经偏性】为规则引擎基于同一份十问答案计算的基线结论；"
+                "证型、治法与推荐方剂须与之相符，若四诊信息与之冲突须明确说明依据；"
+                "基线未形成主证时不得强行定六经。"
+            )
         user_message += (
             "\n\n排版要求：对比类内容（如线索/分析/六经指向）请使用 Markdown 表格语法"
             "（每行以 | 分隔列，并在表头下一行写 |---|---|），不要使用制表符或纯空格分隔，"
@@ -870,8 +913,9 @@ class DiagnosisService:
         return {"role": "user", "content": content_parts}
 
     async def _retrieve_context(self, query: str, db: Session, top_k: int = 5) -> str:
-        """RAG 多路召回"""
-        contexts = []
+        """RAG 多路召回；另一体系条目打标后置，避免挤占本体系上下文。"""
+        primary: list[str] = []
+        background: list[str] = []
 
         # 1. 关键词检索 (SQL)
         try:
@@ -879,7 +923,11 @@ class DiagnosisService:
                 (KnowledgeEntry.title.contains(query)) | (KnowledgeEntry.content.contains(query))
             ).limit(top_k).all()
             for e in entries:
-                contexts.append(f"[{e.category}] {e.title}\n{e.content[:500]}")
+                block = f"[{e.category}] {e.title}\n{(e.content or '')[:500]}"
+                if _is_other_system(e.title, e.content):
+                    background.append(f"[{e.category}] {_OTHER_SYSTEM_FLAG}{e.title}\n{(e.content or '')[:500]}")
+                else:
+                    primary.append(block)
         except Exception as e:
             logger.warning("关键词检索知识库失败，跳过: %s", e)
 
@@ -888,16 +936,24 @@ class DiagnosisService:
             from app.services.vector_store import vector_store
             vector_results = vector_store.search(query, top_k=top_k)
             for r in vector_results:
-                contexts.append(f"[{r.get('category', '知识库')}] {r.get('title', '')}\n{r.get('content', '')[:500]}")
+                title, content = r.get("title", ""), r.get("content", "")
+                block = f"[{r.get('category', '知识库')}] {title}\n{content[:500]}"
+                if _is_other_system(title, content):
+                    background.append(f"[{r.get('category', '知识库')}] {_OTHER_SYSTEM_FLAG}{title}\n{content[:500]}")
+                else:
+                    primary.append(block)
         except ImportError:
             pass  # ChromaDB 未安装
         except Exception as e:
             logger.warning("向量检索失败，降级到关键词检索: %s", e)
 
-        if not contexts:
+        kept = (primary + background)[:8]
+        if not kept:
             return ""
-
-        return "\n\n---\n\n".join(contexts[:8])
+        body = "\n\n---\n\n".join(kept)
+        if any(_OTHER_SYSTEM_FLAG in b for b in kept):
+            return _OTHER_SYSTEM_NOTICE + "\n\n" + body
+        return body
 
     async def _call_deepseek(self, messages: list[dict], use_vision: bool = False) -> str:
         """调用 DeepSeek API — 有图片时使用 Vision 端点，无 Vision 配置时降级为纯文字"""

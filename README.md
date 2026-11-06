@@ -28,7 +28,7 @@ graph TB
     subgraph B["FastAPI 后端 8765"]
         direction TB
         R["Routers<br/>patients / prescriptions / herbs<br/>acupuncture / diagnosis / knowledge<br/>stock / system_logs / auth<br/>stats / backup / config"]
-        S["Services<br/>AI 辨证 · 处方安全检查<br/>体质评估 · 向量检索<br/>操作审计 · 库存管理"]
+        S["Services<br/>AI 辨证 · 处方安全检查<br/>十问辨证(六经偏性) · 向量检索<br/>操作审计 · 库存管理"]
         D["Data Layer<br/>SQLite + SQLAlchemy 2.0<br/>ChromaDB 可选"]
         R --> S
         S --> D
@@ -154,8 +154,8 @@ npx electron-builder --win --x64
 - 就诊记录（四诊信息 + 辨证论治 + AI 辅助辨证 + 问诊十问 同一页面一体化完成）
 - 问诊十问（倪海厦经方家十问，预定义选项 + 自填，按原文判据推出六经/寒热/虚实偏性，随病例持久化）
 - 患者档案链（以**就诊时间线为主轴**聚合呈现：每条就诊卡片内联该次的问诊十问 + 四诊辨证 + 处方；历史未关联就诊的十问单独置于底部区块）
-- 患者列表多维筛选 + 聚合信号（不动 schema）：按体质 / 标签 / 过敏 / 最近改善筛选；列表展示「最近就诊 / 距今天数（超 30 天标红）/ 最近改善 / 在治·停诊·未复诊 状态 / 过敏·不遵医嘱 风险角标」；窄屏卡片视图同样呈现关键信号
-- 患者详情「🩺 健康速览」卡：体质类型 + BMI / 身型 + 过敏史告警（红/绿）+ 标签色块，一眼抓住关键风险
+- 患者列表多维筛选 + 聚合信号（不动 schema）：按证候偏性(六经主经/判定状态) / 标签 / 过敏 / 最近改善筛选；列表展示「最近就诊 / 距今天数（超 30 天标红）/ 最近改善 / 在治·停诊·未复诊 状态 / 过敏·不遵医嘱 风险角标」；窄屏卡片视图同样呈现关键信号
+- 患者详情「🩺 健康速览」卡：证候偏性 + BMI / 身型 + 过敏史告警（红/绿）+ 标签色块，一眼抓住关键风险
 - 病情跟踪「上次开方 → 本次反馈」对比：每张随访卡片关联展示本次反馈所对应的就诊处方（方名 / 疗程 / 剂数 / 味数）
 
 ### 药品管理
@@ -359,7 +359,7 @@ tcm-doctor/
 │   │   ├── layouts/        # 主布局（侧边栏导航）
 │   │   ├── views/          # 页面组件
 │   │   │   ├── dashboard/  # 工作台 + 统计报表
-│   │   │   ├── patient/    # 患者列表/详情/就诊记录/体质评估
+│   │   │   ├── patient/    # 患者列表/详情/就诊记录/十问辨证
 │   │   │   ├── herb/       # 药材字典
 │   │   │   ├── prescription/ # 处方列表/编辑器 + 经典方库
 │   │   │   ├── acupoint/   # 穴位 + 针灸方库
@@ -410,7 +410,7 @@ tcm-doctor/
 | 系统 | `GET/PUT /api/v1/config` | 系统配置（API Key 持久化，含界面主题 `ui_theme`） |
 | 患者 | `/api/v1/patients` | 患者 CRUD |
 | 患者 | `/api/v1/patients/{id}/visits` | 就诊记录 |
-| 患者 | `/api/v1/patients/{id}/constitution` | 问诊十问 / 体质辨识（支持 `visit_id` 绑定到具体就诊） |
+| 患者 | `/api/v1/patients/{id}/constitution` | 十问辨证（六经偏性，支持 `visit_id` 绑定到具体就诊；物理字段名保留兼容存量库） |
 | 药品 | `/api/v1/herbs` | 药材字典 + 详情 |
 | 药品 | `/api/v1/herbs/tags/meta` | 药材标签维度与受控词表 |
 | 针灸 | `/api/v1/acupuncture` | 穴位字典 + 增删改查 + 导入 |

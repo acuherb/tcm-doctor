@@ -26,8 +26,9 @@ class Patient(Base):
     weight: Mapped[float | None] = mapped_column(Float, comment="体重(kg)")
     allergy_history: Mapped[str | None] = mapped_column(Text, comment="过敏史")
     medical_history: Mapped[str | None] = mapped_column(Text, comment="既往史")
-    constitution_type: Mapped[str | None] = mapped_column(String(20), comment="体质类型")
-    constitution_score: Mapped[dict | None] = mapped_column(JSON, comment="体质评分明细")
+    # 物理字段名保留以兼容存量库；语义是「十问辨证主标签(六经偏性)」，不是王琦九种体质
+    constitution_type: Mapped[str | None] = mapped_column(String(20), comment="十问辨证主标签(六经偏性)")
+    constitution_score: Mapped[dict | None] = mapped_column(JSON, comment="十问辨证完整推理结果")
     notes: Mapped[str | None] = mapped_column(Text, comment="备注")
     tags: Mapped[list | None] = mapped_column(JSON, comment="患者标签，如'不遵医瞩'")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)

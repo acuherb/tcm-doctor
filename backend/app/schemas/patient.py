@@ -187,10 +187,10 @@ class VisitResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-# === 体质辨识 ===
+# === 十问辨证（六经偏性） ===
 
 class ConstitutionSubmit(BaseModel):
-    """提交经方家问诊十问"""
+    """提交经方家问诊十问（结论为六经偏性，非王琦九种体质）"""
     answers: dict[str, str] = Field(..., description="问诊答案: {问诊key: 选项key}")
     notes: dict[str, str] = Field(default_factory=dict, description="自填描述: {问诊key: 补充文字}")
     visit_id: int | None = Field(None, description="关联就诊ID(可为空，向后兼容旧记录)")
@@ -248,11 +248,12 @@ class FollowUpResponse(BaseModel):
 
 
 class ConstitutionResult(BaseModel):
-    """体质辨识(倪师问诊十问)结果"""
-    primary_type: str = Field(..., description="主偏性画像，如 少阴·肾阳亏虚 / 少阴+太阴 合病")
-    primary_meridians: list[str] = Field(default_factory=list, description="主证六经(按主次排序，合病时多于一项)")
-    scores: dict[str, int] = Field(..., description="六经各命中点数")
-    secondary_types: list[str] = Field(default_factory=list, description="倾向六经")
-    findings: list[str] = Field(default_factory=list, description="命中的症状判据")
-    suggestion: str = Field(..., description="倪师思路(接方域提示)")
-    detail: dict = Field(default_factory=dict, description="偏性明细")
+    """十问辨证(倪海厦十问 → 六经偏性)结果，非王琦九种体质"""
+    primary_type: str = Field(..., description="主证偏性，如 少阴·阳气虚 / 少阴+太阴 合病 / 证候未定(需四诊合参)")
+    primary_meridians: list[str] = Field(default_factory=list, description="主证六经；证据不足时为空")
+    scores: dict[str, float] = Field(..., description="六经按异常题数归一化后的平均点数")
+    secondary_types: list[str] = Field(default_factory=list, description="倾向六经(最多 2 项)")
+    findings: list[str] = Field(default_factory=list, description="命中的症状判据与判定说明")
+    suggestion: str = Field(..., description="方域提示；证据不足时提示四诊合参")
+    detail: dict = Field(default_factory=dict, description="偏性明细与判定依据")
+    system: str = Field(default="六经偏性（倪海厦十问）", description="判定体系，避免与九种体质混用")

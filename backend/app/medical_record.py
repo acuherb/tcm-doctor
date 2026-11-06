@@ -56,15 +56,18 @@ def build_record(db: Session, patient_id: int, include_images: bool = False) -> 
         return None
 
     patient_d = _row(patient)
-    # 体质结论存在 constitution_score(JSON) 里，单独展开便于阅读
+    # 十问辨证（六经偏性）结论存在 constitution_score(JSON) 里，单独展开便于阅读
     cs = patient.constitution_score or {}
     constitution = {
         "type": patient.constitution_type,
         "scores": cs.get("scores") if isinstance(cs, dict) else None,
         "primary_type": cs.get("primary_type") if isinstance(cs, dict) else None,
+        "primary_meridians": cs.get("primary_meridians") if isinstance(cs, dict) else [],
         "secondary_types": cs.get("secondary_types") if isinstance(cs, dict) else [],
         "findings": cs.get("findings") if isinstance(cs, dict) else [],
         "suggestion": cs.get("suggestion") if isinstance(cs, dict) else "",
+        # 旧记录没有体系标记，不能默认标成新体系，避免把历史结论冒充十问六经偏性
+        "system": cs.get("system") if isinstance(cs, dict) else None,
     }
 
     visits = (
@@ -188,7 +191,7 @@ _FIELD_LABELS = {
     "name": "姓名", "gender": "性别", "birth_date": "出生日期", "phone": "电话",
     "id_card": "身份证号", "address": "住址", "height": "身高(cm)", "weight": "体重(kg)",
     "allergy_history": "过敏史", "medical_history": "既往史", "notes": "备注",
-    "constitution_type": "体质", "tags": "标签", "note": "备注",
+    "constitution_type": "证候偏性", "tags": "标签", "note": "备注",
     "chief_complaint": "主诉", "present_illness": "现病史",
     "observation": "望诊", "auscultation": "闻诊", "inquiry": "问诊", "palpation": "切诊",
     "tongue_body": "舌质", "tongue_coat": "舌苔", "pulse": "脉象",
@@ -345,13 +348,15 @@ def render_html(record: dict) -> str:
 
     c = record.get("constitution") or {}
     if c.get("type") or c.get("primary_type") or c.get("scores"):
-        parts.append("<h2>二、体质辨识</h2><table>")
+        parts.append("<h2>二、十问辨证（六经偏性）</h2><table>")
         parts.append(
-            f"<tr><th>主要体质</th><td>{_esc(c.get('primary_type') or c.get('type'))}</td></tr>"
-            f"<tr><th>兼夹体质</th><td>{_esc(c.get('secondary_types'))}</td></tr>"
-            f"<tr><th>体质评分</th><td>{_esc(c.get('scores'))}</td></tr>"
+            f"<tr><th>主证偏性</th><td>{_esc(c.get('primary_type') or c.get('type'))}</td></tr>"
+            f"<tr><th>主证六经</th><td>{_esc(c.get('primary_meridians'))}</td></tr>"
+            f"<tr><th>倾向六经</th><td>{_esc(c.get('secondary_types'))}</td></tr>"
+            f"<tr><th>六经得分</th><td>{_esc(c.get('scores'))}</td></tr>"
             f"<tr><th>辨识依据</th><td>{_esc(c.get('findings'))}</td></tr>"
-            f"<tr><th>调养建议</th><td>{_esc(c.get('suggestion'))}</td></tr>"
+            f"<tr><th>方域提示</th><td>{_esc(c.get('suggestion'))}</td></tr>"
+            f"<tr><th>判定体系</th><td>{_esc(c.get('system') or '历史记录（体系未标注）')}</td></tr>"
         )
         parts.append("</table>")
 

@@ -29,7 +29,7 @@
           <el-row :gutter="12">
             <el-col :xs="12" :sm="6">
               <div class="ho-block">
-                <div class="ho-label">体质类型</div>
+                <div class="ho-label">证候偏性</div>
                 <div class="ho-value" :class="{ 'ho-muted': !patient.constitution_type }">
                   {{ patient.constitution_type || '未评估' }}
                 </div>
@@ -82,7 +82,7 @@
               <span v-else>无</span>
             </el-descriptions-item>
             <el-descriptions-item label="既往史">{{ patient.medical_history || '无' }}</el-descriptions-item>
-            <el-descriptions-item label="体质">
+            <el-descriptions-item label="证候偏性">
               <el-tag v-if="patient.constitution_type" type="warning">{{ patient.constitution_type }}</el-tag>
               <span v-else class="text-muted">未评估</span>
             </el-descriptions-item>
@@ -595,7 +595,7 @@
       </el-form>
       <el-alert type="info" :closable="false" show-icon
         title="将打包该患者的全部留存资料"
-        :description="`${exportSummary}、体质辨识与复诊提醒。含隐私信息，请妥善保管。`" />
+        :description="`${exportSummary}、十问辨证与复诊提醒。含隐私信息，请妥善保管。`" />
       <template #footer>
         <el-button @click="exportVisible = false">取消</el-button>
         <el-button type="primary" :loading="exporting" @click="doExport">导出</el-button>

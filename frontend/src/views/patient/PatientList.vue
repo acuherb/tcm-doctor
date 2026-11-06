@@ -38,7 +38,7 @@
         <el-input v-model="searchText" placeholder="按姓名/电话搜索" clearable class="filter-search" @clear="onSearch">
           <template #prefix><el-icon><Search /></el-icon></template>
         </el-input>
-        <el-select v-model="filterConstitution" placeholder="全部体质" clearable class="filter-sel" @change="onFilterChange">
+        <el-select v-model="filterConstitution" placeholder="全部证候偏性" clearable class="filter-sel" @change="onFilterChange">
           <el-option v-for="c in constitutionOptions" :key="c" :label="c" :value="c" />
         </el-select>
         <el-select v-model="filterTag" placeholder="全部标签" clearable class="filter-sel" @change="onFilterChange">
@@ -68,7 +68,7 @@
           <template #default="{ row }">{{ ageOf(row) }}</template>
         </el-table-column>
         <el-table-column prop="phone" label="电话" width="130" />
-        <el-table-column prop="constitution_type" label="体质" width="100">
+        <el-table-column prop="constitution_type" label="证候偏性" width="130">
           <template #default="{ row }">
             <el-tag v-if="row.constitution_type" size="small" type="warning">{{ row.constitution_type }}</el-tag>
             <span v-else class="text-muted">未评估</span>
@@ -138,7 +138,7 @@
             </span>
           </div>
           <div class="card-row">
-            <span class="label">体质</span>
+            <span class="label">证候偏性</span>
             <span class="value" v-if="row.constitution_type">{{ row.constitution_type }}</span>
             <span class="value text-muted" v-else>未评估</span>
           </div>
@@ -340,13 +340,9 @@ const filterAllergy = ref('') // '' / 'yes' / 'no'
 const filterImprovement = ref('')
 const sortOrder = ref('') // '' / 'desc' / 'asc'
 const IMPROVE_LIST = ['明显好转', '好转', '稳定', '反复', '加重']
-// 体质筛选选项：标准九种体质 + 数据集中实际出现的值
-const BASE_CONSTITUTIONS = ['平和质', '气虚质', '阳虚质', '阴虚质', '痰湿质', '湿热质', '血瘀质', '气郁质', '特禀质']
-const constitutionOptions = computed<string[]>(() => {
-  const set = new Set(BASE_CONSTITUTIONS)
-  for (const p of patients.value) if (p.constitution_type) set.add(p.constitution_type)
-  return Array.from(set)
-})
+// 证候偏性筛选：按六经主经与判定状态；后端用模糊匹配，不再混用王琦九种体质
+const SYNDROME_OPTIONS = ['太阳', '阳明', '少阳', '太阴', '少阴', '厥阴', '平和', '需四诊合参']
+const constitutionOptions = computed<string[]>(() => SYNDROME_OPTIONS)
 function improveTag(s: string): string {
   if (s === '明显好转' || s === '好转') return 'success'
   if (s === '稳定') return 'warning'

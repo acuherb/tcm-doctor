@@ -81,7 +81,7 @@ const routes: RouteRecordRaw[] = [
         path: 'constitution/:id?',
         name: 'ConstitutionScale',
         component: ConstitutionScale,
-        meta: { title: '体质辨识', icon: 'TrendCharts' },
+        meta: { title: '十问辨证', icon: 'TrendCharts' },
       },
       {
         path: 'herbs',

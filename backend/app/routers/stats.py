@@ -399,6 +399,48 @@ def charge_trend_stats(days: int = Query(30, ge=1, le=365), db: Session = Depend
     }
 
 
+# 统计归并口径：主经优先，判定状态次之；桶名与患者列表的「证候偏性」筛选项保持一致。
+# 注意与 /stats/visits 的 syndrome_stats（就诊证型频次）语义不同，勿混用。
+MERIDIAN_NAMES = ("太阳", "阳明", "少阳", "太阴", "少阴", "厥阴")
+SYNDROME_BUCKETS = ("平和", "需四诊合参")
+HISTORY_CONSTITUTION_BUCKET = "历史九种体质记录"
+OTHER_SYNDROME_BUCKET = "其他/待归类"
+_DECISION_BUCKETS = {
+    "balanced": "平和",
+    "insufficient": "需四诊合参",
+    "undetermined": "需四诊合参",
+    "legacy": "历史记录(未标注体系)",
+}
+
+
+def _syndrome_of(patient) -> list[str]:
+    """把患者主标签归并到「六经主经 + 判定状态」桶，兼容早期长标签与九种体质旧数据。"""
+    score = patient.constitution_score if isinstance(patient.constitution_score, dict) else {}
+    raw_detail = score.get("detail")
+    detail = raw_detail if isinstance(raw_detail, dict) else {}
+    mains = [m for m in (score.get("primary_meridians") or detail.get("primary_meridians") or [])
+             if m in MERIDIAN_NAMES][:2]
+    if mains:
+        return mains
+    decision = detail.get("decision")
+    if decision in _DECISION_BUCKETS:
+        return [_DECISION_BUCKETS[decision]]
+
+    label = patient.constitution_type or ""
+    if not label:
+        return []
+    if "平和" in label:
+        return ["平和"]
+    if "需四诊合参" in label:
+        return ["需四诊合参"]
+    found = [m for m in MERIDIAN_NAMES if m in label][:2]
+    if found:
+        return found
+    if "质" in label:  # 阳虚质/痰湿质等王琦九种体质历史记录，不再混入六经统计
+        return [HISTORY_CONSTITUTION_BUCKET]
+    return [OTHER_SYNDROME_BUCKET]
+
+
 @router.get("/patients", summary="患者统计（新增趋势 / 复诊率 / 画像分布）")
 def patient_stats(days: int = Query(30, ge=1, le=365), db: Session = Depends(get_db)):
     """只统计未归档患者；复诊率 = 有就诊记录且累计就诊 ≥2 次的患者占比。"""
@@ -410,6 +452,7 @@ def patient_stats(days: int = Query(30, ge=1, le=365), db: Session = Depends(get
     gender = Counter()
     age_buckets = Counter()
     constitution = Counter()
+    syndrome = Counter()
     for p in patients:
         created = p.created_at
         if created:
@@ -433,6 +476,12 @@ def patient_stats(days: int = Query(30, ge=1, le=365), db: Session = Depends(get
         else:
             age_buckets["66岁以上"] += 1
         constitution[p.constitution_type or "未评估"] += 1
+        mains = _syndrome_of(p)
+        if mains:
+            for m in mains:
+                syndrome[m] += 1
+        else:
+            syndrome["未评估"] += 1
 
     visit_counts = (
         db.query(Visit.patient_id, func.count(Visit.id))
@@ -449,5 +498,6 @@ def patient_stats(days: int = Query(30, ge=1, le=365), db: Session = Depends(get
         "daily_new": [{"date": d, "count": n} for d, n in sorted(daily.items())],
         "gender_stats": _top(gender, 10),
         "age_stats": [{"name": k, "count": age_buckets[k]} for k in age_order if age_buckets[k]],
-        "constitution_stats": _top(constitution),
+        "constitution_stats": _top(constitution),  # 兼容旧调用方：原始主标签逐条计数
+        "syndrome_stats": _top(syndrome, 10),  # 按主经/判定状态归并，与患者列表筛选项同口径
     }

@@ -142,9 +142,9 @@
               </el-table>
             </el-col>
             <el-col :xs="24" :span="12">
-              <div class="tcm-section-title"><span class="tcm-section-title__dot"></span><span>体质分布</span></div>
-              <el-table :data="patientStats.constitution_stats || []" size="small" class="tcm-table">
-                <el-table-column prop="name" label="体质" />
+              <div class="tcm-section-title"><span class="tcm-section-title__dot"></span><span>证候偏性分布（按主经/判定状态）</span></div>
+              <el-table :data="patientStats.syndrome_stats || []" size="small" class="tcm-table">
+                <el-table-column prop="name" label="主经/判定" />
                 <el-table-column prop="count" label="人数" width="90" class-name="tcm-num" />
               </el-table>
             </el-col>

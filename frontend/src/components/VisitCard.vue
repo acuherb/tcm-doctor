@@ -272,7 +272,7 @@ function iqGeneralFindings(iq: InquiryRecord): string[] {
 function iqSuggestionParts(iq: InquiryRecord): { name: string; text: string }[] {
   const sug = (iq?.result?.suggestion || '').trim()
   if (!sug) return []
-  const primary: string[] = iq?.result?.detail?.primary_meridians || []
+  const primary: string[] = iq?.result?.primary_meridians || iq?.result?.detail?.primary_meridians || []
   const parts = sug.split(' · ').filter(Boolean)
   return parts.map((text: string, i: number) => {
     // 优先用 detail 里命中的主经名；多段不足时按顺序对应 primary

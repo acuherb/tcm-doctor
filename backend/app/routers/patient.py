@@ -35,7 +35,7 @@ def list_patients(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     search: str | None = Query(None, description="搜索(姓名/电话)"),
-    constitution_type: str | None = Query(None, description="按体质类型筛选"),
+    constitution_type: str | None = Query(None, description="按证候偏性/主经筛选（模糊匹配）"),
     tag: str | None = Query(None, description="按患者标签筛选"),
     has_allergy: bool | None = Query(None, description="有无过敏史: true/false"),
     improvement: str | None = Query(None, description="按最近一次随访改善程度筛选"),
@@ -55,7 +55,7 @@ def list_patients(
     if search:
         query = query.filter((Patient.name.contains(search)) | (Patient.phone.contains(search)))
     if constitution_type:
-        query = query.filter(Patient.constitution_type == constitution_type)
+        query = query.filter(Patient.constitution_type.contains(constitution_type))
     if has_allergy is True:
         query = query.filter(Patient.allergy_history.isnot(None), Patient.allergy_history != "")
     elif has_allergy is False:
@@ -172,7 +172,7 @@ def export_medical_record(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """按患者聚合完整病历：基本信息 + 体质 + 全部就诊（含四诊/AI 结论）+ 处方明细 + 十问 + 随访 + 提醒。
+    """按患者聚合完整病历：基本信息 + 十问辨证结论(六经偏性) + 全部就诊（含四诊/AI 结论）+ 处方明细 + 十问 + 随访 + 提醒。
 
     含隐私，需 patient:read 权限并写审计日志；只读取、不修改任何数据。
     """
@@ -315,9 +315,9 @@ def update_visit(
     return visit
 
 
-# ── 体质辨识 ──
+# ── 十问辨证（六经偏性）──
 
-@router.post("/{patient_id}/constitution", response_model=ConstitutionResult, summary="提交体质辨识")
+@router.post("/{patient_id}/constitution", response_model=ConstitutionResult, summary="提交十问辨证")
 def submit_constitution(patient_id: int, data: ConstitutionSubmit, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     patient = db.query(Patient).filter(Patient.id == patient_id, Patient.deleted_at.is_(None)).first()
     if not patient:
@@ -381,7 +381,7 @@ def get_inquiries(
     return q.order_by(InquiryRecord.created_at.desc()).all()
 
 
-@router.get("/{patient_id}/constitution", response_model=ConstitutionResult | None, summary="获取体质报告")
+@router.get("/{patient_id}/constitution", response_model=ConstitutionResult | None, summary="获取十问辨证结论")
 def get_constitution(patient_id: int, db: Session = Depends(get_db)):
     patient = db.query(Patient).filter(Patient.id == patient_id, Patient.deleted_at.is_(None)).first()
     if not patient:
@@ -399,6 +399,7 @@ def get_constitution(patient_id: int, db: Session = Depends(get_db)):
             findings=stored.get("findings") or [],
             suggestion=stored.get("suggestion") or "",
             detail=stored.get("detail") or {},
+            system=stored.get("system") or "六经偏性（倪海厦十问）",
         )
     # 兼容旧格式
     return ConstitutionResult(
@@ -406,6 +407,8 @@ def get_constitution(patient_id: int, db: Session = Depends(get_db)):
         scores=stored or {},
         secondary_types=[],
         suggestion="",
+        detail={"decision": "legacy"},
+        system="历史记录（体系未标注）",
     )
 
 
