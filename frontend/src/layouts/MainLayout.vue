@@ -43,6 +43,16 @@
           <el-menu-item index="/patients">患者列表</el-menu-item>
         </el-sub-menu>
 
+        <el-sub-menu index="prescription-group">
+          <template #title>
+            <el-icon><Document /></el-icon>
+            <span>处方管理</span>
+          </template>
+          <el-menu-item index="/prescriptions">处方列表</el-menu-item>
+          <el-menu-item index="/classic-formulas">中药方库</el-menu-item>
+          <el-menu-item index="/acupoint-formulas">针灸方库</el-menu-item>
+        </el-sub-menu>
+
         <el-sub-menu index="treatment-group">
           <template #title>
             <el-icon><FirstAidKit /></el-icon>
@@ -66,16 +76,6 @@
           <el-menu-item index="/stock/reports">进销存报表</el-menu-item>
           <el-menu-item index="/stock/suppliers">供应商管理</el-menu-item>
           <el-menu-item index="/stock/options">库存选项</el-menu-item>
-        </el-sub-menu>
-
-        <el-sub-menu index="prescription-group">
-          <template #title>
-            <el-icon><Document /></el-icon>
-            <span>处方管理</span>
-          </template>
-          <el-menu-item index="/prescriptions">处方列表</el-menu-item>
-          <el-menu-item index="/classic-formulas">中药方库</el-menu-item>
-          <el-menu-item index="/acupoint-formulas">针灸方库</el-menu-item>
         </el-sub-menu>
 
         <el-menu-item index="/knowledge">
