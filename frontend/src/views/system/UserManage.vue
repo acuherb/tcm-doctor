@@ -245,7 +245,7 @@ const roleOptions = [
 ]
 
 // 权限目录（来自后端 /auth/permissions），用于渲染权限勾选表
-const permCatalog = ref<{ groups: Array<{ perms?: Array<{ key?: string; label?: string }> }>; role_defaults: Record<string, string[]> }>({ groups: [], role_defaults: {} })
+const permCatalog = ref<{ groups: Array<{ group?: string; perms?: Array<{ key?: string; label?: string }> }>; role_defaults: Record<string, string[]> }>({ groups: [], role_defaults: {} })
 
 function permLabel(key: string) {
   for (const g of permCatalog.value.groups) {
@@ -280,7 +280,7 @@ function onRoleChange(role: string) {
 const rules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
   role: [{ required: true, message: '请选择角色', trigger: 'change' }],
-  password: [{ validator: (_r: unknown, v: string, cb: (msg?: string) => void) => {
+  password: [{ validator: (_r: unknown, v: string, cb: (msg?: Error | string) => void) => {
     if (!isEdit.value && !v) return cb(new Error('请输入初始密码'))
     if (v && v.length < 6) return cb(new Error('密码至少 6 位'))
     cb()
@@ -310,7 +310,7 @@ function avatarText(row: AccountRow) {
 
 async function load() {
   try {
-    users.value = (await api.get<TcmUser[]>('/auth/users'))
+    users.value = (await api.get<TcmUser[]>('/auth/users')) as any
   } catch (e) {
     ElMessage.error(errMsg(e) || '加载账号失败')
   }
@@ -319,7 +319,7 @@ async function load() {
 // 权限目录（权限点分组 + 角色默认集），仅用于渲染勾选表，失败不影响账号列表
 async function loadCatalog() {
   try {
-    const res = (await api.get<Record<string, unknown>>('/auth/permissions'))
+    const res = (await api.get<Record<string, any>>('/auth/permissions'))
     permCatalog.value = { groups: res.groups || [], role_defaults: res.role_defaults || {} }
   } catch {
     /* 权限目录加载失败不影响账号管理 */

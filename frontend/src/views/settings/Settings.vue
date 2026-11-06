@@ -326,7 +326,7 @@ const exporting = ref(false)
 const vectorAvailable = ref(false)
 const savingClinic = ref(false)
 const dbPath = ref('')
-const counts = ref<Record<string, unknown>>({})
+const counts = ref<Record<string, any>>({})
 
 // ── 自动备份 ──
 interface BackupItem { name: string; size: number; created_at: string }
@@ -441,7 +441,7 @@ onMounted(async () => {
   } catch {}
 
   try {
-    const res = await api.get<Record<string, unknown>>('/diagnosis/status')
+    const res = await api.get<Record<string, any>>('/diagnosis/status')
     vectorAvailable.value = res.vector_store_available || false
   } catch {}
   void loadAutoBackup()
@@ -481,7 +481,7 @@ async function onLogoChange(uploadFile: UploadFile) {
 async function saveConfig() {
   savingConfig.value = true
   try {
-    const body: Record<string, unknown> = {
+    const body: Record<string, any> = {
       deepseek_model: deepseekModel.value,
       deepseek_base_url: deepseekBaseUrl.value,
     }
@@ -524,7 +524,7 @@ async function testConnection() {
 
   try {
     // 先保存配置：仅当用户确实输入了新 key 才提交（否则易把残留旧值误写覆盖真实 key）
-    const body: Record<string, unknown> = {
+    const body: Record<string, any> = {
       deepseek_model: deepseekModel.value,
       deepseek_base_url: deepseekBaseUrl.value,
     }
@@ -534,7 +534,7 @@ async function testConnection() {
     await api.put('/config', body)
 
     // 发送简单消息测试
-    const res = await api.post<Record<string, unknown>>('/diagnosis/chat', { message: '你好' })
+    const res = await api.post<Record<string, any>>('/diagnosis/chat', { message: '你好' })
     if (res.reply && !res.reply.includes('未配置') && !res.reply.includes('失败')) {
       connectionStatus.value = { type: 'success', text: '✅ 连接成功' }
       ElMessage.success('DeepSeek API 连接成功')
@@ -578,7 +578,7 @@ async function onImportFile(file: UploadFile) {
       type: 'warning',
     })
     const formData = new FormData()
-    formData.append('file', file.raw)
+    if (file.raw) formData.append('file', file.raw)
     await api.post('/backup/import', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })

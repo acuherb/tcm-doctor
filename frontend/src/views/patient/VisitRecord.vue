@@ -310,8 +310,8 @@ import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ChatDotRound, Close } from '@element-plus/icons-vue'
-import api from '@/utils/api'
-import type { Patient, Visit, InquiryRecord, Prescription, DictionaryTerm } from '@/types'
+import api, { errMsg } from '@/utils/api'
+import type { Patient, Visit, InquiryRecord, Prescription } from '@/types'
 import { renderMarkdown } from '@/utils/markdown'
 import { compressImageFile } from '@/utils/image'
 import { TEN_QUESTIONS } from '@/utils/tenAspectsQuestions'
@@ -363,10 +363,10 @@ const showAiResult = ref(false)
 const showAiConfirm = ref(false)
 const aiResultText = ref('')
 const aiResultWarnings = ref<string[]>([])
-const aiResultFormulas = ref<unknown[]>([])
+const aiResultFormulas = ref<any[]>([])
 const aiBasisText = ref('')
 // 待分析上下文（点击「开始分析」后再真正请求；避免未核对的误请求）
-let pendingAiPayload: Record<string, unknown> | null = null
+let pendingAiPayload: Record<string, any> | null = null
 let pendingAiFingerprint = ''
 // 缓存：同一组辨证输入不重复请求(避免关闭重开再次消耗 token)
 const lastAiFingerprint = ref('')
@@ -409,7 +409,7 @@ function findId(termType: string, name: string, aspect?: string): number | null 
 
 async function loadDictionary() {
   try {
-    const res = await api.get<DictionaryTerm[]>('/dictionaries')
+    const res = await api.get<DictTerm[]>('/dictionaries')
     dictTerms.value = Array.isArray(res) ? res : []
   } catch { /* 后端不可用时回退为空选项 */ }
 }
@@ -447,7 +447,7 @@ onMounted(async () => {
 function applyParentVisit(p: any) {
   form.value.visit_type = '复诊'
   form.value.parent_visit_id = p.id
-  const set = (k: string, v: any) => { if (v != null && v !== '') (form.value as Record<string, unknown>)[k] = v }
+  const set = (k: string, v: any) => { if (v != null && v !== '') (form.value as Record<string, any>)[k] = v }
   set('present_illness', p.present_illness)
   set('observation', p.observation)
   set('auscultation', p.auscultation)
@@ -534,7 +534,7 @@ watch(
       }
       lastVisitHint.value = `该病种曾于 ${hit[hit.length - 1].visit_date} 就诊，本次已默认标记为复诊（可手动改为初诊）`
       lastVisit.value = hit[hit.length - 1]
-      loadLastPrescription(lastVisit.value.id)
+      loadLastPrescription(Number(lastVisit.value.id || 0))
     } else {
       form.value.visit_type = '初诊'
       lastVisit.value = null
@@ -615,7 +615,7 @@ async function uploadImageFile(file: File) {
   try {
     const formData = new FormData()
     formData.append('file', f)
-    const res = await api.post<Record<string, unknown>>('/diagnosis/upload-image', formData)
+    const res = await api.post<Record<string, any>>('/diagnosis/upload-image', formData)
     const target = visitImageTarget.value
     if (target === 'lab') {
       visitImages.value.lab.push(res.data_url)
@@ -654,7 +654,7 @@ async function startCamera() {
     }
   } catch (e: any) {
     cameraStarted = false
-    ElMessage.error('无法访问摄像头：' + (e?.message || '请检查权限设置'))
+    ElMessage.error('无法访问摄像头：' + errMsg(e))
   }
 }
 
@@ -812,7 +812,7 @@ async function doAiAnalyze() {
   aiLoading.value = true
   showAiConfirm.value = false
   try {
-    const res = await api.post<Record<string, unknown>>('/diagnosis/analyze', pendingAiPayload)
+    const res = await api.post<Record<string, any>>('/diagnosis/analyze', pendingAiPayload)
     if (res.tcm_disease) form.value.tcm_disease = res.tcm_disease
     if (res.tcm_syndrome) form.value.tcm_syndrome = res.tcm_syndrome
     if (res.treatment_method) form.value.treatment_method = res.treatment_method
@@ -858,7 +858,7 @@ async function saveAiIntoRecord() {
       await api.put(`/patients/${patientId}/visits/${currentVisitId.value}`, { ai_analysis: form.value.ai_analysis })
       ElMessage.success('已存入本就诊 AI 诊断库')
     } catch (e: any) {
-      ElMessage.error('入库失败：' + (e?.response?.data?.detail || e?.message || ''))
+      ElMessage.error('入库失败：' + errMsg(e))
     }
   } else {
     // 就诊尚未创建（新增就诊）：把整条就诊（含 AI 辨证）真实落库，避免 AI 结果丢失/需再手动点保存
@@ -871,11 +871,11 @@ async function saveAiIntoRecord() {
         lab_report_images: visitImages.value.lab.length ? visitImages.value.lab : null,
       }
       const res = await api.post<Visit>(`/patients/${patientId}/visits`, payload, { silent: true })
-      currentVisitId.value = res.id
+      currentVisitId.value = res.id ?? null
       if (props.embedded) emit('saved', res)
       ElMessage.success('已存入本就诊 AI 诊断库')
     } catch (e: any) {
-      ElMessage.error('入库失败：' + (e?.response?.data?.detail || e?.message || ''))
+      ElMessage.error('入库失败：' + errMsg(e))
     }
   }
   showAiResult.value = false
@@ -883,7 +883,7 @@ async function saveAiIntoRecord() {
 
 // 将 AI 推荐方剂（结构化）带入开方页，由开方页弹窗勾选加减后生成处方
 function goPrescribeWithFormula(f: any) {
-  const q: Record<string, unknown> = { patient_id: patientId }
+  const q: Record<string, any> = { patient_id: patientId }
   if (currentVisitId.value != null) q.visit_id = currentVisitId.value
   // 结构化方剂较大，走 sessionStorage 传递，避免超长 URL / 编码导致 herbs 丢失
   const key = 'ai_import_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
@@ -918,12 +918,12 @@ async function submitVisit() {
       return res
     }
     const res = await api.post<Visit>(`/patients/${patientId}/visits`, payload, { silent: true })
-    currentVisitId.value = res.id
+    currentVisitId.value = res.id ?? null
     ElMessage.success(props.embedded ? '就诊记录已保存' : '就诊记录已保存，可在右侧完成本次问诊十问，或下方去开药')
     if (props.embedded) emit('saved', res)
     return res
   } catch (e: any) {
-    ElMessage.error('保存失败：' + (e?.response?.data?.detail || e?.message || ''))
+    ElMessage.error('保存失败：' + errMsg(e))
   } finally {
     submitting.value = false
   }
@@ -947,7 +947,7 @@ function onPulseChange() {
 async function loadExistingVisit(visitId: number) {
   try {
     const res = await api.get<Visit>(`/patients/${patientId}/visits/${visitId}`)
-    currentVisitId.value = res.id
+    currentVisitId.value = res.id ?? null
     const { pulse, ...rest } = res
     Object.assign(form.value, rest)
     // 挂号登记创建的是占位病历，主诉为占位符；进入编辑时清空，避免医生误存占位内容

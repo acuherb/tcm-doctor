@@ -200,7 +200,7 @@ import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Close } from '@element-plus/icons-vue'
 import api from '@/utils/api'
-import type { AppConfig, DictionaryTerm, Conversation, Message } from '@/types'
+import type { AppConfig, Conversation } from '@/types'
 import { useAuthStore } from '@/store/auth'
 import { triggerLogout } from '@/store/authBus'
 import { renderMarkdown } from '@/utils/markdown'
@@ -332,7 +332,7 @@ function tongueColor(name: string): string {
   for (const [kw, col] of TONGUE_KEYWORD_COLOR) if (name.includes(kw)) return col
   return '#909399'
 }
-function defaultColorForTerm(t: Record<string, unknown>): string {
+function defaultColorForTerm(t: Record<string, any>): string {
   const termType = String(t.term_type || '')
   if (termType === 'tongue') return tongueColor(String(t.name || ''))
   if (termType === 'pulse') return PULSE_TYPE_COLOR[String(t.pulse_type || '')] || '#7f8c8d'
@@ -354,7 +354,7 @@ function dotColor(type: 'tongue' | 'pulse', name: string): string {
 
 async function loadDictionary() {
   try {
-    const res = await api.get<DictionaryTerm[]>('/dictionaries')
+    const res = await api.get<DictTerm[]>('/dictionaries')
     dictTerms.value = Array.isArray(res) ? res : []
   } catch { /* 后端不可用时回退到硬编码兜底 */ }
 }
@@ -366,7 +366,7 @@ onMounted(async () => {
     apiConfigured.value = res.deepseek_configured
     visionAvailable.value = res.vision_configured || false
     try {
-      const status = await api.get<Record<string, unknown>>('/diagnosis/status')
+      const status = await api.get<Record<string, any>>('/diagnosis/status')
       vectorAvailable.value = status.vector_store_available || false
     } catch {}
   } catch {}
@@ -376,7 +376,7 @@ onMounted(async () => {
 async function loadConversations() {
   try {
     // 明确取回全部会话，避免后端默认 20 条把旧会话悄悄截掉而无任何提示
-    const res = await api.get<Conversation[]>('/diagnosis/conversations', { params: { page_size: 200 } })
+    const res = await api.get<any>('/diagnosis/conversations', { params: { page_size: 200 } })
     conversations.value = res.items || []
   } catch { /* ignore */ }
 }
@@ -386,7 +386,7 @@ async function switchConversation(uuid: string) {
   activeConvId.value = uuid
   messages.value = []
   try {
-    const res = await api.get<Message[]>(`/diagnosis/conversations/${uuid}/messages`)
+    const res = await api.get<any>(`/diagnosis/conversations/${uuid}/messages`)
     for (const m of res.items || []) {
       const imgs = (m.images as unknown[])?.map((i: unknown) => typeof i === 'string' ? i : (i as { url: string }).url).filter(Boolean) as string[]
       messages.value.push({
@@ -454,7 +454,7 @@ async function onImageSelect(event: Event) {
   try {
     const formData = new FormData()
     formData.append('file', f)
-    const res = await api.post<Record<string, unknown>>('/diagnosis/upload-image', formData)
+    const res = await api.post<Record<string, any>>('/diagnosis/upload-image', formData)
     pendingImages.value.push(res.data_url)
   } catch { ElMessage.error('图片上传失败') }
   input.value = ''
@@ -477,7 +477,7 @@ async function onAnalyzeImageSelect(event: Event) {
   try {
     const formData = new FormData()
     formData.append('file', f)
-    const res = await api.post<Record<string, unknown>>('/diagnosis/upload-image', formData)
+    const res = await api.post<Record<string, any>>('/diagnosis/upload-image', formData)
     const target = analyzeImageTarget.value
     if (target === 'lab') analyzeImages.value.lab.push(res.data_url)
     else analyzeImages.value[target] = res.data_url
@@ -500,7 +500,7 @@ async function sendMessage() {
   scrollBottom()
 
   try {
-    const payload: Record<string, unknown> = { message: text, conversation_id: activeConvId.value }
+    const payload: Record<string, any> = { message: text, conversation_id: activeConvId.value }
     if (images.length) payload.images = images
 
     const response = await streamFetch('/diagnosis/chat/stream', payload)
@@ -560,7 +560,7 @@ async function submitAnalyze() {
   loading.value = true; await nextTick(); scrollBottom()
 
   try {
-    const payload: Record<string, unknown> = { ...form }
+    const payload: Record<string, any> = { ...form }
     if (imgs.tongue) payload.tongue_image = imgs.tongue
     if (imgs.face) payload.face_image = imgs.face
     if (imgs.lab.length) payload.lab_report_images = imgs.lab

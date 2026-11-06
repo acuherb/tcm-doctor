@@ -128,7 +128,7 @@
 import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus, Delete } from '@element-plus/icons-vue'
-import api, { errMsg } from '@/utils/api'
+import api, { errMsg, type Paginated } from '@/utils/api'
 import type { Supplier, StockItem, PurchaseOrder, PurchaseItem } from '@/types'
 import { useAuthStore } from '@/store/auth'
 
@@ -168,7 +168,7 @@ async function load() {
     }
     suppliers.value = (await api.get<Supplier[]>('/stock/suppliers')) || []
     items.value = (await api.get<StockItem[]>('/stock/items')) || []
-  } catch (e) { ElMessage.error('加载失败：' + (e?.response?.data?.detail || e?.message)) }
+  } catch (e) { ElMessage.error('加载失败：' + errMsg(e)) }
 }
 async function loadMore() {
   if (loadingMore.value || !hasMore.value) return
@@ -181,10 +181,10 @@ async function loadMore() {
     orders.value.push(...rows.filter((r: any) => !seen.has(r.id)))
     page.value = next
     hasMore.value = orders.value.length < total.value
-  } catch (e) { ElMessage.error('加载失败：' + (e?.response?.data?.detail || e?.message)) }
+  } catch (e) { ElMessage.error('加载失败：' + errMsg(e)) }
   finally { loadingMore.value = false }
 }
-function addItem() { form.items.push({ item_id: null, batch_number: '', quantity: 1, unit_price: null, expiry_date: '' }) }
+function addItem() { form.items.push({ item_id: undefined, batch_number: '', quantity: 1, unit_price: null, expiry_date: '' }) }
 function removeItem(idx: number) { form.items.splice(idx, 1) }
 function onItemPick(it: PurchaseItem) {
   const i = items.value.find((x: StockItem) => x.id === it.item_id)
@@ -207,7 +207,7 @@ function openCreate() {
 }
 async function submit() {
   if (!form.items.length) { ElMessage.warning('请至少添加一条明细'); return }
-  if (form.items.some((it: PurchaseItem) => !it.item_id || !(it.quantity > 0) || !(it.unit_price >= 0))) {
+  if (form.items.some((it: PurchaseItem) => !it.item_id || !(Number(it.quantity) > 0) || !(Number(it.unit_price) >= 0))) {
     ElMessage.warning('明细需填写物品、数量与进价'); return
   }
   submitting.value = true
@@ -221,7 +221,7 @@ async function submit() {
     visible.value = false
     page.value = 1
     load()
-  } catch (e) { ElMessage.error('提交失败：' + (e?.response?.data?.detail || e?.message)) }
+  } catch (e) { ElMessage.error('提交失败：' + errMsg(e)) }
   finally { submitting.value = false }
 }
 

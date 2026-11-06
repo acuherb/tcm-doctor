@@ -106,12 +106,17 @@ const props = defineProps<{
   patientId: number
   visitId?: number | null
   // 二次编辑时回填：上一次该就诊的问诊十问（选项 / 自填 / 辨证结果）
-  initial?: { answers?: Record<string, string>; notes?: Record<string, string>; result?: ConstitutionResult } | null
+  initial?: { answers?: Record<string, string>; notes?: Record<string, string>; result?: ConstitutionResult; [key: string]: any } | null
 }>()
 
 interface ConstitutionResult {
+  primary_type?: string
+  secondary_types?: string[]
+  findings?: string[]
+  suggestion?: string
   primary_meridians?: string[]
   scores?: Record<string, number>
+  [key: string]: any
 }
 const router = useRouter()
 
@@ -124,7 +129,7 @@ const answers = ref<Record<string, string>>({})
 const notes = ref<Record<string, string>>({})
 const result = ref<ConstitutionResult | null>(null)
 const submitting = ref(false)
-const recommend = ref<unknown>(null)
+const recommend = ref<any>(null)
 const recLoading = ref(false)
 
 const answeredCount = computed(() => questions.filter(q => answers.value[q.key] || (notes.value[q.key] || '').trim()).length)
@@ -168,7 +173,7 @@ async function evaluate() {
       visit_id: props.visitId ?? null,
     }, { silent: true })
     ElMessage.success('十问辨证完成，已归档到病历')
-    await loadRecommend(result.value)
+    if (result.value) await loadRecommend(result.value)
   } catch (e) {
     ElMessage.error('辨证失败：' + errMsg(e))
   }
@@ -197,7 +202,7 @@ async function loadRecommend(r: ConstitutionResult) {
   try {
     const groups = []
     for (const m of meridians) {
-      const g = await api.get<Record<string, unknown>>('/prescriptions/classic-formulas/recommend', { params: { meridian: m } })
+      const g = await api.get<Record<string, any>>('/prescriptions/classic-formulas/recommend', { params: { meridian: m } })
       if (g) groups.push({ label: m, ...g })
     }
     recommend.value = groups.length === 1 ? groups[0]

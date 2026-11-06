@@ -375,7 +375,7 @@ import { Plus, Star } from '@element-plus/icons-vue'
 import ChargeDialog from '@/components/ChargeDialog.vue'
 import api from '@/utils/api'
 import { debounce } from '@/utils/search'
-import type { Patient, Prescription, AppConfig } from '@/types'
+import type { AppConfig } from '@/types'
 import { useAuthStore } from '@/store/auth'
 
 const router = useRouter()
@@ -432,10 +432,10 @@ function formatRetention(v: any) {
 
 async function loadPrescriptions() {
   try {
-    const params: Record<string, unknown> = { limit: 100 }
+    const params: Record<string, any> = { limit: 100 }
     if (statusFilter.value) params.status = statusFilter.value
     if (patientFilter.value) params.patient_id = patientFilter.value
-    prescriptions.value = (await api.get<Paginated<Prescription>>('/prescriptions', { params }))
+    prescriptions.value = (await api.get<any[]>('/prescriptions', { params }))
   } catch {}
 }
 
@@ -448,7 +448,7 @@ function resetFilter() {
 async function loadPatients() {
   patientsLoading.value = true
   try {
-    const res = await api.get<Patient[]>(`/patients`, { params: { page_size: 100 } })
+    const res = await api.get<any>(`/patients`, { params: { page_size: 100 } })
     patients.value = res.items || res || []
   } catch {}
   patientsLoading.value = false
@@ -458,7 +458,7 @@ async function searchPatients(query: string) {
   if (!query.trim()) { loadPatients(); return }
   patientsLoading.value = true
   try {
-    const res = await api.get<Patient[]>(`/patients`, { params: { search: query, page_size: 50 } })
+    const res = await api.get<any>(`/patients`, { params: { search: query, page_size: 50 } })
     patients.value = res.items || res || []
   } catch {}
   patientsLoading.value = false

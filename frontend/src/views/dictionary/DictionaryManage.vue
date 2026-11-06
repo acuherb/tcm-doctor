@@ -183,7 +183,6 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '@/utils/api'
 import { useAuthStore } from '@/store/auth'
 import { refreshDictColors } from '@/utils/dictColors'
-import type { DictionaryTerm } from '@/types'
 
 // 游客只读：隐藏所有写操作
 const auth = useAuthStore()
@@ -293,7 +292,7 @@ function readableInk(hex: string): string {
   const L = (0.299 * r + 0.587 * g + 0.114 * b) / 255
   return L > 0.6 ? '#333333' : '#ffffff'
 }
-function defaultColorForTerm(term: Record<string, unknown>): string {
+function defaultColorForTerm(term: Record<string, any>): string {
   const t = String(term?.term_type || activeType.value)
   if (t === 'herb_tag') return HERB_TAG_DEFAULT_COLOR[String(term?.name || '')] || '#909399'
   if (t === 'syndrome') {
@@ -304,7 +303,7 @@ function defaultColorForTerm(term: Record<string, unknown>): string {
   if (t === 'tongue') return tongueColor(String(term?.name || ''))
   return '#909399'
 }
-function tagChipStyle(term: Record<string, unknown>): Record<string, string> {
+function tagChipStyle(term: Record<string, any>): Record<string, string> {
   const c = String(term?.color || defaultColorForTerm(term))
   const ink = readableInk(c)
   return { color: ink, backgroundColor: c, borderColor: ink }
@@ -314,7 +313,7 @@ const previewColor = computed(() => {
   if (form.color) return form.color
   if (activeType.value === 'herb_tag') return HERB_TAG_DEFAULT_COLOR[form.name] || '#909399'
   if (activeType.value === 'syndrome') return SYNDROME_MERIDIAN_COLOR[(form.meridian || [])[0]] || '#7f8c8d'
-  if (activeType.value === 'pulse') return PULSE_TYPE_COLOR[form.pulse_type] || '#7f8c8d'
+  if (activeType.value === 'pulse') return PULSE_TYPE_COLOR[form.pulse_type || ''] || '#7f8c8d'
   if (activeType.value === 'tongue') return tongueColor(form.name)
   return '#909399'
 })
@@ -344,8 +343,8 @@ const attributesText = ref('')
 
 async function loadTerms() {
   try {
-    const res = await api.get<DictionaryTerm[]>('/dictionaries', { params: { term_type: activeType.value } })
-    let data = Array.isArray(res) ? res : []
+    const res = await api.get<any[]>('/dictionaries', { params: { term_type: activeType.value } })
+    let data: any[] = Array.isArray(res) ? res : []
     if (activeType.value === 'herb_tag') data = sortHerbTag(data)
     if (activeType.value === 'acupoint_tag') data = sortAcupointTag(data)
     terms.value = data
@@ -397,7 +396,7 @@ async function save() {
   }
   saving.value = true
   try {
-    const payload: Record<string, unknown> = {
+    const payload: Record<string, any> = {
       term_type: form.term_type,
       name: form.name.trim(),
       description: form.description || null,

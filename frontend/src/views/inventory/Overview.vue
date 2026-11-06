@@ -247,7 +247,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import api from '@/utils/api'
+import api, { errMsg } from '@/utils/api'
 import type { StockOption } from '@/types'
 import { useStockOptionColors } from '@/utils/dictColors'
 
@@ -324,11 +324,11 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
 
 async function loadOverview() {
   try {
-    const params: Record<string, unknown> = {}
+    const params: Record<string, any> = {}
     if (typeFilter.value) params.item_type = typeFilter.value
     if (alertOnly.value) params.alert_only = true
     if (searchText.value) params.search = searchText.value
-    overview.value = (await api.get<Record<string, unknown>>('/stock/overview', { params })) || {}
+    overview.value = (await api.get<any[]>('/stock/overview', { params })) || []
     overviewShown.value = overviewPageSize
   } catch (e: any) {
     console.error(e)
@@ -336,7 +336,7 @@ async function loadOverview() {
 }
 async function loadAlerts() {
   try {
-    alerts.value = (await api.get<Array<Record<string, unknown>>>('/stock/alerts')) || []
+    alerts.value = (await api.get<Array<Record<string, any>>>('/stock/alerts')) || []
     alertShown.value = alertPageSize
   } catch {}
 }
@@ -440,7 +440,7 @@ async function submitBulkIn() {
     clearSelection()
     loadOverview()
   } catch (e: any) {
-    ElMessage.error('批量入库失败：' + (e?.response?.data?.detail || e?.message || '未知错误'))
+    ElMessage.error('批量入库失败：' + errMsg(e))
   } finally { bulkSubmitting.value = false }
 }
 
@@ -462,7 +462,7 @@ async function submitBulkCheck() {
     clearSelection()
     loadOverview()
   } catch (e: any) {
-    ElMessage.error('批量盘点失败：' + (e?.response?.data?.detail || e?.message || '未知错误'))
+    ElMessage.error('批量盘点失败：' + errMsg(e))
   } finally { bulkSubmitting.value = false }
 }
 </script>

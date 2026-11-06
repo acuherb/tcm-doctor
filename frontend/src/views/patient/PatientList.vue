@@ -263,7 +263,7 @@ import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
-import api from '@/utils/api'
+import api, { type Paginated } from '@/utils/api'
 import type { Patient, DictionaryTerm } from '@/types'
 import { useAuthStore } from '@/store/auth'
 import { calcAge, calcBmi, bodyType } from '@/utils/health'
@@ -393,7 +393,7 @@ watch(showAddDialog, (v) => { if (v) { dups.value = []; dupChecked.value = false
 
 async function loadPatients() {
   try {
-    const params: Record<string, unknown> = { page: page.value, page_size: pageSize.value }
+    const params: Record<string, any> = { page: page.value, page_size: pageSize.value }
     if (searchText.value) params.search = searchText.value
     if (filterConstitution.value) params.constitution_type = filterConstitution.value
     if (filterTag.value) params.tag = filterTag.value

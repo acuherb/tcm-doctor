@@ -150,15 +150,15 @@
         <el-row :gutter="12">
           <el-col :span="12" :xs="24"><el-form-item label="四气">
             <el-select v-model="form.nature" clearable placeholder="选填" style="width:100%">
-              <el-option v-for="o in dimOptions('nature')" :key="o" :label="o" :value="o">
-                <span class="opt-dot" :style="{ backgroundColor: xwColor(o) }"></span>{{ o }}
+              <el-option v-for="o in dimOptions('nature')" :key="o.value" :label="o.label" :value="o.value">
+                <span class="opt-dot" :style="{ backgroundColor: xwColor(o.value) }"></span>{{ o.label }}
               </el-option>
             </el-select>
           </el-form-item></el-col>
           <el-col :span="12" :xs="24"><el-form-item label="五味">
             <el-select v-model="form.flavors" multiple clearable style="width:100%" placeholder="多选">
-              <el-option v-for="o in dimOptions('flavors')" :key="o" :label="o" :value="o">
-                <span class="opt-dot" :style="{ backgroundColor: xwColor(o) }"></span>{{ o }}
+              <el-option v-for="o in dimOptions('flavors')" :key="o.value" :label="o.label" :value="o.value">
+                <span class="opt-dot" :style="{ backgroundColor: xwColor(o.value) }"></span>{{ o.label }}
               </el-option>
             </el-select>
           </el-form-item></el-col>
@@ -224,8 +224,9 @@ const pregOnly = ref(false)
 // 标签维度与受控词表（来自后端 /herbs/tags/meta）
 interface HerbMeta { dimensions: Record<string, { options: string[] }>; tag_suggestions: string[] }
 const meta = ref<HerbMeta>({ dimensions: {}, tag_suggestions: [] })
-function dimOptions(dim: string): string[] {
-  return meta.value.dimensions[dim]?.options || []
+interface DimOption { value: string; label: string; description?: string }
+function dimOptions(dim: string): DimOption[] {
+  return (meta.value.dimensions[dim]?.options || []).map((o: string) => ({ value: o, label: o }))
 }
 
 const showDialog = ref(false)
@@ -317,7 +318,7 @@ function openAdd() {
 
 function openEdit(row: Herb) {
   isEdit.value = true
-  editingId.value = row.id
+  editingId.value = row.id ?? null
   form.value = {
     name: row.name || '',
     aliasesStr: row.aliases ? row.aliases.join('、') : '',
@@ -339,7 +340,7 @@ async function submitForm() {
   if (!form.value.name.trim()) { ElMessage.warning('请输入药名'); return }
   try {
     const f = form.value
-    const payload: Record<string, unknown> = {
+    const payload: Record<string, any> = {
       name: f.name,
       aliases: f.aliasesStr ? f.aliasesStr.split(/[,，、]/).map((s: string) => s.trim()).filter(Boolean) : null,
       nature: f.nature || null,
@@ -399,7 +400,7 @@ async function onImportFile(e: Event) {
 }
 async function exportHerbs() {
   try {
-    const data: Record<string, unknown> = await api.get('/herbs/export')
+    const data: Record<string, any> = await api.get('/herbs/export')
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')

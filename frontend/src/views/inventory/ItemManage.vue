@@ -13,7 +13,7 @@
             <el-select v-model="typeFilter" placeholder="全部类别" clearable class="filter-sel" @change="loadItems(true)">
               <el-option label="全部" value="" />
               <el-option v-for="c in categories" :key="c.id" :label="c.name" :value="c.name">
-                <span class="opt-dot" :style="{ backgroundColor: dotColorOf(c.name) }"></span>{{ c.name }}
+                <span class="opt-dot" :style="{ backgroundColor: dotColorOf(c.name || '') }"></span>{{ c.name }}
               </el-option>
             </el-select>
             <el-button v-if="editable" type="primary" @click="openCreate">
@@ -35,7 +35,7 @@
       <el-table v-if="!isMobile" class="tcm-table" :data="filteredItems" style="width:100%" empty-text="暂无物品">
         <el-table-column prop="item_type" label="类别" width="110">
           <template #default="{ row }">
-            <span class="xw-tag" :style="chipStyleOf(row.item_type)">{{ row.item_type }}</span>
+            <span class="xw-tag" :style="chipStyleOf(row.item_type || '')">{{ row.item_type }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="name" label="名称" min-width="140" show-overflow-tooltip />
@@ -70,7 +70,7 @@
         <div v-for="row in filteredItems" :key="row.id" class="card">
           <div class="card-head">
             <span class="card-name">{{ row.name }}</span>
-            <span class="xw-tag" :style="chipStyleOf(row.item_type)">{{ row.item_type }}</span>
+            <span class="xw-tag" :style="chipStyleOf(row.item_type || '')">{{ row.item_type }}</span>
           </div>
           <div class="card-body">
             <div class="card-row"><span class="label">规格</span><span class="value">{{ row.spec || '-' }}</span></div>
@@ -107,7 +107,7 @@
         <el-form-item label="类别" prop="item_type">
           <el-select v-model="itemForm.item_type" filterable style="width:100%">
             <el-option v-for="c in categories" :key="c.id" :label="c.name" :value="c.name">
-              <span class="opt-dot" :style="{ backgroundColor: dotColorOf(c.name) }"></span>{{ c.name }}
+              <span class="opt-dot" :style="{ backgroundColor: dotColorOf(c.name || '') }"></span>{{ c.name }}
             </el-option>
           </el-select>
         </el-form-item>
@@ -209,7 +209,7 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
 async function loadItems(resetPage = false) {
   if (resetPage) { page.value = 1; loadingMore.value = false }
   try {
-    const params: Record<string, unknown> = { page: page.value, page_size: pageSize.value }
+    const params: Record<string, any> = { page: page.value, page_size: pageSize.value }
     if (typeFilter.value) params.item_type = typeFilter.value
     if (searchText.value) params.search = searchText.value
     const res = (await api.get<Paginated<StockItem>>('/stock/items', { params })) || []
@@ -230,7 +230,7 @@ async function loadMoreItems() {
   loadingMore.value = true
   try {
     const next = page.value + 1
-    const params: Record<string, unknown> = { page: next, page_size: pageSize.value }
+    const params: Record<string, any> = { page: next, page_size: pageSize.value }
     if (typeFilter.value) params.item_type = typeFilter.value
     if (searchText.value) params.search = searchText.value
     const res = (await api.get<Paginated<StockItem>>('/stock/items', { params })) || []
@@ -287,16 +287,16 @@ function openCreate() {
   isEdit.value = false
   activeItemId.value = null
   // 默认类别取选项表中第一个药材类，回退到首个类别，避免写死已改名的旧类别名
-  const herbCat = categories.value.find((c: StockOption) => isHerbCategory(c.name))
+  const herbCat = categories.value.find((c: StockOption) => isHerbCategory(c.name || ''))
   const defaultType = herbCat?.name || categories.value[0]?.name || ''
   itemForm.value = { item_type: defaultType, name: '', spec: '', unit: 'g', sell_price: null, min_stock: null, herb_id: null, default_supplier_id: null, barcode: '' }
   itemVisible.value = true
 }
 function openEdit(row: StockItem) {
   isEdit.value = true
-  activeItemId.value = row.id
+  activeItemId.value = row.id ?? null
   itemForm.value = {
-    item_type: row.item_type, name: row.name, spec: row.spec || '', unit: row.unit,
+    item_type: row.item_type || '', name: row.name || '', spec: row.spec || '', unit: row.unit || '',
     sell_price: row.sell_price != null ? Number(row.sell_price) : null,
     min_stock: row.min_stock != null ? Number(row.min_stock) : null,
     herb_id: row.herb_id || null, default_supplier_id: row.default_supplier_id || null,

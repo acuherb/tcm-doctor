@@ -470,7 +470,7 @@ async function callVisit(row: RegistrationQueueItem) {
 }
 
 async function completeVisit(row: RegistrationQueueItem) {
-  const ev = row.evidence || {}
+  const ev: any = row.evidence || {}
   if (ev.can_complete === false) {
     ElMessage.warning((ev.completion_blockers || []).join('；') || '请先完善本次就诊记录')
     return

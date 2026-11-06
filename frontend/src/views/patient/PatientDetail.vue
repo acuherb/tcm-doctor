@@ -716,7 +716,7 @@ function toggleEpisode(id: number) {
 
 // 病情跟踪
 const followups = ref<FollowUp[]>([])
-const reminders = ref<unknown[]>([])
+const reminders = ref<any[]>([])
 const followupVisible = ref(false)
 // 随访提醒：新增表单
 const newReminderDate = ref('')
@@ -797,16 +797,16 @@ const inquiriesByVisit = computed<Record<number, any[]>>(() => {
   const visitsByDate: Record<string, number[]> = {}
   for (const v of visits.value) {
     const d = (v.visit_date || '').slice(0, 10)
-    if (d) (visitsByDate[d] ||= []).push(v.id)
+    if (d) (visitsByDate[d] ||= []).push(v.id ?? 0)
   }
   for (const iq of inquiries.value) {
-    if (used.has(iq.id)) continue
+    if (used.has(iq.id ?? 0)) continue
     const d = (iq.created_at || '').slice(0, 10)
     const vids = d ? visitsByDate[d] : undefined
     if (vids && vids.length) {
       const vid = vids[0]
       ;(m[vid] ||= []).push(iq)
-      used.add(iq.id)
+      used.add(iq.id ?? 0)
     }
   }
   return m
@@ -859,7 +859,7 @@ const savingEdit = ref(false)
 const editForm = ref<any>({})
 
 const showVisitDialog = ref(false)
-const viewVisit = ref<Visit | null>(null)
+const viewVisit = ref<any>(null)
 const showIqDialog = ref(false)
 const viewIq = ref<InquiryRecord | null>(null)
 const showRxDialog = ref(false)
@@ -1035,7 +1035,7 @@ async function loadPatientData() {
     api.get<Prescription[]>(`/prescriptions?patient_id=${patientId}`),
     api.get<FollowUp[]>(`/patients/${patientId}/followups`),
     api.get<DictionaryTerm[]>(`/dictionaries`, { params: { term_type: 'tag', is_active: true } }),
-    api.get<unknown[]>(`/followup-reminders?patient_id=${patientId}`),
+    api.get<any[]>(`/followup-reminders?patient_id=${patientId}`),
   ])
   patient.value = p
   visits.value = v
@@ -1048,7 +1048,7 @@ async function loadPatientData() {
 
 async function loadReminders() {
   try {
-    reminders.value = (await api.get<unknown[]>(`/followup-reminders?patient_id=${patientId}`)) || []
+    reminders.value = (await api.get<any[]>(`/followup-reminders?patient_id=${patientId}`)) || []
   } catch {}
 }
 async function addReminder() {

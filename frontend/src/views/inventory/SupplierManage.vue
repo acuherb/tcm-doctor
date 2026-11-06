@@ -111,13 +111,13 @@ const rules = { name: [{ required: true, message: '请输入名称', trigger: 'b
 
 async function load() {
   try {
-    const params: Record<string, unknown> = {}
+    const params: Record<string, any> = {}
     if (searchText.value) params.search = searchText.value
     const list = (await api.get<Supplier[]>('/stock/suppliers', { params })) || []
     // 标记是否已被进货使用（前端无法精确判断，交给后端删除校验）
     suppliers.value = list
     shownCount.value = cardPageSize
-  } catch (e) { ElMessage.error('加载失败：' + (e?.response?.data?.detail || e?.message)) }
+  } catch (e) { ElMessage.error('加载失败：' + errMsg(e)) }
 }
 function openCreate() {
   isEdit.value = false; activeId.value = null
@@ -125,8 +125,8 @@ function openCreate() {
   visible.value = true
 }
 function openEdit(row: Supplier) {
-  isEdit.value = true; activeId.value = row.id
-  form.value = { name: row.name, contact: row.contact || '', phone: row.phone || '', address: row.address || '', note: row.note || '', is_active: row.is_active }
+  isEdit.value = true; activeId.value = row.id ?? null
+  form.value = { name: row.name || '', contact: row.contact || '', phone: row.phone || '', address: row.address || '', note: row.note || '', is_active: row.is_active }
   visible.value = true
 }
 async function submit() {
@@ -137,7 +137,7 @@ async function submit() {
     ElMessage.success('已保存')
     visible.value = false
     load()
-  } catch (e) { ElMessage.error('保存失败：' + (e?.response?.data?.detail || e?.message)) }
+  } catch (e) { ElMessage.error('保存失败：' + errMsg(e)) }
   finally { submitting.value = false }
 }
 async function remove(row: Supplier) {
@@ -146,7 +146,7 @@ async function remove(row: Supplier) {
     await api.delete(`/stock/suppliers/${row.id}`)
     ElMessage.success('已删除')
     load()
-  } catch (e) { if (e !== 'cancel') ElMessage.error('删除失败：' + (e?.response?.data?.detail || e?.message)) }
+  } catch (e) { if (e !== 'cancel') ElMessage.error('删除失败：' + errMsg(e)) }
 }
 
 onMounted(() => {

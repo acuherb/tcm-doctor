@@ -198,7 +198,6 @@ import { Search, Plus, Upload, Download, Collection } from '@element-plus/icons-
 import { useRouter } from 'vue-router'
 import api, { errMsg } from '@/utils/api'
 import { fileTimestamp } from '@/utils/datetime'
-import type { ClassicFormula } from '@/types'
 import { useAuthStore } from '@/store/auth'
 
 // 游客只读：隐藏所有写操作
@@ -261,7 +260,7 @@ function buildPayload() {
       is_king_herb: !!h.is_king_herb,
       note: h.note || null,
     }))
-  const composition: Record<string, unknown> = { herbs }
+  const composition: Record<string, any> = { herbs }
   if (editForm.value.meridian) composition.meridian = editForm.value.meridian
   const changes = editForm.value.changes.filter((c: any) => c.condition || c.add || c.remove)
   return {
@@ -293,7 +292,7 @@ async function saveFormula() {
     editVisible.value = false
     await loadFormulas()
   } catch (e: any) {
-    ElMessage.error('保存失败：' + (e?.response?.data?.detail || e?.message || ''))
+    ElMessage.error('保存失败：' + errMsg(e))
   }
   saving.value = false
 }
@@ -308,15 +307,15 @@ async function removeFormula(f: any) {
       detailVisible.value = false
       await loadFormulas()
     } catch (e: any) {
-      ElMessage.error('删除失败：' + (e?.response?.data?.detail || e?.message || ''))
+      ElMessage.error('删除失败：' + errMsg(e))
     }
   }).catch(() => {})
 }
 
 async function exportFormulas() {
   try {
-    const data: Record<string, unknown> = await api.get('/prescriptions/classic-formulas/export')
-    const nl = Array.isArray(data) ? data : (data as Paginated<ClassicFormula>)?.data || []
+    const data: Record<string, any> = await api.get('/prescriptions/classic-formulas/export')
+    const nl = Array.isArray(data) ? data : (data as any)?.data || []
     if (!nl.length) {
       ElMessage.warning('当前方剂库为空')
       return
@@ -343,7 +342,7 @@ async function onImportFile(e: Event) {
     const text = await file.text()
     let data = JSON.parse(text)
     if (!Array.isArray(data)) data = [data]
-    const payload = data.map((it: Record<string, unknown>) => ({
+    const payload = data.map((it: Record<string, any>) => ({
       name: it.name,
       source: it.source || null,
       composition: it.composition || { herbs: it.herbs || [] },
@@ -356,7 +355,7 @@ async function onImportFile(e: Event) {
     ElMessage.success(`导入完成：新增 ${res.created}，更新 ${res.updated}`)
     await loadFormulas()
   } catch (e) {
-    ElMessage.error('导入失败：' + (e?.message || '请检查JSON格式'))
+    ElMessage.error('导入失败：' + errMsg(e))
   } finally {
     importing.value = false
   }
@@ -370,10 +369,10 @@ const sources = computed(() => {
 async function loadFormulas() {
   loading.value = true
   try {
-    const params: Record<string, unknown> = {}
+    const params: Record<string, any> = {}
     if (searchText.value) params.search = searchText.value
     if (sourceFilter.value) params.source = sourceFilter.value
-    formulas.value = (await api.get<Paginated<ClassicFormula>>('/prescriptions/classic-formulas', { params }))
+    formulas.value = (await api.get<any[]>('/prescriptions/classic-formulas', { params }))
   } catch {
     formulas.value = []
   } finally {

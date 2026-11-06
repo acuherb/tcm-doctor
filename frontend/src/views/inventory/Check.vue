@@ -244,7 +244,7 @@ const fixForm = ref<any>({
 })
 function openFix(row: StockBatch) {
   if (!editable.value) { ElMessage.warning('无操作权限'); return }
-  fixBatchId.value = row.id
+  fixBatchId.value = row.id ?? null
   fixForm.value = {
     batch_number: row.batch_number || '',
     unit_price: row.unit_price != null ? Number(row.unit_price) : null,
@@ -260,7 +260,7 @@ function openFix(row: StockBatch) {
 async function submitFix() {
   if (!fixBatchId.value) return
   if (!fixForm.value.reason?.trim()) { ElMessage.warning('请填写纠错说明'); return }
-  const payload: Record<string, unknown> = {
+  const payload: Record<string, any> = {
     batch_number: fixForm.value.batch_number || null,
     unit_price: fixForm.value.unit_price,
     expiry_date: fixForm.value.expiry_date || null,

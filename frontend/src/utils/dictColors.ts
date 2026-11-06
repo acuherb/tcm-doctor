@@ -40,7 +40,7 @@ export function tongueColor(name: string): string {
 }
 
 // 默认色（字典无该色时回退），extra 携带 meridian/pulse_type 等定位字段
-export function defaultColorForType(termType: string, name: string, extra?: Record<string, unknown>): string {
+export function defaultColorForType(termType: string, name: string, extra?: Record<string, any>): string {
   const ex = extra as { meridian?: string; pulse_type?: string } | undefined
   if (termType === 'herb_tag') return HERB_TAG_DEFAULT_COLOR[name] || '#909399'
   if (termType === 'syndrome') {
@@ -77,7 +77,7 @@ export function useDictColors() {
       const arr = Array.isArray(res) ? res : []
       const m: Record<string, string> = {}
       for (const t of arr) {
-        if (t.name) m[t.name] = t.color || defaultColorForType(t.term_type || '', t.name, t as Record<string, unknown>)
+        if (t.name) m[t.name] = t.color || defaultColorForType(t.term_type || '', t.name, t as Record<string, any>)
       }
       colorMap.value = m
       loaded = true
@@ -89,7 +89,7 @@ export function useDictColors() {
   }
   // 取词条颜色：字典色优先，缺失回退默认色
   function termColor(name: string, termType: string, extra?: unknown): string {
-    return colorMap.value[name] || defaultColorForType(termType, name, extra as Record<string, unknown> | undefined)
+    return colorMap.value[name] || defaultColorForType(termType, name, extra as Record<string, any> | undefined)
   }
   return { colorMap, termColor, refreshDictColors }
 }

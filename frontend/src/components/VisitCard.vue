@@ -149,7 +149,7 @@
     <div class="visit-actions">
       <el-button v-if="editable" link type="success" size="small" @click="$emit('add-followup', visit)">+ 随访</el-button>
       <el-button link type="primary" size="small" @click="$emit('view', visit)">查看就诊详情</el-button>
-      <el-button v-if="editable" link type="warning" size="small" @click="$emit('edit', visit.id)">完善/编辑</el-button>
+      <el-button v-if="editable" link type="warning" size="small" @click="$emit('edit', visit.id ?? 0)">完善/编辑</el-button>
     </div>
   </el-card>
 </template>
@@ -329,7 +329,7 @@ function splitHerbs(text: string): { name: string; dose: string; method: string 
   return out
 }
 
-function jsonObjToFormula(o: Record<string, unknown>): AiFormulaBlock | null {
+function jsonObjToFormula(o: Record<string, any>): AiFormulaBlock | null {
   const name = String(o?.name || '').replace(/["""]/g, '').trim()
   if (!name) return null
   const role = String(o?.role || '').trim() || ''
@@ -339,7 +339,7 @@ function jsonObjToFormula(o: Record<string, unknown>): AiFormulaBlock | null {
   if (Array.isArray(o?.herbs) && o.herbs.length) {
     herbs = (o.herbs as unknown[]).map((h: unknown) => {
       if (typeof h === 'string') return splitHerbs(h)[0] || { name: h, dose: '', method: '' }
-      const hr = h as Record<string, unknown>
+      const hr = h as Record<string, any>
       return {
         name: String(hr?.name || '').replace(/["""]/g, '').trim(),
         dose: String(hr?.dose || '').trim(),
@@ -354,13 +354,13 @@ function jsonObjToFormula(o: Record<string, unknown>): AiFormulaBlock | null {
   // 新格式：modifications 为数组；旧格式：modification 为加减文本
   let mods: AiModBlock[] = []
   if (Array.isArray(o?.modifications) && o.modifications.length) {
-    mods = (o.modifications as unknown[]).map((m: unknown) => {
-      const mr = m as Record<string, unknown>
+    mods = (o.modifications as unknown[]).map((m: unknown): AiModBlock | null => {
+      const mr = m as Record<string, any>
       const label = String(mr?.label || '').trim()
       if (!label) return null
       const add = (Array.isArray(mr?.add) ? (mr.add as unknown[]) : []).map((a: unknown) => {
         if (typeof a === 'string') return splitHerbs(a)[0] || { name: a, dose: '', method: '' }
-        const ar = a as Record<string, unknown>
+        const ar = a as Record<string, any>
         return { name: String(ar?.name || '').trim(), dose: String(ar?.dose || '').trim(), method: String(ar?.method || '').trim() }
       }).filter((a: AiHerbBlock) => a.name)
       const remove = (Array.isArray(mr?.remove) ? (mr.remove as unknown[]) : []).map((r: unknown) => String(r || '').trim()).filter(Boolean)
@@ -377,7 +377,7 @@ function jsonObjToFormula(o: Record<string, unknown>): AiFormulaBlock | null {
 
 // 从已保存的 ai_analysis 文本中解析出结构化推荐方剂
 // （优先规范 Markdown【推荐方剂】；其次 JSON 块 formulas/recommended_formulas；最后旧版 bullet 兜底）
-function parseAiFormulas(visit: Record<string, unknown>): AiFormulaBlock[] {
+function parseAiFormulas(visit: Record<string, any>): AiFormulaBlock[] {
   const text = String(visit?.ai_analysis || '')
   const out: AiFormulaBlock[] = []
   // 1) 规范化 Markdown【推荐方剂】
@@ -469,7 +469,7 @@ function goPrescribeWithFormula(f: AiFormulaBlock) {
     router.push({ path: '/prescriptions/new' })
     return
   }
-  const q: Record<string, unknown> = { patient_id: props.patientId }
+  const q: Record<string, any> = { patient_id: props.patientId }
   if (props.visit?.id) q.visit_id = props.visit.id
   // 结构化方剂较大，走 sessionStorage 传递，避免超长 URL / 编码导致 herbs 丢失
   const key = 'ai_import_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)

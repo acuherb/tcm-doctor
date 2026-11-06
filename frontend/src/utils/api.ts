@@ -9,9 +9,9 @@ export type { ApiResponse, Paginated }
 // 从 unknown 错误里提取可读信息（替代 catch (e: any) 内的 e?.response?.data?.detail 写法）
 export function errMsg(e: unknown): string {
   if (e && typeof e === 'object') {
-    const o = e as Record<string, unknown>
-    const resp = o.response as Record<string, unknown> | undefined
-    const data = resp?.data as Record<string, unknown> | undefined
+    const o = e as Record<string, any>
+    const resp = o.response as Record<string, any> | undefined
+    const data = resp?.data as Record<string, any> | undefined
     if (typeof data?.detail === 'string') return data.detail
     if (typeof data?.message === 'string') return data.message
     if (typeof o.message === 'string') return o.message

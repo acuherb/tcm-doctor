@@ -103,7 +103,7 @@
                 placeholder="选批次"
                 clearable
                 style="width:200px;"
-                @change="(id) => onBatchChange(idx, id)"
+                @change="(id: any) => onBatchChange(idx, id)"
               >
                 <el-option
                   v-for="b in batchesForHerb(item.herb_id)"
@@ -195,7 +195,7 @@
                 default-first-option
                 :teleported="false"
                 style="width:200px;"
-                @change="(v) => onAcupointChange(idx, v)"
+                @change="(v: any) => onAcupointChange(idx, v)"
               >
                 <el-option
                   v-for="a in filteredAcupoints"
@@ -214,7 +214,7 @@
               </el-select>
               <el-input-number
                 :model-value="retentionNum(acp.retention)"
-                @update:model-value="(n) => (acp.retention = n == null ? '' : Math.round(n) + '分钟')"
+                @update:model-value="(n: any) => (acp.retention = n == null ? '' : Math.round(n) + '分钟')"
                 :min="0" :max="180"
                 controls-position="right"
                 style="width:150px;"
@@ -313,7 +313,7 @@
         <el-table-column label="组成" show-overflow-tooltip>
           <template #default="{ row }">
             <span v-if="row.composition?.herbs">
-              {{ row.composition.herbs.map((h) => `${h.herb}${h.dose}g`).join('、') }}
+              {{ row.composition.herbs.map((h: any) => `${h.herb}${h.dose}g`).join('、') }}
             </span>
           </template>
         </el-table-column>
@@ -331,7 +331,7 @@
         <el-table-column label="配穴" show-overflow-tooltip>
           <template #default="{ row }">
             <span v-if="row.composition?.acupoints?.length">
-              {{ row.composition.acupoints.map((a) => a.acupoint_name).join('、') }}
+              {{ row.composition.acupoints.map((a: any) => a.acupoint_name).join('、') }}
             </span>
             <span v-else style="color:#bbb;">—</span>
           </template>
@@ -357,7 +357,7 @@ import { Plus, Delete } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '@/utils/api'
 import { debounce } from '@/utils/search'
-import type { Herb, StockBatch, Patient, ClassicFormula, AcupointFormula, Acupoint, Prescription } from '@/types'
+import type { Herb, StockBatch, ClassicFormula, AcupointFormula, Acupoint, Prescription } from '@/types'
 import HerbSelector from '@/components/HerbSelector.vue'
 import AiFormulaImportDialog from '@/components/AiFormulaImportDialog.vue'
 import { useAuthStore } from '@/store/auth'
@@ -894,7 +894,7 @@ function applyPrescription(p: any) {
   const f = form.value
   f.patient_id = p.patient_id
   f.visit_id = p.visit_id
-  loadVisits(f.patient_id)
+  loadVisits(f.patient_id ?? 0)
   prescriptionStatus.value = p.status || ''
   integrity.value = {
     tampered: !!p.tampered,
@@ -917,12 +917,12 @@ function applyPrescription(p: any) {
   // 回显医生指定的复诊日期，避免编辑保存时传空串导致按疗程重算覆盖
   f.follow_up_date = p.follow_up_date || ''
   f.acupuncture_fee = p.acupuncture_fee ?? null
-  f.items = ((p.items || []) as unknown as PrescriptionItem[]).map((i: PrescriptionItem) => ({
+  f.items = ((p.items || []) as any[]).map((i: any) => ({
     herb_id: i.herb_id, herb_name: i.herb_name, dose: i.dose,
     special_method: i.special_method, is_king_herb: i.is_king_herb, note: i.note,
     inventory_id: i.inventory_id ?? null, price: i.price ?? null, _warnings: [],
   }))
-  f.acupoints = ((p.acupoints || []) as unknown as AcupointItem[]).map((a: AcupointItem) => ({
+  f.acupoints = ((p.acupoints || []) as any[]).map((a: any) => ({
     acupoint_id: a.acupoint_id, acupoint_name: a.acupoint_name,
     technique: a.technique, retention: a.retention, sequence: a.sequence, note: a.note,
   }))
@@ -932,7 +932,7 @@ function applyPrescription(p: any) {
 async function loadPatients() {
   patientsLoading.value = true
   try {
-    const res = await api.get<Patient[]>(`/patients`, { params: { page_size: 100 } })
+    const res = await api.get<any>(`/patients`, { params: { page_size: 100 } })
     patients.value = res.items || res || []
   } catch {} finally {
     patientsLoading.value = false
@@ -943,7 +943,7 @@ async function searchPatients(query: string) {
   if (!query) { loadPatients(); return }
   patientsLoading.value = true
   try {
-    const res = await api.get<Patient[]>(`/patients`, { params: { search: query, page_size: 50 } })
+    const res = await api.get<any>(`/patients`, { params: { search: query, page_size: 50 } })
     patients.value = res.items || res || []
   } catch {} finally {
     patientsLoading.value = false
@@ -982,7 +982,7 @@ async function loadAcupoints() {
 async function applyAcupointFormulaById(id: number) {
   try {
     const f = await api.get<AcupointFormula>(`/acupoint-formulas/${id}`)
-    form.value.acupoint_formula_name = f.name
+    form.value.acupoint_formula_name = f.name || ''
     if (f.technique) form.value.acupoint_technique = f.technique
     if (f.treatment_frequency) form.value.treatment_frequency = f.treatment_frequency
     if (f.treatment_days) form.value.treatment_days = f.treatment_days

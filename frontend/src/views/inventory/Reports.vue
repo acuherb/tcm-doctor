@@ -137,7 +137,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
-import api from '@/utils/api'
+import api, { errMsg } from '@/utils/api'
 
 const isMobile = ref(false)
 function updateViewport() { isMobile.value = window.innerWidth < 768 }
@@ -164,11 +164,11 @@ const turnover = ref<any[]>([])
 const prices = ref<any[]>([])
 
 async function loadAll() {
-  const params: Record<string, unknown> = {}
+  const params: Record<string, any> = {}
   if (range.value && range.value.length === 2) { params.start = range.value[0]; params.end = range.value[1] }
   try {
     const [s, p, a, t, pr] = await Promise.all([
-      api.get<Record<string, unknown>>('/stock/report/summary', { params }),
+      api.get<Record<string, any>>('/stock/report/summary', { params }),
       api.get<unknown[]>('/stock/report/profit', { params }),
       api.get<unknown[]>('/stock/report/abc'),
       api.get<unknown[]>('/stock/report/turnover', { params }),
@@ -180,7 +180,7 @@ async function loadAll() {
     turnover.value = t || []
     prices.value = pr || []
     shownCounts.value = {}
-  } catch (e: any) { ElMessage.error('加载失败：' + (e?.response?.data?.detail || e?.message)) }
+  } catch (e: any) { ElMessage.error('加载失败：' + errMsg(e)) }
 }
 
 onMounted(() => {

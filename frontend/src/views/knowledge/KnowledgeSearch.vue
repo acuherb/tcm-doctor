@@ -190,7 +190,7 @@ const categoryFilter = ref('')
 const results = ref<KnowledgeEntry[]>([])
 const searching = ref(false)
 const searched = ref(false)
-const stats = ref<Record<string, unknown>>({ total_entries: 0, categories: [], vector_store: {} })
+const stats = ref<Record<string, any>>({ total_entries: 0, categories: [], vector_store: {} })
 const detailVisible = ref(false)
 const currentEntry = ref<KnowledgeEntry | null>(null)
 
@@ -204,7 +204,7 @@ async function doSearch() {
   searching.value = true
   searched.value = true
   try {
-    const params: Record<string, unknown> = { q: searchText.value, limit: 20 }
+    const params: Record<string, any> = { q: searchText.value, limit: 20 }
     if (categoryFilter.value) params.category = categoryFilter.value
     results.value = (await api.get<KnowledgeEntry[]>('/knowledge/search', { params }))
   } catch {} finally {
@@ -229,7 +229,7 @@ async function viewDetail(r: KnowledgeEntry) {
 
 async function loadStats() {
   try {
-    stats.value = (await api.get<Record<string, unknown>>('/knowledge/stats'))
+    stats.value = (await api.get<Record<string, any>>('/knowledge/stats'))
   } catch {}
 }
 

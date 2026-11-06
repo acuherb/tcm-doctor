@@ -135,7 +135,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import api from '@/utils/api'
+import api, { errMsg } from '@/utils/api'
 
 const route = useRoute()
 const initialPatientId = route.params.id ? Number(route.params.id) : null
@@ -291,13 +291,13 @@ async function submitScale() {
       submitting.value = false
       return
     }
-    const res = await api.post<Record<string, unknown>>(
+    const res = await api.post<Record<string, any>>(
       `/patients/${patientId.value}/constitution`, { answers: payloadAnswers, notes: notes.value }
     )
     result.value = res
     ElMessage.success('评估完成，已存入病历')
   } catch (e: any) {
-    ElMessage.error('评估失败：' + (e?.response?.data?.detail || e?.message || '请确认后端已重启且患者存在'))
+    ElMessage.error('评估失败：' + errMsg(e))
   }
   submitting.value = false
 }

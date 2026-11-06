@@ -51,7 +51,7 @@
         <el-table-column prop="item_name" label="物品" min-width="130" show-overflow-tooltip />
         <el-table-column prop="transaction_type" label="类型" width="90">
           <template #default="{ row }">
-            <el-tag :type="typeTag(row.transaction_type)" size="small">{{ row.transaction_type }}</el-tag>
+            <el-tag :type="typeTag(row.transaction_type || '')" size="small">{{ row.transaction_type }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="quantity" label="变动量" width="110">
@@ -95,7 +95,7 @@
         <div v-for="row in transactions" :key="row.id" class="card">
           <div class="card-head">
             <span class="card-name">{{ row.item_name }}</span>
-            <el-tag :type="typeTag(row.transaction_type)" size="small">{{ row.transaction_type }}</el-tag>
+            <el-tag :type="typeTag(row.transaction_type || '')" size="small">{{ row.transaction_type }}</el-tag>
           </div>
           <div class="card-body">
             <div class="card-row"><span class="label">变动</span>
@@ -291,7 +291,7 @@ function typeTag(t: string) {
 async function loadTransactions(resetPage = false) {
   if (resetPage) { page.value = 1; loadingMore.value = false }
   try {
-    const params: Record<string, unknown> = { page: page.value, page_size: pageSize.value }
+    const params: Record<string, any> = { page: page.value, page_size: pageSize.value }
     if (route.query.item_id) params.item_id = Number(route.query.item_id)
     if (typeFilter.value) params.transaction_type = typeFilter.value
     if (refFilter.value) params.reference_type = refFilter.value
@@ -309,7 +309,7 @@ async function loadMoreTransactions() {
   loadingMore.value = true
   try {
     const next = page.value + 1
-    const params: Record<string, unknown> = { page: next, page_size: pageSize.value }
+    const params: Record<string, any> = { page: next, page_size: pageSize.value }
     if (route.query.item_id) params.item_id = Number(route.query.item_id)
     if (typeFilter.value) params.transaction_type = typeFilter.value
     if (refFilter.value) params.reference_type = refFilter.value
@@ -361,7 +361,7 @@ async function submitStockIn() {
   if (!stockInForm.value.item_id) { ElMessage.warning('请选择物品'); return }
   // 用下拉选中的供应商回填 supplier 快照，避免与采购流程不一致
   const sel = suppliers.value.find((s: Supplier) => s.id === stockInForm.value.supplier_id)
-  stockInForm.value.supplier = sel ? sel.name : null
+  stockInForm.value.supplier = sel?.name || ''
   submitting.value = true
   try {
     await api.post('/stock/batches/in', stockInForm.value)

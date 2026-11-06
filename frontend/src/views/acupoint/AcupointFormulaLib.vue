@@ -232,7 +232,7 @@ function openCreate() {
 }
 
 function openEdit(f: AcupointFormula) {
-  editId.value = f.id
+  editId.value = f.id ?? null
   editForm.value = {
     name: f.name || '',
     source: f.source || '',
@@ -242,15 +242,15 @@ function openEdit(f: AcupointFormula) {
     efficacy: f.efficacy || '',
     indications: f.indications || '',
     usage: f.usage || '',
-    acupoints: (f.composition?.acupoints || []).map((a) => ({ ...a })),
+    acupoints: (f.composition?.acupoints || []).map((a: any) => ({ ...a })),
   }
   editVisible.value = true
 }
 
 function buildPayload() {
   const acupoints = editForm.value.acupoints
-    .filter((a) => a.acupoint_name && String(a.acupoint_name).trim())
-    .map((a) => ({
+    .filter((a: any) => a.acupoint_name && String(a.acupoint_name).trim())
+    .map((a: any) => ({
       acupoint_name: a.acupoint_name.trim(),
       technique: a.technique || null,
       retention: a.retention || null,
@@ -288,7 +288,7 @@ async function saveFormula() {
     editVisible.value = false
     await loadFormulas()
   } catch (e) {
-    ElMessage.error('保存失败：' + (e?.response?.data?.detail || e?.message || ''))
+    ElMessage.error('保存失败：' + errMsg(e))
   }
   saving.value = false
 }
@@ -303,15 +303,15 @@ async function removeFormula(f: any) {
       detailVisible.value = false
       await loadFormulas()
     } catch (e) {
-      ElMessage.error('删除失败：' + (e?.response?.data?.detail || e?.message || ''))
+      ElMessage.error('删除失败：' + errMsg(e))
     }
   }).catch(() => {})
 }
 
 async function exportFormulas() {
   try {
-    const data: Record<string, unknown> = await api.get('/acupoint-formulas/export')
-    const nl = Array.isArray(data) ? data : (data as Paginated<AcupointFormula>)?.data || []
+    const data: Record<string, any> = await api.get('/acupoint-formulas/export')
+    const nl = Array.isArray(data) ? data : (data as any)?.data || []
     if (!nl.length) {
       ElMessage.warning('当前针灸方库为空')
       return
@@ -338,7 +338,7 @@ async function onImportFile(e: Event) {
     const text = await file.text()
     let data = JSON.parse(text)
     if (!Array.isArray(data)) data = [data]
-    const payload = data.map((it: Record<string, unknown>) => ({
+    const payload = data.map((it: Record<string, any>) => ({
       name: it.name,
       source: it.source || null,
       efficacy: it.efficacy || null,
@@ -353,7 +353,7 @@ async function onImportFile(e: Event) {
     ElMessage.success(`导入完成：新增 ${res.created}，更新 ${res.updated}`)
     await loadFormulas()
   } catch (e) {
-    ElMessage.error('导入失败：' + (e?.message || '请检查JSON格式'))
+    ElMessage.error('导入失败：' + errMsg(e))
   } finally {
     importing.value = false
   }
@@ -367,10 +367,10 @@ const sources = computed(() => {
 async function loadFormulas() {
   loading.value = true
   try {
-    const params: Record<string, unknown> = {}
+    const params: Record<string, any> = {}
     if (searchText.value) params.search = searchText.value
     if (sourceFilter.value) params.source = sourceFilter.value
-    formulas.value = (await api.get<Paginated<AcupointFormula>>('/acupoint-formulas', { params }))
+    formulas.value = (await api.get<any[]>('/acupoint-formulas', { params }))
   } catch {
     formulas.value = []
   } finally {

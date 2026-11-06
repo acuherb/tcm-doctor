@@ -119,7 +119,7 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-import api, { errMsg } from '@/utils/api'
+import api from '@/utils/api'
 import type { StockOption } from '@/types'
 import { refreshStockOptionColors } from '@/utils/dictColors'
 
@@ -169,8 +169,8 @@ function openCreate(type: 'category' | 'unit') {
   visible.value = true
 }
 function openEdit(row: StockOption) {
-  editing.value = row.id
-  form.value = { opt_type: row.opt_type, name: row.name, color: row.color || null }
+  editing.value = row.id ?? null
+  form.value = { opt_type: row.opt_type === 'unit' ? 'unit' : 'category', name: row.name || '', color: row.color || null }
   visible.value = true
 }
 async function save() {
@@ -181,12 +181,12 @@ async function save() {
     // 仅物品类别支持自定义颜色，单位不写 color
     const color = form.value.opt_type === 'category' ? (form.value.color || null) : undefined
     if (editing.value) {
-      const payload: Record<string, unknown> = { name }
+      const payload: Record<string, any> = { name }
       if (color !== undefined) payload.color = color
       await api.put(`/stock/options/${editing.value}`, payload)
       ElMessage.success('已更新')
     } else {
-      const payload: Record<string, unknown> = { opt_type: form.value.opt_type, name }
+      const payload: Record<string, any> = { opt_type: form.value.opt_type, name }
       if (color !== undefined) payload.color = color
       await api.post('/stock/options', payload)
       ElMessage.success('已添加')

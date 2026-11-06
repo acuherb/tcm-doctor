@@ -181,7 +181,7 @@
 import { ref, computed, onMounted, onUnmounted, onBeforeUnmount } from 'vue'
 import { Search, Plus, Upload, Download, Delete } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import api from '@/utils/api'
+import api, { type Paginated } from '@/utils/api'
 import { fileTimestamp } from '@/utils/datetime'
 import type { KnowledgeEntry, KnowledgeSource } from '@/types'
 import { renderMarkdown } from '@/utils/markdown'
@@ -280,21 +280,21 @@ function onPageSizeChange(size: number) {
 
 async function loadStats() {
   try {
-    const stats = (await api.get<Record<string, unknown>>('/knowledge/stats'))
+    const stats = (await api.get<Record<string, any>>('/knowledge/stats'))
     categories.value = stats.categories || []
   } catch {}
 }
 
 async function loadSources() {
   try {
-    sources.value = (await api.get<KnowledgeSource[]>('/knowledge/sources'))
+    sources.value = (await api.get<KnowledgeSource[]>('/knowledge/sources')) as any
   } catch {}
 }
 
 async function loadEntries() {
   loading.value = true
   try {
-    const params: Record<string, unknown> = {
+    const params: Record<string, any> = {
       limit: pageSize.value,
       offset: (currentPage.value - 1) * pageSize.value,
     }
@@ -302,7 +302,7 @@ async function loadEntries() {
     if (sourceFilter.value) params.source = sourceFilter.value
     if (searchText.value) params.search = searchText.value
     const res = (await api.get<Paginated<KnowledgeEntry>>('/knowledge/entries', { params }))
-    entries.value = res.items || []
+    entries.value = (res.items || []) as any
     total.value = res.total || 0
   } catch {
     entries.value = []
@@ -349,7 +349,7 @@ async function saveEntry() {
   }
   saving.value = true
   try {
-    const body: Record<string, unknown> = {
+    const body: Record<string, any> = {
       title: editForm.value.title,
       category: editForm.value.category || '其他',
       content: editForm.value.content,
@@ -384,7 +384,7 @@ async function onDelete(row: EntryItem) {
 }
 
 function onSelectionChange(sel: KnowledgeEntry[]) {
-  selectedIds.value = sel.map((s) => s.id)
+  selectedIds.value = sel.map((s) => s.id as number)
 }
 
 async function loadFull(row: KnowledgeEntry) {
@@ -398,7 +398,7 @@ async function loadFull(row: KnowledgeEntry) {
 async function batchDelete() {
   if (!selectedIds.value.length) return
   try {
-    const res = (await api.delete<{ message?: string }>('/knowledge/entries/batch', { data: selectedIds.value }))
+    const res = (await api.delete<{ message?: string; deleted?: number }>('/knowledge/entries/batch', { data: selectedIds.value }))
     ElMessage.success(`已删除 ${res.deleted || 0} 条`)
     selectedIds.value = []
     loadStats()
@@ -412,10 +412,10 @@ async function batchDelete() {
 // ---- 导出 ----
 async function onExport() {
   try {
-    const params: Record<string, unknown> = {}
+    const params: Record<string, any> = {}
     if (activeCategory.value) params.category = activeCategory.value
     if (sourceFilter.value) params.source = sourceFilter.value
-    const data = await api.get<Blob>('/knowledge/export', { params })
+    const data = await api.get<any[]>('/knowledge/export', { params })
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')

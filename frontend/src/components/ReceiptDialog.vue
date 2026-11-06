@@ -42,10 +42,10 @@
         <div><span>应付</span><b>¥{{ Number(charge?.payable || 0).toFixed(2) }}</b></div>
         <div><span>实收</span><b>¥{{ Number(charge?.paid || 0).toFixed(2) }}</b></div>
         <div v-if="Number(charge?.overpaid || 0) > 0">
-          <span>多收未找零</span><b>¥{{ Number(charge.overpaid).toFixed(2) }}</b>
+          <span>多收未找零</span><b>¥{{ Number(charge?.overpaid).toFixed(2) }}</b>
         </div>
         <div v-if="Number(charge?.refund_amount || 0) > 0">
-          <span>已退</span><b>-¥{{ Number(charge.refund_amount).toFixed(2) }}</b>
+          <span>已退</span><b>-¥{{ Number(charge?.refund_amount).toFixed(2) }}</b>
         </div>
         <div v-if="Number(charge?.refund_amount || 0) > 0">
           <span>净收</span><b>¥{{ Number(charge?.net_paid || 0).toFixed(2) }}</b>

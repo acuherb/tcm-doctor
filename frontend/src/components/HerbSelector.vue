@@ -71,20 +71,20 @@ const searchLoading = ref(false)
 async function loadAllHerbs() {
   try {
     allHerbs.value = (await api.get<Herb[]>('/herbs')) || []
-    filteredHerbs.value = allHerbs.value.filter((h: Herb) => !props.excludeIds.includes(h.id))
+    filteredHerbs.value = allHerbs.value.filter((h: Herb) => !props.excludeIds.includes(h.id ?? -1))
   } catch {}
 }
 
 function searchHerbs(query: string) {
   if (!query) {
-    filteredHerbs.value = allHerbs.value.filter((h: Herb) => !props.excludeIds.includes(h.id))
+    filteredHerbs.value = allHerbs.value.filter((h: Herb) => !props.excludeIds.includes(h.id ?? -1))
     return
   }
   const q = query.toLowerCase()
   filteredHerbs.value = allHerbs.value.filter((h: Herb) => {
-    if (props.excludeIds.includes(h.id)) return false
+    if (props.excludeIds.includes(h.id ?? -1)) return false
     // 搜索正名
-    if (h.name.toLowerCase().includes(q)) return true
+    if ((h.name || '').toLowerCase().includes(q)) return true
     // 搜索异名
     if (h.aliases?.some((a: string) => a.toLowerCase().includes(q))) return true
     // 搜索功效
@@ -106,7 +106,7 @@ function onSelect(herbId: number | null) {
 // 监听外部 excludeIds 变化
 import { watch } from 'vue'
 watch(() => props.excludeIds, () => {
-  filteredHerbs.value = allHerbs.value.filter((h: Herb) => !props.excludeIds.includes(h.id))
+  filteredHerbs.value = allHerbs.value.filter((h: Herb) => !props.excludeIds.includes(h.id ?? -1))
 }, { deep: true })
 
 watch(() => props.modelValue, (val) => {

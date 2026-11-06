@@ -101,7 +101,7 @@
       </el-table>
 
       <div v-if="isMobile" class="log-cards">
-        <div v-for="row in logs" :key="row.id" class="log-card" :class="rowCls({ row })" @click="toggle(row.id)">
+        <div v-for="row in logs" :key="row.id" class="log-card" :class="rowCls({ row })" @click="toggle(row.id ?? 0)">
           <div class="log-head">
             <span class="log-summary">{{ humanize(row) }}</span>
             <el-tag :type="row.level === 'ERROR' ? 'danger' : row.level === 'WARN' ? 'warning' : 'info'" size="small">{{ row.level }}</el-tag>
@@ -111,7 +111,7 @@
             <span class="dot">·</span>
             <span>{{ row.username || '匿名' }}</span>
             <span class="dot">·</span>
-            <span>{{ formatTime(row.created_at) }}</span>
+            <span>{{ formatTime(row.created_at || '') }}</span>
             <span v-if="row.duration_ms != null" class="dot">·</span>
             <span v-if="row.duration_ms != null" :class="{ slow: row.duration_ms > 500 }">{{ row.duration_ms }} ms</span>
           </div>
@@ -163,7 +163,7 @@ const actionOptions = ref<string[]>([])
 
 async function loadMeta() {
   try {
-    const m = await api.get<Record<string, unknown>>('/system/logs/meta')
+    const m = await api.get<Record<string, any>>('/system/logs/meta')
     userOptions.value = m?.users || []
     actionOptions.value = m?.actions || []
   } catch { /* 元数据失败不阻塞主列表 */ }
@@ -171,13 +171,13 @@ async function loadMeta() {
 
 async function loadStats() {
   try {
-    const s = await api.get<Record<string, unknown>>('/system/logs/stats')
-    if (s) stats.value = s
+    const s = await api.get<Record<string, any>>('/system/logs/stats')
+    if (s) stats.value = s as any
   } catch { /* 统计失败不阻塞主列表 */ }
 }
 
 function buildParams() {
-  const p: Record<string, unknown> = {}
+  const p: Record<string, any> = {}
   // 「关键操作」默认只看写请求，避免 GET 访问日志淹没真正有价值的操作
   if (tab.value === 'write') { p.method = 'POST,PUT,PATCH,DELETE'; if (level.value) p.level = level.value }
   else if (tab.value === 'error') p.level = 'WARN,ERROR'
