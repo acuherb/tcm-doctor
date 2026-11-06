@@ -9,7 +9,7 @@
 """
 import json
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Request
 from fastapi.responses import Response
 
 from sqlalchemy.orm import Session
@@ -21,7 +21,7 @@ from app.permissions import has_perm
 from app.templates import TEMPLATE_TYPES, list_types, export_template, import_items, _read_bundled
 from app import template_bundle
 from app.template_bundle import BundleError
-from app.utils.operation_log import write_log
+from app.utils.operation_log import set_log_context
 
 router = APIRouter(prefix="/templates", tags=["数据模板"])
 
@@ -166,6 +166,7 @@ async def preview_bundle(
 
 @router.post("/bundle/install", summary="正式安装基础数据包")
 async def install_bundle(
+    request: Request,
     use_bundled: bool = Query(False, description="使用随包附带的数据包"),
     name: str | None = Query(None, description="内置数据包文件名"),
     layers: str | None = Query(None, description="逗号分隔的分层名；默认全部，依赖层会自动补上"),
@@ -178,10 +179,10 @@ async def install_bundle(
     data = await _bundle_bytes(file, use_bundled, name)
     plan = _bundle_plan(data, layers)
     result = template_bundle.apply_plan(db, plan, dry_run=False)
-    write_log(level="INFO", user_id=current_user.id, username=current_user.username,
-              action="安装基础数据包", endpoint="/api/v1/templates/bundle/install", method="POST",
-              status_code=200, success=True,
-              message=f"安装 {plan['manifest'].get('title') or '基础数据包'} "
-                      f"v{plan['manifest'].get('version') or '-'}：新增 {result['totals']['created']}，"
-                      f"更新 {result['totals']['updated']}，跳过 {result['totals']['skipped']}")
+    set_log_context(
+        request, action="安装基础数据包",
+        message=f"安装 v{plan['manifest'].get('version') or '-'}：新增 {result['totals']['created']}，"
+                f"更新 {result['totals']['updated']}，跳过 {result['totals']['skipped']}",
+        target=plan['manifest'].get('title') or '基础数据包',
+    )
     return _bundle_response(plan, result, dry_run=False)

@@ -23,6 +23,7 @@ from app.database import engine, Base, SessionLocal, get_db
 from app.migrations import run_migrations
 from app.models.user import User, AuthToken
 from app.permissions import has_read, has_write, has_perm
+from app.utils.action_labels import resolve_action
 from app.routers import patient, herb, prescription, knowledge, diagnosis, dictionaries, acupuncture
 from app.routers import acupoint_formula
 from app.routers import stats, backup, auth, followup_reminders, stock
@@ -137,7 +138,7 @@ async def _http_exception_handler(request: Request, exc: HTTPException):
             tb = "".join(__import__("traceback").format_exception(type(exc), exc, exc.__traceback__))
             uid = getattr(request.state, "user_id", None)
             uname = getattr(request.state, "username", None)
-            write_log(level="ERROR", user_id=uid, username=uname, action=request.url.path, endpoint=request.url.path,
+            write_log(level="ERROR", user_id=uid, username=uname, action=resolve_action(request.method, request.url.path), endpoint=request.url.path,
                       method=request.method, status_code=exc.status_code, success=False,
                       message=str(exc.detail)[:500], error_detail=tb,
                       ip=request.client.host if request.client else "unknown")
@@ -174,7 +175,7 @@ async def _unhandled_exception_handler(request: Request, exc: Exception):
         from app.utils.operation_log import write_log
         uid = getattr(request.state, "user_id", None)
         uname = getattr(request.state, "username", None)
-        write_log(level="ERROR", user_id=uid, username=uname, action=request.url.path,
+        write_log(level="ERROR", user_id=uid, username=uname, action=resolve_action(request.method, request.url.path),
                   endpoint=request.url.path, method=request.method, status_code=500,
                   success=False, message=str(exc)[:500], error_detail=tb,
                   ip=request.client.host if request.client else "unknown")
@@ -260,13 +261,13 @@ async def require_admin_for_writes(request: Request, call_next):
             if is_write:
                 if not has_write(path, user):
                     write_log(level="WARN", user_id=user.id, username=user.username,
-                              action=path, endpoint=path, method=method, status_code=403,
+                              action=resolve_action(method, path), endpoint=path, method=method, status_code=403,
                               success=False, message="越权访问被拒绝", ip=client_ip)
                     return JSONResponse({"detail": "权限不足，当前账号无权修改该数据"}, status_code=403)
             else:
                 if not has_read(path, user):
                     write_log(level="WARN", user_id=user.id, username=user.username,
-                              action=path, endpoint=path, method=method, status_code=403,
+                              action=resolve_action(method, path), endpoint=path, method=method, status_code=403,
                               success=False, message="越权访问被拒绝", ip=client_ip)
                     return JSONResponse({"detail": "权限不足，当前账号无权访问该数据"}, status_code=403)
         finally:
@@ -278,107 +279,14 @@ async def require_admin_for_writes(request: Request, call_next):
 # ── 操作日志自动采集中间件 ──
 # 覆盖所有 /api/v1 请求：记录谁/何时/哪个接口/方法/状态码/耗时/IP；4xx 记 WARN 并捕获 detail，
 # 5xx 记 ERROR；登录/登出/游客登录由 auth 路由显式审计(避免重复)，此处跳过。
+# 动作名统一由 action_labels.resolve_action() 生成中文；关键业务路由经
+# operation_log.set_log_context() 补充动作/消息/对象/级别，仍由本中间件单点落库，
+# 避免同一操作出现「显式审计」与「自动采集」两条重复日志。
 from app.utils.operation_log import write_log
 
-_ACTION_MAP = {
-    "/api/v1/auth/password": "修改密码",
-    "/api/v1/stock/batches/in": "入库",
-    "/api/v1/stock/batches/out": "出库",
-    "/api/v1/stock/batches/writeoff": "报损核销",
-    "/api/v1/stock/purchases": "采购入库",
-    "/api/v1/stock/adjust/bulk": "批量盘点校准",
-    "/api/v1/stock/items": "物品管理",
-    "/api/v1/stock/batches": "批次管理",
-    "/api/v1/stock/transactions": "出入库流水",
-    "/api/v1/stock/alerts": "库存预警",
-    "/api/v1/prescriptions": "处方",
-    "/api/v1/prescriptions/classic-formulas": "中药方库",
-    "/api/v1/backup/export": "数据备份",
-    "/api/v1/backup/import": "数据恢复",
-    "/api/v1/backup/reset": "数据清空",
-    "/api/v1/patients": "患者",
-    "/api/v1/visits": "就诊记录",
-    "/api/v1/herbs": "药材字典",
-    "/api/v1/acupoints": "针灸穴位",
-    "/api/v1/acupoint-formulas": "针灸方库",
-    "/api/v1/dictionaries": "数据字典",
-    "/api/v1/suppliers": "供应商",
-    "/api/v1/config": "系统配置",
-    "/api/v1/stock/overview": "库存总览",
-    "/api/v1/stock/options": "库存选项",
-    "/api/v1/stock/suppliers": "供应商",
-    "/api/v1/stock/purchases": "采购入库",
-    "/api/v1/stock/reports": "进销存报表",
-    "/api/v1/stats/dashboard": "工作台统计",
-    "/api/v1/stats": "统计报表",
-    "/api/v1/system/logs": "操作日志",
-    "/api/v1/diagnosis": "智能问诊",
-    "/api/v1/book-library": "医籍文库",
-    "/api/v1/knowledge": "知识检索",
-}
 _EXPLICIT_AUDIT_PATHS = {
     "/api/v1/auth/login", "/api/v1/auth/logout", "/api/v1/auth/guest",
 }
-
-# 方法 → 动作前缀，让「查看/新增/修改/删除」区分开，而不是全堆成路径名
-_METHOD_VERB = {"GET": "查看", "POST": "新增", "PUT": "修改", "PATCH": "修改", "DELETE": "删除"}
-
-# 路径段 → 中文名词：兜底时逐段翻译，避免出现「修改 items」这类半英文动作
-_SEGMENT_CN = {
-    "items": "物品", "batches": "批次", "suppliers": "供应商", "purchases": "采购单",
-    "transactions": "流水", "alerts": "预警", "overview": "总览", "options": "选项",
-    "reports": "报表", "summary": "汇总", "profit": "利润", "turnover": "周转",
-    "tags": "标签", "meta": "元数据", "classic-formulas": "经典方", "formulas": "处方",
-    "herbs": "药材", "acupoints": "穴位", "acupoint-formulas": "针灸方",
-    "patients": "患者", "visits": "就诊", "dictionaries": "字典", "config": "配置",
-    "stats": "统计", "dashboard": "工作台", "logs": "日志", "export": "导出",
-    "import": "导入", "reset": "重置", "check": "盘点", "in": "入库", "out": "出库",
-    "writeoff": "报损", "password": "密码", "settings": "设置", "backup": "备份",
-    "diagnosis": "问诊", "knowledge": "知识", "csv": "CSV", "{id}": "详情",
-}
-
-
-def _is_cn(s: str) -> bool:
-    return any("\u4e00" <= ch <= "\u9fff" for ch in s)
-
-
-def _resolve_action(method: str, path: str) -> str:
-    """把请求解析成人类可读的中文动作名。
-
-    优先命中 _ACTION_MAP（含前缀匹配，兼容 /stock/items/12 这类带 ID 的路径）；
-    未命中时逐段翻译路径为中文，保证任何接口都不会出现裸英文动作名。
-    """
-    if path in _ACTION_MAP:
-        return _ACTION_MAP[path]
-    # 前缀匹配：取最长命中，避免 /stock/items 抢走 /stock/items/xxx 的具体语义
-    best = None
-    for key in _ACTION_MAP:
-        if path.startswith(key + "/") and (best is None or len(key) > len(best)):
-            best = key
-    if best:
-        # 命中前缀后，额外段（如 /items/45/xxx）继续翻译，不再拼英文
-        rest = path[len(best):].strip("/")
-        extra = [s for s in rest.split("/") if s]
-        extra_cn = [s for s in (_SEGMENT_CN.get(re.sub(r"^\d+$", "{id}", p), "") for p in extra) if s]
-        base = _ACTION_MAP[best]
-        return f"{base}·{'·'.join(extra_cn)}" if extra_cn else base
-    parts = [re.sub(r"^\d+$", "{id}", p) for p in path.split("/") if p not in ("", "api", "v1")]
-    # 逐段翻译；未收录段原样保留，段间用 / 分隔，便于看出是待补充映射的接口
-    cn = [_SEGMENT_CN.get(p, p) for p in parts]
-    cn = [c for c in cn if c]
-    verb = _METHOD_VERB.get(method, method)
-    if not cn:
-        return f"{verb}接口"
-    # 末尾若是详情/单条路径，去掉它让动词更自然（如「查看 物品」而非「查看 物品 详情」）
-    if cn[-1] == "详情":
-        cn = cn[:-1]
-    if not cn:
-        return f"{verb}详情"
-    # 中文段直接相连，未收录的英文段之间保留 /，避免拼成「unknownxyz」
-    joined = cn[0]
-    for prev, cur in zip(cn, cn[1:]):
-        joined += cur if (_is_cn(prev) and _is_cn(cur)) else f"/{cur}"
-    return f"{verb}{joined}"
 
 
 def _deferred_log(token, ip, method, path, status_code, level, success, action, message, duration_ms, user_id=None, username=None, target=None):
@@ -402,18 +310,26 @@ def _deferred_log(token, ip, method, path, status_code, level, success, action, 
 
 
 # 业务对象提取：仅取白名单字段，密码/证件等一律不记录。
-# 这些字段覆盖了系统主要写操作（患者、药材、处方、出入库、穴位、方剂）的关键标识。
+# 挂号收费模块的 body 常见形态：new_patient.name + registration_fee / paid / charge_no，
+# 单独带出「给谁、多少钱、哪张单」，管理员不必展开详情就能看懂一条日志。
 _TARGET_NAME_KEYS = (
     "name", "patient_name", "herb_name", "item_name", "formula_name", "username",
     "display_name", "supplier_name", "acupoint_name", "term_name", "title", "book_name",
-    "real_name", "nickname", "disease_name", "label",
+    "real_name", "nickname", "disease_name", "label", "charge_no", "order_no",
 )
-_TARGET_QTY_KEYS = ("quantity", "qty", "amount", "count", "dose", "days", "price", "unit_price")
+_TARGET_MONEY_KEYS = (
+    "registration_fee", "payable", "paid", "refund_amount", "total_price", "discount", "amount",
+)
+_TARGET_QTY_KEYS = ("quantity", "qty", "count", "dose", "days", "price", "unit_price")
+_TARGET_ID_LABELS = {
+    "patient_id": "患者", "visit_id": "就诊", "prescription_id": "处方",
+    "charge_id": "收费单", "item_id": "物品",
+}
 _TARGET_EXCLUDE = {"password", "old_password", "new_password", "id_card", "phone", "token"}
 
 
 def _extract_target(body: bytes | None) -> str | None:
-    """从请求体提取业务对象摘要，如「三七 +50」；解析失败或无可识别字段则返回 None。
+    """从请求体提取业务对象摘要，如「张三 ¥20」；解析失败或无可识别字段则返回 None。
 
     只读白名单字段：即便请求体里含密码/身份证等，也不会进入日志，避免敏感信息落库。
     """
@@ -434,6 +350,11 @@ def _extract_target(body: bytes | None) -> str | None:
         if isinstance(val, str) and val.strip():
             name = val.strip()
             break
+    # 挂号登记新建患者时姓名嵌在 new_patient.name，顶层没有 name 字段
+    if not name:
+        np = data.get("new_patient")
+        if isinstance(np, dict) and isinstance(np.get("name"), str) and np["name"].strip():
+            name = np["name"].strip()
     # 嵌套对象（如中药方 composition.herbs）取首个药名，便于看出改的是哪一味
     if not name:
         for key in ("herbs", "items", "acupoints", "terms", "records"):
@@ -447,6 +368,23 @@ def _extract_target(body: bytes | None) -> str | None:
                         break
                 if name:
                     break
+    # 没有姓名时退化为业务单据编号，别让「对象」列空着
+    if not name:
+        for key, label in _TARGET_ID_LABELS.items():
+            rid = data.get(key)
+            if isinstance(rid, int):
+                name = f"{label} #{rid}"
+                break
+
+    money = None
+    for key in _TARGET_MONEY_KEYS:
+        val = data.get(key)
+        if isinstance(val, (int, float)) and not isinstance(val, bool):
+            money = f"¥{val:g}"
+            break
+        if isinstance(val, str) and val.strip():
+            money = f"¥{val.strip()}"
+            break
     qty = None
     for key in _TARGET_QTY_KEYS:
         val = data.get(key)
@@ -457,13 +395,14 @@ def _extract_target(body: bytes | None) -> str | None:
             qty = val.strip()
             break
 
-    if not name and qty is None:
-        # 无名称时退化：记录 id（修改/删除单条时通常有 id，能定位是哪条数据）
+    if not name and money is None and qty is None:
         rid = data.get("id")
         return f"#{rid}" if isinstance(rid, int) else None
     parts = []
     if name:
         parts.append(name)
+    if money:
+        parts.append(money)
     if qty is not None:
         parts.append(f"{'+' if len(parts) else ''}{qty}")
     return " ".join(parts) if parts else None
@@ -529,7 +468,7 @@ async def operation_log_middleware(request: Request, call_next):
             finally:
                 db.close()
         write_log(
-            level="ERROR", user_id=uid, username=uname, action=_ACTION_MAP.get(path, path),
+            level="ERROR", user_id=uid, username=uname, action=resolve_action(method, path),
             endpoint=path, method=method, status_code=500, success=False,
             message=message, error_detail=error_detail, ip=ip, duration_ms=duration,
         )
@@ -549,7 +488,13 @@ async def operation_log_middleware(request: Request, call_next):
         level, success = "WARN", False
     else:
         level, success = "INFO", True
-    action = _resolve_action(method, path)
+    action = resolve_action(method, path)
+    # 关键业务路由通过 set_log_context() 补充「谁对谁做了什么、为什么」；
+    # 由中间件统一落库，字段(状态码/耗时/IP/操作人)保持完整且不会重复记两条。
+    action = getattr(request.state, "log_action", None) or action
+    level = getattr(request.state, "log_level", None) or level
+    message = getattr(request.state, "log_message", None) or message
+    target = getattr(request.state, "log_target", None) or target
 
     # 5xx 由全局异常处理器统一记 ERROR(含堆栈)，此处不再重复；
     # 其余按级别记录，但放到后台任务——响应先返回，日志随后写，对接口耗时零影响。

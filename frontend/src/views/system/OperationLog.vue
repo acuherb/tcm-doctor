@@ -46,7 +46,7 @@
           <el-option v-for="u in userOptions" :key="u.id" :label="u.name" :value="String(u.id)" />
         </el-select>
         <el-select v-model="action" placeholder="全部动作" clearable filterable class="filter-small" @change="load">
-          <el-option v-for="a in actionOptions" :key="a" :label="a" :value="a" />
+          <el-option v-for="a in actionOptions" :key="a.value" :label="a.label" :value="a.value" />
         </el-select>
         <el-input v-model="keyword" placeholder="用户名/对象/接口/消息" clearable class="filter-search" @clear="load" />
         <el-date-picker v-model="range" type="daterange" value-format="YYYY-MM-DD" range-separator="至" start-placeholder="起始" end-placeholder="结束" class="filter-range" />
@@ -159,13 +159,15 @@ const keepDays = ref(90)
 
 const stats = ref({ total: 0, abnormal: 0, failed: 0, active_users: 0 })
 const userOptions = ref<{ id: number; name: string }[]>([])
-const actionOptions = ref<string[]>([])
+const actionOptions = ref<{ label: string; value: string }[]>([])
 
 async function loadMeta() {
   try {
     const m = await api.get<Record<string, any>>('/system/logs/meta')
     userOptions.value = m?.users || []
-    actionOptions.value = m?.actions || []
+    // 兼容旧后端返回的纯字符串数组：统一成 {label, value} 下拉项
+    actionOptions.value = (m?.actions || []).map((a: any) =>
+      typeof a === 'string' ? { label: a, value: a } : { label: a.label, value: a.value })
   } catch { /* 元数据失败不阻塞主列表 */ }
 }
 
@@ -204,6 +206,8 @@ const FULL_ACTIONS = new Set(['登录', '登录失败', '登出', '登出失败'
 function humanize(row: LogEntry) {
   const verb = METHOD_VERB[row.method] || row.method || ''
   const action = row.action || ''
+  // 后端已给出规范化中文动作（含历史日志），列表/CSV/下拉统一用它
+  if (row.action_display) return row.action_display
   if (!action) return `${verb} ${row.endpoint || ''}`
   // 「登录失败」「登出」等本身即完整动作，不再叠加「新增/修改/删除」前缀
   if (FULL_ACTIONS.has(action) || action.startsWith('登录') || action.startsWith('登出')) return action

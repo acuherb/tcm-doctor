@@ -7,7 +7,7 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import text
@@ -18,7 +18,7 @@ from app.config import settings
 from app.routers.auth import get_current_user
 from app.models.user import User
 from app.permissions import has_perm
-from app.utils.operation_log import write_log
+from app.utils.operation_log import set_log_context
 from app import auto_backup
 
 logger = logging.getLogger(__name__)
@@ -242,19 +242,17 @@ def auto_backup_status(current_user: User = Depends(get_current_user)):
 
 
 @router.put("/auto/config", summary="更新自动备份配置")
-def update_auto_backup_config(payload: AutoBackupConfig, current_user: User = Depends(get_current_user)):
+def update_auto_backup_config(request: Request, payload: AutoBackupConfig, current_user: User = Depends(get_current_user)):
     if not has_perm(current_user, "system:write"):
         raise HTTPException(status_code=403, detail="仅管理员可修改自动备份配置")
     cfg = auto_backup.save_config(payload.model_dump(exclude_unset=True))
     auto_backup.restart()
-    write_log(level="INFO", user_id=current_user.id, username=current_user.username,
-              action="修改自动备份配置", endpoint="/api/v1/backup/auto/config", method="PUT",
-              status_code=200, success=True, message=f"自动备份配置：{cfg}")
+    set_log_context(request, action="修改自动备份配置", message=f"自动备份配置：{cfg}")
     return cfg
 
 
 @router.post("/auto/run", summary="立即生成一份自动备份快照")
-def run_auto_backup(current_user: User = Depends(get_current_user)):
+def run_auto_backup(request: Request, current_user: User = Depends(get_current_user)):
     if not has_perm(current_user, "system:write"):
         raise HTTPException(status_code=403, detail="仅管理员可执行数据备份")
     try:
@@ -263,14 +261,12 @@ def run_auto_backup(current_user: User = Depends(get_current_user)):
         logger.warning(f"手动触发自动备份失败: {e}")
         # 详情只写日志，不把服务器绝对路径/异常文本回显给客户端
         raise HTTPException(status_code=500, detail="备份失败，请检查磁盘空间与数据目录权限")
-    write_log(level="INFO", user_id=current_user.id, username=current_user.username,
-              action="立即备份", endpoint="/api/v1/backup/auto/run", method="POST",
-              status_code=200, success=True, message=f"生成快照 {info['name']}")
+    set_log_context(request, action="立即备份", message=f"生成快照 {info['name']}", target=info['name'])
     return {"message": "备份完成", **info}
 
 
 @router.get("/auto/download/{name}", summary="下载指定自动备份快照")
-def download_auto_backup(name: str, current_user: User = Depends(get_current_user)):
+def download_auto_backup(request: Request, name: str, current_user: User = Depends(get_current_user)):
     # 快照是整库（含患者数据），下载权限必须与手动导出一致；只读账号不应能取得全库副本
     if not has_perm(current_user, "system:write"):
         raise HTTPException(status_code=403, detail="无权下载数据备份")
@@ -279,7 +275,5 @@ def download_auto_backup(name: str, current_user: User = Depends(get_current_use
     path = auto_backup.backup_dir() / name
     if not path.is_file():
         raise HTTPException(status_code=404, detail="备份文件不存在")
-    write_log(level="INFO", user_id=current_user.id, username=current_user.username,
-              action="下载自动备份", endpoint="/api/v1/backup/auto/download", method="GET",
-              status_code=200, success=True, message=f"下载快照 {name}")
+    set_log_context(request, action="下载自动备份", message=f"下载快照 {name}", target=name)
     return FileResponse(path=path, filename=name, media_type="application/octet-stream")

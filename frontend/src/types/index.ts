@@ -265,6 +265,7 @@ export interface OperationLog {
   id?: number
   username?: string
   action?: string
+  action_display?: string
   created_at?: string
   [key: string]: any
 }

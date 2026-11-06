@@ -16,7 +16,7 @@ import logging
 from datetime import datetime
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
@@ -35,7 +35,7 @@ from app.schemas.patient import PatientCreate
 from app.services.billing_service import (
     create_charge, refund_charge_record, cancel_charge_record, VALID_METHODS,
 )
-from app.utils.operation_log import write_log
+from app.utils.operation_log import set_log_context
 from app.services.visit_state import has_real_record
 
 logger = logging.getLogger(__name__)
@@ -486,6 +486,7 @@ def complete_visit(visit_id: int, db: Session = Depends(get_db), current_user: U
 def revert_visit(
     visit_id: int,
     payload: RevertRequest,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -512,13 +513,12 @@ def revert_visit(
     v.status = new_status
     db.commit()
     db.refresh(v)
-    write_log(
-        level="WARN",
-        user_id=current_user.id,
-        username=current_user.username,
-        action="撤销就诊状态",
-        message=f"就诊 #{v.id}（患者 #{v.patient_id}）状态 {old_status} → {new_status}；原因：{payload.reason}",
-        target=f"visit:{v.id}",
-    )
     pat = db.query(Patient).filter(Patient.id == v.patient_id).first()
+    set_log_context(
+        request,
+        level="WARN",
+        action="撤销就诊状态",
+        message=f"{pat.name if pat else '患者 #' + str(v.patient_id)}：就诊状态 {old_status} → {new_status}；原因：{payload.reason}",
+        target=f"{pat.name if pat else '患者 #' + str(v.patient_id)} · 就诊 #{v.id}",
+    )
     return _serialize_visit(v, pat.name if pat else None, _doctor_names(db, [v]).get(v.doctor_id))

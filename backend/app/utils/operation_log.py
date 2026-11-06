@@ -69,3 +69,19 @@ def log_action(level: str, action: str, *, user_id=None, username=None, success=
     """语义化快捷方法：仅关心动作/用户/成败/消息。"""
     write_log(level=level, user_id=user_id, username=username, action=action,
               success=success, message=message, error_detail=error_detail, ip=ip)
+
+def set_log_context(request, *, action: str | None = None, message: str | None = None,
+                    target: str | None = None, level: str | None = None) -> None:
+    """业务路由补充审计上下文，交给操作日志中间件统一落库。
+
+    显式 write_log 会与中间件自动采集产生两条重复日志，且缺少状态码/耗时/IP。
+    路由只需声明「做了什么、对谁、为什么」，其余元数据由中间件补齐。
+    """
+    if action is not None:
+        request.state.log_action = action
+    if message is not None:
+        request.state.log_message = message
+    if target is not None:
+        request.state.log_target = target
+    if level is not None:
+        request.state.log_level = level

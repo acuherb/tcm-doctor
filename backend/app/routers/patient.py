@@ -4,7 +4,7 @@ import re
 from datetime import date, datetime
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -18,7 +18,7 @@ from app.models.followup import FollowUp
 from app.models.user import User
 from app.routers.auth import get_current_user
 from app.permissions import has_perm
-from app.utils.operation_log import write_log
+from app.utils.operation_log import set_log_context
 from app.schemas.patient import (
     PatientCreate, PatientUpdate, PatientResponse, PatientListResponse,
     VisitCreate, VisitUpdate, VisitResponse, ConstitutionSubmit, ConstitutionResult,
@@ -166,6 +166,7 @@ def get_patient(patient_id: int, db: Session = Depends(get_db)):
 @router.get("/{patient_id}/medical-record", summary="导出患者完整病历（JSON / 可打印 HTML）")
 def export_medical_record(
     patient_id: int,
+    request: Request,
     format: str = Query("json", pattern="^(json|html)$", description="json=结构化导出；html=浏览器打印/另存 PDF"),
     include_images: bool = Query(False, description="是否包含舌象/面色/化验单 base64 图片（体积大，默认不含）"),
     current_user: User = Depends(get_current_user),
@@ -194,12 +195,11 @@ def export_medical_record(
         utf8 = quote(f"medical_record_{safe_name}_{day}.{ext}", safe="")
         return f"{kind}; filename=\"{base}\"; filename*=UTF-8''{utf8}"
 
-    write_log(
-        level="INFO", user_id=current_user.id, username=current_user.username,
-        action="导出完整病历", endpoint=f"/api/v1/patients/{patient_id}/medical-record",
-        method="GET", status_code=200, success=True,
-        message=f"导出患者#{patient_id}完整病历(format={format}, include_images={include_images})",
-        target=f"患者#{patient_id}",
+    set_log_context(
+        request,
+        action="导出完整病历",
+        message=f"导出完整病历(format={format}, include_images={include_images})",
+        target=f"{display_name} · 患者 #{patient_id}",
     )
 
     if format == "html":

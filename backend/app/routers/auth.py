@@ -24,7 +24,7 @@ from app.permissions import (
     ROLE_ADMIN, ROLE_LABELS, VALID_ROLES, has_perm,
     ROLE_DEFAULT_PERMSET, ALL_PERMISSIONS, PERMISSION_GROUPS,
 )
-from app.utils.operation_log import write_log
+from app.utils.operation_log import write_log, set_log_context
 
 # 简单内存登录限流：同一 IP+用户名 在窗口内失败次数过多则拒绝
 _LOGIN_MAX_FAILS = 5
@@ -285,6 +285,7 @@ def list_users(current_user: User = Depends(get_current_user), db: Session = Dep
 @router.post("/users", response_model=UserOut, summary="创建账号（需 user:write）")
 def create_user(
     payload: UserCreateRequest,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -320,9 +321,8 @@ def create_user(
     db.add(user)
     db.commit()
     db.refresh(user)
-    write_log(level="INFO", user_id=current_user.id, username=current_user.username, action="创建账号",
-              endpoint="/api/v1/auth/users", method="POST", status_code=200,
-              success=True, message=f"创建账号 {username}（{ROLE_LABELS.get(payload.role, payload.role)}）", ip="")
+    set_log_context(request, action="创建账号",
+                    message=f"账号 {username}（{ROLE_LABELS.get(payload.role, payload.role)}）", target=username)
     return UserOut.model_validate(user)
 
 
@@ -330,6 +330,7 @@ def create_user(
 def update_user(
     user_id: int,
     payload: UserUpdateRequest,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -385,15 +386,14 @@ def update_user(
         db.query(AuthToken).filter(AuthToken.user_id == user.id).delete()
     db.commit()
     db.refresh(user)
-    write_log(level="INFO", user_id=current_user.id, username=current_user.username, action="修改账号",
-              endpoint=f"/api/v1/auth/users/{user_id}", method="PUT", status_code=200,
-              success=True, message=f"修改账号 {user.username}", ip="")
+    set_log_context(request, action="修改账号", message=f"账号 {user.username}", target=user.username)
     return UserOut.model_validate(user)
 
 
 @router.delete("/users/{user_id}", summary="删除账号（需 user:write）")
 def delete_user(
     user_id: int,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -417,7 +417,5 @@ def delete_user(
     username = user.username
     db.delete(user)
     db.commit()
-    write_log(level="INFO", user_id=current_user.id, username=current_user.username, action="删除账号",
-              endpoint=f"/api/v1/auth/users/{user_id}", method="DELETE", status_code=200,
-              success=True, message=f"删除账号 {username}", ip="")
+    set_log_context(request, action="删除账号", message=f"账号 {username}", target=username)
     return {"message": "账号已删除"}

@@ -13,6 +13,7 @@ from app.models.log import OperationLog
 from app.models.user import User
 from app.permissions import has_perm
 from app.routers.auth import get_current_user
+from app.utils.action_labels import display_action
 
 router = APIRouter(prefix="/system", tags=["系统"])
 
@@ -21,6 +22,8 @@ def _serialize(log: OperationLog, include_error: bool = False) -> dict:
     return {
         "id": log.id, "created_at": log.created_at, "level": log.level,
         "user_id": log.user_id, "username": log.username, "action": log.action,
+        # 展示用中文动作；历史日志里存过路径/半英文/纯名词，读取时统一规范化
+        "action_display": display_action(log.action, log.method, log.endpoint),
         "endpoint": log.endpoint, "method": log.method, "status_code": log.status_code,
         "success": log.success, "message": log.message, "target": log.target,
         # 完整 traceback 含服务器路径/SQL 片段，仅高权限账号可见；CSV 导出一律不含
@@ -51,7 +54,10 @@ def _apply_filters(q, level, user_id, action, keyword, start, end, method=None):
     if user_id is not None:
         q = q.filter(OperationLog.user_id == user_id)
     if action:
-        q = q.filter(OperationLog.action == action)
+        # 下拉把同一展示名对应的多个历史/新动作原值合并成逗号串，选中后一次筛全
+        values = [a.strip() for a in action.split(",") if a.strip()]
+        if values:
+            q = q.filter(OperationLog.action.in_(values))
     if keyword:
         like = f"%{keyword}%"
         q = q.filter(
@@ -95,9 +101,10 @@ def log_meta(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """返回筛选下拉候选值：操作人（取 id+用户名，管理员可直接选中）与出现过的动作名。
+    """返回筛选下拉候选值：操作人与可读动作名。
 
-    前端据此把「用户ID 手输」「动作手输」换成下拉，避免管理员记 ID / 猜动作名。
+    同一展示名可能对应多个落库原值（历史英文动作、旧版纯名词、新版完整动作），
+    这里合并成一个下拉项、value 为逗号分隔的原值串，选中后由 _apply_filters 一次筛全。
     """
     if not has_perm(current_user, "log:read"):
         raise HTTPException(status_code=403, detail="仅管理员可查看操作日志")
@@ -111,13 +118,21 @@ def log_meta(
         [{"id": uid, "name": uname or f"#{uid}"} for uid, uname in users],
         key=lambda x: x["name"],
     )
-    actions = (
-        db.query(OperationLog.action)
+    rows = (
+        db.query(OperationLog.action, OperationLog.method, OperationLog.endpoint)
         .filter(OperationLog.action.isnot(None), OperationLog.action != "")
         .distinct()
         .all()
     )
-    action_opts = sorted({a[0] for a in actions if a[0]})
+    grouped: dict[str, set[str]] = {}
+    for action, method, endpoint in rows:
+        if not action:
+            continue
+        grouped.setdefault(display_action(action, method, endpoint), set()).add(action)
+    action_opts = [
+        {"label": label, "value": ",".join(sorted(values))}
+        for label, values in sorted(grouped.items())
+    ]
     return {"users": user_opts, "actions": action_opts}
 
 
@@ -172,7 +187,7 @@ def export_logs(
     for r in rows:
         writer.writerow([
             r.created_at, r.level, r.user_id or "", _csv_safe(r.username),
-            _csv_safe(r.action), _csv_safe(r.target), _csv_safe(r.endpoint), r.method or "", r.status_code or "",
+            _csv_safe(display_action(r.action, r.method, r.endpoint)), _csv_safe(r.target), _csv_safe(r.endpoint), r.method or "", r.status_code or "",
             "是" if r.success else "否", r.duration_ms if r.duration_ms is not None else "",
             _csv_safe(r.message), r.ip or "",
         ])
