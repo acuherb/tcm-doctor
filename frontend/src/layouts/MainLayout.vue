@@ -33,6 +33,7 @@
           </template>
           <el-menu-item v-if="auth.can('patient:write')" index="/registration">挂号台</el-menu-item>
           <el-menu-item v-if="auth.can('billing:read')" index="/billing">收费管理</el-menu-item>
+          <el-menu-item v-if="auth.can('schedule:read')" index="/schedule">排班管理</el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu index="patient-group">

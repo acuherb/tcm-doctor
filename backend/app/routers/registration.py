@@ -13,7 +13,7 @@
 权限：登记与状态变更需 patient:write；查看队列/详情需 patient:read。
 """
 import logging
-from datetime import datetime
+from datetime import datetime, date
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -28,6 +28,7 @@ from app.models.visit import Visit
 from app.models.user import User
 from app.models.billing import Charge
 from app.models.prescription import Prescription
+from app.models.schedule import Schedule
 from app.routers.auth import get_current_user
 from app.permissions import has_perm
 from app.schemas.billing import ChargeCreate, ChargeResponse
@@ -395,6 +396,14 @@ def registration_options(
         raise HTTPException(status_code=403, detail="无权查看挂号选项")
     users = db.query(User).filter(User.is_active.is_(True)).order_by(User.id).all()
     appointable = [u for u in users if _appointable(u)]
+    # 排班启用（排班表已有数据）时，仅展示当日出诊医师；否则保持原行为（全部可接诊医师），
+    # 避免引入排班后反而把「未排班日」的挂号卡死——旧库无排班数据时完全无感。
+    schedule_enabled = db.query(Schedule).count() > 0
+    if schedule_enabled:
+        today = date.today()
+        on_duty = {row.doctor_id for row in
+                   db.query(Schedule.doctor_id).filter(Schedule.schedule_date == today).all()}
+        appointable = [u for u in appointable if u.id in on_duty]
     departments = sorted({u.department.strip() for u in appointable
                           if u.department and u.department.strip()})
     doctors = [
@@ -405,7 +414,7 @@ def registration_options(
         }
         for u in appointable
     ]
-    return {"departments": departments, "doctors": doctors}
+    return {"departments": departments, "doctors": doctors, "schedule_enabled": schedule_enabled}
 
 
 @router.get("/{visit_id}", summary="挂号/就诊详情（含收费单）")

@@ -51,6 +51,10 @@ PERMISSION_GROUPS = [
         {"key": "billing:read", "label": "查看收费单 / 收据"},
         {"key": "billing:write", "label": "开具收费 / 收款 / 退费"},
     ]},
+    {"group": "排班管理", "perms": [
+        {"key": "schedule:read", "label": "查看排班表"},
+        {"key": "schedule:write", "label": "编辑 / 维护排班"},
+    ]},
     {"group": "用户与系统", "perms": [
         {"key": "user:read", "label": "查看账号"},
         {"key": "user:write", "label": "创建 / 管理账号与权限"},
@@ -99,6 +103,8 @@ DOMAIN_PERMS: dict[str, tuple[str, str | None]] = {
     "/billing": ("billing:read", "billing:write"),
     # 挂号（前台分诊登记）：登记/改状态需 patient:write，查看队列需 patient:read
     "/registration": ("patient:read", "patient:write"),
+    # 排班：查看需 schedule:read，编辑/维护需 schedule:write（仅管理员或获授权账号）
+    "/schedule": ("schedule:read", "schedule:write"),
 }
 
 # 账号管理接口单独映射（中间件整体跳过 /auth，故在 auth 路由内自行校验 user:write）

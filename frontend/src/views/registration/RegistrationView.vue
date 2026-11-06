@@ -140,6 +140,12 @@
                   :label="d.department ? `${d.name}（${d.department}）` : d.name" :value="d.id" />
               </el-select>
               <div class="opt-hint">选项来自「账号管理」中启用的医生/管理员账号</div>
+              <el-text v-if="scheduleEnabled && !doctors.length" type="warning" size="small">
+                今日无排班出诊医师，请先在「排班管理」中设置
+              </el-text>
+              <el-text v-else-if="scheduleEnabled" type="info" size="small">
+                已按今日排班仅显示出诊医师
+              </el-text>
             </el-form-item>
             <el-form-item label="挂号费">
               <el-input-number v-model="regFee" :min="0" :precision="2" :step="1" :style="{ width: isMobile ? '100%' : '160px' }" />
@@ -343,15 +349,17 @@ const doctorId = ref<number | null>(null)
 interface DoctorOption { id: number; name: string; department: string }
 const departmentOptions = ref<string[]>([])
 const doctors = ref<DoctorOption[]>([])
+const scheduleEnabled = ref(false)  // 排班表已启用：医师下拉仅含当日出诊医师
 const filteredDoctors = computed(() =>
   department.value ? doctors.value.filter(d => d.department === department.value) : doctors.value
 )
 
 async function loadOptions() {
   try {
-    const r = await api.get<{ departments: string[]; doctors: DoctorOption[] }>('/registration/options')
+    const r = await api.get<{ departments: string[]; doctors: DoctorOption[]; schedule_enabled?: boolean }>('/registration/options')
     departmentOptions.value = r.departments || []
     doctors.value = r.doctors || []
+    scheduleEnabled.value = !!r.schedule_enabled
   } catch { /* 拦截器已提示 */ }
 }
 function onDoctorChange() {
