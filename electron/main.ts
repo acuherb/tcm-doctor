@@ -49,12 +49,17 @@ async function createWindow() {
     await mainWindow.loadURL(frontendUrl)
     mainWindow.webContents.openDevTools()
   } else {
-    // 生产模式：加载构建后的静态文件
-    // asar 内结构: /electron/dist/main.js, /frontend/dist/index.html
-    // __dirname = /electron/dist/，需要 ../../ 到根再进 frontend/dist/
-    const frontendPath = path.join(__dirname, '../../frontend/dist/index.html')
-    console.log(`[Main] Loading frontend from: ${frontendPath}`)
-    await mainWindow.loadFile(frontendPath)
+    // 生产模式：从后端同源加载静态页（后端由 TCM_STATIC_DIR 托管 frontend/dist）。
+    // 历史上用 loadFile 会让页面 Origin 变成 null，CORS 预检导致桌面版全部接口不可用。
+    try {
+      console.log(`[Main] Loading frontend from backend: ${BACKEND_URL}`)
+      await mainWindow.loadURL(BACKEND_URL)
+    } catch (err) {
+      // 后端未就绪时至少把界面渲染出来（此时接口不可用，控制台已有明确错误）
+      console.error('[Main] Backend not reachable, fallback to local file:', err)
+      const frontendPath = path.join(__dirname, '../../frontend/dist/index.html')
+      await mainWindow.loadFile(frontendPath)
+    }
   }
 
   mainWindow.on('closed', () => {

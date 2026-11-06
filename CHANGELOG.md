@@ -1,5 +1,32 @@
 # 开发日志 CHANGELOG
 
+## 2026-11-06 — 审核收尾：桌面同源 / 采购幂等 / 计数字段统一 / 旧库演练
+
+### 决定
+补齐上一轮 3 处保留项，并把 0023 / 0026 的旧库升级路径固化为可重复执行的回归测试。
+
+### P0 #1 Electron 同源加载
+- `electron/main.ts` 生产版改为 `loadURL(http://127.0.0.1:8765)`，不再用 `loadFile` 产生 `file://`（Origin=null）页面；后端未就绪时才回退本地文件。
+- `backend/app/main.py` 支持 `TCM_STATIC_DIR` 指定前端静态目录（Docker 仍用 `backend/static`）；`electron/python-runner.ts` 把目录传给后端进程；`electron-builder.yml` 把 `frontend/dist` 放入 `extraResources`，保证 Python 进程读到的是真实目录而非 asar 归档。
+
+### P2 #18 采购入库幂等
+- `PurchaseOrderCreate` 增加 `request_id`：同一键值只入库一次并直接返回已有单，双击 / 网络重试不再重复累加批次数量、入库流水与成本。
+- 幂等键落成 `PO-<request_id>` 单号；`purchase_orders.order_no` 加唯一索引，迁移 0027 先冲正历史重复单号再建索引。
+- `PurchaseInbound.vue` 打开表单时生成键、成功后才换键；新增 `test_purchase_idempotency.py`（2 项）。
+
+### P3 #35 导入计数字段统一
+- 所有导入端点统一为 `created / updated / total`（模板与基础包额外保留 `skipped / errors`）：`templates.py`、`template_bundle.py`、`knowledge.py`、`herb.py`、`acupuncture.py` 及基础包安装日志。
+- 同步前端 6 处读取与 `test_templates.py` / `test_template_bundle.py` 断言；归档 seed 脚本里的内部统计变量不属于接口字段，保持原样。
+
+### #14 / #15 旧库升级演练
+- 新增 `test_migrations_legacy_upgrade.py`：手工构造旧库（`prescription_id NOT NULL` 且无 `kind`、重复在账挂号费、`visits.status` 空、重复采购单号），标记其它迁移已执行后运行 `run_migrations()`。
+- 验证 0023 不再因 `kind=NULL` 插入 NOT NULL 列而中断、后加审计列被保留；0026 冲正重复挂号费并回填就诊状态；0027 去重并建唯一索引；重复执行幂等。
+
+### 验证
+- `pytest -q`：**128 passed**（124 原有 + 4 新增）。
+- `npm run build` 成功；`vue-tsc` 错误数由既存 235 降至 **233**（顺带修正医籍导入响应类型），无新增。
+- `read_lints` 0 error。
+
 ## 2026-11-05 — 全面代码审核整改（35 项）
 
 ### 验证

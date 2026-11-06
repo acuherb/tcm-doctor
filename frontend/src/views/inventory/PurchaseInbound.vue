@@ -194,9 +194,15 @@ function unitOf(it: PurchaseItem) {
   const i = items.value.find((x: StockItem) => x.id === it.item_id)
   return i ? i.unit : ''
 }
+// 幂等键：打开表单时生成，成功后才换新；失败重试沿用同一个值，避免重复入库
+const requestId = ref('')
+function newRequestId() {
+  return globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
 function openCreate() {
   form.supplier_id = null; form.order_date = new Date().toLocaleDateString('sv-SE')
   form.note = ''; form.items = []
+  requestId.value = newRequestId()
   visible.value = true
 }
 async function submit() {
@@ -206,7 +212,11 @@ async function submit() {
   }
   submitting.value = true
   try {
-    await api.post('/stock/purchases', { supplier_id: form.supplier_id, order_date: form.order_date, note: form.note, items: form.items })
+    await api.post('/stock/purchases', {
+      supplier_id: form.supplier_id, order_date: form.order_date, note: form.note,
+      items: form.items, request_id: requestId.value,
+    })
+    requestId.value = newRequestId()  // 成功后换新键，下一张单才允许入库
     ElMessage.success('采购入库成功')
     visible.value = false
     page.value = 1

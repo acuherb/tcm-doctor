@@ -92,14 +92,14 @@ def test_bundle_preview_dry_run_and_install(client, db_session, auth_headers):
     body = preview.json()
     assert body["dry_run"] is True
     assert body["order"] == ["core", "formulas"]
-    assert body["totals"]["added"] == 6
+    assert body["totals"]["created"] == 6
     # 预检绝不落库
     assert db_session.query(Herb).filter(Herb.name.like(f"QA包药材{tag}%")).count() == 0
 
     install = client.post("/api/v1/templates/bundle/install", files=files, headers=auth_headers)
     assert install.status_code == 200, install.text
     assert install.json()["dry_run"] is False
-    assert install.json()["totals"]["added"] == 6
+    assert install.json()["totals"]["created"] == 6
     db_session.expire_all()
     assert db_session.query(Herb).filter(Herb.name.like(f"QA包药材{tag}%")).count() == 3
     assert db_session.query(Acupoint).filter(Acupoint.name.like(f"QA包穴位{tag}%")).count() == 2
@@ -108,7 +108,7 @@ def test_bundle_preview_dry_run_and_install(client, db_session, auth_headers):
     # 幂等：重复安装只更新不新增
     again = client.post("/api/v1/templates/bundle/install", files=files, headers=auth_headers)
     assert again.status_code == 200
-    assert again.json()["totals"]["added"] == 0
+    assert again.json()["totals"]["created"] == 0
     assert again.json()["totals"]["updated"] == 6
 
 

@@ -138,7 +138,7 @@ def import_herbs(data: list[HerbCreate] = Body(...), current_user: User = Depend
             db.add(Herb(**payload))
             imported += 1
     db.commit()
-    return {"imported": imported, "updated": updated, "total": imported + updated}
+    return {"created": imported, "updated": updated, "total": imported + updated}
 
 
 # ── 药材详情/更新（路径参数路由，必须放在所有固定路径路由之后）──

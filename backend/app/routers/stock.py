@@ -719,7 +719,18 @@ def _create_purchase_impl(data: PurchaseOrderCreate, current_user: User, db: Ses
     supplier = db.query(Supplier).filter(Supplier.id == data.supplier_id).first() if data.supplier_id else None
     if data.supplier_id and not supplier:
         raise HTTPException(status_code=404, detail="供应商不存在")
-    order_no = "PO" + datetime.now().strftime("%Y%m%d%H%M%S") + secrets.token_hex(2)
+    # 幂等：前端每次打开表单生成一个 request_id，成功后才换新；双击/网络重试携带同一个值，
+    # 直接返回已入库的采购单，避免批次数量、入库流水与成本被重复累加。
+    idem_no = f"PO-{data.request_id}" if data.request_id else None
+    if idem_no:
+        existing = db.query(PurchaseOrder).filter(PurchaseOrder.order_no == idem_no).first()
+        if existing:
+            resp = _po_resp(existing)
+            names = {i.id: i.name for i in db.query(StockItem).all()}
+            for r, it in zip(resp.items, existing.items):
+                r.item_name = names.get(it.item_id)
+            return resp
+    order_no = idem_no or ("PO" + datetime.now().strftime("%Y%m%d%H%M%S") + secrets.token_hex(2))
     po = PurchaseOrder(
         order_no=order_no, supplier_id=data.supplier_id, supplier_name=supplier.name if supplier else None,
         order_date=data.order_date or date.today().strftime("%Y-%m-%d"), note=data.note,

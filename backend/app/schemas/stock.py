@@ -206,6 +206,7 @@ class PurchaseOrderCreate(BaseModel):
     order_date: str | None = None
     note: str | None = None
     items: list[PurchaseItemIn] = Field(..., min_length=1)
+    request_id: str | None = Field(None, max_length=64, description="客户端幂等键；同一值只入库一次")
 
 
 class PurchaseItemResponse(BaseModel):

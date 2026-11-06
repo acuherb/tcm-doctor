@@ -182,6 +182,6 @@ async def install_bundle(
               action="安装基础数据包", endpoint="/api/v1/templates/bundle/install", method="POST",
               status_code=200, success=True,
               message=f"安装 {plan['manifest'].get('title') or '基础数据包'} "
-                      f"v{plan['manifest'].get('version') or '-'}：新增 {result['totals']['added']}，"
+                      f"v{plan['manifest'].get('version') or '-'}：新增 {result['totals']['created']}，"
                       f"更新 {result['totals']['updated']}，跳过 {result['totals']['skipped']}")
     return _bundle_response(plan, result, dry_run=False)

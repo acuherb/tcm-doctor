@@ -139,4 +139,4 @@ def import_acupoints(data: list[AcupointCreate] = Body(...), current_user: User 
             db.add(Acupoint(**item.model_dump()))
             imported += 1
     db.commit()
-    return {"imported": imported, "updated": updated, "total": len(data)}
+    return {"created": imported, "updated": updated, "total": len(data)}

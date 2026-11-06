@@ -443,8 +443,8 @@ async function onImportFile(file: UploadFile) {
         return
       }
       importing.value = true
-      const res = (await api.post<{ message?: string }>('/knowledge/import', list))
-      ElMessage.success(`导入完成：新增 ${res.added}，更新 ${res.updated}`)
+      const res = await api.post<{ created?: number; updated?: number }>('/knowledge/import', list)
+      ElMessage.success(`导入完成：新增 ${res.created ?? 0}，更新 ${res.updated ?? 0}`)
       loadStats()
       loadSources()
       loadEntries()

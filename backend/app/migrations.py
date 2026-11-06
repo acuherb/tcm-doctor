@@ -1232,6 +1232,37 @@ def m0026() -> None:
                 log.warning("m0026 补建库存流水索引失败: %s", e)
 
 
+@migration(
+    "0027",
+    "采购单号唯一约束（配合客户端幂等键）",
+)
+def m0027() -> None:
+    """旧版采购单号只精确到秒，可能重复；先给重复行加后缀，再建唯一索引。
+
+    唯一索引是采购幂等的数据库兜底：即使两个并发请求同时通过应用层校验，
+    也只会有一张单落库。
+    """
+    insp = inspect(engine)
+    if "purchase_orders" not in set(insp.get_table_names()):
+        return
+    with engine.begin() as conn:
+        dups = conn.execute(text(
+            "SELECT order_no, COUNT(*) FROM purchase_orders GROUP BY order_no HAVING COUNT(*) > 1"
+        )).fetchall()
+        for (no, _) in dups:
+            rows = conn.execute(text(
+                "SELECT id FROM purchase_orders WHERE order_no = :n ORDER BY id"
+            ), {"n": no}).fetchall()
+            for (rid,) in rows[1:]:
+                conn.execute(text(
+                    "UPDATE purchase_orders SET order_no = :new_no WHERE id = :id"
+                ), {"new_no": f"{no}-{rid}", "id": rid})
+        conn.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_purchase_orders_order_no "
+            "ON purchase_orders(order_no)"
+        ))
+
+
 def run_migrations() -> None:
     """应用所有未执行过的迁移（幂等：以 schema_migrations 表记录为准）"""
     with engine.begin() as conn:

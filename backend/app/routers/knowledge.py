@@ -265,7 +265,7 @@ def import_knowledge(
             added += 1
     db.commit()
     _sync_vector_index(db)
-    return {"added": added, "updated": updated, "total": added + updated}
+    return {"created": added, "updated": updated, "total": added + updated}
 
 
 @router.get("/entries", summary="知识条目列表")

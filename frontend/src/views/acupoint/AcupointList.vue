@@ -388,8 +388,8 @@ async function onImportFile(e: Event) {
     const text = await f.text()
     const arr = JSON.parse(text)
     if (!Array.isArray(arr)) { ElMessage.error('文件须为穴位数组 JSON'); return }
-    const r: { imported?: number; updated?: number } = await api.post('/acupoints/import', arr, { silent: true })
-    ElMessage.success(`导入完成：新增 ${r.imported ?? 0} 条，更新 ${r.updated ?? 0} 条`)
+    const r: { created?: number; updated?: number } = await api.post('/acupoints/import', arr, { silent: true })
+    ElMessage.success(`导入完成：新增 ${r.created ?? 0} 条，更新 ${r.updated ?? 0} 条`)
     loadAcupoints()
   } catch (err) {
     ElMessage.error('JSON 解析或导入失败：' + errMsg(err))

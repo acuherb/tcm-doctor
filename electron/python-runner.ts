@@ -97,7 +97,13 @@ export async function startPythonBackend(port: number): Promise<void> {
   console.log(`[PythonRunner] Starting: ${cmd} ${args.join(' ')}`)
 
   const spawnOptions: any = {
-    env: { ...process.env },
+    env: {
+      ...process.env,
+      // 后端据此托管 frontend/dist；Electron 主进程再从后端同源加载页面
+      TCM_STATIC_DIR: isPackaged
+        ? path.join(process.resourcesPath, 'frontend', 'dist')
+        : path.resolve(__dirname, '..', '..', 'frontend', 'dist'),
+    },
     stdio: ['pipe', 'pipe', 'pipe'],
   }
 

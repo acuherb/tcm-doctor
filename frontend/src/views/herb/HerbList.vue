@@ -388,8 +388,8 @@ async function onImportFile(e: Event) {
     const text = await f.text()
     const arr = JSON.parse(text)
     if (!Array.isArray(arr)) { ElMessage.error('文件须为药材数组 JSON'); return }
-    const r: { imported?: number; updated?: number; message?: string } = await api.post('/herbs/import', arr, { silent: true })
-    ElMessage.success(`导入完成：新增 ${r.imported} 条，更新 ${r.updated} 条`)
+    const r: { created?: number; updated?: number; message?: string } = await api.post('/herbs/import', arr, { silent: true })
+    ElMessage.success(`导入完成：新增 ${r.created ?? 0} 条，更新 ${r.updated ?? 0} 条`)
     loadHerbs()
   } catch {
     ElMessage.error('JSON 解析或导入失败')

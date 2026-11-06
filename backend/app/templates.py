@@ -156,7 +156,7 @@ def import_items(db: Session, type_: str, items: list, dry_run: bool = False) ->
     if not dry_run:
         db.commit()
     return {
-        "added": added,
+        "created": added,
         "updated": updated,
         "skipped": skipped,
         "errors": errors[:20],

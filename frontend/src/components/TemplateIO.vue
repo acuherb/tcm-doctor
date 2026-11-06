@@ -84,8 +84,8 @@ async function exportTpl() {
   }
 }
 
-async function confirmImport(preview: { added: number; updated: number; skipped: number; errors: string[] }) {
-  const detail = `将新增 ${preview.added} 条、更新 ${preview.updated} 条、跳过 ${preview.skipped} 条` +
+async function confirmImport(preview: { created: number; updated: number; skipped: number; errors: string[] }) {
+  const detail = `将新增 ${preview.created} 条、更新 ${preview.updated} 条、跳过 ${preview.skipped} 条` +
     (preview.errors.length ? `（其中 ${preview.errors.length} 条异常将被忽略）` : '')
   try {
     await ElMessageBox.confirm(`${props.label ?? props.type}：${detail}。确认导入？`, '导入预检', {
@@ -106,19 +106,19 @@ async function onFile(file: UploadFile) {
     // 先预检（dry_run），确认后再落库；文件需上传两次（预检与正式各一次）
     const fd1 = new FormData()
     fd1.append('file', raw)
-    const preview = await api.post<{ added: number; updated: number; skipped: number; errors: string[] }>(
+    const preview = await api.post<{ created: number; updated: number; skipped: number; errors: string[] }>(
       `/templates/import?type=${props.type}&dry_run=true`,
       fd1,
     )
     if (!(await confirmImport(preview))) return
     const fd2 = new FormData()
     fd2.append('file', raw)
-    const res = await api.post<{ added: number; updated: number; skipped: number; errors: string[] }>(
+    const res = await api.post<{ created: number; updated: number; skipped: number; errors: string[] }>(
       `/templates/import?type=${props.type}`,
       fd2,
     )
     ElMessage.success(
-      `${props.label ?? props.type}：新增 ${res.added}，更新 ${res.updated}，跳过 ${res.skipped}` +
+      `${props.label ?? props.type}：新增 ${res.created}，更新 ${res.updated}，跳过 ${res.skipped}` +
         (res.errors.length ? `；异常 ${res.errors.length} 条` : ''),
     )
   } catch {
@@ -129,15 +129,15 @@ async function onFile(file: UploadFile) {
 async function importBundled() {
   importingBundled.value = true
   try {
-    const preview = await api.post<{ added: number; updated: number; skipped: number; errors: string[] }>(
+    const preview = await api.post<{ created: number; updated: number; skipped: number; errors: string[] }>(
       `/templates/import?type=${props.type}&use_bundled=true&dry_run=true`,
     )
     if (!(await confirmImport(preview))) return
-    const res = await api.post<{ added: number; updated: number; skipped: number; errors: string[] }>(
+    const res = await api.post<{ created: number; updated: number; skipped: number; errors: string[] }>(
       `/templates/import?type=${props.type}&use_bundled=true`,
     )
     ElMessage.success(
-      `${props.label ?? props.type}：新增 ${res.added}，更新 ${res.updated}，跳过 ${res.skipped}` +
+      `${props.label ?? props.type}：新增 ${res.created}，更新 ${res.updated}，跳过 ${res.skipped}` +
         (res.errors.length ? `；异常 ${res.errors.length} 条` : ''),
     )
   } catch {

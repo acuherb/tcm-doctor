@@ -14,6 +14,9 @@ files:
 extraResources:
   - from: backend/dist/tcm-backend.exe
     to: backend/tcm-backend.exe
+  # 作为真实目录提供给后端进程（app.asar 内的文件 Python 无法直接读取）
+  - from: frontend/dist
+    to: frontend/dist
 
 win:
   target:

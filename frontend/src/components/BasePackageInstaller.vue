@@ -49,7 +49,7 @@
 
     <template v-if="preview">
       <el-alert type="success" :closable="false" show-icon class="bundle-result"
-        :title="`预检完成：将新增 ${preview.totals.added} 条、更新 ${preview.totals.updated} 条、跳过 ${preview.totals.skipped} 条`"
+        :title="`预检完成：将新增 ${preview.totals.created} 条、更新 ${preview.totals.updated} 条、跳过 ${preview.totals.skipped} 条`"
         :description="`执行顺序：${preview.order.join(' → ')}${preview.warnings.length ? '；注意：' + preview.warnings.join('；') : ''}`" />
       <el-table :data="preview.files" size="small" max-height="220" class="bundle-table">
         <el-table-column prop="layer" label="分层" width="100" />
@@ -62,7 +62,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="added" label="新增" width="70" />
+        <el-table-column prop="created" label="新增" width="70" />
         <el-table-column prop="updated" label="更新" width="70" />
         <el-table-column prop="skipped" label="跳过" width="70" />
       </el-table>
@@ -87,10 +87,10 @@ interface BundleResult {
   order: string[]
   layers: LayerInfo[]
   warnings: string[]
-  totals: { added: number; updated: number; skipped: number }
+  totals: { created: number; updated: number; skipped: number }
   files: Array<{
     layer: string; file: string; type: string; count: number; sha256_verified: boolean;
-    added: number; updated: number; skipped: number
+    created: number; updated: number; skipped: number
   }>
   errors: string[]
 }
@@ -207,7 +207,7 @@ async function doInstall() {
   const p = preview.value
   try {
     await ElMessageBox.confirm(
-      `将新增 ${p.totals.added} 条、更新 ${p.totals.updated} 条、跳过 ${p.totals.skipped} 条。确认安装？`,
+      `将新增 ${p.totals.created} 条、更新 ${p.totals.updated} 条、跳过 ${p.totals.skipped} 条。确认安装？`,
       '安装确认', { confirmButtonText: '确认安装', cancelButtonText: '取消', type: 'warning' },
     )
   } catch {
@@ -218,7 +218,7 @@ async function doInstall() {
     const { url, data } = buildRequest('/templates/bundle/install')
     const res = await api.post<BundleResult>(url, data, { silent: true })
     ElMessage.success(
-      `安装完成：新增 ${res.totals.added}，更新 ${res.totals.updated}，跳过 ${res.totals.skipped}`,
+      `安装完成：新增 ${res.totals.created}，更新 ${res.totals.updated}，跳过 ${res.totals.skipped}`,
     )
     emit('installed')
     visible.value = false

@@ -126,6 +126,8 @@ class Supplier(Base):
 class PurchaseOrder(Base):
     """采购单（入库的凭证，自动生成批次与入库流水）"""
     __tablename__ = "purchase_orders"
+    # 客户端幂等键落到 order_no 上，由数据库兜底并发重复提交
+    __table_args__ = (Index("uq_purchase_orders_order_no", "order_no", unique=True),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     order_no: Mapped[str] = mapped_column(String(50), nullable=False, comment="采购单号")

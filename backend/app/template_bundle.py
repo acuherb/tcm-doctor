@@ -270,7 +270,7 @@ def build_plan(data: bytes, layers_arg: str | None = None) -> dict:
 
 def apply_plan(db: Session, plan: dict, dry_run: bool) -> dict:
     """按 plan 顺序导入（dry_run 时仅预检，不落库）。"""
-    totals = {"added": 0, "updated": 0, "skipped": 0}
+    totals = {"created": 0, "updated": 0, "skipped": 0}
     files: list[dict] = []
     errors: list[str] = []
     for f in plan["files"]:
@@ -281,7 +281,7 @@ def apply_plan(db: Session, plan: dict, dry_run: bool) -> dict:
         files.append({
             "layer": f["layer"], "file": f["file"], "type": f["type"],
             "count": f["count"], "sha256_verified": f["sha256_verified"],
-            "added": result["added"], "updated": result["updated"],
+            "created": result["created"], "updated": result["updated"],
             "skipped": result["skipped"],
         })
     return {"totals": totals, "files": files, "errors": errors[:20]}
