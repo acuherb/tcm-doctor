@@ -11,7 +11,7 @@
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "build:frontend": "cd frontend && npm run build",
     "build:backend": "cd backend && pyinstaller build.spec",
-    "build:electron": "npx electron-builder",
+    "build:electron": "cd electron && npx tsc && cd .. && npx electron-builder",
     "build": "npm run build:frontend && npm run build:backend && npm run build:electron"
   },
   "devDependencies": {
