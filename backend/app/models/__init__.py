@@ -17,6 +17,7 @@ from app.models.acupuncture import Acupoint, AcupointFormula
 from app.models.branding import BrandingConfig
 from app.models.billing import Charge
 from app.models.schedule import Schedule, ScheduleState
+from app.models.ai_usage import AiUsageLog
 from app.models.user import User, AuthToken
 
 __all__ = [
@@ -48,6 +49,7 @@ __all__ = [
     "Charge",
     "Schedule",
     "ScheduleState",
+    "AiUsageLog",
     "User",
     "AuthToken",
     "OperationLog",

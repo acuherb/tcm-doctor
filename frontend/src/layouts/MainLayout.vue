@@ -106,6 +106,10 @@
           <el-icon><UserFilled /></el-icon>
           <template #title>账号管理</template>
         </el-menu-item>
+        <el-menu-item v-if="auth.can('ai_usage:read')" index="/ai-usage">
+          <el-icon><Coin /></el-icon>
+          <template #title>AI 用量与成本</template>
+        </el-menu-item>
       </el-menu>
 
       <div class="sidebar-toggle" @click="isCollapsed = !isCollapsed">
@@ -205,7 +209,7 @@ import { useRoute, useRouter } from 'vue-router'
 import {
   HomeFilled, User, FirstAidKit, Document, Search,
   ChatDotRound, Setting, Fold, Expand, Box, DataAnalysis, Reading,
-  UserFilled, ArrowDown, Check, Money,
+  UserFilled, ArrowDown, Check, Money, Coin,
 } from '@element-plus/icons-vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { useAuthStore } from '@/store/auth'

@@ -52,7 +52,7 @@ graph TB
 | 桌面壳 | Electron 28 |
 | 前端 | Vue 3 + Element Plus + TypeScript + Pinia + ECharts |
 | 后端 | Python FastAPI + SQLAlchemy 2.0 + SQLite |
-| 权限 | 5 种角色 + 17 个细粒度权限点（见[权限模型](#权限模型)） |
+| 权限 | 5 种角色 + 19 个细粒度权限点（见[权限模型](#权限模型)） |
 | AI 文字 | DeepSeek API (deepseek-chat / deepseek-reasoner) |
 | AI 图片 | 硅基流动 Vision API (Kimi-K2.6) |
 | 知识检索 | RAG 多路召回 (关键词 + ChromaDB 语义向量，可降级) |
@@ -114,6 +114,18 @@ npm run dev
 | Vision Key | Vision API 密钥（留空则复用对话 Key） | `sk-yyy` |
 
 > 图片识别为可选功能。未配置 Vision 时，上传图片不会报错，AI 将基于文字描述进行分析。
+
+### AI 用量与成本统计
+
+「系统管理 → AI 用量与成本」看板按日展示调用次数、token 消耗、缓存命中与估算费用，并支持按模型 / 场景 / 账号分组、CSV 导出与清空记录（清空需 `system:write`）。
+
+- **统计口径**：每次 AI 调用（对话问诊 / 四诊辨证，含流式）从上游响应的 `usage` 字段采集 token；流式通过 `stream_options.include_usage` 获取末尾 usage chunk。失败调用也会记录（token 为 0），便于排障。用量记录写库失败绝不影响 AI 结果返回。
+- **单价配置**：「系统设置 → AI 计费单价」，单位**元 / 百万 tokens**，共 5 项（对话模型输入未缓存 / 输入缓存命中 / 输出，Vision 输入 / 输出）。默认全为 0 = 未配置，此时只统计 token 不估算费用。请按服务商**当前实际单价**填写，价格会调整。
+- **重要限制**：
+  - 历史用量**无法回溯**——旧版本未保留 `usage`，且系统提示词、RAG 上下文、历史消息未落库，按字符数反推误差极大；看板仅统计功能启用后的调用。
+  - 费用是**估算值**：按记录当时单价计算，之后改价不重算历史；DeepSeek 缓存命中/未命中价格不同，第三方 Vision 端点通常不返回缓存细分，最终以服务商账单为准。
+  - 「系统管理 → 数据备份 → 重置数据」会一并清空 AI 用量记录。
+- **权限**：查看需 `ai_usage:read`（默认仅管理员及被显式授权的账号）。
 
 ### 桌面端打包
 
@@ -232,7 +244,7 @@ npx electron-builder --win --x64
 
 #### 权限模型
 
-系统采用 **5 种角色 + 17 个细粒度权限点**，管理员可为任意账号单独勾选权限点（自定义权限优先于角色模板）。
+系统采用 **5 种角色 + 19 个细粒度权限点**，管理员可为任意账号单独勾选权限点（自定义权限优先于角色模板）。
 
 | 角色 | 说明 | 典型权限 |
 |------|------|----------|
@@ -378,7 +390,7 @@ tcm-doctor/
 │   │   ├── config.py       # pydantic_settings 配置管理
 │   │   ├── database.py     # SQLAlchemy 引擎 + 会话
 │   │   ├── migrations.py   # 轻量迁移（自动补列）
-│   │   ├── permissions.py  # 角色模板 + 17 个权限点定义
+│   │   ├── permissions.py  # 角色模板 + 19 个权限点定义
 │   │   ├── models/         # ORM 模型（患者/就诊/药材/方剂/知识/库存/日志）
 │   │   ├── schemas/        # Pydantic 请求/响应模型
 │   │   ├── routers/        # API 路由（patients/prescriptions/herbs/acupuncture/
@@ -437,6 +449,10 @@ tcm-doctor/
 | 知识 | `/api/v1/knowledge/sources` | 知识来源列表 |
 | 统计 | `/api/v1/stats/dashboard` | 工作台数据（含待回访 `pending_followups` / `followup_reminders`） |
 | 统计 | `/api/v1/stats/visits` | 就诊统计 |
+| 排班 | `/api/v1/schedule/doctors`、`/api/v1/schedule/week` | 可排班医师 / 按周排班查询与保存 |
+| 排班 | `POST /api/v1/schedule/copy-week` | 复制某周排班到另一周（含启用标记） |
+| AI 用量 | `/api/v1/ai-usage/summary`、`/api/v1/ai-usage/logs` | 用量汇总与趋势 / 调用明细分页 |
+| AI 用量 | `GET /api/v1/ai-usage/export`、`DELETE /api/v1/ai-usage/logs` | CSV 导出 / 清空记录（需 `system:write`） |
 | 随访 | `/api/v1/followup-reminders` | 随访提醒列表 / 创建（手动） |
 | 随访 | `/api/v1/followup-reminders/{id}` | 随访提醒更新（标记完成·取消·改期）/ 删除 |
 | 备份 | `/api/v1/backup/export` | 导出备份 |
@@ -539,7 +555,7 @@ docker save tcm-doctor:latest -o tcm-doctor-image.tar
 | 会话管理 | 令牌有效期 30 天，无强制下线 / 在线会话列表 | 账号异常时需删库令牌 |
 | 并发控制 | 无乐观锁版本号 | 多人同时编辑同一记录会相互覆盖 |
 | 语义检索 | `ENABLE_SEMANTIC_SEARCH` 默认关闭 | 未开启时仅关键词精确匹配 |
-| AI 成本统计 | 无 token 消耗与费用统计 | 无法预估 API 账单 |
+| AI 成本统计 | 已实现 AI 用量与成本看板（token / 调用次数 / 按模型·场景·账号 / 每日趋势 / CSV 导出），单价在系统设置可配 | 仅统计本功能启用后的调用，历史用量无法回溯；费用为估算值，以服务商账单为准 |
 
 > **部署必读**：后端登录限流为进程内内存计数，**必须单 worker 运行**；SQLite 适合单诊所（数个并发用户）场景，不建议多人高并发使用。
 

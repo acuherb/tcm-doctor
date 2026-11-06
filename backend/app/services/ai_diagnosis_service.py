@@ -1,6 +1,7 @@
 """AI 智能辨证服务 — DeepSeek API + RAG"""
 import json
 import logging
+import time
 import uuid
 from datetime import datetime
 from typing import AsyncGenerator
@@ -11,8 +12,21 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.models.herb import Herb
 from app.models.knowledge import KnowledgeEntry
+from app.services.ai_usage import record_ai_usage
 
 logger = logging.getLogger(__name__)
+
+# 用量上下文键：user_id / username / scene（chat 对话问诊、analyze 四诊辨证）
+# 由路由层显式传入；留空表示内部调用/测试，不记录账号信息但 token 仍统计。
+def _usage_meta(usage_ctx: dict | None, model: str, is_vision: bool) -> dict:
+    ctx = usage_ctx or {}
+    return {
+        "user_id": ctx.get("user_id"),
+        "username": ctx.get("username"),
+        "scene": ctx.get("scene", ""),
+        "model": model,
+        "is_vision": is_vision,
+    }
 
 
 # ── System Prompt ──
@@ -125,6 +139,7 @@ class DiagnosisService:
         patient_id: int | None = None,
         visit_id: int | None = None,
         db: Session | None = None,
+        usage_ctx: dict | None = None,
     ) -> dict:
         """对话式智能问诊"""
         if not settings.deepseek_api_key:
@@ -162,7 +177,7 @@ class DiagnosisService:
 
         # 调用 API
         has_images = bool(images)
-        reply = await self._call_deepseek(api_messages, use_vision=has_images)
+        reply = await self._call_deepseek(api_messages, use_vision=has_images, usage_ctx=usage_ctx)
         safety_warnings = self._check_safety_in_reply(reply, db)
 
         # 持久化消息
@@ -201,6 +216,7 @@ class DiagnosisService:
         lab_report_images: list[str] | None = None,
         patient_id: int | None = None,
         db: Session | None = None,
+        usage_ctx: dict | None = None,
     ) -> dict:
         """四诊信息 → 辨证分析（支持图片）；可带 patient_id 以注入既往病史/疗效供复诊对比"""
         # 既往病史/疗效：两种分支都需要，提前算好
@@ -344,7 +360,7 @@ class DiagnosisService:
             messages.append({"role": "user", "content": user_message})
 
         has_images = bool(tongue_image or face_image or lab_report_images)
-        reply = await self._call_deepseek(messages, use_vision=has_images)
+        reply = await self._call_deepseek(messages, use_vision=has_images, usage_ctx=usage_ctx)
         safety_warnings = self._check_safety_in_reply(reply, db)
 
         # 从分析文本中解析出病名/证型/治法，供就诊表单自动填入
@@ -770,6 +786,7 @@ class DiagnosisService:
         lab_report_images: list[str] | None = None,
         patient_id: int | None = None,
         db: Session | None = None,
+        usage_ctx: dict | None = None,
     ) -> AsyncGenerator[str, None]:
         """流式四诊辨证分析；可带 patient_id 以注入既往病史/疗效供复诊对比"""
         prior = self._prior_history_block(patient_id, db) if (patient_id and db) else ""
@@ -877,7 +894,7 @@ class DiagnosisService:
 
         has_images = bool(tongue_image or face_image or lab_report_images)
         full_reply = ""
-        async for chunk in self._call_deepseek_stream(messages, use_vision=has_images):
+        async for chunk in self._call_deepseek_stream(messages, use_vision=has_images, usage_ctx=usage_ctx):
             full_reply += chunk
             yield f"data: {json.dumps({'type': 'content', 'content': chunk}, ensure_ascii=False)}\n\n"
 
@@ -955,8 +972,13 @@ class DiagnosisService:
             return _OTHER_SYSTEM_NOTICE + "\n\n" + body
         return body
 
-    async def _call_deepseek(self, messages: list[dict], use_vision: bool = False) -> str:
-        """调用 DeepSeek API — 有图片时使用 Vision 端点，无 Vision 配置时降级为纯文字"""
+    async def _call_deepseek(self, messages: list[dict], use_vision: bool = False,
+                             usage_ctx: dict | None = None) -> str:
+        """调用 DeepSeek API — 有图片时使用 Vision 端点，无 Vision 配置时降级为纯文字。
+
+        响应里的 usage（token 消耗）会随调用落库，用于 AI 用量/成本统计；
+        记录失败不影响 AI 结果返回。
+        """
         # 判断是否有 Vision 能力
         vision_model = settings.deepseek_vision_model
         vision_base_url = settings.deepseek_vision_base_url or settings.deepseek_base_url
@@ -976,6 +998,9 @@ class DiagnosisService:
             base_url = settings.deepseek_base_url
             api_key = settings.deepseek_api_key
 
+        meta = _usage_meta(usage_ctx, model, bool(use_vision and vision_model))
+        started = time.monotonic()
+        duration_ms = 0.0
         try:
             async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=30.0), trust_env=False) as client:
                 response = await client.post(
@@ -993,23 +1018,38 @@ class DiagnosisService:
                 )
                 response.raise_for_status()
                 data = response.json()
-                return data["choices"][0]["message"]["content"]
+                content = data["choices"][0]["message"]["content"]
+                duration_ms = (time.monotonic() - started) * 1000
+                record_ai_usage(**meta, usage=data.get("usage"), success=True,
+                                duration_ms=duration_ms)
+                return content
         except httpx.TimeoutException as e:
             # 失败必须作为错误返回，不能把「⚠️ 请求超时」当辨证结论落库、写进病历完成度
             from fastapi import HTTPException
             logger.warning("AI 上游超时: %s", e)
+            record_ai_usage(**meta, success=False, error="上游超时",
+                            duration_ms=(time.monotonic() - started) * 1000)
             raise HTTPException(status_code=504, detail="AI 服务响应超时，请稍后重试")
         except httpx.HTTPStatusError as e:
             from fastapi import HTTPException
             logger.warning("AI 上游返回 HTTP %s", e.response.status_code)
+            record_ai_usage(**meta, success=False, error=f"上游 HTTP {e.response.status_code}",
+                            duration_ms=(time.monotonic() - started) * 1000)
             raise HTTPException(status_code=502, detail="AI 服务暂不可用，请稍后重试")
         except Exception as e:
             from fastapi import HTTPException
             logger.error("AI 问诊调用上游 LLM 失败: %s", e, exc_info=True)
+            record_ai_usage(**meta, success=False, error=str(e),
+                            duration_ms=(time.monotonic() - started) * 1000)
             raise HTTPException(status_code=502, detail="AI 服务暂不可用，请稍后重试")
 
-    async def _call_deepseek_stream(self, messages: list[dict], use_vision: bool = False) -> AsyncGenerator[str, None]:
-        """流式调用 DeepSeek API，逐块 yield 文本内容"""
+    async def _call_deepseek_stream(self, messages: list[dict], use_vision: bool = False,
+                                    usage_ctx: dict | None = None) -> AsyncGenerator[str, None]:
+        """流式调用 DeepSeek API，逐块 yield 文本内容。
+
+        请求携带 stream_options.include_usage，上游会在末尾单独发送一个
+        choices=[]、仅含 usage 的 chunk；该 chunk 的 token 消耗会被落库。
+        """
         vision_model = settings.deepseek_vision_model
         vision_base_url = settings.deepseek_vision_base_url or settings.deepseek_base_url
         vision_api_key = settings.deepseek_vision_api_key or settings.deepseek_api_key
@@ -1026,6 +1066,11 @@ class DiagnosisService:
             base_url = settings.deepseek_base_url
             api_key = settings.deepseek_api_key
 
+        meta = _usage_meta(usage_ctx, model, bool(use_vision and vision_model))
+        started = time.monotonic()
+        usage_data: dict | None = None
+        ok = False
+        err: str | None = None
         try:
             async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=30.0), trust_env=False) as client:
                 async with client.stream(
@@ -1041,6 +1086,7 @@ class DiagnosisService:
                         "temperature": 0.7,
                         "max_tokens": 4000,
                         "stream": True,
+                        "stream_options": {"include_usage": True},
                     },
                 ) as response:
                     response.raise_for_status()
@@ -1052,24 +1098,37 @@ class DiagnosisService:
                             break
                         try:
                             chunk = json.loads(data_str)
-                            delta = chunk.get("choices", [{}])[0].get("delta", {})
+                        except json.JSONDecodeError:
+                            continue
+                        # usage-only chunk：choices 为空且只带 usage，必须先取再跳过。
+                        # 旧写法 chunk.get("choices", [{}])[0] 在 choices=[] 时会 IndexError。
+                        if chunk.get("usage"):
+                            usage_data = chunk["usage"]
+                        choices = chunk.get("choices") or []
+                        if choices:
+                            delta = choices[0].get("delta") or {}
                             content = delta.get("content", "")
                             if content:
                                 yield content
-                        except json.JSONDecodeError:
-                            continue
+            ok = True
         except httpx.TimeoutException as e:
             from fastapi import HTTPException
             logger.warning("AI 流式上游超时: %s", e)
+            err = "上游超时"
             raise HTTPException(status_code=504, detail="AI 服务响应超时，请稍后重试")
         except httpx.HTTPStatusError as e:
             from fastapi import HTTPException
             logger.warning("AI 流式上游返回 HTTP %s", e.response.status_code)
+            err = f"上游 HTTP {e.response.status_code}"
             raise HTTPException(status_code=502, detail="AI 服务暂不可用，请稍后重试")
         except Exception as e:
             from fastapi import HTTPException
             logger.error("AI 问诊流式调用上游 LLM 失败: %s", e, exc_info=True)
+            err = str(e)
             raise HTTPException(status_code=502, detail="AI 服务暂不可用，请稍后重试")
+        finally:
+            record_ai_usage(**meta, usage=usage_data, success=ok, error=err,
+                            duration_ms=(time.monotonic() - started) * 1000)
 
     async def chat_stream(
         self,
@@ -1079,6 +1138,7 @@ class DiagnosisService:
         patient_id: int | None = None,
         visit_id: int | None = None,
         db: Session | None = None,
+        usage_ctx: dict | None = None,
     ) -> AsyncGenerator[str, None]:
         """流式对话式智能问诊"""
         if not settings.deepseek_api_key:
@@ -1117,7 +1177,7 @@ class DiagnosisService:
         # 流式调用
         has_images = bool(images)
         full_reply = ""
-        async for chunk in self._call_deepseek_stream(api_messages, use_vision=has_images):
+        async for chunk in self._call_deepseek_stream(api_messages, use_vision=has_images, usage_ctx=usage_ctx):
             full_reply += chunk
             yield f"data: {json.dumps({'type': 'content', 'content': chunk}, ensure_ascii=False)}\n\n"
 

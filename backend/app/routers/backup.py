@@ -172,10 +172,10 @@ def reset_data(
     )
     from app.models.prescription import (
         ClassicFormula, Prescription, PrescriptionItem, AcupointPrescription, PrescriptionInjection,
-        AcupointFormula,
     )
-    from app.models.acupuncture import Acupoint
+    from app.models.acupuncture import AcupointFormula
     from app.models.schedule import Schedule, ScheduleState
+    from app.models.ai_usage import AiUsageLog
     from app.models.patient import Patient
     from app.models.visit import Visit
     from app.models.knowledge import KnowledgeEntry
@@ -196,8 +196,10 @@ def reset_data(
         InquiryRecord, Visit,                        # 问诊记录/就诊（引用患者）
         StockTransaction, StockBatch, PurchaseItem, PurchaseOrder, StockItem,        # 库存/采购（引用物品/供应商）
         AuthToken, Patient,                         # 令牌/患者（最后删父表）
-        ClassicFormula, Herb, Supplier, KnowledgeEntry, AcupointFormula, Acupoint,  # 基础资料（被上述子表引用，置于其后）
+        # 用户内容库：清空后保持为空。腧穴字典(Acupoint)属框架基础，按设计保留，不在此列。
+        ClassicFormula, Herb, Supplier, KnowledgeEntry, AcupointFormula,
         Schedule, ScheduleState,                       # 排班表与启用标记（清空后回到「未启用排班」）
+        AiUsageLog,                                    # AI 用量统计（清空后从零重新累计）
     ]:
         db.query(model).delete()
 

@@ -91,6 +91,15 @@ class Settings(BaseSettings):
     deepseek_vision_base_url: str = ""  # 留空则与 deepseek_base_url 相同
     deepseek_vision_api_key: str = ""  # 留空则复用 deepseek_api_key
 
+    # AI 计费单价（元 / 百万 tokens），在「系统设置 → AI 计费单价」中维护。
+    # 默认 0 = 未配置：仍统计 token 与调用次数，但费用显示为 0，避免写死过期价格误导对账。
+    # DeepSeek 对缓存命中的输入单独计价；第三方 Vision 端点通常无缓存细分，按输入/输出两档。
+    ai_price_input_per_m: float = 0.0        # 对话模型输入（缓存未命中）
+    ai_price_cache_hit_per_m: float = 0.0    # 对话模型输入（缓存命中）
+    ai_price_output_per_m: float = 0.0       # 对话模型输出
+    ai_price_vision_input_per_m: float = 0.0   # Vision 输入
+    ai_price_vision_output_per_m: float = 0.0  # Vision 输出
+
     # 向量数据库
     chroma_persist_dir: str = f"{_DATA_DIR}/chroma_data" if _DATA_DIR else "./chroma_data"
     embedding_model: str = "BAAI/bge-large-zh-v1.5"

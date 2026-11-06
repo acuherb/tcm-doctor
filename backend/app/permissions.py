@@ -46,6 +46,7 @@ PERMISSION_GROUPS = [
     ]},
     {"group": "统计", "perms": [
         {"key": "stats:read", "label": "查看统计报表"},
+        {"key": "ai_usage:read", "label": "查看 AI 用量与成本"},
     ]},
     {"group": "收费", "perms": [
         {"key": "billing:read", "label": "查看收费单 / 收据"},
@@ -101,6 +102,8 @@ DOMAIN_PERMS: dict[str, tuple[str, str | None]] = {
     # 此前未登记导致按 fail-closed 全量 403，模板工具栏与一键安装都不可用。
     "/templates": ("*", "system:write"),
     "/billing": ("billing:read", "billing:write"),
+    # AI 用量：查看需 ai_usage:read；清空记录属管理操作，需 system:write
+    "/ai-usage": ("ai_usage:read", "system:write"),
     # 挂号（前台分诊登记）：登记/改状态需 patient:write，查看队列需 patient:read
     "/registration": ("patient:read", "patient:write"),
     # 排班：查看需 schedule:read，编辑/维护需 schedule:write（仅管理员或获授权账号）

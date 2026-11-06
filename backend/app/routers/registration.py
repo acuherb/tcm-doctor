@@ -448,15 +448,17 @@ def registration_options(
         appointable = [u for u in appointable if u.id in on_duty]
     departments = sorted({u.department.strip() for u in appointable
                           if u.department and u.department.strip()})
-    doctors = [
-        {
+    doctors: list[dict] = []
+    for u in appointable:
+        d = {
             "id": u.id,
             "name": u.display_name or u.username,
             "department": (u.department or "").strip(),
-            "periods": sorted(on_duty.get(u.id, set())) if schedule_enabled else [],
         }
-        for u in appointable
-    ]
+        # periods 仅在启用排班时返回：未启用时保持原有响应结构，兼容既有调用方
+        if schedule_enabled:
+            d["periods"] = sorted(on_duty.get(u.id, set()))
+        doctors.append(d)
     return {
         "departments": departments,
         "doctors": doctors,

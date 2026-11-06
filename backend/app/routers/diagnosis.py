@@ -55,6 +55,7 @@ async def diagnosis_chat(data: DiagnosisChatRequest, current_user: User = Depend
         patient_id=data.patient_id,
         visit_id=data.visit_id,
         db=db,
+        usage_ctx={"user_id": current_user.id, "username": current_user.username, "scene": "chat"},
     )
     return DiagnosisChatResponse(**result)
 
@@ -81,6 +82,7 @@ async def diagnosis_chat_stream(data: DiagnosisChatRequest, current_user: User =
             patient_id=data.patient_id,
             visit_id=data.visit_id,
             db=db,
+            usage_ctx={"user_id": current_user.id, "username": current_user.username, "scene": "chat"},
         ):
             yield chunk
 
@@ -120,6 +122,7 @@ async def diagnosis_analyze(data: DiagnosisAnalyzeRequest, current_user: User = 
         lab_report_images=data.lab_report_images,
         patient_id=data.patient_id,
         db=db,
+        usage_ctx={"user_id": current_user.id, "username": current_user.username, "scene": "analyze"},
     )
     return DiagnosisAnalyzeResponse(**result)
 
@@ -160,6 +163,7 @@ async def diagnosis_analyze_stream(data: DiagnosisAnalyzeRequest, current_user: 
             lab_report_images=data.lab_report_images,
             patient_id=data.patient_id,
             db=db,
+            usage_ctx={"user_id": current_user.id, "username": current_user.username, "scene": "analyze"},
         ):
             yield chunk
 

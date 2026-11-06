@@ -92,7 +92,7 @@ def test_llm_branch_shares_rule_baseline(monkeypatch):
     svc = DiagnosisService()
     captured: dict = {}
 
-    async def fake_call(messages, use_vision=False):
+    async def fake_call(messages, use_vision=False, usage_ctx=None):
         captured["messages"] = messages
         return "证型：少阴。\n\n```json\n{\"formulas\": []}\n```\n⚠️ 本分析由AI辅助生成，仅供参考。"
 
@@ -215,7 +215,7 @@ def test_rule_based_branch_shares_engine_with_llm(monkeypatch):
     # 2) 有 Key 分支注入基线的主证，必须与上一步同源（否则两条分支会分化）
     monkeypatch.setattr(mod, "settings", SimpleNamespace(deepseek_api_key="test-key"))
     captured: dict = {}
-    async def fake_call(messages, use_vision=False):
+    async def fake_call(messages, use_vision=False, usage_ctx=None):
         captured["messages"] = messages
         return "证型：少阴。\n\n```json\n{\"formulas\": []}\n```\n⚠️ 本分析由AI辅助生成，仅供参考。"
     monkeypatch.setattr(svc, "_call_deepseek", fake_call)

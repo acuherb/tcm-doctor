@@ -35,6 +35,7 @@ import DictionaryManage from '@/views/dictionary/DictionaryManage.vue'
 import Settings from '@/views/settings/Settings.vue'
 import OperationLog from '@/views/system/OperationLog.vue'
 import UserManage from '@/views/system/UserManage.vue'
+import AiUsageView from '@/views/system/AiUsageView.vue'
 
 const routes: RouteRecordRaw[] = [
   {
@@ -221,6 +222,12 @@ const routes: RouteRecordRaw[] = [
         name: 'UserManage',
         component: UserManage,
         meta: { title: '账号管理', icon: 'UserFilled', perm: 'user:read' },
+      },
+      {
+        path: 'ai-usage',
+        name: 'AiUsageView',
+        component: AiUsageView,
+        meta: { title: 'AI 用量与成本', icon: 'Coin', perm: 'ai_usage:read' },
       },
     ],
   },

@@ -31,6 +31,7 @@ from app.routers import system_log, templates
 from app.routers import billing
 from app.routers import registration
 from app.routers import schedule
+from app.routers import ai_usage
 from app.routers.auth import get_current_user, AUTH_COOKIE_NAME
 
 WRITE_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
@@ -528,6 +529,7 @@ app.include_router(billing.router, prefix="/api/v1")
 # 挂号（前台分诊登记）：挂号 -> 就诊 -> 开方 -> 收费 闭环入口
 app.include_router(registration.router, prefix="/api/v1")
 app.include_router(schedule.router, prefix="/api/v1")
+app.include_router(ai_usage.router, prefix="/api/v1")
 
 
 def _clean_env_value(value: str) -> str:
@@ -667,6 +669,12 @@ def get_config(current_user: User = Depends(get_current_user)):
         "deepseek_vision_model": settings.deepseek_vision_model,
         "deepseek_vision_base_url": settings.deepseek_vision_base_url,
         "vision_key_configured": bool(settings.deepseek_vision_api_key),
+        # AI 计费单价（元 / 百万 tokens）；0 表示未配置，仅统计 token
+        "ai_price_input_per_m": settings.ai_price_input_per_m,
+        "ai_price_cache_hit_per_m": settings.ai_price_cache_hit_per_m,
+        "ai_price_output_per_m": settings.ai_price_output_per_m,
+        "ai_price_vision_input_per_m": settings.ai_price_vision_input_per_m,
+        "ai_price_vision_output_per_m": settings.ai_price_vision_output_per_m,
         # 数据库路径与各表条数属运维信息，仅 system:read 可见，避免向普通账号暴露服务器路径
         "db_path": db_path if has_perm(current_user, "system:read") else None,
         "counts": counts if has_perm(current_user, "system:read") else {},
@@ -685,6 +693,12 @@ class ConfigUpdate(BaseModel):
     deepseek_vision_model: str | None = None
     deepseek_vision_base_url: str | None = None
     deepseek_vision_api_key: str | None = None
+    # AI 计费单价（元 / 百万 tokens）；允许 0（清空配置），故用 Optional 而非空串判断
+    ai_price_input_per_m: float | None = None
+    ai_price_cache_hit_per_m: float | None = None
+    ai_price_output_per_m: float | None = None
+    ai_price_vision_input_per_m: float | None = None
+    ai_price_vision_output_per_m: float | None = None
 
 
 @app.put("/api/v1/config", tags=["系统"])
@@ -757,6 +771,21 @@ def update_config(
         deepseek_vision_api_key = _clean_env_value(deepseek_vision_api_key)
         settings.deepseek_vision_api_key = deepseek_vision_api_key
         env_lines["DEEPSEEK_VISION_API_KEY"] = deepseek_vision_api_key
+
+    # AI 计费单价：允许设 0（清空配置），负数钳到 0 防止成本被算成负值
+    _AI_PRICE_ENV = {
+        "ai_price_input_per_m": "AI_PRICE_INPUT_PER_M",
+        "ai_price_cache_hit_per_m": "AI_PRICE_CACHE_HIT_PER_M",
+        "ai_price_output_per_m": "AI_PRICE_OUTPUT_PER_M",
+        "ai_price_vision_input_per_m": "AI_PRICE_VISION_INPUT_PER_M",
+        "ai_price_vision_output_per_m": "AI_PRICE_VISION_OUTPUT_PER_M",
+    }
+    for field, env_key in _AI_PRICE_ENV.items():
+        val = data.get(field)
+        if val is not None:
+            val = max(0.0, float(val))
+            setattr(settings, field, val)
+            env_lines[env_key] = str(val)
 
     # 写回 .env（原子写入：先写临时文件再替换，避免 reload 期间读到空文件）
     tmp_path = env_path.with_suffix(".env.tmp")

@@ -278,6 +278,71 @@
       </el-col>
     </el-row>
 
+    <el-row :gutter="20" class="settings-row">
+      <el-col :xs="24" :span="24">
+        <el-card shadow="hover" class="main-card">
+          <template #header>
+            <div class="card-head-bar">
+              <div class="card-head-title">
+                <span class="head-icon">💰</span>
+                <span class="head-text">AI 计费单价</span>
+                <el-tag v-if="pricingConfigured" size="small" type="success" effect="plain" round class="head-count">已配置</el-tag>
+                <el-tag v-else size="small" type="info" effect="plain" round class="head-count">未配置</el-tag>
+              </div>
+            </div>
+          </template>
+
+          <div class="section-hint">
+            <el-icon><InfoFilled /></el-icon>
+            <span>单位：元 / 百万 tokens。用于「AI 用量与成本」看板的<strong>估算</strong>费用，仅统计本功能启用后的调用，历史用量无法回溯；最终以服务商账单为准。</span>
+          </div>
+          <el-form label-width="150px" class="config-form">
+            <div class="form-section-title"><span class="sec-dot is-chat"></span>对话模型</div>
+            <el-row :gutter="12">
+              <el-col :xs="24" :sm="8">
+                <el-form-item label="输入（未缓存）">
+                  <el-input-number v-model="priceInput" :min="0" :precision="2" :step="0.5" :disabled="!editable" controls-position="right" class="full-width" />
+                </el-form-item>
+              </el-col>
+              <el-col :xs="24" :sm="8">
+                <el-form-item label="输入（缓存命中）">
+                  <el-input-number v-model="priceCacheHit" :min="0" :precision="2" :step="0.1" :disabled="!editable" controls-position="right" class="full-width" />
+                </el-form-item>
+              </el-col>
+              <el-col :xs="24" :sm="8">
+                <el-form-item label="输出">
+                  <el-input-number v-model="priceOutput" :min="0" :precision="2" :step="0.5" :disabled="!editable" controls-position="right" class="full-width" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+
+            <div class="form-section-title"><span class="sec-dot is-vision"></span>图片识别（Vision，第三方端点）</div>
+            <el-row :gutter="12">
+              <el-col :xs="24" :sm="8">
+                <el-form-item label="输入">
+                  <el-input-number v-model="priceVisionInput" :min="0" :precision="2" :step="0.5" :disabled="!editable" controls-position="right" class="full-width" />
+                </el-form-item>
+              </el-col>
+              <el-col :xs="24" :sm="8">
+                <el-form-item label="输出">
+                  <el-input-number v-model="priceVisionOutput" :min="0" :precision="2" :step="0.5" :disabled="!editable" controls-position="right" class="full-width" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <div class="section-hint">
+              <el-icon><InfoFilled /></el-icon>
+              <span>请按服务商<strong>当前实际单价</strong>填写（DeepSeek 对缓存命中的输入单独计价，价格会调整）；全部填 0 表示仅统计 token 用量、不估算费用。</span>
+            </div>
+            <div v-if="editable" class="config-footer">
+              <div class="footer-actions">
+                <el-button type="primary" :loading="savingPricing" @click="savePricing">保存单价</el-button>
+              </div>
+            </div>
+          </el-form>
+        </el-card>
+      </el-col>
+    </el-row>
+
     <BasePackageInstaller v-model="installerVisible" @installed="onInstalled" />
   </div>
 </template>
@@ -327,6 +392,36 @@ const vectorAvailable = ref(false)
 const savingClinic = ref(false)
 const dbPath = ref('')
 const counts = ref<Record<string, any>>({})
+
+// ── AI 计费单价（元 / 百万 tokens）──
+const priceInput = ref(0)
+const priceCacheHit = ref(0)
+const priceOutput = ref(0)
+const priceVisionInput = ref(0)
+const priceVisionOutput = ref(0)
+const savingPricing = ref(false)
+const pricingConfigured = computed(() =>
+  [priceInput.value, priceCacheHit.value, priceOutput.value,
+    priceVisionInput.value, priceVisionOutput.value].some(v => Number(v) > 0),
+)
+
+async function savePricing() {
+  savingPricing.value = true
+  try {
+    await api.put('/config', {
+      ai_price_input_per_m: Number(priceInput.value) || 0,
+      ai_price_cache_hit_per_m: Number(priceCacheHit.value) || 0,
+      ai_price_output_per_m: Number(priceOutput.value) || 0,
+      ai_price_vision_input_per_m: Number(priceVisionInput.value) || 0,
+      ai_price_vision_output_per_m: Number(priceVisionOutput.value) || 0,
+    })
+    ElMessage.success('AI 计费单价已保存')
+  } catch {
+    ElMessage.error('保存失败')
+  } finally {
+    savingPricing.value = false
+  }
+}
 
 // ── 自动备份 ──
 interface BackupItem { name: string; size: number; created_at: string }
@@ -438,6 +533,11 @@ onMounted(async () => {
     visionBaseUrl.value = res.deepseek_vision_base_url || ''
     hasVisionKey.value = res.vision_key_configured || false
     visionConfigured.value = res.vision_configured || false
+    priceInput.value = Number(res.ai_price_input_per_m) || 0
+    priceCacheHit.value = Number(res.ai_price_cache_hit_per_m) || 0
+    priceOutput.value = Number(res.ai_price_output_per_m) || 0
+    priceVisionInput.value = Number(res.ai_price_vision_input_per_m) || 0
+    priceVisionOutput.value = Number(res.ai_price_vision_output_per_m) || 0
   } catch {}
 
   try {
