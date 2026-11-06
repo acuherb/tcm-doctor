@@ -378,7 +378,12 @@ function renderRegistrationCharts() {
 function renderPatientCharts() {
   import('echarts').then((echarts) => {
     const primary = themeVar('--tcm-primary') || '#8B4513'
-    const accent = themeVar('--tcm-accent') || '#D4A574'
+    // 按年龄段名称固定配色：后端只返回非零桶，按名称取色才不会因某个桶缺失而整体串色
+    const ageColors: Record<string, string> = {
+      '0-18岁': '#A9C7A0', '19-35岁': '#7FAE77', '36-50岁': '#D4A574',
+      '51-65岁': '#C07A46', '66岁以上': '#8B4513', '未填写': '#C9C2B6',
+    }
+    const ageFallback = ['#A9C7A0', '#7FAE77', '#D4A574', '#C07A46', '#8B4513', '#C9C2B6']
     const newRows: any[] = patientStats.value.daily_new || []
     if (patientTrendRef.value && newRows.length) {
       const chart = getOrInitChart(echarts, patientTrendRef.value!)
@@ -405,8 +410,11 @@ function renderPatientCharts() {
         legend: { bottom: 0 },
         series: [{
           type: 'pie', radius: ['38%', '62%'],
-          data: ages.map((a) => ({ name: a.name, value: Number(a.count || 0) })),
-          itemStyle: { color: accent },
+          data: ages.map((a: any, i: number) => ({
+            name: a.name,
+            value: Number(a.count || 0),
+            itemStyle: { color: ageColors[a.name] || ageFallback[i % ageFallback.length] },
+          })),
           label: { formatter: '{b}: {c}' },
         }],
       })
