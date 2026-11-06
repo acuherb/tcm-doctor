@@ -14,7 +14,7 @@
       <el-row :gutter="16">
         <!-- 左：挂号登记 -->
         <el-col :xs="24" :md="9">
-          <el-form label-width="80px" class="reg-form">
+          <el-form label-width="80px" :label-position="isMobile ? 'top' : 'right'" class="reg-form">
             <el-form-item label="患者">
               <el-select
                 v-model="selectedPatientId"
@@ -85,7 +85,7 @@
                   </el-alert>
                 </div>
                 <div v-else-if="dupLoading" class="dup-loading">查重中…</div>
-                <el-form label-width="72px" class="sub-form">
+                <el-form label-width="72px" :label-position="isMobile ? 'top' : 'right'" class="sub-form">
                   <el-form-item label="姓名"><el-input v-model="np.name" placeholder="必填" /></el-form-item>
                   <el-form-item label="性别">
                     <el-select v-model="np.gender" placeholder="选填" style="width:100%">
@@ -121,36 +121,39 @@
               <div class="opt-hint">选项来自「账号管理」中启用的医生/管理员账号</div>
             </el-form-item>
             <el-form-item label="挂号费">
-              <el-input-number v-model="regFee" :min="0" :precision="2" :step="1" style="width:160px" />
+              <el-input-number v-model="regFee" :min="0" :precision="2" :step="1" :style="{ width: isMobile ? '100%' : '160px' }" />
             </el-form-item>
             <template v-if="regFee > 0">
               <el-form-item label="收款方式">
-                <el-select v-model="payMethod" style="width:160px">
+                <el-select v-model="payMethod" :style="{ width: isMobile ? '100%' : '160px' }">
                   <el-option v-for="m in methods" :key="m" :label="m" :value="m" />
                 </el-select>
               </el-form-item>
               <el-form-item label="实收">
-                <el-input-number v-model="paid" :min="0" :precision="2" :step="1" style="width:160px" />
+                <el-input-number v-model="paid" :min="0" :precision="2" :step="1" :style="{ width: isMobile ? '100%' : '160px' }" />
               </el-form-item>
             </template>
 
-            <el-button type="primary" :loading="submitting" @click="submitRegister">确认挂号</el-button>
+            <div class="submit-bar">
+              <el-button type="primary" :size="isMobile ? 'large' : 'default'" :loading="submitting"
+                :style="{ width: isMobile ? '100%' : 'auto' }" @click="submitRegister">确认挂号</el-button>
+            </div>
           </el-form>
         </el-col>
 
         <!-- 右：今日队列 -->
         <el-col :xs="24" :md="15">
           <div class="queue-bar">
-            <el-radio-group v-model="statusFilter" @change="loadQueue">
+            <el-radio-group v-model="statusFilter" :size="isMobile ? 'small' : 'default'" class="status-filter" @change="loadQueue">
               <el-radio-button value="">全部</el-radio-button>
               <el-radio-button value="待诊">待诊</el-radio-button>
               <el-radio-button value="已接诊">已接诊</el-radio-button>
               <el-radio-button value="已完成">已完成</el-radio-button>
             </el-radio-group>
-            <el-button @click="loadQueue">刷新</el-button>
+            <el-button :size="isMobile ? 'small' : 'default'" @click="loadQueue">刷新</el-button>
           </div>
 
-          <el-table :data="queue" class="queue-table" empty-text="今日暂无挂号" style="width:100%">
+          <el-table v-if="!isMobile" :data="queue" class="queue-table" empty-text="今日暂无挂号" style="width:100%">
             <el-table-column prop="queue_no" label="号" width="60" />
             <el-table-column label="患者" min-width="110">
               <template #default="{ row }">
@@ -196,12 +199,48 @@
               </template>
             </el-table-column>
           </el-table>
+
+          <!-- 手机端卡片：把「号 / 患者 / 分诊 / 金额 / 状态 / 操作」竖排，避免 7 列宽表横向拖动 -->
+          <div v-else class="queue-cards">
+            <div v-for="row in queue" :key="row.id" class="queue-card">
+              <div class="queue-card__head">
+                <span class="queue-card__no">{{ row.queue_no ?? '-' }}</span>
+                <el-link type="primary" :underline="false" class="queue-card__name"
+                  @click="openPatientDetail(row.patient_id)">{{ row.patient_name || '-' }}</el-link>
+                <el-tag :type="statusType(row.status || '')" size="small" effect="light" round>{{ row.status || '-' }}</el-tag>
+              </div>
+              <div class="queue-card__line">
+                <span>{{ [row.department, row.doctor_name].filter(Boolean).join(' / ') || '未分诊' }}</span>
+                <span class="queue-card__fee">{{ row.registration_fee ? '¥' + Number(row.registration_fee).toFixed(2) : '免费' }}</span>
+              </div>
+              <div v-if="row.registration_charge" class="queue-card__line">
+                <span>挂号费</span>
+                <el-tag :type="chargeTagType(row.registration_charge?.status || '')" size="small">
+                  {{ chargeLabel(row.registration_charge?.status || '') }}
+                </el-tag>
+              </div>
+              <div v-if="row.status === '已接诊' && row.evidence && !row.evidence.can_complete" class="queue-card__hint">
+                {{ (row.evidence.completion_blockers || []).join('；') || '需先完善本次就诊记录' }}
+              </div>
+              <div class="queue-card__ops">
+                <el-button v-if="row.status === '待诊'" type="primary" size="small" @click="callVisit(row)">接诊</el-button>
+                <el-button v-if="row.status === '已接诊'" type="success" size="small"
+                  :disabled="!row.evidence?.can_complete" @click="completeVisit(row)">完成</el-button>
+                <el-button v-if="row.evidence?.can_revert" size="small" @click="openRevert(row)">撤销</el-button>
+                <el-button v-if="row.registration_charge?.status === '待收费'" type="warning" size="small"
+                  @click="collectRegFee(row)">收挂号费</el-button>
+                <el-button v-if="!['已完成', '已取消'].includes(row.status || '')" type="danger" plain size="small"
+                  @click="cancelVisit(row)">退号</el-button>
+              </div>
+            </div>
+            <el-empty v-if="!queue.length" description="今日暂无挂号" :image-size="60" />
+          </div>
         </el-col>
       </el-row>
     </el-card>
 
     <!-- 撤销误操作：原因必填，写入操作日志 -->
-    <el-dialog v-model="revertVisible" title="撤销就诊状态" width="440px" append-to-body>
+    <el-dialog v-model="revertVisible" title="撤销就诊状态" :width="isMobile ? '92%' : '440px'" append-to-body>
       <div v-if="revertTarget" class="dlg-body">
         <p>将 <b>{{ revertTarget.patient_name }}</b> 的本次就诊从「{{ revertTarget.status }}」回退？</p>
         <el-alert type="warning" :closable="false" show-icon
@@ -218,7 +257,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api, { errMsg } from '@/utils/api'
@@ -228,6 +267,10 @@ import type { RegistrationQueueItem } from '@/types'
 const router = useRouter()
 const methods = ['现金', '微信', '支付宝', '银行卡', '医保', '记账']
 const today = new Date().toLocaleDateString('sv-SE')
+
+// 窄屏改用卡片视图：队列表格 7 列（含 220px 固定操作列）在手机上无法阅读
+const isMobile = ref(false)
+function updateViewport() { isMobile.value = window.innerWidth < 768 }
 
 // ── 挂号表单 ──
 const selectedPatientId = ref<number | null>(null)
@@ -541,7 +584,13 @@ async function collectRegFee(row: RegistrationQueueItem) {
 // 新建患者表单变化即触发查重（防抖）
 watch(() => [np.name, np.phone, np.id_card], () => scheduleDupCheck())
 
-onMounted(() => { loadQueue(); loadOptions() })
+onMounted(() => {
+  updateViewport()
+  window.addEventListener('resize', updateViewport)
+  loadQueue()
+  loadOptions()
+})
+onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
 </script>
 
 <style scoped lang="scss">
@@ -574,4 +623,57 @@ onMounted(() => { loadQueue(); loadOptions() })
 .op-wrap { display: inline-block; margin-right: 8px; }
 .dlg-body { font-size: 14px; line-height: 1.8; }
 .opt-hint { font-size: 12px; color: #8a8170; line-height: 1.4; margin-top: 2px; }
+
+.submit-bar { margin-top: 8px; }
+.status-filter { min-width: 0; }
+
+.queue-cards { display: flex; flex-direction: column; gap: 10px; }
+.queue-card {
+  border: 1px solid #ece4d9;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #fffdfa;
+  box-shadow: 0 1px 3px rgba(90, 70, 40, .05);
+}
+.queue-card__head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.queue-card__no {
+  min-width: 30px; height: 30px; padding: 0 6px; border-radius: 8px;
+  background: var(--tcm-primary, #8b4513); color: #fff; font-weight: 700; font-size: 14px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.queue-card__name { font-size: 15px; font-weight: 600; flex: 1; min-width: 0; }
+.queue-card__line {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  font-size: 13px; color: #6b6454; margin-top: 6px;
+}
+.queue-card__fee { color: #a0522d; font-weight: 600; }
+.queue-card__ops {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  margin-top: 10px; padding-top: 10px; border-top: 1px dashed #ece4d9;
+}
+.queue-card__ops :deep(.el-button) { margin: 0; }
+.queue-card__hint {
+  margin-top: 6px; padding: 6px 8px; border-radius: 6px;
+  background: #fdf6ec; color: #b88230; font-size: 12px; line-height: 1.5;
+}
+
+@media (max-width: 767px) {
+  .reg-page {
+    :deep(.el-card__header) { padding: 12px; }
+    :deep(.el-card__body) { padding: 12px; }
+  }
+  .reg-form, .sub-form { :deep(.el-form-item__label) { padding-bottom: 2px; } }
+  .sub-form { padding: 8px; }
+  .submit-bar {
+    position: sticky; bottom: 0; z-index: 3;
+    padding: 8px 0 calc(8px + env(safe-area-inset-bottom));
+    background: #fffdfa;
+  }
+  .queue-bar { gap: 6px; }
+  .status-filter :deep(.el-radio-button__inner) { padding: 7px 10px; }
+  .queue-card__ops :deep(.el-button) { flex: 1 1 auto; min-width: 84px; }
+  .history-date { width: 68px; flex-basis: 68px; }
+  .patient-summary__link { margin-left: 0; }
+  .dlg-body { font-size: 13px; }
+}
 </style>
