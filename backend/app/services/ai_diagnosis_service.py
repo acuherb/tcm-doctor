@@ -790,7 +790,7 @@ class DiagnosisService:
             text = (fallback.get("syndrome_analysis") or "") + "\n"
             for line in text.split("\n"):
                 if line:
-                    yield f"data: {json.dumps({'type': 'content', 'content': line + '\n'}, ensure_ascii=False)}\n\n"
+                    yield "data: " + json.dumps({'type': 'content', 'content': line + '\n'}, ensure_ascii=False) + "\n\n"
             yield "data: [DONE]\n\n"
             return
 
