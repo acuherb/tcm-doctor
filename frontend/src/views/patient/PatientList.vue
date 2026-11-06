@@ -16,6 +16,23 @@
         </div>
       </template>
 
+      <!-- 患者概览 -->
+      <div class="pl-summary">
+        <div class="pl-summary__item">
+          <span class="pl-summary__label">患者总数</span>
+          <span class="pl-summary__value">{{ patientSummary.total_patients }}<small> 位</small></span>
+        </div>
+        <div class="pl-summary__item">
+          <span class="pl-summary__label">本月新增</span>
+          <span class="pl-summary__value is-ok">{{ patientSummary.new_this_month }}<small> 位</small></span>
+        </div>
+        <div class="pl-summary__item">
+          <span class="pl-summary__label">复诊率</span>
+          <span class="pl-summary__value is-fee">{{ patientSummary.returning_rate }}<small> %</small></span>
+          <span class="pl-summary__sub">有就诊记录且就诊 ≥2 次</span>
+        </div>
+      </div>
+
       <!-- 搜索/筛选栏 -->
       <div class="tcm-filter">
         <el-input v-model="searchText" placeholder="按姓名/电话搜索" clearable class="filter-search" @clear="onSearch">
@@ -296,6 +313,18 @@ function tagStyle(color: string) {
   return { backgroundColor: color, borderColor: color, color: '#fff' }
 }
 const total = ref(0)
+const patientSummary = ref({ total_patients: 0, new_this_month: 0, returning_rate: 0 })
+
+async function loadPatientSummary() {
+  try {
+    const r = await api.get<Record<string, any>>('/stats/patients', { params: { days: 30 } })
+    patientSummary.value = {
+      total_patients: Number(r.total_patients || 0),
+      new_this_month: Number(r.new_this_month || 0),
+      returning_rate: Number(r.returning_rate || 0),
+    }
+  } catch { /* 概览不影响列表使用 */ }
+}
 const page = ref(1)
 const pageSize = ref(20)
 const searchText = ref('')
@@ -470,6 +499,7 @@ async function deletePatient(row: any) {
 
 onMounted(async () => {
   loadPatients()
+  loadPatientSummary()
   try {
     tagOptions.value = (await api.get<DictionaryTerm[]>('/dictionaries', { params: { term_type: 'tag', is_active: true } }))
   } catch {}
@@ -590,4 +620,22 @@ onMounted(async () => {
 /* 患者表单弹窗：顶部对齐，内容区内滚动，保证一屏内显示全 */
 .patient-form-dialog { margin-top: 4vh !important; }
 .patient-form-dialog :deep(.el-dialog__body) { max-height: 82vh; overflow-y: auto; }
+
+.pl-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+.pl-summary__item {
+  border: 1px solid #ece4d9; border-radius: 10px; padding: 10px 12px; background: #fffdfa;
+  display: flex; flex-direction: column; gap: 2px; min-width: 0;
+}
+.pl-summary__label { font-size: 12px; color: #8a8170; }
+.pl-summary__value { font-size: 22px; font-weight: 700; color: #4a3628; line-height: 1.25; }
+.pl-summary__value small { font-size: 12px; font-weight: 400; color: #8a8170; }
+.pl-summary__value.is-ok { color: #4a8f5b; }
+.pl-summary__value.is-fee { color: #a0522d; }
+.pl-summary__sub { font-size: 11px; color: #9a8f7e; }
+@media (max-width: 767px) {
+  .pl-summary { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .pl-summary__item { padding: 8px; }
+  .pl-summary__value { font-size: 17px; }
+  .pl-summary__sub { display: none; }
+}
 </style>

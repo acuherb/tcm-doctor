@@ -68,6 +68,88 @@
             <el-descriptions-item label="处方总数">{{ prescriptionStats.total || 0 }}</el-descriptions-item>
           </el-descriptions>
         </el-tab-pane>
+
+        <!-- 挂号收费统计 -->
+        <el-tab-pane label="挂号收费" name="registration">
+          <el-descriptions :column="2" border class="stat-desc">
+            <el-descriptions-item label="挂号总数">{{ regStats.total || 0 }} 单</el-descriptions-item>
+            <el-descriptions-item label="就诊完成率">{{ regStats.completion_rate || 0 }}%</el-descriptions-item>
+            <el-descriptions-item label="净营收">¥{{ (chargeStats.totals?.net_amount || 0).toFixed(2) }}</el-descriptions-item>
+            <el-descriptions-item label="待收金额">¥{{ (chargeStats.totals?.pending_amount || 0).toFixed(2) }}</el-descriptions-item>
+          </el-descriptions>
+
+          <el-row :gutter="20" class="section-gap">
+            <el-col :xs="24" :span="16"><div ref="regTrendRef" class="chart-lg"></div></el-col>
+            <el-col :xs="24" :span="8"><div ref="regKindRef" class="chart-lg"></div></el-col>
+          </el-row>
+
+          <el-row :gutter="20" class="section-gap">
+            <el-col :xs="24" :span="8">
+              <div class="tcm-section-title"><span class="tcm-section-title__dot"></span><span>科室分布</span></div>
+              <el-table :data="regStats.department_stats || []" size="small" class="tcm-table">
+                <el-table-column prop="name" label="科室" />
+                <el-table-column prop="count" label="挂号数" width="80" class-name="tcm-num" />
+              </el-table>
+            </el-col>
+            <el-col :xs="24" :span="8">
+              <div class="tcm-section-title"><span class="tcm-section-title__dot"></span><span>医师接诊量</span></div>
+              <el-table :data="regStats.doctor_stats || []" size="small" class="tcm-table">
+                <el-table-column prop="name" label="医师" />
+                <el-table-column prop="count" label="挂号数" width="80" class-name="tcm-num" />
+              </el-table>
+            </el-col>
+            <el-col :xs="24" :span="8">
+              <div class="tcm-section-title"><span class="tcm-section-title__dot"></span><span>收款方式</span></div>
+              <el-table :data="chargeStats.payment_stats || []" size="small" class="tcm-table">
+                <el-table-column prop="name" label="方式" />
+                <el-table-column label="金额" width="100" class-name="tcm-num">
+                  <template #default="{ row }">¥{{ Number(row.amount || 0).toFixed(2) }}</template>
+                </el-table-column>
+              </el-table>
+            </el-col>
+          </el-row>
+          <div class="tcm-section-title section-gap">
+            <span class="tcm-section-title__dot"></span><span>挂号状态</span>
+          </div>
+          <div class="tag-row">
+            <el-tag v-for="st in regStats.status_stats || []" :key="st.name" effect="light" round>
+              {{ st.name }} {{ st.count }}
+            </el-tag>
+            <el-tag effect="light" round>退费率 {{ chargeStats.totals?.refund_rate || 0 }}%</el-tag>
+          </div>
+        </el-tab-pane>
+
+        <!-- 患者统计 -->
+        <el-tab-pane label="患者统计" name="patients">
+          <el-descriptions :column="2" border class="stat-desc">
+            <el-descriptions-item label="患者总数">{{ patientStats.total_patients || 0 }} 位</el-descriptions-item>
+            <el-descriptions-item label="本月新增">{{ patientStats.new_this_month || 0 }} 位</el-descriptions-item>
+            <el-descriptions-item label="复诊率">{{ patientStats.returning_rate || 0 }}%</el-descriptions-item>
+            <el-descriptions-item label="统计周期">近 {{ period }} 天</el-descriptions-item>
+          </el-descriptions>
+
+          <el-row :gutter="20" class="section-gap">
+            <el-col :xs="24" :span="12"><div ref="patientTrendRef" class="chart-md"></div></el-col>
+            <el-col :xs="24" :span="12"><div ref="patientAgeRef" class="chart-md"></div></el-col>
+          </el-row>
+
+          <el-row :gutter="20" class="section-gap">
+            <el-col :xs="24" :span="12">
+              <div class="tcm-section-title"><span class="tcm-section-title__dot"></span><span>性别分布</span></div>
+              <el-table :data="patientStats.gender_stats || []" size="small" class="tcm-table">
+                <el-table-column prop="name" label="性别" />
+                <el-table-column prop="count" label="人数" width="90" class-name="tcm-num" />
+              </el-table>
+            </el-col>
+            <el-col :xs="24" :span="12">
+              <div class="tcm-section-title"><span class="tcm-section-title__dot"></span><span>体质分布</span></div>
+              <el-table :data="patientStats.constitution_stats || []" size="small" class="tcm-table">
+                <el-table-column prop="name" label="体质" />
+                <el-table-column prop="count" label="人数" width="90" class-name="tcm-num" />
+              </el-table>
+            </el-col>
+          </el-row>
+        </el-tab-pane>
       </el-tabs>
     </el-card>
   </div>
@@ -109,6 +191,8 @@
   :deep(.stat-desc .el-descriptions__content) {
     color: #4a3628;
   }
+
+  .tag-row { display: flex; flex-wrap: wrap; gap: 8px; }
 }
 
 @media (max-width: 767px) {
@@ -133,12 +217,19 @@ const visitChartRef = ref<HTMLElement>()
 const herbChartRef = ref<HTMLElement>()
 const prescriptionStatusRef = ref<HTMLElement>()
 const formulaChartRef = ref<HTMLElement>()
+const regTrendRef = ref<HTMLElement>()
+const regKindRef = ref<HTMLElement>()
+const patientTrendRef = ref<HTMLElement>()
+const patientAgeRef = ref<HTMLElement>()
 
 const dailyStats = ref<Array<{ date: string; count: number }>>([])
 const syndromeStats = ref<unknown[]>([])
 const herbUsage = ref<Array<{ name: string; usage_count: number }>>([])
 interface PrescriptionStats { total: number; status_stats: Array<{ status: string; count: number }>; formula_stats: Array<{ name: string; count: number }> }
 const prescriptionStats = ref<PrescriptionStats>({ total: 0, status_stats: [], formula_stats: [] })
+const regStats = ref<Record<string, any>>({})
+const chargeStats = ref<Record<string, any>>({})
+const patientStats = ref<Record<string, any>>({})
 
 const chartInstances: unknown[] = []
 
@@ -174,6 +265,9 @@ async function loadAll() {
     loadVisitStats(),
     loadHerbStats(),
     loadPrescriptionStats(),
+    loadRegistrationStats(),
+    loadChargeStats(),
+    loadPatientStats(),
   ])
 }
 
@@ -209,10 +303,124 @@ async function loadPrescriptionStats() {
   } catch {}
 }
 
+async function loadRegistrationStats() {
+  try {
+    regStats.value = await api.get<Record<string, any>>('/stats/registration', { params: { days: period.value } })
+    if (activeTab.value === 'registration') { await nextTick(); renderRegistrationCharts() }
+  } catch {}
+}
+
+async function loadChargeStats() {
+  try {
+    chargeStats.value = await api.get<Record<string, any>>('/stats/charges', { params: { days: period.value } })
+    if (activeTab.value === 'registration') { await nextTick(); renderRegistrationCharts() }
+  } catch {}
+}
+
+async function loadPatientStats() {
+  try {
+    patientStats.value = await api.get<Record<string, any>>('/stats/patients', { params: { days: period.value } })
+    if (activeTab.value === 'patients') { await nextTick(); renderPatientCharts() }
+  } catch {}
+}
+
+function renderRegistrationCharts() {
+  import('echarts').then((echarts) => {
+    const primary = themeVar('--tcm-primary') || '#8B4513'
+    const accent = themeVar('--tcm-accent') || '#D4A574'
+    const regRows: any[] = regStats.value.daily_stats || []
+    const chargeRows: any[] = chargeStats.value.daily_stats || []
+    const dates = (regRows.length ? regRows : chargeRows).map((d) => String(d.date).slice(5))
+    if (regTrendRef.value && dates.length) {
+      const regMap = new Map(regRows.map((d) => [d.date, Number(d.count || 0)]))
+      const netMap = new Map(chargeRows.map((d) => [d.date, Number(d.net || 0)]))
+      const axisDates = (regRows.length ? regRows : chargeRows).map((d) => d.date)
+      const chart = getOrInitChart(echarts, regTrendRef.value!)
+      chart.setOption({
+        tooltip: { trigger: 'axis' },
+        legend: { data: ['挂号数', '净营收'], top: 0 },
+        grid: { left: 45, right: 60, top: 30, bottom: 45 },
+        xAxis: { type: 'category', data: dates, axisLabel: { rotate: 45, color: '#666', fontSize: 10 } },
+        yAxis: [
+          { type: 'value', name: '单', minInterval: 1 },
+          { type: 'value', name: '¥' },
+        ],
+        series: [
+          { name: '挂号数', type: 'bar', data: axisDates.map((d) => regMap.get(d) || 0),
+            itemStyle: { color: primary, borderRadius: [3, 3, 0, 0] } },
+          { name: '净营收', type: 'line', yAxisIndex: 1, smooth: true,
+            data: axisDates.map((d) => netMap.get(d) || 0),
+            lineStyle: { color: accent, width: 2 }, itemStyle: { color: accent } },
+        ],
+      })
+      chart.resize()
+    }
+    const kinds: any[] = chargeStats.value.kind_stats || []
+    if (regKindRef.value && kinds.length) {
+      const chart = getOrInitChart(echarts, regKindRef.value!)
+      chart.setOption({
+        tooltip: { trigger: 'item' },
+        legend: { bottom: 0 },
+        series: [{
+          type: 'pie', radius: ['40%', '65%'],
+          data: kinds.map((k, i) => ({
+            name: k.name, value: Number(k.net_amount || 0),
+            itemStyle: { color: ['#8B4513', '#D4A574', '#A9B98A'][i % 3] },
+          })),
+          label: { formatter: '{b}\n¥{c}' },
+        }],
+      })
+      chart.resize()
+    }
+  })
+}
+
+function renderPatientCharts() {
+  import('echarts').then((echarts) => {
+    const primary = themeVar('--tcm-primary') || '#8B4513'
+    const accent = themeVar('--tcm-accent') || '#D4A574'
+    const newRows: any[] = patientStats.value.daily_new || []
+    if (patientTrendRef.value && newRows.length) {
+      const chart = getOrInitChart(echarts, patientTrendRef.value!)
+      chart.setOption({
+        tooltip: { trigger: 'axis' },
+        grid: { left: 45, right: 20, top: 25, bottom: 45 },
+        xAxis: { type: 'category', data: newRows.map((d) => String(d.date).slice(5)),
+          axisLabel: { rotate: 45, color: '#666', fontSize: 10 } },
+        yAxis: { type: 'value', minInterval: 1 },
+        series: [{
+          name: '新增患者', type: 'line', smooth: true,
+          data: newRows.map((d) => Number(d.count || 0)),
+          lineStyle: { color: primary, width: 2 }, itemStyle: { color: primary },
+          areaStyle: { color: hexToRgba(primary, 0.15) },
+        }],
+      })
+      chart.resize()
+    }
+    const ages: any[] = patientStats.value.age_stats || []
+    if (patientAgeRef.value && ages.length) {
+      const chart = getOrInitChart(echarts, patientAgeRef.value!)
+      chart.setOption({
+        tooltip: { trigger: 'item' },
+        legend: { bottom: 0 },
+        series: [{
+          type: 'pie', radius: ['38%', '62%'],
+          data: ages.map((a) => ({ name: a.name, value: Number(a.count || 0) })),
+          itemStyle: { color: accent },
+          label: { formatter: '{b}: {c}' },
+        }],
+      })
+      chart.resize()
+    }
+  })
+}
+
 function onTabChange(tab: string) {
   nextTick(() => {
     if (tab === 'herbs') renderHerbChart()
     if (tab === 'prescriptions') renderPrescriptionCharts()
+    if (tab === 'registration') renderRegistrationCharts()
+    if (tab === 'patients') renderPatientCharts()
   })
 }
 
@@ -337,6 +545,8 @@ const offThemeChange = onThemeChange(() => {
   renderVisitChart()
   renderHerbChart()
   if (activeTab.value === 'prescriptions') renderPrescriptionCharts()
+  if (activeTab.value === 'registration') renderRegistrationCharts()
+  if (activeTab.value === 'patients') renderPatientCharts()
 })
 
 onUnmounted(() => {

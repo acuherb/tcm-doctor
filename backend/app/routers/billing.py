@@ -210,9 +210,18 @@ def charge_stats(
     pending_amount = Decimal("0.00")
     overpaid_amount = Decimal("0.00")
     paid_count = refunded_count = pending_count = cancelled_count = 0
+    kind_map: dict[str, dict] = {}
     for c in charges:
         paid = _to_decimal(c.paid)
         refunded = _to_decimal(c.refund_amount)
+        # 收费类型拆分：让收银员一眼看出挂号费与处方收费各收了多少、还有多少待收
+        kind = c.kind or "prescription"
+        kd = kind_map.setdefault(kind, {"count": 0, "net": Decimal("0.00"), "pending": Decimal("0.00")})
+        kd["count"] += 1
+        if c.status == "待收费":
+            kd["pending"] += _to_decimal(c.payable)
+        elif c.status in ("已收费", "已退费"):
+            kd["net"] += _to_decimal(paid) - (refunded if c.status == "已退费" else Decimal("0.00"))
         if c.status == "已收费":
             paid_amount += _to_decimal(paid - refunded)
             paid_count += 1
@@ -240,4 +249,14 @@ def charge_stats(
         "pending_count": pending_count,
         "cancelled_count": cancelled_count,
         "total_count": len(charges),
+        "kind_stats": [
+            {
+                "kind": k,
+                "name": "挂号费" if k == "registration" else "处方收费",
+                "count": v["count"],
+                "net_amount": float(_to_decimal(v["net"])),
+                "pending_amount": float(_to_decimal(v["pending"])),
+            }
+            for k, v in sorted(kind_map.items())
+        ],
     }

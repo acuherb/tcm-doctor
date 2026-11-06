@@ -11,6 +11,27 @@
         </div>
       </template>
 
+      <!-- 今日概览：数字来自「全部状态」队列，不随下方筛选变化 -->
+      <div class="reg-summary">
+        <div class="reg-summary__item">
+          <span class="reg-summary__label">今日挂号</span>
+          <span class="reg-summary__value">{{ queueSummary.total }}<small> 单</small></span>
+        </div>
+        <div class="reg-summary__item">
+          <span class="reg-summary__label">待诊</span>
+          <span class="reg-summary__value is-warn">{{ queueSummary.waiting }}<small> 人</small></span>
+        </div>
+        <div class="reg-summary__item">
+          <span class="reg-summary__label">已完成</span>
+          <span class="reg-summary__value is-ok">{{ queueSummary.done }}<small> 人</small></span>
+        </div>
+        <div class="reg-summary__item">
+          <span class="reg-summary__label">挂号费待收</span>
+          <span class="reg-summary__value is-fee">¥{{ queueSummary.pendingFee.toFixed(2) }}</span>
+          <span class="reg-summary__sub">今日已收 ¥{{ queueSummary.collectedFee.toFixed(2) }}</span>
+        </div>
+      </div>
+
       <el-row :gutter="16">
         <!-- 左：挂号登记 -->
         <el-col :xs="24" :md="9">
@@ -469,6 +490,20 @@ async function submitRegister() {
 // ── 队列 ──
 const queue = ref<RegistrationQueueItem[]>([])
 const statusFilter = ref('')
+// 概览取「全部状态」队列，避免筛选后数字跟着变；未筛选时复用同一次请求
+const queueAll = ref<RegistrationQueueItem[]>([])
+const queueSummary = computed(() => {
+  const rows = queueAll.value
+  const charge = (r: RegistrationQueueItem) => r.registration_charge as any
+  return {
+    total: rows.length,
+    waiting: rows.filter((r) => r.status === '待诊').length,
+    done: rows.filter((r) => r.status === '已完成').length,
+    pendingFee: rows.reduce((n, r) => n + (charge(r)?.status === '待收费' ? Number(charge(r)?.payable || 0) : 0), 0),
+    collectedFee: rows.reduce((n, r) => n + (charge(r)?.status === '已收费'
+      ? Number(charge(r)?.paid || 0) - Number(charge(r)?.refund_amount || 0) : 0), 0),
+  }
+})
 
 function statusType(s: string): 'success' | 'warning' | 'info' | 'danger' {
   if (s === '已完成') return 'success'
@@ -492,8 +527,14 @@ async function loadQueue() {
   try {
     const params: Record<string, any> = {}
     if (statusFilter.value) params.status = statusFilter.value
-    const r = await api.get<{ items: RegistrationQueueItem[] }>('/registration/queue', { params })
+    const [r, allR] = await Promise.all([
+      api.get<{ items: RegistrationQueueItem[] }>('/registration/queue', { params }),
+      statusFilter.value
+        ? api.get<{ items: RegistrationQueueItem[] }>('/registration/queue', {})
+        : Promise.resolve(null),
+    ])
     queue.value = r.items || []
+    queueAll.value = (allR ? allR.items : queue.value) || []
   } catch { /* 拦截器已提示 */ }
 }
 
@@ -675,5 +716,24 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
   .history-date { width: 68px; flex-basis: 68px; }
   .patient-summary__link { margin-left: 0; }
   .dlg-body { font-size: 13px; }
+}
+
+.reg-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+.reg-summary__item {
+  border: 1px solid #ece4d9; border-radius: 10px; padding: 10px 12px; background: #fffdfa;
+  display: flex; flex-direction: column; gap: 2px; min-width: 0;
+}
+.reg-summary__label { font-size: 12px; color: #8a8170; }
+.reg-summary__value { font-size: 22px; font-weight: 700; color: #4a3628; line-height: 1.25; }
+.reg-summary__value small { font-size: 12px; font-weight: 400; color: #8a8170; }
+.reg-summary__value.is-warn { color: #b88230; }
+.reg-summary__value.is-ok { color: #4a8f5b; }
+.reg-summary__value.is-fee { color: #a0522d; font-size: 19px; }
+.reg-summary__sub { font-size: 11px; color: #9a8f7e; }
+@media (max-width: 767px) {
+  .reg-summary { grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 12px; }
+  .reg-summary__item { padding: 8px 10px; }
+  .reg-summary__value { font-size: 19px; }
+  .reg-summary__value.is-fee { font-size: 16px; }
 }
 </style>

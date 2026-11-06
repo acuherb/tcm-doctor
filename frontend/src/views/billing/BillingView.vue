@@ -46,6 +46,15 @@
         </el-col>
       </el-row>
 
+      <!-- 收入构成：挂号费 / 处方收费 -->
+      <div v-if="stats.kind_stats?.length" class="kind-breakdown">
+        <span class="kind-breakdown__title">收入构成</span>
+        <span v-for="k in stats.kind_stats" :key="k.kind" class="kind-breakdown__item">
+          {{ k.name }} <b>¥{{ (k.net_amount || 0).toFixed(2) }}</b>
+          <small>{{ k.count }} 单<template v-if="k.pending_amount"> · 待收 ¥{{ k.pending_amount.toFixed(2) }}</template></small>
+        </span>
+      </div>
+
       <!-- 筛选 -->
       <div class="tcm-filter">
         <el-select v-model="statusFilter" placeholder="全部状态" clearable class="filter-mini" @change="loadCharges(true)">
@@ -221,6 +230,7 @@ const stats = ref<ChargeStats>({
   paid_amount: 0, refunded_amount: 0, pending_amount: 0,
   collected_amount: 0, net_amount: 0, overpaid_amount: 0,
   paid_count: 0, refunded_count: 0, pending_count: 0, cancelled_count: 0, total_count: 0,
+  kind_stats: [],
 })
 const statusFilter = ref('')
 const kindFilter = ref('')
@@ -425,5 +435,18 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateViewport))
   &__no { font-size: 12px; color: #8a7563; }
   &__line { font-size: 13px; margin-top: 4px; color: #5b4636; }
   &__ops { display: flex; gap: 8px; margin-top: 6px; border-top: 1px dashed #eee2d5; padding-top: 4px; }
+}
+
+.kind-breakdown {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px;
+  padding: 10px 12px; margin-bottom: 14px;
+  background: #fffdfa; border: 1px solid #ece4d9; border-radius: 8px; font-size: 13px;
+}
+.kind-breakdown__title { font-weight: 600; color: #7a6553; }
+.kind-breakdown__item { color: #4a3628; }
+.kind-breakdown__item b { color: #a0522d; }
+.kind-breakdown__item small { color: #9a8f7e; margin-left: 4px; }
+@media (max-width: 767px) {
+  .kind-breakdown { gap: 6px 12px; padding: 8px 10px; font-size: 12px; }
 }
 </style>

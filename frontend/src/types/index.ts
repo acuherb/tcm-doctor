@@ -380,4 +380,5 @@ export interface ChargeStats {
   pending_count: number
   cancelled_count: number
   total_count: number
+  kind_stats?: Array<{ kind: string; name: string; count: number; net_amount: number; pending_amount: number }>
 }
